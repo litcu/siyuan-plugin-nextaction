@@ -2,181 +2,155 @@
 
 [中文](./README.zh-CN.md)
 
-A GTD task management plugin for [SiYuan Note](https://b3log.org/siyuan/).
+A GTD task manager for [SiYuan Note](https://b3log.org/siyuan/).
 
-NextAction lives inside your notes. Turn any block into a task, and it automatically calculates which one you should work on next based on deadlines, importance, and effort. No separate to-do app, no copy-pasting.
+NextAction helps you decide what to do next. Turn any block into a task, add the useful bits - due date, importance, effort, context - and the plugin will filter for tasks you can act on now and put them in a workable order. Tasks still live in SiYuan, which fits people who already keep project notes, meeting notes, and running lists there.
 
 <!-- screenshot -->
 
 ## Quick Start
 
-1. Install from the SiYuan marketplace, or download the release and place it in `data/plugins/siyuan-plugin-nextaction/`.
-2. Open the dock panel — you'll see **Next Actions** showing tasks ready to work on.
-3. Type `/zrw` on any text block to turn it into a task.
-4. Click the status circle on the left side of the block to set status and priority.
+1. Install NextAction from the SiYuan marketplace, or download a release and place it under your workspace's `data/plugins/` directory.
+2. Type `/zrw` in any document to convert the current block into a task.
+3. Click the status circle beside the block to set status, priority, or open task details.
+4. Open the dock panel to use **Next Actions**, **My Day**, and **Inbox**.
 
-That's it. Everything else is optional.
+That is enough to start. Importance, review intervals, reminders, dependencies, and custom fields can wait until your task list needs them.
 
 ## How It Fits GTD
 
-NextAction follows the five GTD stages: **Capture, Clarify, Organize, Reflect, Engage**.
+NextAction follows the basic GTD rhythm: capture first, clarify later, organize into the right list, review regularly, and work from a short list of things you can actually do now.
 
-### Capture
+### Capture: Get It Out of Your Head
 
-Type `/zrw` on any block, or right-click a block icon and choose **Convert to Task**. The block becomes a task with **Inbox** status — no decisions needed yet.
+- Type `/zrw` to convert the current block into a task. New tasks start in **Inbox**.
+- Type `/zrxm` to convert the current block into a project.
+- Type `/zrwz` to batch-convert a list or document subtree.
+- You can also right-click a block icon or document title icon and choose **Convert to Task**.
 
-Use `/zrwz` on a list or document to batch-convert all child blocks into tasks at once.
+Inbox items do not need to be perfect. Capture them first; decide what they mean later.
 
-### Clarify
+### Clarify: Decide What Happens Next
 
-Open the **Inbox** view. Every task here starts as Inbox status. For each one, decide:
+Open **Inbox** and process items one by one:
 
-- **Is it actionable?** If not, set it to **Someday/Maybe**.
-- **Can I do it now?** If yes, set a status and priority. If you're waiting on someone, set **Waiting**.
+- If it is actionable, move it to **To Do** or **In Progress**.
+- If it is not for now, move it to **Someday/Maybe**.
+- If it depends on someone or something else, mark it as **Waiting**.
+- If it no longer matters, remove the task attributes.
 
-### Organize
+When a task needs more context, open its details and add due date, start date, importance, effort, context, tags, notes, and other fields.
 
-Set attributes that help the priority engine figure out what matters:
+### Organize: Put It in the Right List
 
-- **Due date** and **Start date** — tasks before their start date are hidden from Next Actions.
-- **Importance** (1–7) and **Effort** (1–7) — feed into the automatic priority score.
-- **Context** — tag with `@office`, `@phone`, etc., then filter by context in the panel.
-- **Parent task** — nest tasks under a project; projects with unfinished children won't appear in Next Actions.
+Task statuses map to familiar GTD lists:
 
-The priority engine uses a configurable multiplicative formula combining importance, urgency (days until due), effort, and weight. You don't need to manually sort anything.
+| Status | Visual | Best for |
+|--------|--------|----------|
+| Inbox | Light blue circle + down arrow | Captured, not clarified yet |
+| To Do | Gray hollow circle | Clarified, not started |
+| In Progress | Blue half-filled circle | Currently being worked on |
+| Waiting | Orange dashed circle | Waiting on people, feedback, or conditions |
+| Someday/Maybe | Gold circle + three dots | Maybe later |
+| Done | Green solid circle + white check | Finished |
 
-### Reflect
+Priority has five levels: Critical (red) > High (orange) > Medium (blue) > Low (gray) > None.
 
-The **Review** view gives you a GTD-style checklist: Are my Inbox empty? Are my projects moving? Are my Waiting items followed up?
+Tasks can be nested. A project can contain tasks, and a task can contain subtasks. If a parent still has unfinished children, it will not be pushed into **Next Actions** as if it were ready to do.
 
-You can also set a **review interval** on any task — NextAction will remind you to revisit it periodically.
+### Reflect: Keep the Lists Alive
 
-### Engage
+- **Review** shows a GTD-style checklist and tasks that are due for review.
+- Any task can have a review interval, so it comes back when it needs attention.
+- During review, you can move **Waiting** items back to **To Do**, or reactivate **Someday/Maybe** items.
 
-The **Next Actions** view shows only what you can actually do right now: not completed, not blocked, not waiting, past start date, no unfinished children. Pick one and go.
+### Engage: Work From What Is Available Now
 
-For daily planning, switch to **My Day**: drag tasks onto the timeline to schedule your day. The list resets each morning (configurable).
+**Next Actions** shows only tasks you can work on now. Completed tasks, waiting tasks, blocked parent tasks, and tasks before their start date are filtered out.
 
-## Task Statuses
+For daily planning, use **My Day**: pick tasks from Next Actions and drag them onto a timeline. The dock panel keeps a compact version nearby while you write.
 
-| Status | Meaning | Visual |
-|--------|---------|--------|
-| Inbox | Captured, not yet clarified | Light blue circle with down arrow |
-| To Do | Clarified, not started | Gray hollow circle |
-| In Progress | Working on it | Blue half-filled circle |
-| Waiting | Blocked on someone or something | Orange dashed circle |
-| Someday/Maybe | On hold for now | Gold circle with three dots |
-| Done | Finished | Green circle with white checkmark |
-
-## Priority Levels
-
-Critical (red) > High (orange) > Medium (blue) > Low (gray) > None
-
-Priority is a quick label. The actual ordering comes from the computed priority score, which factors in importance, due date, effort, and configurable weights. Adjust all parameters in Settings.
+<!-- screenshot -->
 
 ## Views
 
-| View | What it shows |
-|------|---------------|
-| Next Actions | Tasks you can do right now, sorted by priority score |
-| All Tasks | Every unfinished task in a tree, with search, filter, and drag-to-reorder |
-| Projects | Tasks grouped by parent, with completion progress |
-| Inbox | Inbox-status tasks awaiting clarification |
-| My Day | Today's plan — timeline or list mode, drag to schedule |
-| Someday/Maybe | Shelved tasks you might revisit |
-| Waiting | Tasks blocked on external dependencies |
-| Review | GTD checklist + tasks due for review |
-| Statistics | Completion rate ring chart and distribution breakdown |
-| Reminders | All pending reminders in one place |
-
-<!-- screenshot -->
-
-## Sidebar (Dock Panel)
-
-A compact version with three tabs: **Next Actions**, **My Day**, and **Inbox**. Quick search and right-click menus included. Keep it open while you work.
-
-<!-- screenshot -->
-
-## Working with Tasks in the Editor
-
-After converting a block to a task, a status circle appears on its left. Click it to open a menu where you can:
-
-- Switch status
-- Set priority
-- Add to My Day
-- Add a reminder
-- View and edit all attributes
-- Remove task (reverts the block to normal)
-
-Right-click a task card in the panel for the same quick actions. Click the task title to open the full detail editor.
+| View | What it is for |
+|------|----------------|
+| Next Actions | Available tasks, sorted by computed score |
+| All Tasks | Tree view of unfinished tasks, with search, filters, and drag sorting |
+| Projects | Tasks grouped by project, with child tasks and progress |
+| Inbox | Inbox tasks waiting to be clarified |
+| My Day | Today's plan, in list or timeline mode |
+| Someday/Maybe | Shelved tasks that can be reactivated |
+| Waiting | Tasks blocked by people or outside conditions |
+| Review | GTD checklist and tasks due for review |
+| Statistics | Completion and distribution overview |
+| Reminders | Pending reminders in one place |
 
 ## Task Attributes
 
 | Category | Fields |
 |----------|--------|
-| Basics | Title, Status, Priority |
-| Dates | Due date, Start date (time-accurate to minutes) |
-| Priority params | Importance (1–7), Effort (1–7) |
-| Organization | Context (`@`), Tags, Parent task, Project |
-| Dependencies | Depends on, Dependency mode (all/any), Sequential execution |
-| Recurrence | Frequency (daily/weekly/biweekly/monthly/yearly), Interval, Anchor (due date or completion date) |
-| Review | Review interval (days), Next review date |
-| Reminders | Before-due reminders (multiple offsets), Fixed-time reminders |
-| Custom | User-defined extension fields |
+| Basics | Title, status, priority |
+| Dates | Due date, start date (minute-level precision) |
+| Priority params | Importance (1-7), effort (1-7) |
+| Organization | Context (`@`), tags, parent task, project |
+| Dependencies | Dependent tasks, dependency mode (all/any), sequential execution |
+| Recurrence | Frequency (daily/weekly/biweekly/monthly/yearly), interval, anchor |
+| Review | Review interval, next review date |
+| Reminders | Before-due reminders, fixed-time reminders |
+| Custom | User-defined fields |
 | Notes | Free-text notes |
 
-<!-- screenshot -->
+## Working With Tasks in the Editor
 
-## Slash Commands
+After a block becomes a task, a status circle appears on its left:
 
-| Command | Action |
-|---------|--------|
-| `/zrw` | Convert current block to a task |
-| `/zrxm` | Convert current block to a project |
-| `/zrwz` | Batch-convert a list or document subtree into tasks |
+- **Click the circle** to change status, set priority, add to My Day, add reminders, view attributes, or remove the task.
+- **Left-click the circle in the panel** to open the status menu.
+- **Right-click a task card in the panel** for quick status, priority, My Day, reminder, and remove actions.
+- **Click the task title** to open the full detail editor.
+- **Drag task cards** in All Tasks to adjust order.
 
-You can also right-click a block icon or a document title icon for the same options.
+## How Priority Is Calculated
+
+NextAction computes a score from importance, effort, due-date urgency, and manual priority. Higher scores appear earlier.
+
+You do not have to sort every task by hand. In everyday use, filling in importance, effort, and due date is usually enough to get a useful order. Tasks before their start date stay out of **Next Actions**, so they do not distract too early.
+
+Priority parameters can be adjusted in settings.
 
 ## Settings
 
-Five tabs:
+The settings panel has five sections:
 
-1. **Task Defaults** — Default importance/effort, rebuild cache, fix parent-child relationships.
-2. **My Day** — Enable/disable, daily reset time, default view mode, default schedule duration.
-3. **Reminders** — Enable/disable, default advance offsets, sound selection.
-4. **Custom Fields** — Add, remove, reorder custom attributes.
-5. **Priority Parameters** — Weight distribution, decay/growth/lookahead tuning.
-
-<!-- screenshot -->
-
-## Sync & Performance
-
-- Tasks are stored as custom attributes (`custom-na-*`) on SiYuan blocks, indexed by SQL.
-- An in-memory cache holds all tasks; incremental sync polls every 5 seconds for changes.
-- Writes are mutex-locked to prevent concurrency issues.
-- Frontend and kernel communicate through SiYuan's RPC mechanism — see [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for details.
+1. **Task Defaults**: default importance, default effort, rebuild cache, fix parent-child relationships.
+2. **My Day**: enable switch, daily reset time, default view mode, default scheduled duration.
+3. **Reminders**: enable switch, default advance offsets, sound selection.
+4. **Custom Fields**: add, remove, and reorder extension fields.
+5. **Priority Parameters**: due date, start date, importance, decay, growth, lookahead, and related tuning.
 
 ## Installation
 
-**From marketplace:** Open SiYuan's marketplace and search for "NextAction".
+**Marketplace:** Settings -> Marketplace -> search for "NextAction" -> install.
 
-**Manual:** Download the latest release, extract it to your workspace's `data/plugins/siyuan-plugin-nextaction/` directory, and reload SiYuan.
+**Manual:** Download the `siyuan-plugin-nextaction` folder from a release, place it under your workspace's `data/plugins/` directory, then enable it from **Settings -> Marketplace -> Downloaded**.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm run dev        # Watch mode (kernel + frontend in parallel)
-pnpm run build      # Production build
-pnpm run release    # Build + deploy to local plugin directory
-pnpm run release:package  # Build package.zip for GitHub Release
+pnpm run dev              # Watch mode: kernel + app in parallel
+pnpm run build            # Production build
+pnpm run release          # Build and deploy to local plugin directory
+pnpm run release:package  # Build package.zip for marketplace/GitHub release
 ```
 
-For architecture details, see [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+Architecture notes: [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Publishing
 
-Releases are tag-driven. Run one of the following commands from a clean working tree:
+Releases are driven by Git tags. From a clean working tree, run:
 
 ```bash
 pnpm run release:patch
@@ -186,8 +160,8 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-The command updates `package.json` and `plugin.json` when needed, commits the version bump, creates a `vX.Y.Z` tag, and pushes both the commit and tag. Use `release:current` for the first release if the current version is already correct. GitHub Actions then builds `package.zip` and creates the GitHub Release automatically.
+The command updates `package.json` and `plugin.json` when needed, commits the version bump, creates a `vX.Y.Z` tag, and pushes both commit and tag. If the current version is already correct for the first release, use `release:current`. GitHub Actions will build `package.zip` and create the GitHub Release after the tag is pushed.
 
 ## License
 
-This project is licensed under the MIT License with the Commons Clause. You may use, modify, and share it, but you may not sell, paid-package, or monetize this plugin or derivative versions without permission. See [LICENSE](./LICENSE).
+This project uses the MIT License with the Commons Clause. You may use, modify, and share this plugin. Without permission, you may not sell it, package it as a paid product, publish it as a paid listing, or monetize this plugin or derivative versions. See [LICENSE](./LICENSE).
