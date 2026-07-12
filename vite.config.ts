@@ -22,6 +22,8 @@ export default defineConfig({
                 { src: "./plugin.json", dest: "./" },
                 { src: "./icon.png", dest: "./" },
                 { src: "./preview.png", dest: "./" },
+                { src: "./README*.md", dest: "./" },
+                { src: "./LICENSE", dest: "./" },
                 { src: "./src/i18n/*", dest: "./i18n/" },
             ],
         }),

@@ -1,8 +1,9 @@
 {
-  "name": "siyuan-mylifeorganized",
+  "name": "siyuan-plugin-nextaction",
   "version": "0.1.0",
   "type": "module",
   "description": "GTD task management plugin inspired by MyLifeOrganized",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "run-p dev:kernel dev:app",
     "dev:app": "vite build --watch --mode development",
@@ -10,6 +11,13 @@
     "build": "run-s build:kernel build:app",
     "build:app": "vite build --mode production",
     "build:kernel": "webpack --config webpack.kernel.config.js --mode production",
+    "pack": "node scripts/package.js",
+    "release:package": "run-s build pack",
+    "release:current": "node scripts/release-version.js current",
+    "release:patch": "node scripts/release-version.js patch",
+    "release:minor": "node scripts/release-version.js minor",
+    "release:major": "node scripts/release-version.js major",
+    "release:version": "node scripts/release-version.js",
     "check:theme": "node scripts/check-theme-adaptation.js",
     "deploy": "node scripts/deploy.js",
     "release": "run-s build deploy"

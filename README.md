@@ -10,7 +10,7 @@ NextAction lives inside your notes. Turn any block into a task, and it automatic
 
 ## Quick Start
 
-1. Install from the SiYuan marketplace, or download the release and place it in `data/plugins/nextaction/`.
+1. Install from the SiYuan marketplace, or download the release and place it in `data/plugins/siyuan-plugin-nextaction/`.
 2. Open the dock panel — you'll see **Next Actions** showing tasks ready to work on.
 3. Type `/zrw` on any text block to turn it into a task.
 4. Click the status circle on the left side of the block to set status and priority.
@@ -160,7 +160,7 @@ Five tabs:
 
 **From marketplace:** Open SiYuan's marketplace and search for "NextAction".
 
-**Manual:** Download the latest release, extract it to your workspace's `data/plugins/nextaction/` directory, and reload SiYuan.
+**Manual:** Download the latest release, extract it to your workspace's `data/plugins/siyuan-plugin-nextaction/` directory, and reload SiYuan.
 
 ## Development
 
@@ -169,10 +169,25 @@ pnpm install
 pnpm run dev        # Watch mode (kernel + frontend in parallel)
 pnpm run build      # Production build
 pnpm run release    # Build + deploy to local plugin directory
+pnpm run release:package  # Build package.zip for GitHub Release
 ```
 
 For architecture details, see [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
+## Publishing
+
+Releases are tag-driven. Run one of the following commands from a clean working tree:
+
+```bash
+pnpm run release:patch
+pnpm run release:minor
+pnpm run release:major
+pnpm run release:current
+pnpm run release:version -- 1.2.3
+```
+
+The command updates `package.json` and `plugin.json` when needed, commits the version bump, creates a `vX.Y.Z` tag, and pushes both the commit and tag. Use `release:current` for the first release if the current version is already correct. GitHub Actions then builds `package.zip` and creates the GitHub Release automatically.
+
 ## License
 
-MIT
+This project is licensed under the MIT License with the Commons Clause. You may use, modify, and share it, but you may not sell, paid-package, or monetize this plugin or derivative versions without permission. See [LICENSE](./LICENSE).
