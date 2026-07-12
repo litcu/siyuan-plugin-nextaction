@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-nextaction",
   "version": "0.1.0",
   "type": "module",
-  "description": "GTD task management plugin inspired by MyLifeOrganized",
+  "description": "GTD task management plugin for SiYuan",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "dev": "run-p dev:kernel dev:app",

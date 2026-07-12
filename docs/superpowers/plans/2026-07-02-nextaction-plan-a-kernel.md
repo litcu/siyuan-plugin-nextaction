@@ -91,8 +91,8 @@ pnpm add -D siyuan@1.2.2 typescript@^5 svelte@^4 @sveltejs/vite-plugin-svelte@^3
     "zh-CN": "今天干点啥"
   },
   "description": {
-    "default": "GTD task management plugin inspired by MyLifeOrganized",
-    "zh-CN": "灵感来自 MyLifeOrganized 的 GTD 任务管理插件"
+    "default": "GTD task management plugin for SiYuan",
+    "zh-CN": "面向思源笔记的 GTD 任务管理插件"
   },
   "readme": {
     "default": "README.md",
@@ -139,7 +139,7 @@ pnpm add -D siyuan@1.2.2 typescript@^5 svelte@^4 @sveltejs/vite-plugin-svelte@^3
 
 - [ ] **步骤 5：创建 vite.config.ts**
 
-参照 `vendor/siyuan-plugin-task-note-management/vite.config.ts`，配置：
+参照现有思源插件的 Vite 配置方式，配置：
 - Svelte plugin
 - `build.lib.formats: ["cjs"]`
 - `build.lib.entry: resolve(__dirname, "src/index.ts")`
@@ -294,7 +294,7 @@ declare module "*.png";
 
 脚本功能：将构建产物复制到 `D:\z00813717\Documents\SiYuan\SecBar\data\plugins\nextaction\`。
 
-参照 `vendor/siyuan-plugin-task-note-management/scripts/make_dev_link.js`，使用 `fs.cpSync` 或 `fs.copyFileSync` 复制：
+参照常见插件部署脚本的实现方式，使用 `fs.cpSync` 或 `fs.copyFileSync` 复制：
 - `index.js` → 目标目录
 - `index.css` → 目标目录
 - `kernel.js` → 目标目录/dist/

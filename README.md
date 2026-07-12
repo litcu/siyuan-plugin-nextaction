@@ -2,7 +2,7 @@
 
 [中文](./README.zh-CN.md)
 
-A GTD task management plugin for [SiYuan Note](https://b3log.org/siyuan/), inspired by MyLifeOrganized.
+A GTD task management plugin for [SiYuan Note](https://b3log.org/siyuan/).
 
 NextAction lives inside your notes. Turn any block into a task, and it automatically calculates which one you should work on next based on deadlines, importance, and effort. No separate to-do app, no copy-pasting.
 
@@ -43,7 +43,7 @@ Set attributes that help the priority engine figure out what matters:
 - **Context** — tag with `@office`, `@phone`, etc., then filter by context in the panel.
 - **Parent task** — nest tasks under a project; projects with unfinished children won't appear in Next Actions.
 
-The priority engine uses an MLO-style multiplicative formula combining importance, urgency (days until due), effort, and weight. You don't need to manually sort anything.
+The priority engine uses a configurable multiplicative formula combining importance, urgency (days until due), effort, and weight. You don't need to manually sort anything.
 
 ### Reflect
 

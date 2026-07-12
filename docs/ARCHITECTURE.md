@@ -2,7 +2,7 @@
 
 # Architecture
 
-NextAction is a SiYuan Note plugin for GTD-style task management, inspired by MyLifeOrganized. It provides automatic priority calculation, next-action views, block-to-task conversion, and incremental sync. All task data is stored as custom attributes (`custom-na-*`) on SiYuan blocks.
+NextAction is a SiYuan Note plugin for GTD-style task management. It provides automatic priority calculation, next-action views, block-to-task conversion, and incremental sync. All task data is stored as custom attributes (`custom-na-*`) on SiYuan blocks.
 
 ## Directory Layout
 
