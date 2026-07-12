@@ -9,3 +9,5 @@ kernel.js
 package.zip
 vendor/
 .codegraph
+docs/superpowers/
+docs/ui-preview/
