@@ -8,7 +8,7 @@
 
 ### 1.1 定位
 
-NextAction 是一个思源笔记的 GTD 任务管理插件，灵感来自 MyLifeOrganized (MLO) 6.x。核心理念是"告诉用户现在最该做什么"——通过自动优先级计算，让普通用户快速上手，同时为深度 GTD 实践者提供完整的工作流支持。
+NextAction 是一个思源笔记的 GTD 任务管理插件，面向需要自动排序和下一步行动聚焦的任务工作流。核心理念是"告诉用户现在最该做什么"——通过自动优先级计算，让普通用户快速上手，同时为深度 GTD 实践者提供完整的工作流支持。
 
 ### 1.2 名称
 
@@ -555,8 +555,8 @@ siyuan-mylifeorganized/
     "zh-CN": "今天干点啥"
   },
   "description": {
-    "default": "GTD task management plugin inspired by MyLifeOrganized",
-    "zh-CN": "灵感来自 MyLifeOrganized 的 GTD 任务管理插件"
+    "default": "GTD task management plugin for SiYuan",
+    "zh-CN": "面向思源笔记的 GTD 任务管理插件"
   },
   "readme": {
     "default": "README.md",
