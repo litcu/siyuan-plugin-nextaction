@@ -1,0 +1,156 @@
+// NextAction Design Tokens
+// All --na-* variables are scoped under .nextaction
+// Dark theme is default; light theme overrides via data-theme-mode attribute
+// Heavily leverages SiYuan's built-in --b3-* variables for consistency
+
+// Status colors must be available outside .nextaction scope too
+// (e.g. in the editor protyle where .nextaction doesn't exist)
+:root {
+  --na-color-inbox: var(--b3-card-info-color, #89b4fa);
+  --na-color-doing: var(--b3-theme-primary);
+  --na-color-waiting: var(--b3-card-warning-color, #f39c12);
+  --na-color-done: var(--b3-card-success-color, #66bb6a);
+  --na-color-someday: var(--b3-card-info-color, #f9e2af);
+  --na-color-blocked: var(--b3-card-error-color, #e74c3c);
+  --na-accent: var(--b3-theme-primary);
+  --na-danger: var(--b3-card-error-color, #e74c3c);
+}
+
+.nextaction {
+  // ===== 状态色 =====
+  --na-color-inbox: var(--b3-card-info-color, #89b4fa);
+  --na-color-doing: var(--b3-theme-primary);
+  --na-color-waiting: var(--b3-card-warning-color, #f39c12);
+  --na-color-done: var(--b3-card-success-color, #66bb6a);
+  --na-color-someday: var(--b3-card-info-color, #f9e2af);
+  --na-color-blocked: var(--b3-card-error-color, #e74c3c);
+  --na-accent: var(--b3-theme-primary);
+  --na-danger: var(--na-color-error);
+
+  // ===== 优先级色 =====
+  --na-priority-critical: var(--b3-card-error-color, #e74c3c);
+  --na-priority-high: var(--b3-card-warning-color, #f39c12);
+  --na-priority-medium: var(--b3-card-info-color, #5dade2);
+  --na-priority-low: var(--b3-theme-on-surface-light);
+  --na-priority-none: transparent;
+
+  // ===== 优先级卡片背景色（不透明，按主题适配）=====
+  --na-priority-bg-critical: #5c2d2d;
+  --na-priority-bg-high: #5c4522;
+  --na-priority-bg-medium: #2a3f52;
+  --na-priority-bg-low: #363638;
+  --na-priority-bg-none: var(--b3-theme-surface-lighter, #2a2a2a);
+
+  // ===== 卡片文字色（按主题适配）=====
+  --na-card-text-primary: rgba(255, 255, 255, 0.92);
+  --na-card-text-secondary: rgba(255, 255, 255, 0.65);
+
+  // ===== 语义色 =====
+  --na-color-project: var(--b3-card-info-color, #5dade2);
+  --na-color-project-bg: rgba(93, 173, 226, 0.06);
+  --na-color-project-bg-hover: rgba(93, 173, 226, 0.12);
+  --na-color-selected-bg: var(--b3-theme-primary-lightest, rgba(79, 195, 247, 0.08));
+  --na-color-overdue-bg: var(--b3-card-error-background, #2a1a1a);
+  --na-color-overdue-text: var(--b3-card-error-color, #e74c3c);
+  --na-color-drag-indicator: var(--b3-theme-primary);
+  --na-color-importance: var(--b3-card-warning-color, #ff9800);
+  --na-color-effort: var(--b3-card-info-color, #42a5f5);
+
+  // ===== 筛选维度色 =====
+  --na-filter-context: color-mix(in srgb, var(--na-priority-medium) 78%, var(--b3-theme-background));
+  --na-filter-priority: color-mix(in srgb, var(--na-priority-high) 76%, var(--b3-theme-background));
+  --na-filter-status: color-mix(in srgb, var(--na-color-done) 74%, var(--b3-theme-background));
+  --na-filter-tag: color-mix(in srgb, var(--na-accent) 78%, var(--b3-theme-background));
+  --na-filter-sort: color-mix(in srgb, var(--b3-theme-primary) 78%, var(--b3-theme-background));
+  --na-filter-active-fg: var(--na-filter-active-color, var(--b3-theme-primary));
+  --na-filter-active-bg: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 16%, var(--b3-theme-surface));
+  --na-filter-active-bg-hover: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 22%, var(--b3-theme-surface));
+  --na-filter-active-border: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 42%, var(--b3-border-color));
+
+  // ===== 表面与交互 =====
+  --na-color-hover-bg: var(--b3-theme-surface-light, rgba(255, 255, 255, 0.05));
+  --na-color-chip-bg: var(--b3-theme-surface-light, rgba(255, 255, 255, 0.08));
+  --na-color-chip-hover-bg: var(--b3-theme-surface-lighter, rgba(255, 255, 255, 0.12));
+  --na-color-divider: var(--b3-border-color);
+  --na-task-card-border: rgba(255, 255, 255, 0.08);
+  --na-task-card-child-bg: rgba(255, 255, 255, 0.025);
+  --na-task-card-meta-bg: rgba(255, 255, 255, 0.045);
+  --na-task-card-meta-border: rgba(255, 255, 255, 0.06);
+
+  // ===== 反馈色 =====
+  --na-color-success: var(--b3-card-success-color, #66bb6a);
+  --na-color-warning: var(--b3-card-warning-color, #f39c12);
+  --na-color-error: var(--b3-card-error-color, #e74c3c);
+  --na-color-info: var(--b3-card-info-color, #5dade2);
+
+  // ===== 尺寸 =====
+  --na-radius-sm: 6px;
+  --na-radius-md: 8px;
+  --na-radius-lg: 12px;
+  --na-radius-pill: 9999px;
+  --na-control-height: 30px;
+  --na-control-height-sm: 26px;
+  --na-font-size-xs: 10px;
+  --na-font-size-sm: 11px;
+  --na-font-size-md: 12px;
+  --na-font-size-lg: 13px;
+
+  // ===== 间距 =====
+  --na-space-xxs: 2px;
+  --na-space-xs: 4px;
+  --na-space-sm: 6px;
+  --na-space-md: 8px;
+  --na-space-lg: 12px;
+  --na-space-xl: 16px;
+  --na-space-xxl: 24px;
+
+  // ===== 阴影（ultra-diffuse, opacity < 0.05）=====
+  --na-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --na-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --na-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  // ===== 预留（第二档）=====
+  --na-color-overlay-bg: rgba(0, 0, 0, 0.5);
+  --na-shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --na-shadow-toast: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --na-select-arrow-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%23a8b0bd' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --na-drawer-width: 320px;
+}
+
+// ===== 浅色主题覆盖 =====
+// 大部分变量已通过 SiYuan的 --b3-* 自适应，这里只覆盖少数需要手动调整的
+:root[data-theme-mode="light"] .nextaction {
+  --na-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --na-shadow-md: 0 2px 6px rgba(0, 0, 0, 0.03);
+  --na-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  --na-color-overlay-bg: rgba(0, 0, 0, 0.3);
+  --na-shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.15);
+  --na-shadow-toast: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --na-select-arrow-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5l3.5 3.5 3.5-3.5' fill='none' stroke='%23667285' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --na-task-card-border: rgba(31, 39, 51, 0.1);
+  --na-task-card-child-bg: rgba(47, 117, 255, 0.025);
+  --na-task-card-meta-bg: rgba(31, 39, 51, 0.035);
+  --na-task-card-meta-border: rgba(31, 39, 51, 0.06);
+
+  // 优先级卡片背景色（浅色主题）
+  --na-priority-bg-critical: #fde8e8;
+  --na-priority-bg-high: #fef3e2;
+  --na-priority-bg-medium: #e3f0fb;
+  --na-priority-bg-low: #f0f0f1;
+  --na-priority-bg-none: #f5f5f5;
+
+  // 卡片文字色（浅色主题）
+  --na-card-text-primary: rgba(0, 0, 0, 0.82);
+  --na-card-text-secondary: rgba(0, 0, 0, 0.55);
+
+  // 筛选 active 态（浅色主题可使用更清亮的基色）
+  --na-filter-context: var(--na-priority-medium);
+  --na-filter-priority: var(--na-priority-high);
+  --na-filter-status: var(--na-color-done);
+  --na-filter-tag: var(--na-accent);
+  --na-filter-sort: var(--b3-theme-primary);
+  --na-filter-active-bg: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 10%, var(--b3-theme-surface));
+  --na-filter-active-bg-hover: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 15%, var(--b3-theme-surface));
+  --na-filter-active-border: color-mix(in srgb, var(--na-filter-active-color, var(--b3-theme-primary)) 34%, var(--b3-border-color));
+}

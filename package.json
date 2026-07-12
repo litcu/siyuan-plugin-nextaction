@@ -1,0 +1,33 @@
+{
+  "name": "siyuan-mylifeorganized",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GTD task management plugin inspired by MyLifeOrganized",
+  "scripts": {
+    "dev": "run-p dev:kernel dev:app",
+    "dev:app": "vite build --watch --mode development",
+    "dev:kernel": "webpack --config webpack.kernel.config.js --mode development",
+    "build": "run-s build:kernel build:app",
+    "build:app": "vite build --mode production",
+    "build:kernel": "webpack --config webpack.kernel.config.js --mode production",
+    "check:theme": "node scripts/check-theme-adaptation.js",
+    "deploy": "node scripts/deploy.js",
+    "release": "run-s build deploy"
+  },
+  "devDependencies": {
+    "siyuan": "1.2.2",
+    "typescript": "^5",
+    "svelte": "^4",
+    "@sveltejs/vite-plugin-svelte": "^3",
+    "vite": "^5",
+    "sass": "^1",
+    "webpack": "^5",
+    "webpack-cli": "^7",
+    "esbuild-loader": "^4",
+    "copy-webpack-plugin": "^14",
+    "mini-css-extract-plugin": "^2",
+    "npm-run-all": "^4",
+    "tslib": "^2",
+    "vite-plugin-static-copy": "^1"
+  }
+}
