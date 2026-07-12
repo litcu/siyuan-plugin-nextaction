@@ -12,26 +12,25 @@ const packageJsonPath = path.join(projectRoot, "package.json");
 const pluginJsonPath = path.join(projectRoot, "plugin.json");
 
 function run(command, args, options = {}) {
-    execFileSync(resolveCommand(command), args, {
+    execFileSync(command, args, {
         cwd: projectRoot,
         stdio: "inherit",
+        shell: shouldUseShell(command),
         ...options,
     });
 }
 
 function output(command, args) {
-    return execFileSync(resolveCommand(command), args, {
+    return execFileSync(command, args, {
         cwd: projectRoot,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
+        shell: shouldUseShell(command),
     }).trim();
 }
 
-function resolveCommand(command) {
-    if (process.platform === "win32" && command === "pnpm") {
-        return "pnpm.cmd";
-    }
-    return command;
+function shouldUseShell(command) {
+    return process.platform === "win32" && command === "pnpm";
 }
 
 function readJson(filePath) {
