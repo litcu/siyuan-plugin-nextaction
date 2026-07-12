@@ -6,7 +6,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const targetDir = "C:\\Users\\xavier\\Documents\\SiYuan\\Test\\data\\plugins\\nextaction";
+const pluginManifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "plugin.json"), "utf8"));
+const pluginsRoot = "C:\\Users\\xavier\\Documents\\SiYuan\\Test\\data\\plugins";
+const targetDir = path.join(pluginsRoot, pluginManifest.name);
 
 const log = (msg) => console.log(`\x1B[36m%s\x1B[0m`, msg);
 const error = (msg) => console.log(`\x1B[31m%s\x1B[0m`, msg);
