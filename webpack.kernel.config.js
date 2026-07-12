@@ -12,7 +12,7 @@ export default (env, argv) => {
         watch: !production,
         devtool: production ? false : "inline-source-map",
         entry: {
-            "kernel": "./src/kernel.ts",
+            [production ? "dist/kernel" : "kernel"]: "./src/kernel.ts",
         },
         experiments: {
             outputModule: true,

@@ -6,5 +6,6 @@ dev/
 .superpowers/
 .codex/
 kernel.js
+package.zip
 vendor/
 .codegraph

@@ -62,7 +62,7 @@ function main() {
     }
 
     // Determine build output directory (dev or dist)
-    const isDev = fs.existsSync(path.join(projectRoot, "dev"));
+    const isDev = process.env.NODE_ENV === "development" && fs.existsSync(path.join(projectRoot, "dev"));
     const buildDir = isDev ? "dev" : "dist";
     const buildPath = path.join(projectRoot, buildDir);
 
@@ -78,8 +78,10 @@ function main() {
     copyFile(path.join(buildPath, "index.js"), path.join(targetDir, "index.js"));
     copyFile(path.join(buildPath, "index.css"), path.join(targetDir, "index.css"));
 
-    // Kernel bundle (webpack outputs to project root)
-    copyFile(path.join(projectRoot, "kernel.js"), path.join(targetDir, "kernel.js"));
+    // Kernel bundle (production outputs to dist/, development outputs to project root)
+    const kernelDist = path.join(buildPath, "kernel.js");
+    const kernelRoot = path.join(projectRoot, "kernel.js");
+    copyFile(fs.existsSync(kernelDist) ? kernelDist : kernelRoot, path.join(targetDir, "kernel.js"));
 
     // Static assets (vite-plugin-static-copy puts these in dist/)
     copyFile(path.join(buildPath, "plugin.json"), path.join(targetDir, "plugin.json"));

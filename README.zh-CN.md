@@ -124,7 +124,7 @@
 
 **思源集市**：设置 → 集市 → 搜索「今天干点啥」→ 安装
 
-**手动安装**：下载 Release 中的 `nextaction` 文件夹，放入思源工作空间的 `data/plugins/` 目录，然后在 设置 → 集市 → 已下载 中启用。
+**手动安装**：下载 Release 中的 `siyuan-plugin-nextaction` 文件夹，放入思源工作空间的 `data/plugins/` 目录，然后在 设置 → 集市 → 已下载 中启用。
 
 ## 开发
 
@@ -133,10 +133,25 @@ pnpm install          # 安装依赖
 pnpm run dev          # 监听模式（kernel + app 并行）
 pnpm run build        # 生产构建
 pnpm run release      # 构建 + 部署到本地插件目录
+pnpm run release:package  # 构建市场发布用 package.zip
 ```
 
 技术架构详见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
+## 发布
+
+发布由 Git tag 驱动。确认工作区干净后运行以下任一命令：
+
+```bash
+pnpm run release:patch
+pnpm run release:minor
+pnpm run release:major
+pnpm run release:current
+pnpm run release:version -- 1.2.3
+```
+
+命令会在需要时同步更新 `package.json` 和 `plugin.json` 的版本号，提交版本变更，创建 `vX.Y.Z` tag，并推送 commit 与 tag。如果第一次发布时当前版本号已经正确，可以使用 `release:current`。GitHub Actions 收到 tag 后会自动构建 `package.zip` 并创建 GitHub Release。
+
 ## 许可证
 
-MIT
+本项目采用 MIT License with Commons Clause。你可以使用、修改和分享本插件；但未经许可，不允许售卖、付费打包、付费上架，或将本插件及其衍生版本用于商业变现。详见 [LICENSE](./LICENSE)。
