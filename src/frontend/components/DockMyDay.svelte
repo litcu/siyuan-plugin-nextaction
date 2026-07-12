@@ -210,7 +210,6 @@
 
     .na-dock-myday__toolbar {
         position: relative;
-        z-index: 30;
         display: flex;
         align-items: center;
         gap: 6px;
@@ -222,7 +221,6 @@
 
     .na-dock-myday__add {
         position: relative;
-        z-index: 1;
         flex: 1;
         min-width: 0;
     }
