@@ -1,0 +1,30 @@
+{
+  "name": "nextaction",
+  "author": "z00813717",
+  "url": "",
+  "version": "0.1.0",
+  "minAppVersion": "3.7.0",
+  "kernels": ["windows", "linux", "darwin", "ios", "android", "docker"],
+  "backends": ["windows", "linux", "darwin", "ios", "android", "docker"],
+  "frontends": ["desktop", "mobile", "browser-desktop", "browser-mobile", "desktop-window"],
+  "disabledInPublish": false,
+  "displayName": {
+    "default": "NextAction",
+    "zh-CN": "今天干点啥"
+  },
+  "description": {
+    "default": "GTD task management plugin with auto priority, next action view, block-to-task conversion, and incremental sync",
+    "zh-CN": "GTD 任务管理插件：自动优先级计算、下一步行动视图、块转任务、增量同步"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README.zh-CN.md"
+  },
+  "funding": {
+    "openCollective": "",
+    "patreon": "",
+    "github": "",
+    "custom": []
+  },
+  "keywords": ["GTD", "task", "todo", "next action", "任务管理", "下一步行动"]
+}
