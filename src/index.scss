@@ -16,6 +16,7 @@
     width: 100%;
     height: 100%;
     display: flex;
+    position: relative;
     background: var(--b3-theme-background);
     color: var(--b3-theme-on-background);
     overflow: hidden;
@@ -36,17 +37,25 @@
 }
 
 .na-app__detail-pane {
-    width: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 21;
+    flex: none;
+    width: min(420px, calc(100% - 36px));
+    max-width: calc(100% - 36px);
     overflow: hidden;
     border-left: 1px solid var(--na-color-divider);
     background: var(--b3-theme-surface);
-    transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    flex-shrink: 0;
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+    opacity: 1;
+    transform: translateX(100%);
+    transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .na-app__detail-pane.open {
-    flex: 0 0 40%;
-    width: 40%;
+    transform: translateX(0);
 }
 
 .na-app__detail-inner {
@@ -54,6 +63,25 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+}
+
+.na-app__detail-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    padding: 0;
+    border: none;
+    background: rgba(0, 0, 0, 0.18);
+    cursor: default;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+}
+
+.na-app__detail-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 // NavRail
@@ -724,11 +752,15 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
+    min-width: 0;
+    background: var(--b3-theme-surface);
 }
 
 .na-detail__header {
-    padding: 20px 24px 16px;
+    padding: 16px 18px 12px;
     border-bottom: 1px solid var(--na-color-divider);
+    background: var(--b3-theme-surface);
+    flex-shrink: 0;
 }
 
 .na-detail__header-top {
@@ -740,14 +772,16 @@
 .na-detail__created {
     font-size: var(--na-font-size-xs, 11px);
     color: var(--b3-theme-on-surface-light);
-    margin-top: 4px;
+    display: block;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
 }
 
 .na-detail__title {
     flex: 1;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.45;
     min-width: 0;
     background: none;
     border: none;
@@ -760,6 +794,72 @@
     &:focus {
         border-bottom-color: var(--b3-theme-primary);
     }
+}
+
+.na-detail__type-switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    width: 88px;
+    height: 26px;
+    padding: 2px;
+    border: 1px solid var(--na-color-divider);
+    border-radius: 8px;
+    background: var(--b3-theme-background);
+    color: var(--b3-theme-on-surface-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: border-color 0.15s, background 0.15s;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: calc(50% - 2px);
+        height: calc(100% - 4px);
+        border-radius: 6px;
+        background: var(--b3-theme-primary);
+        box-shadow: var(--na-shadow-sm);
+        transform: translateX(0);
+        transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    &:hover {
+        border-color: var(--b3-theme-primary-light);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--b3-theme-primary-light);
+        outline-offset: 2px;
+    }
+}
+
+.na-detail__type-switch--project::before {
+    transform: translateX(100%);
+}
+
+.na-detail__type-option {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 100%;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--b3-theme-on-surface-secondary);
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+
+.na-detail__type-switch:not(.na-detail__type-switch--project) .na-detail__type-option:first-child,
+.na-detail__type-switch--project .na-detail__type-option:last-child {
+    color: var(--b3-theme-on-primary);
 }
 
 .na-detail__close {
@@ -802,21 +902,62 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 20px 24px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.na-detail__section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+    background: var(--b3-theme-background);
+    border: 1px solid var(--na-color-divider);
+    border-radius: 8px;
+}
+
+.na-detail__section--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.na-detail__section-title {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--b3-theme-on-surface-secondary);
+
+    &::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+        background: var(--na-color-divider);
+        opacity: 0.72;
+    }
 }
 
 .na-detail__field {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    gap: 8px 14px;
-    align-items: center;
-    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.na-detail__field--wide,
+.na-detail__field--message {
+    grid-column: 1 / -1;
 }
 
 .na-detail__label {
     font-size: 11px;
     color: var(--b3-theme-on-surface-secondary);
-    text-align: right;
+    text-align: left;
+    line-height: 1.3;
 }
 
 .na-detail__value {
@@ -825,12 +966,27 @@
     display: flex;
     align-items: center;
     min-height: 30px;
+    width: 100%;
+}
+
+.na-detail__value > * {
+    min-width: 0;
+}
+
+.na-detail .na-select,
+.na-detail .na-input,
+.na-detail .na-textarea {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .na-detail__error {
     font-size: 11px;
     color: var(--na-color-error);
-    padding: 2px 0;
+    padding: 6px 8px;
+    background: rgba(231, 76, 60, 0.08);
+    border: 1px solid rgba(231, 76, 60, 0.14);
+    border-radius: 6px;
 }
 
 .na-detail__value--with-bell {
@@ -874,20 +1030,25 @@
     background: rgba(231, 76, 60, 0.1);
     white-space: nowrap;
     flex-shrink: 0;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .na-detail__review-interval {
     display: flex;
     gap: var(--na-space-sm);
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .na-detail__review-interval .na-select {
-    flex: 1;
+    flex: 1 1 140px;
 }
 
 .na-detail__review-interval .na-input {
-    width: 60px;
+    width: 72px;
+    flex: 0 0 72px;
 }
 
 .na-reminder-popup {
@@ -1165,11 +1326,14 @@
 }
 
 .na-detail__footer {
-    padding: 16px 24px;
+    padding: 12px 18px;
     border-top: 1px solid var(--na-color-divider);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
+    background: var(--b3-theme-surface);
+    flex-shrink: 0;
 }
 
 // 任务属性弹窗（从编辑器状态图标菜单打开）
@@ -1183,8 +1347,9 @@
     }
 
     .na-detail--dialog .na-detail__header {
-        padding: 18px 24px 12px;
-        border-bottom: none;
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid var(--na-color-divider);
+        background: transparent;
     }
 
     .na-detail--dialog .na-detail__header-top {
@@ -1205,16 +1370,20 @@
     .na-detail--dialog .na-detail__body {
         flex: none;
         overflow: visible;
-        padding: 8px 24px 2px;
+        padding: 10px 14px;
+        gap: 8px;
+        background: transparent;
     }
 
-    .na-detail--dialog .na-detail__field {
-        margin-bottom: 10px;
+    .na-detail--dialog .na-detail__section {
+        padding: 10px;
+        gap: 8px;
+        background: var(--b3-theme-surface);
     }
 
     .na-detail--dialog .na-detail__label {
         font-size: 11px;
-        text-align: right;
+        text-align: left;
         color: var(--b3-theme-on-surface-secondary);
     }
 
@@ -1223,8 +1392,9 @@
     }
 
     .na-detail--dialog .na-detail__footer {
-        padding: 8px 24px 14px;
+        padding: 10px 16px 14px;
         border-top: 1px solid var(--na-color-divider);
+        background: transparent;
     }
 
     // 控件背景：弹窗容器是 surface，输入框需要比它稍深才能区分

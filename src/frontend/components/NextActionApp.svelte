@@ -267,6 +267,15 @@
         </div>
     </div>
 
+    {#if selectedTask}
+        <button
+            class="na-app__detail-backdrop"
+            class:open={selectedTask !== null}
+            on:click={handleDetailClose}
+            aria-label="Close"
+        ></button>
+    {/if}
+
     <div class="na-app__detail-pane" class:open={selectedTask !== null}>
         {#if selectedTask}
             <div class="na-app__detail-inner">

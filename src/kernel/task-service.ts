@@ -299,34 +299,39 @@ export class TaskService {
         }
         this.checkReady();
 
-        // Determine the root list item for subtree collection.
+        // Determine the root container for subtree collection.
         // If blockId itself is a list item, use it directly.
         // If blockId is a paragraph inside a list item, find the containing list item.
+        // If blockId is a list block, use it as the container but only convert
+        // descendant paragraphs. List/list-item blocks must not receive task attrs.
         // Otherwise, just convert the block itself.
-        let rootListItemId = "";
+        let rootContainerId = "";
         const blockRows: Array<{ id: string; type: string }> = await siyuanFetch("/api/query/sql", {
             stmt: "SELECT id, type FROM blocks WHERE id = '" + blockId + "'",
         });
         const blockType = (blockRows && blockRows.length > 0) ? blockRows[0].type : "";
         if (blockType === "i") {
             // blockId is a list item — use it as root
-            rootListItemId = blockId;
+            rootContainerId = blockId;
         } else if (blockType === "p") {
             // Paragraph — find its containing list item
-            rootListItemId = await this.findParentListItem(blockId);
+            rootContainerId = await this.findParentListItem(blockId);
+        } else if (blockType === "l") {
+            // List block — collect taskable paragraph descendants below it.
+            rootContainerId = blockId;
         }
 
-        // Collect ALL descendant paragraph IDs under the list item or document
+        // Collect ALL descendant paragraph IDs under the list/list item or document
         let paragraphIds: string[];
-        if (rootListItemId) {
-            // Direct paragraph children of the list item
+        if (rootContainerId) {
+            // Direct paragraph children of the container
             const directRows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT id FROM blocks WHERE parent_id = '" + rootListItemId + "' AND type = 'p'",
+                stmt: "SELECT id FROM blocks WHERE parent_id = '" + rootContainerId + "' AND type = 'p'",
             });
             // All paragraphs in the full subtree (excluding container blocks)
             const rows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
                 stmt: "WITH RECURSIVE descendants(id, parent_id, type) AS ("
-                    + "SELECT id, parent_id, type FROM blocks WHERE parent_id = '" + rootListItemId + "' "
+                    + "SELECT id, parent_id, type FROM blocks WHERE parent_id = '" + rootContainerId + "' "
                     + "UNION ALL "
                     + "SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id"
                     + ") SELECT id FROM descendants WHERE type = 'p'",
