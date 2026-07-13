@@ -479,6 +479,17 @@
             <span class="na-detail__title">
                 {task.title || i18n?.untitled || "(untitled)"}
             </span>
+            <button
+                type="button"
+                class="na-detail__type-switch"
+                class:na-detail__type-switch--project={taskType === "2"}
+                on:click={() => handleTaskTypeChange(taskType === "2" ? "1" : "2")}
+                aria-pressed={taskType === "2"}
+                title={taskType === "2" ? (i18n?.project || "Project") : (i18n?.task || "Task")}
+            >
+                <span class="na-detail__type-option">{i18n?.task || "Task"}</span>
+                <span class="na-detail__type-option">{i18n?.project || "Project"}</span>
+            </button>
             {#if task.blocked && task.taskType !== "2"}
                 <span class="na-detail__blocked-badge">
                     {task.blockedReason === "children" ? (i18n?.blockedByChildren || "Blocked - subtasks incomplete") : task.blockedReason === "sequential" ? (i18n?.blockedBySequence || "Blocked - waiting in sequence") : (i18n?.blockedByDependency || "Blocked - dependency incomplete")}
@@ -496,250 +507,258 @@
     </div>
 
     <div class="na-detail__body">
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.status || "Status"}</span>
-            <div class="na-detail__value">
-                <select class="na-select" bind:value={status} on:change={handleChange}>
-                    {#each STATUS_LIST as s}
-                        <option value={s}>{i18n?.[toI18nKey("status", s)] || s}</option>
-                    {/each}
-                </select>
+        <div class="na-detail__section na-detail__section--compact">
+            <div class="na-detail__section-title">{i18n?.detailGroupBasics || "Basic"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.status || "Status"}</span>
+                <div class="na-detail__value">
+                    <select class="na-select" bind:value={status} on:change={handleChange}>
+                        {#each STATUS_LIST as s}
+                            <option value={s}>{i18n?.[toI18nKey("status", s)] || s}</option>
+                        {/each}
+                    </select>
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.priority || "Priority"}</span>
+                <div class="na-detail__value">
+                    <select class="na-select" bind:value={priority} on:change={handleChange}>
+                        {#each PRIORITY_LIST as p}
+                            <option value={p}>{i18n?.[toI18nKey("priority", p)] || p}</option>
+                        {/each}
+                    </select>
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.importance || "Importance"}</span>
+                <div class="na-detail__value">
+                    <NaDotRating count={7} bind:value={importance} on:change={handleChange} />
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.effort || "Effort"}</span>
+                <div class="na-detail__value">
+                    <NaDotRating count={7} bind:value={effort} on:change={handleChange} />
+                </div>
             </div>
         </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.priority || "Priority"}</span>
-            <div class="na-detail__value">
-                <select class="na-select" bind:value={priority} on:change={handleChange}>
-                    {#each PRIORITY_LIST as p}
-                        <option value={p}>{i18n?.[toI18nKey("priority", p)] || p}</option>
-                    {/each}
-                </select>
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupTiming || "Timing"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.startTime || i18n?.startDate || "Start Time"}</span>
+                <div class="na-detail__value">
+                    <NaDatePicker bind:value={start} placeholder={i18n?.startTime || i18n?.startDate || "Start Time"} defaultTime="00:00" {i18n} on:change={handleChange} />
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.dueTime || i18n?.dueDate || "Due Time"}</span>
+                <div class="na-detail__value na-detail__value--with-bell">
+                    <NaDatePicker bind:value={due} placeholder={i18n?.dueTime || i18n?.dueDate || "Due Time"} defaultTime="23:59" {i18n} on:change={handleChange} />
+                    <button
+                        class="na-detail__bell-btn"
+                        class:na-detail__bell-btn--active={hasReminders}
+                        on:click={openReminderPopup}
+                        title={i18n?.reminder || "Reminders"}
+                    >
+                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 14.5c-.83 0-1.5-.67-1.5-1.5h3c0 .83-.67 1.5-1.5 1.5z"/>
+                            <path d="M12.5 11V7.5a4.5 4.5 0 0 0-9 0V11l-1 1.5h11L12.5 11z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            {#if dateError}
+                <div class="na-detail__field na-detail__field--message">
+                    <div class="na-detail__error">{dateError}</div>
+                </div>
+            {/if}
+        </div>
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupOrganization || "Organization"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.context || "Context"}</span>
+                <div class="na-detail__value">
+                    <NaSearchSelect
+                        multi={true}
+                        allowCreate={true}
+                        bind:selected={contexts}
+                        allOptions={allContexts}
+                        placeholder={i18n?.addContext || "Add context..."}
+                        emptyText={i18n?.noOptions || "No options"}
+                        noMatchText={i18n?.noMatches || "No matches"}
+                        loadingText={i18n?.loadingMore || "Loading..."}
+                        on:change={handleContextChange}
+                    />
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.tag || "Tag"}</span>
+                <div class="na-detail__value">
+                    <NaSearchSelect
+                        multi={true}
+                        allowCreate={true}
+                        bind:selected={taskTags}
+                        allOptions={allTags}
+                        placeholder={i18n?.addTag || "Add tag..."}
+                        emptyText={i18n?.noOptions || "No options"}
+                        noMatchText={i18n?.noMatches || "No matches"}
+                        loadingText={i18n?.loadingMore || "Loading..."}
+                        on:change={handleChange}
+                    />
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.parentTask || "Parent"}</span>
+                <div class="na-detail__value">
+                    <NaSearchSelect
+                        multi={false}
+                        bind:selected={parentId}
+                        bind:selectedLabel={parentLabel}
+                        searchFn={searchParentTasks}
+                        placeholder={i18n?.searchParentTask || "Search parent task..."}
+                        emptyText={i18n?.noOptions || "No options"}
+                        noMatchText={i18n?.noMatches || "No matches"}
+                        loadingText={i18n?.loadingMore || "Loading..."}
+                        on:change={handleParentChange}
+                    />
+                </div>
             </div>
         </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.importance || "Importance"}</span>
-            <div class="na-detail__value">
-                <NaDotRating count={7} bind:value={importance} on:change={handleChange} />
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupDependencies || "Dependencies"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.dependencies || "Depends On"}</span>
+                <div class="na-detail__value">
+                    <NaSearchSelect
+                        multi={true}
+                        bind:selected={depends}
+                        searchFn={searchDepTasks}
+                        initialLabels={depLabels}
+                        placeholder={i18n?.searchDepTask || "Search dependency tasks..."}
+                        emptyText={i18n?.noOptions || "No options"}
+                        noMatchText={i18n?.noMatches || "No matches"}
+                        loadingText={i18n?.loadingMore || "Loading..."}
+                        on:change={handleChange}
+                    />
+                </div>
+            </div>
+            {#if depError}
+                <div class="na-detail__field na-detail__field--message">
+                    <div class="na-detail__error">{depError}</div>
+                </div>
+            {/if}
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.depMode || "Mode"}</span>
+                <div class="na-detail__value">
+                    <select class="na-select" bind:value={depMode} on:change={handleChange}>
+                        <option value="all">{i18n?.depModeAll || "All must complete"}</option>
+                        <option value="any">{i18n?.depModeAny || "Any can complete"}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.sequential || "Sequential"}</span>
+                <div class="na-detail__value">
+                    <NaToggle bind:checked={sequentialEnabled} on:change={handleChange} />
+                </div>
             </div>
         </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.effort || "Effort"}</span>
-            <div class="na-detail__value">
-                <NaDotRating count={7} bind:value={effort} on:change={handleChange} />
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupRepeat || "Repeat"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.repeat || "Repeat"}</span>
+                <div class="na-detail__value">
+                    <NaToggle bind:checked={repeatEnabled} on:change={handleRepeatToggle} />
+                </div>
             </div>
-        </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.startTime || i18n?.startDate || "Start Time"}</span>
-            <div class="na-detail__value">
-                <NaDatePicker bind:value={start} placeholder={i18n?.startTime || i18n?.startDate || "Start Time"} defaultTime="00:00" {i18n} on:change={handleChange} />
-            </div>
-        </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.dueTime || i18n?.dueDate || "Due Time"}</span>
-            <div class="na-detail__value na-detail__value--with-bell">
-                <NaDatePicker bind:value={due} placeholder={i18n?.dueTime || i18n?.dueDate || "Due Time"} defaultTime="23:59" {i18n} on:change={handleChange} />
-                <button
-                    class="na-detail__bell-btn"
-                    class:na-detail__bell-btn--active={hasReminders}
-                    on:click={openReminderPopup}
-                    title={i18n?.reminder || "Reminders"}
-                >
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M8 14.5c-.83 0-1.5-.67-1.5-1.5h3c0 .83-.67 1.5-1.5 1.5z"/>
-                        <path d="M12.5 11V7.5a4.5 4.5 0 0 0-9 0V11l-1 1.5h11L12.5 11z"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        {#if dateError}
-        <div class="na-detail__field">
-            <span class="na-detail__label"></span>
-            <div class="na-detail__error">{dateError}</div>
-        </div>
-        {/if}
-        <!-- Context: multi-select, allow creating new contexts -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.context || "Context"}</span>
-            <div class="na-detail__value">
-                <NaSearchSelect
-                    multi={true}
-                    allowCreate={true}
-                    bind:selected={contexts}
-                    allOptions={allContexts}
-                    placeholder={i18n?.addContext || "Add context..."}
-                    emptyText={i18n?.noOptions || "No options"}
-                    noMatchText={i18n?.noMatches || "No matches"}
-                    loadingText={i18n?.loadingMore || "Loading..."}
-                    on:change={handleContextChange}
-                />
-            </div>
-        </div>
-        <!-- Tags: multi-select, allow creating new tags -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.tag || "Tag"}</span>
-            <div class="na-detail__value">
-                <NaSearchSelect
-                    multi={true}
-                    allowCreate={true}
-                    bind:selected={taskTags}
-                    allOptions={allTags}
-                    placeholder={i18n?.addTag || "Add tag..."}
-                    emptyText={i18n?.noOptions || "No options"}
-                    noMatchText={i18n?.noMatches || "No matches"}
-                    loadingText={i18n?.loadingMore || "Loading..."}
-                    on:change={handleChange}
-                />
-            </div>
-        </div>
-        <!-- Parent task: single-select, search only -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.parentTask || "Parent"}</span>
-            <div class="na-detail__value">
-                <NaSearchSelect
-                    multi={false}
-                    bind:selected={parentId}
-                    bind:selectedLabel={parentLabel}
-                    searchFn={searchParentTasks}
-                    placeholder={i18n?.searchParentTask || "Search parent task..."}
-                    emptyText={i18n?.noOptions || "No options"}
-                    noMatchText={i18n?.noMatches || "No matches"}
-                    loadingText={i18n?.loadingMore || "Loading..."}
-                    on:change={handleParentChange}
-                />
-            </div>
-        </div>
-        <!-- Is project toggle -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.isProject || "Is Project"}</span>
-            <div class="na-detail__value">
-                <NaToggle checked={taskType === "2"} on:change={() => handleTaskTypeChange(taskType === "2" ? "1" : "2")} />
-            </div>
-        </div>
-        <!-- Dependencies: multi-select -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.dependencies || "Depends On"}</span>
-            <div class="na-detail__value">
-                <NaSearchSelect
-                    multi={true}
-                    bind:selected={depends}
-                    searchFn={searchDepTasks}
-                    initialLabels={depLabels}
-                    placeholder={i18n?.searchDepTask || "Search dependency tasks..."}
-                    emptyText={i18n?.noOptions || "No options"}
-                    noMatchText={i18n?.noMatches || "No matches"}
-                    loadingText={i18n?.loadingMore || "Loading..."}
-                    on:change={handleChange}
-                />
-            </div>
-        </div>
-        {#if depError}
-        <div class="na-detail__field">
-            <span class="na-detail__label"></span>
-            <div class="na-detail__error">{depError}</div>
-        </div>
-        {/if}
-        <!-- Dependency mode -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.depMode || "Mode"}</span>
-            <div class="na-detail__value">
-                <select class="na-select" bind:value={depMode} on:change={handleChange}>
-                    <option value="all">{i18n?.depModeAll || "All must complete"}</option>
-                    <option value="any">{i18n?.depModeAny || "Any can complete"}</option>
-                </select>
-            </div>
-        </div>
-        <!-- Sequential toggle -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.sequential || "Sequential"}</span>
-            <div class="na-detail__value">
-                <NaToggle bind:checked={sequentialEnabled} on:change={handleChange} />
-            </div>
-        </div>
-        <!-- Note -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.note || "Note"}</span>
-            <div class="na-detail__value">
-                <textarea class="na-textarea" bind:value={note} on:input={handleChange} rows="3" placeholder={i18n?.note || "Note"}></textarea>
-            </div>
-        </div>
-        <!-- Repeat toggle -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.repeat || "Repeat"}</span>
-            <div class="na-detail__value">
-                <NaToggle bind:checked={repeatEnabled} on:change={handleRepeatToggle} />
-            </div>
-        </div>
-        {#if repeatEnabled}
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.repeatFreq || "Frequency"}</span>
-            <div class="na-detail__value">
-                <select class="na-select" bind:value={repeatFreq} on:change={handleChange}>
-                    <option value="day">{i18n?.repeatEveryDay || "Every day"}</option>
-                    <option value="week">{i18n?.repeatEveryWeek || "Every week"}</option>
-                    <option value="month">{i18n?.repeatEveryMonth || "Every month"}</option>
-                    <option value="year">{i18n?.repeatEveryYear || "Every year"}</option>
-                </select>
-            </div>
-        </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.repeatInterval || "Interval"}</span>
-            <div class="na-detail__value">
-                <input class="na-input" type="number" min="1" max="999" bind:value={repeatInterval} on:change={handleChange} />
-            </div>
-        </div>
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.repeatFrom || "From"}</span>
-            <div class="na-detail__value">
-                <select class="na-select" bind:value={repeatFrom} on:change={handleChange}>
-                    <option value="due">{i18n?.repeatFromDue || "Due date"}</option>
-                    <option value="complete">{i18n?.repeatFromComplete || "Completion date"}</option>
-                </select>
-            </div>
-        </div>
-        {/if}
-        <!-- Review Section -->
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.reviewInterval || "Review Interval"}</span>
-            <div class="na-detail__value na-detail__review-interval">
-                <select class="na-select" bind:value={reviewIntervalMode} on:change={handleReviewIntervalChange}>
-                    <option value="0">{i18n?.reviewIntervalNone || "None"}</option>
-                    <option value="7">7 {i18n?.days || "days"}</option>
-                    <option value="14">14 {i18n?.days || "days"}</option>
-                    <option value="30">30 {i18n?.days || "days"}</option>
-                    <option value="60">60 {i18n?.days || "days"}</option>
-                    <option value="90">90 {i18n?.days || "days"}</option>
-                    <option value="custom">{i18n?.reviewIntervalCustom || "Custom"}</option>
-                </select>
-                {#if reviewIntervalMode === "custom"}
-                    <input class="na-input" type="number" min="1" max="365" bind:value={reviewIntervalCustom} on:change={handleReviewIntervalCustomChange} placeholder={i18n?.reviewIntervalDays || "Days"} />
-                {/if}
-            </div>
-        </div>
-        {#if reviewInterval > 0}
-        <div class="na-detail__field">
-            <span class="na-detail__label">{i18n?.reviewDate || "Next Review"}</span>
-            <div class="na-detail__value">
-                <NaDatePicker value={reviewDate} {i18n} on:change={(e) => { reviewDate = e.detail?.value || ""; handleChange(); }} />
-            </div>
-        </div>
-        {/if}
-        <!-- Custom fields -->
-        {#if customFieldDefs.length > 0}
-            {#each customFieldDefs as def}
+            {#if repeatEnabled}
                 <div class="na-detail__field">
-                    <span class="na-detail__label">{def.label}</span>
+                    <span class="na-detail__label">{i18n?.repeatFreq || "Frequency"}</span>
                     <div class="na-detail__value">
-                        <input
-                            class="na-input"
-                            type="text"
-                            value={customFieldValues[def.key] || ''}
-                            on:change={(e) => { customFieldValues[def.key] = e.currentTarget.value; handleChange(); }}
-                            placeholder={def.label}
-                        />
+                        <select class="na-select" bind:value={repeatFreq} on:change={handleChange}>
+                            <option value="day">{i18n?.repeatEveryDay || "Every day"}</option>
+                            <option value="week">{i18n?.repeatEveryWeek || "Every week"}</option>
+                            <option value="month">{i18n?.repeatEveryMonth || "Every month"}</option>
+                            <option value="year">{i18n?.repeatEveryYear || "Every year"}</option>
+                        </select>
                     </div>
                 </div>
-            {/each}
-        {/if}
+                <div class="na-detail__field">
+                    <span class="na-detail__label">{i18n?.repeatInterval || "Interval"}</span>
+                    <div class="na-detail__value">
+                        <input class="na-input" type="number" min="1" max="999" bind:value={repeatInterval} on:change={handleChange} />
+                    </div>
+                </div>
+                <div class="na-detail__field">
+                    <span class="na-detail__label">{i18n?.repeatFrom || "From"}</span>
+                    <div class="na-detail__value">
+                        <select class="na-select" bind:value={repeatFrom} on:change={handleChange}>
+                            <option value="due">{i18n?.repeatFromDue || "Due date"}</option>
+                            <option value="complete">{i18n?.repeatFromComplete || "Completion date"}</option>
+                        </select>
+                    </div>
+                </div>
+            {/if}
+        </div>
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupReview || "Review"}</div>
+            <div class="na-detail__field">
+                <span class="na-detail__label">{i18n?.reviewInterval || "Review Interval"}</span>
+                <div class="na-detail__value na-detail__review-interval">
+                    <select class="na-select" bind:value={reviewIntervalMode} on:change={handleReviewIntervalChange}>
+                        <option value="0">{i18n?.reviewIntervalNone || "None"}</option>
+                        <option value="7">7 {i18n?.days || "days"}</option>
+                        <option value="14">14 {i18n?.days || "days"}</option>
+                        <option value="30">30 {i18n?.days || "days"}</option>
+                        <option value="60">60 {i18n?.days || "days"}</option>
+                        <option value="90">90 {i18n?.days || "days"}</option>
+                        <option value="custom">{i18n?.reviewIntervalCustom || "Custom"}</option>
+                    </select>
+                    {#if reviewIntervalMode === "custom"}
+                        <input class="na-input" type="number" min="1" max="365" bind:value={reviewIntervalCustom} on:change={handleReviewIntervalCustomChange} placeholder={i18n?.reviewIntervalDays || "Days"} />
+                    {/if}
+                </div>
+            </div>
+            {#if reviewInterval > 0}
+                <div class="na-detail__field">
+                    <span class="na-detail__label">{i18n?.reviewDate || "Next Review"}</span>
+                    <div class="na-detail__value">
+                        <NaDatePicker value={reviewDate} {i18n} on:change={(e) => { reviewDate = e.detail?.value || ""; handleChange(); }} />
+                    </div>
+                </div>
+            {/if}
+        </div>
+
+        <div class="na-detail__section">
+            <div class="na-detail__section-title">{i18n?.detailGroupNotes || "Notes"}</div>
+            <div class="na-detail__field na-detail__field--wide">
+                <span class="na-detail__label">{i18n?.note || "Note"}</span>
+                <div class="na-detail__value">
+                    <textarea class="na-textarea" bind:value={note} on:input={handleChange} rows="3" placeholder={i18n?.note || "Note"}></textarea>
+                </div>
+            </div>
+            {#if customFieldDefs.length > 0}
+                {#each customFieldDefs as def}
+                    <div class="na-detail__field">
+                        <span class="na-detail__label">{def.label}</span>
+                        <div class="na-detail__value">
+                            <input
+                                class="na-input"
+                                type="text"
+                                value={customFieldValues[def.key] || ''}
+                                on:change={(e) => { customFieldValues[def.key] = e.currentTarget.value; handleChange(); }}
+                                placeholder={def.label}
+                            />
+                        </div>
+                    </div>
+                {/each}
+            {/if}
+        </div>
     </div>
 
     <div class="na-detail__footer">
