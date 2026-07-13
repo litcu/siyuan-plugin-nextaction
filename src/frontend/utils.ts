@@ -3,7 +3,7 @@ import { Menu } from "siyuan";
 import { STATUS_LIST } from "./constants";
 import type { KernelBridge } from "./kernel-bridge";
 import type { TaskCacheEntry } from "../../shared/types";
-import { notifyError, formatRpcError } from "./notify";
+import { notifyError, notifyInfo, formatRpcError } from "./notify";
 
 /**
  * Open the SiYuan document that contains a block, focusing on the block.
@@ -48,6 +48,11 @@ export async function showStatusMenu(
                 click: async () => {
                     try {
                         const updated = await bridge.updateTask(task.blockId, { "na-status": s });
+                        const statusLabel = i18n?.[i18nKey] || s;
+                        const template = s === "done"
+                            ? (i18n?.taskMarkedDone || "Marked as done")
+                            : (i18n?.taskStatusUpdated || "Status updated to {status}");
+                        notifyInfo(template.replace("{status}", statusLabel));
                         resolve(updated);
                     } catch (e: any) {
                         notifyError(formatRpcError(e, i18n));

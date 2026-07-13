@@ -46,10 +46,16 @@
         });
     }
 
+    function parseLocalDateOnly(value: string): Date {
+        const datePart = value.split("T")[0];
+        const [year, month, day] = datePart.split("-").map(Number);
+        return new Date(year, month - 1, day);
+    }
+
     function formatDue(due: string | null | undefined): string {
         if (!due) return "";
         const hasTime = due.includes("T");
-        const d = new Date(due);
+        const d = parseLocalDateOnly(due);
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const diff = Math.round((d.getTime() - today.getTime()) / (86400000));
@@ -68,7 +74,7 @@
         }
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        return new Date(due) < today;
+        return parseLocalDateOnly(due) < today;
     }
 </script>
 
@@ -95,6 +101,7 @@
                     {@const priorityClass = `na-unscheduled-card--priority-${task.priority || 'none'}`}
                     <div
                         class="na-unscheduled-card {priorityClass}"
+                        class:na-unscheduled-card--done={task.status === "done"}
                         style="--na-unscheduled-card-accent: {hexColor};"
                         draggable="true"
                         on:dragstart={(e) => handleDragStart(e, entry.blockId)}
@@ -217,6 +224,19 @@
     }
     .na-unscheduled-card--priority-none {
         background-color: var(--b3-theme-surface);
+    }
+
+    .na-unscheduled-card--done {
+        opacity: 0.56;
+        background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
+
+        .na-unscheduled-card__name {
+            text-decoration: line-through;
+        }
+
+        .na-unscheduled-card__meta {
+            opacity: 0.72;
+        }
     }
 
     .na-unscheduled-card__accent {

@@ -1,11 +1,11 @@
-import { Plugin, showMessage, getFrontend, Menu, openTab, Dialog, confirm } from "siyuan";
+import { Plugin, showMessage, getFrontend, getAllEditor, Menu, openTab, Dialog, confirm } from "siyuan";
 import { get } from "svelte/store";
 import "./index.scss";
 import { KernelBridge } from "./frontend/kernel-bridge";
 import { taskStore } from "./frontend/stores/task-store";
 import type TaskDetail from "./frontend/components/TaskDetail.svelte";
 import { DEFAULT_SETTINGS, type PluginSettings, type PriorityEngineSettings } from "./shared/settings";
-import { notifyError, formatRpcError } from "./frontend/notify";
+import { notifyError, notifyInfo, formatRpcError } from "./frontend/notify";
 import { initReminderStore, destroyReminderStore } from "./frontend/stores/reminder-store";
 import NotificationHost from "./frontend/components/NotificationHost.svelte";
 import { PRIORITY_LIST } from "./frontend/constants";
@@ -30,6 +30,65 @@ export default class NextActionPlugin extends Plugin {
     private blockIconHandler: (({detail}: any) => void) | null = null;
     private editorTitleIconHandler: (({detail}: any) => void) | null = null;
     private notificationHost?: NotificationHost;
+
+    private getEditor(): any {
+        return getAllEditor()[0];
+    }
+
+    private getCommandBlockId(protyle?: any): string {
+        const currentProtyle = protyle || this.getEditor()?.protyle;
+        const selected = currentProtyle?.wysiwygElement?.querySelector(".protyle-wysiwyg--select")
+            || currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select");
+        return selected?.dataset?.nodeId || currentProtyle?.block?.rootID || "";
+    }
+
+    private openTaskPanel(): void {
+        openTab({
+            app: this.app,
+            custom: {
+                id: this.name + TAB_TYPE,
+                icon: "iconNextAction",
+                title: this.i18n.pluginName || "NextAction",
+            },
+        });
+    }
+
+    private async runConvertCommand(protyle?: any, taskType: string = "1"): Promise<void> {
+        const blockId = this.getCommandBlockId(protyle);
+        if (!blockId) return;
+        try {
+            await this.doConvertToTask(blockId, undefined, taskType);
+            showMessage(`[NextAction] ${taskType === "2" ? this.i18n.convertToProjectSuccess : this.i18n.convertToTaskSuccess}`);
+            taskStore.loadTasks();
+        } catch (e: any) {
+            showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
+        }
+    }
+
+    private async runConvertWithChildrenCommand(protyle?: any): Promise<void> {
+        const blockId = this.getCommandBlockId(protyle);
+        if (!blockId) return;
+        try {
+            const result = await this.doConvertToTaskWithChildren(blockId);
+            const msg = this.i18n.convertToTaskWithChildrenResult
+                .replace("{converted}", String(result.converted))
+                .replace("{skipped}", String(result.skipped));
+            showMessage(`[NextAction] ${msg}`);
+            taskStore.loadTasks();
+        } catch (e: any) {
+            showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
+        }
+    }
+
+    private async runRefreshCommand(): Promise<void> {
+        try {
+            await this.bridge.recalcAllOrders();
+            taskStore.loadTasks();
+            showMessage(`[NextAction] ${this.i18n.refreshTasks} ✓`);
+        } catch (e: any) {
+            showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
+        }
+    }
 
     /**
      * Handle clicks on the ::before status checkbox in the editor.
@@ -66,6 +125,11 @@ export default class NextActionPlugin extends Plugin {
                     try {
                         const updated = await this.bridge.updateTask(blockId, { 'na-status': s });
                         taskStore.applyUpdate(updated);
+                        const statusLabel = this.i18n[i18nKey] || s;
+                        const template = s === "done"
+                            ? (this.i18n.taskMarkedDone || "Marked as done")
+                            : (this.i18n.taskStatusUpdated || "Status updated to {status}");
+                        notifyInfo(template.replace("{status}", statusLabel));
                     } catch (e: any) {
                         notifyError(formatRpcError(e, this.i18n));
                     }
@@ -382,16 +446,9 @@ export default class NextActionPlugin extends Plugin {
 
         this.addTopBar({
             icon: "iconNextAction",
-            title: this.i18n.taskPanel,
+            title: this.i18n.pluginName || "NextAction",
             callback: () => {
-                openTab({
-                    app: this.app,
-                    custom: {
-                        id: this.name + TAB_TYPE,
-                        icon: "iconNextAction",
-                        title: this.i18n.pluginName || "NextAction",
-                    },
-                });
+                this.openTaskPanel();
             },
         });
 
@@ -670,94 +727,47 @@ export default class NextActionPlugin extends Plugin {
             langKey: "convertToTask",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToTask}`,
             hotkey: "",
-            callback: () => {
-                const editor = this.getEditor();
-                if (editor) {
-                    const blockId = editor.protyle?.block?.rootID;
-                    if (!blockId) return;
-                    this.doConvertToTask(blockId).then(() => {
-                        showMessage(`[NextAction] ${this.i18n.convertToTaskSuccess}`);
-                        taskStore.loadTasks();
-                    }).catch((e: any) => {
-                        showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
-                    });
-                }
-            },
+            callback: () => { this.runConvertCommand(); },
+            editorCallback: (protyle: any) => { this.runConvertCommand(protyle); },
+            globalCallback: () => { this.runConvertCommand(); },
         });
 
         this.addCommand({
             langKey: "refreshTasks",
             langText: `[${this.i18n.pluginName}] ${this.i18n.refreshTasks}`,
             hotkey: "",
-            callback: () => {
-                this.bridge.recalcAllOrders().then(() => {
-                    taskStore.loadTasks();
-                    showMessage(`[NextAction] ${this.i18n.refreshTasks} ✓`);
-                }).catch((e: any) => {
-                    showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
-                });
-            },
+            callback: () => { this.runRefreshCommand(); },
+            globalCallback: () => { this.runRefreshCommand(); },
+            editorCallback: () => { this.runRefreshCommand(); },
+            dockCallback: () => { this.runRefreshCommand(); },
         });
 
         this.addCommand({
             langKey: "convertToProject",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToProject}`,
             hotkey: "",
-            callback: () => {
-                const editor = this.getEditor();
-                if (editor) {
-                    const nodeElement = editor.protyle.wysiwygElement.querySelector(".protyle-wysiwyg--select") || editor.protyle.wysiwygElement.firstElementChild;
-                    const blockId = nodeElement?.dataset?.nodeId || editor.protyle.block?.rootID;
-                    if (blockId) {
-                        this.doConvertToTask(blockId, undefined, "2").then(() => {
-                            showMessage(`[NextAction] ${this.i18n.convertToProjectSuccess}`);
-                            taskStore.loadTasks();
-                        }).catch((e: any) => {
-                            showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
-                        });
-                    }
-                }
-            },
+            callback: () => { this.runConvertCommand(undefined, "2"); },
+            editorCallback: (protyle: any) => { this.runConvertCommand(protyle, "2"); },
+            globalCallback: () => { this.runConvertCommand(undefined, "2"); },
         });
 
         this.addCommand({
             langKey: "convertToTaskWithChildren",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToTaskWithChildren}`,
             hotkey: "",
-            callback: () => {
-                const editor = this.getEditor();
-                if (editor) {
-                    const nodeElement = editor.protyle.wysiwygElement.querySelector(".protyle-wysiwyg--select") || editor.protyle.wysiwygElement.firstElementChild;
-                    const blockId = nodeElement?.dataset?.nodeId || editor.protyle.block?.rootID;
-                    if (blockId) {
-                        this.doConvertToTaskWithChildren(blockId).then((result) => {
-                            const msg = this.i18n.convertToTaskWithChildrenResult
-                                .replace("{converted}", String(result.converted))
-                                .replace("{skipped}", String(result.skipped));
-                            showMessage(`[NextAction] ${msg}`);
-                            taskStore.loadTasks();
-                        }).catch((e: any) => {
-                            showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
-                        });
-                    }
-                }
-            },
+            callback: () => { this.runConvertWithChildrenCommand(); },
+            editorCallback: (protyle: any) => { this.runConvertWithChildrenCommand(protyle); },
+            globalCallback: () => { this.runConvertWithChildrenCommand(); },
         });
 
         this.addCommand({
             langKey: "openTaskPanel",
             langText: `[${this.i18n.pluginName}] ${this.i18n.openTaskPanel}`,
             hotkey: "",
-            callback: () => {
-                openTab({
-                    app: this.app,
-                    custom: {
-                        id: this.name + TAB_TYPE,
-                        icon: "iconNextAction",
-                        title: this.i18n.pluginName || "NextAction",
-                    },
-                });
-            },
+            callback: () => { this.openTaskPanel(); },
+            globalCallback: () => { this.openTaskPanel(); },
+            editorCallback: () => { this.openTaskPanel(); },
+            dockCallback: () => { this.openTaskPanel(); },
         });
     }
 

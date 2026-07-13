@@ -61,10 +61,17 @@
         return parseDateTimeForCompare(dt).getTime() - Date.now();
     }
 
+    function parseLocalDateOnly(value: string): Date {
+        const datePart = value.split("T")[0];
+        const [year, month, day] = datePart.split("-").map(Number);
+        return new Date(year, month - 1, day);
+    }
+
     function formatDueDate(due: string): string {
         if (!due) return "";
         const hasTime = due.includes("T");
-        const dueDate = new Date(due);
+        const dueDate = hasTime ? new Date(due) : parseLocalDateOnly(due);
+        const dueDay = parseLocalDateOnly(due);
         const timeStr = hasTime ? due.split("T")[1] : "";
 
         // For datetime values, use precise comparison (same as isOverdue logic)
@@ -80,7 +87,7 @@
 
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diffMs = dueDate.getTime() - today.getTime();
+        const diffMs = dueDay.getTime() - today.getTime();
         const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
         if (diffDays < 0) {
             const base = (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(Math.abs(diffDays)));

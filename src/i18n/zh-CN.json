@@ -61,6 +61,8 @@
     "priority": "优先级",
     "status": "状态",
     "markComplete": "标记完成",
+    "taskMarkedDone": "已标记为完成",
+    "taskStatusUpdated": "已更新为「{status}」",
     "editTask": "编辑任务",
     "loading": "加载中…",
     "confirm": "确定",

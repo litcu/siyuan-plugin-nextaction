@@ -48,6 +48,7 @@
     $: priorityClass = `na-timeline-card--priority-${task.priority || 'none'}`;
     $: parentTitle = task.parentId ? taskMap.get(task.parentId)?.title ?? "" : "";
     $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
+    $: isDone = task.status === "done";
 
     // 卡片较短时隐藏次要信息
     $: isCompact = cardHeight < 44;
@@ -157,6 +158,7 @@
     class:na-timeline-card--removing={isRemoving}
     class:na-timeline-card--compact={isCompact}
     class:na-timeline-card--minimal={isMinimal}
+    class:na-timeline-card--done={isDone}
     style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityHex};"
     on:pointerdown={(e) => handlePointerDown(e, "move")}
     on:pointermove={handlePointerMove}
@@ -250,6 +252,22 @@
     .na-timeline-card--removing {
         opacity: 0.45;
         transform: scale(0.96);
+    }
+
+    .na-timeline-card--done {
+        opacity: 0.56;
+        background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
+
+        .na-timeline-card__name {
+            text-decoration: line-through;
+        }
+
+        .na-timeline-card__chip,
+        .na-timeline-card__time,
+        .na-timeline-card__parent,
+        .na-timeline-card__sep {
+            opacity: 0.72;
+        }
     }
 
     // ===== 紧凑/极简模式 =====

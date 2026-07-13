@@ -61,6 +61,8 @@
     "priority": "Priority",
     "status": "Status",
     "markComplete": "Mark Complete",
+    "taskMarkedDone": "Marked as done",
+    "taskStatusUpdated": "Status updated to {status}",
     "editTask": "Edit Task",
     "loading": "Loading...",
     "confirm": "OK",
