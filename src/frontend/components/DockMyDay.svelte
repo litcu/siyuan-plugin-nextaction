@@ -138,6 +138,7 @@
                             {@const hexColor = PRIORITY_HEX_COLORS[task.priority] || "#5dade2"}
                             <div
                                 class="na-dock-myday__unscheduled-item"
+                                class:na-dock-myday__unscheduled-item--done={task.status === "done"}
                                 style="--na-dock-myday-unscheduled-accent: {hexColor};"
                                 draggable="true"
                                 on:dragstart={(e) => handleDragStart(e, entry.blockId)}
@@ -330,6 +331,15 @@
 
         &[draggable="true"]:active {
             cursor: grabbing;
+        }
+    }
+
+    .na-dock-myday__unscheduled-item--done {
+        opacity: 0.56;
+        background: var(--na-dock-myday-panel-soft-bg);
+
+        .na-dock-myday__unscheduled-name {
+            text-decoration: line-through;
         }
     }
 

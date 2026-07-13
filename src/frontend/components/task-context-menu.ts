@@ -3,7 +3,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 import { KernelBridge } from "../kernel-bridge";
 import { STATUS_LIST, PRIORITY_LIST } from "../constants";
 import { toI18nKey } from "../utils";
-import { notifyError, formatRpcError } from "../notify";
+import { notifyError, notifyInfo, formatRpcError } from "../notify";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
@@ -32,6 +32,11 @@ export function showTaskContextMenu(
                 try {
                     const updated = await bridge.updateTask(task.blockId, { "na-status": s });
                     callbacks.onUpdated(updated);
+                    const statusLabel = i18n?.[i18nKey] || s;
+                    const template = s === "done"
+                        ? (i18n?.taskMarkedDone || "Marked as done")
+                        : (i18n?.taskStatusUpdated || "Status updated to {status}");
+                    notifyInfo(template.replace("{status}", statusLabel));
                 } catch (e: any) {
                     console.error("[NextAction] updateTask (status) failed:", e);
                     notifyError(formatRpcError(e, i18n));

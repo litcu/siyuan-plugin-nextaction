@@ -83,8 +83,10 @@
                     </svg>
                 {:else if item.icon === "waiting"}
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="10" cy="10" r="7.5"/>
-                        <polyline points="10 5.5 10 10 13.5 12"/>
+                        <path d="M6 3.5h8"/>
+                        <path d="M6 16.5h8"/>
+                        <path d="M7 3.5v3.2c0 1.1.7 2.1 1.8 2.6L10 10l1.2-.7C12.3 8.8 13 7.8 13 6.7V3.5"/>
+                        <path d="M7 16.5v-3.2c0-1.1.7-2.1 1.8-2.6L10 10l1.2.7c1.1.5 1.8 1.5 1.8 2.6v3.2"/>
                     </svg>
                 {:else if item.icon === "chart"}
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
