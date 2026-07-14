@@ -169,6 +169,7 @@
                     {defaultDuration}
                     {bridge}
                     {i18n}
+                    {onContextMenu}
                 />
             </div>
         </div>

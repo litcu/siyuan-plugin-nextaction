@@ -71,7 +71,7 @@ export class CacheManager {
                 blockId: row.id,
                 parentId: attrs[ATTR_PARENT] || "",
                 status: attrs[ATTR_STATUS] || "todo",
-                priority: attrs[ATTR_PRIORITY] || "none",
+                priority: attrs[ATTR_PRIORITY] || "medium",
                 importance: attrToNumber(attrs[ATTR_IMPORTANCE], DEFAULT_SETTINGS.defaultImportance),
                 effort: attrToNumber(attrs[ATTR_EFFORT], DEFAULT_SETTINGS.defaultEffort),
                 due: attrs[ATTR_DUE] || "",

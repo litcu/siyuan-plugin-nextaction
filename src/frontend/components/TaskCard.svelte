@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../shared/types";
     import StatusCheckbox from "./StatusCheckbox.svelte";
-    import { PRIORITY_HEX_COLORS, PRIORITY_LIST } from "../constants";
+    import { normalizePriority, PRIORITY_HEX_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaTooltip from "../ui/NaTooltip.svelte";
@@ -40,13 +40,17 @@
     })();
     $: isWaiting = task.status === "waiting";
     $: isSomeday = task.status === "someday";
+    $: displayPriority = normalizePriority(task.priority);
+    $: parentTitle = task.parentId
+        ? ($taskStore.allTasks.find(t => t.blockId === task.parentId)?.title || i18n?.untitled || "(untitled)")
+        : "";
 
-    $: priorityBorderColor = task.taskType !== "2" && task.priority && task.priority !== "none"
-        ? PRIORITY_HEX_COLORS[task.priority] || ""
+    $: priorityBorderColor = task.taskType !== "2" && displayPriority
+        ? PRIORITY_HEX_COLORS[displayPriority] || ""
         : "";
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : (priorityBorderColor || "transparent");
-    $: badgeTextColor = PRIORITY_HEX_COLORS[task.priority] || "inherit";
-    $: priorityLabel = task.priority !== "none" ? (i18n?.[toI18nKey("priority", task.priority)] || task.priority) : "";
+    $: badgeTextColor = PRIORITY_HEX_COLORS[displayPriority] || "inherit";
+    $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
 
     function parseDateTimeForCompare(dt: string): Date {
         if (dt.includes("T")) {
@@ -125,9 +129,24 @@
     on:click={() => { if (onSelect) onSelect(task); }}
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
-    <div class="na-task-card__content">
+    <div
+        class="na-task-card__content"
+        class:na-task-card__content--has-parent={Boolean(parentTitle && isRoot)}
+    >
         <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} />
         <div class="na-task-card__body" on:click|stopPropagation={() => onEdit(task)}>
+            {#if parentTitle && isRoot}
+                <div
+                    class="na-task-card__parent-path"
+                    title="{i18n?.parentTask || 'Parent'}: {parentTitle}"
+                >
+                    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 2.5v5a2 2 0 0 0 2 2h7" />
+                        <path d="m9.5 7 2.5 2.5L9.5 12" />
+                    </svg>
+                    <span>{parentTitle}</span>
+                </div>
+            {/if}
             <div class="na-task-card__title-row">
                 {#if task.taskType === "2"}
                     <span class="na-task-card__project-icon" title={i18n?.project || "Project"}>

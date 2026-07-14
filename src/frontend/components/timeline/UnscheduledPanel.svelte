@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { PRIORITY_HEX_COLORS } from "../../constants";
+    import { normalizePriority, PRIORITY_HEX_COLORS } from "../../constants";
     import { MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
@@ -97,8 +97,9 @@
             {#each unscheduledEntries as entry (entry.blockId)}
                 {@const task = taskMap.get(entry.blockId)}
                 {#if task}
-                    {@const hexColor = PRIORITY_HEX_COLORS[task.priority] || "#5dade2"}
-                    {@const priorityClass = `na-unscheduled-card--priority-${task.priority || 'none'}`}
+                    {@const displayPriority = normalizePriority(task.priority)}
+                    {@const hexColor = PRIORITY_HEX_COLORS[displayPriority] || "#5dade2"}
+                    {@const priorityClass = `na-unscheduled-card--priority-${displayPriority}`}
                     <div
                         class="na-unscheduled-card {priorityClass}"
                         class:na-unscheduled-card--done={task.status === "done"}
@@ -222,6 +223,7 @@
     .na-unscheduled-card--priority-low {
         background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
     }
+    .na-unscheduled-card--priority-veryLow,
     .na-unscheduled-card--priority-none {
         background-color: var(--b3-theme-surface);
     }

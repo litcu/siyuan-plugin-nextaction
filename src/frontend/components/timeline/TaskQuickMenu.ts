@@ -1,7 +1,7 @@
 import { Menu } from "siyuan";
 import type { TaskCacheEntry } from "../../../shared/types";
 import type { KernelBridge } from "../../kernel-bridge";
-import { PRIORITY_LIST } from "../../constants";
+import { normalizePriority, PRIORITY_LIST } from "../../constants";
 import { toI18nKey } from "../../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../../notify";
 import type { MyDayState } from "../../../shared/types";
@@ -56,7 +56,7 @@ export function showTaskQuickMenu(
         label: i18n?.setPriority || "Set Priority",
         type: "submenu",
         submenu: PRIORITY_LIST.map((p) => ({
-            icon: p === task.priority ? "iconSelect" : "",
+            icon: p === normalizePriority(task.priority) ? "iconSelect" : "",
             label: i18n?.[toI18nKey("priority", p)] || p,
             click: async () => {
                 try {

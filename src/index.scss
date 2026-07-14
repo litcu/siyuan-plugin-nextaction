@@ -362,9 +362,39 @@
     min-width: 0;
 }
 
+.na-task-card__content--has-parent {
+    > .na-status-checkbox,
+    > .na-task-card__actions {
+        margin-top: 16px;
+    }
+}
+
 .na-task-card__body {
     flex: 1;
     min-width: 0;
+}
+
+.na-task-card__parent-path {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    margin-bottom: 2px;
+    color: var(--b3-theme-on-surface-secondary);
+    font-size: 11px;
+    line-height: 1.25;
+
+    svg {
+        flex: 0 0 auto;
+        opacity: 0.7;
+    }
+
+    span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 .na-task-card__title-row {

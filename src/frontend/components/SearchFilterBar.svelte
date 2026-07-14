@@ -24,7 +24,7 @@
     $: priorityOptions = PRIORITY_LIST.map(p => ({
         value: p,
         label: i18n?.[toI18nKey("priority", p)] || p,
-        color: PRIORITY_COLORS[p] === "transparent" ? "" : PRIORITY_COLORS[p],
+        color: PRIORITY_COLORS[p],
     }));
     $: statusOptions = statusValues.map(s => ({
         value: s,

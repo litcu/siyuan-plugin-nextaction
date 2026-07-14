@@ -90,6 +90,7 @@
                 {defaultDuration}
                 {bridge}
                 {i18n}
+                {onContextMenu}
             />
         </div>
     {:else}
@@ -114,6 +115,7 @@
                 {defaultDuration}
                 {bridge}
                 {i18n}
+                {onContextMenu}
             />
         </div>
     {/if}

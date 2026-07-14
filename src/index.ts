@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, type PluginSettings, type PriorityEngineSettings } fr
 import { notifyError, notifyInfo, formatRpcError } from "./frontend/notify";
 import { initReminderStore, destroyReminderStore } from "./frontend/stores/reminder-store";
 import NotificationHost from "./frontend/components/NotificationHost.svelte";
-import { PRIORITY_LIST } from "./frontend/constants";
+import { normalizePriority, PRIORITY_LIST } from "./frontend/constants";
 import { toI18nKey } from "./frontend/utils";
 
 const TAB_TYPE = "nextaction_tab";
@@ -17,7 +17,7 @@ const DOCK_TYPE = "nextaction_dock";
 const DEFAULT_TASK_ATTRS: Record<string, string> = {
     "custom-na-task": "1",
     "custom-na-status": "inbox",
-    "custom-na-priority": "none",
+    "custom-na-priority": "medium",
     "custom-na-importance": "4",
     "custom-na-effort": "4",
     "custom-na-sort": "",
@@ -37,6 +37,24 @@ export default class NextActionPlugin extends Plugin {
 
     private getCommandBlockId(protyle?: any): string {
         const currentProtyle = protyle || this.getEditor()?.protyle;
+        const savedRange = currentProtyle?.toolbar?.range;
+        const rangeNode = savedRange?.startContainer;
+        const rangeElement = rangeNode instanceof HTMLElement ? rangeNode : rangeNode?.parentElement;
+        const rangeBlock = rangeElement?.closest?.("[data-node-id]") as HTMLElement | null;
+        if (rangeBlock?.dataset?.nodeId) {
+            return rangeBlock.dataset.nodeId;
+        }
+
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const node = selection.getRangeAt(0).startContainer;
+            const element = node instanceof HTMLElement ? node : node.parentElement;
+            const selectionBlock = element?.closest?.("[data-node-id]") as HTMLElement | null;
+            if (selectionBlock?.dataset?.nodeId) {
+                return selectionBlock.dataset.nodeId;
+            }
+        }
+
         const selected = currentProtyle?.wysiwygElement?.querySelector(".protyle-wysiwyg--select")
             || currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select");
         return selected?.dataset?.nodeId || currentProtyle?.block?.rootID || "";
@@ -108,7 +126,7 @@ export default class NextActionPlugin extends Plugin {
         const blockId = taskBlock.dataset.nodeId;
         if (!blockId) return;
         const currentStatus = taskBlock.getAttribute('custom-na-status') || 'todo';
-        const currentPriority = taskBlock.getAttribute('custom-na-priority') || 'none';
+        const currentPriority = normalizePriority(taskBlock.getAttribute('custom-na-priority'));
 
         event.stopPropagation();
         event.preventDefault();

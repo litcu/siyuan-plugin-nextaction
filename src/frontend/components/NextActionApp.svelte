@@ -100,6 +100,7 @@
                     selectedTask = null;
                 }
             },
+            onEdit: handleEdit,
         };
         if (myDayEnabled) {
             callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
