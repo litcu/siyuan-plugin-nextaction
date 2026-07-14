@@ -65,6 +65,7 @@ function getPriorityOffset(priority: string): number {
         case "high": return config.priorityOffsetHigh;
         case "medium": return config.priorityOffsetMedium;
         case "low": return config.priorityOffsetLow;
+        case "veryLow": return config.priorityOffsetNone;
         case "none": return config.priorityOffsetNone;
         default: return 0;
     }

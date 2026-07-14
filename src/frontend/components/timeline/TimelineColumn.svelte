@@ -27,6 +27,7 @@
     export let defaultDuration: number = 60;
     export let bridge: KernelBridge;
     export let i18n: any;
+    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
 
     let containerEl: HTMLElement | null = null;
     let containerWidth: number = 300;
@@ -159,6 +160,7 @@
                     {bridge}
                     {i18n}
                     {taskMap}
+                    {onContextMenu}
                 />
             {/if}
         {/each}

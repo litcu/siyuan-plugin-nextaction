@@ -38,7 +38,8 @@
         high: "priorityHigh",
         medium: "priorityMedium",
         low: "priorityLow",
-        none: "priorityNone",
+        veryLow: "priorityVeryLow",
+        none: "priorityVeryLow",
     };
 
     async function loadStats(p?: "week" | "month") {

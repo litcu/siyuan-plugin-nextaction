@@ -95,6 +95,7 @@
             onRemoved: (blockId: string) => {
                 taskStore.applyRemove(blockId);
             },
+            onEdit: handleEdit,
         };
         if (myDayEnabled) {
             callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {

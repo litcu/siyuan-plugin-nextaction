@@ -32,6 +32,7 @@
   --na-priority-high: var(--b3-card-warning-color, #f39c12);
   --na-priority-medium: var(--b3-card-info-color, #5dade2);
   --na-priority-low: var(--b3-theme-on-surface-light);
+  --na-priority-very-low: var(--b3-theme-on-surface-tertiary, #c9ced6);
   --na-priority-none: transparent;
 
   // ===== 优先级卡片背景色（不透明，按主题适配）=====
@@ -39,6 +40,7 @@
   --na-priority-bg-high: #5c4522;
   --na-priority-bg-medium: #2a3f52;
   --na-priority-bg-low: #363638;
+  --na-priority-bg-very-low: #2f3032;
   --na-priority-bg-none: var(--b3-theme-surface-lighter, #2a2a2a);
 
   // ===== 卡片文字色（按主题适配）=====
@@ -138,6 +140,7 @@
   --na-priority-bg-high: #fef3e2;
   --na-priority-bg-medium: #e3f0fb;
   --na-priority-bg-low: #f0f0f1;
+  --na-priority-bg-very-low: #f5f5f5;
   --na-priority-bg-none: #f5f5f5;
 
   // 卡片文字色（浅色主题）

@@ -13,6 +13,7 @@ export const PRIORITY_CRITICAL = "critical";
 export const PRIORITY_HIGH = "high";
 export const PRIORITY_MEDIUM = "medium";
 export const PRIORITY_LOW = "low";
+export const PRIORITY_VERY_LOW = "veryLow";
 export const PRIORITY_NONE = "none";
 
 export const PRIORITY_WEIGHTS: Record<string, number> = {
@@ -20,6 +21,7 @@ export const PRIORITY_WEIGHTS: Record<string, number> = {
     [PRIORITY_HIGH]: 4,
     [PRIORITY_MEDIUM]: 3,
     [PRIORITY_LOW]: 2,
+    [PRIORITY_VERY_LOW]: 1,
     [PRIORITY_NONE]: 1,
 };
 

@@ -2,7 +2,7 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import { KernelBridge } from "../kernel-bridge";
     import { taskStore } from "../stores/task-store";
-    import { PRIORITY_LIST, STATUS_LIST } from "../constants";
+    import { normalizePriority, PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { onMount, onDestroy } from "svelte";
     import { confirm, Dialog } from "siyuan";
     import { jumpToBlock as jump, toI18nKey } from "../utils";
@@ -25,7 +25,7 @@
     export let dialogMode: boolean = false;
 
     let status = task.status || "todo";
-    let priority = task.priority || "none";
+    let priority = normalizePriority(task.priority);
     let importance = task.importance || 4;
     let effort = task.effort || 4;
     let due = task.due || "";
@@ -152,7 +152,7 @@
 
     function syncFromTask() {
         status = task.status || "todo";
-        priority = task.priority || "none";
+        priority = normalizePriority(task.priority);
         importance = task.importance || 4;
         effort = task.effort || 4;
         due = task.due || "";

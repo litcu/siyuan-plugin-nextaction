@@ -1,13 +1,14 @@
 import { Menu, confirm } from "siyuan";
 import type { TaskCacheEntry } from "../../shared/types";
 import { KernelBridge } from "../kernel-bridge";
-import { STATUS_LIST, PRIORITY_LIST } from "../constants";
+import { normalizePriority, STATUS_LIST, PRIORITY_LIST } from "../constants";
 import { toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
     onRemoved: (blockId: string) => void;
+    onEdit?: (task: TaskCacheEntry) => void;
     onMyDayToggle?: (blockId: string, inMyDay: boolean) => void;
     onReminderEdit?: (blockId: string) => void;
 }
@@ -52,7 +53,7 @@ export function showTaskContextMenu(
         label: i18n?.priority || "Priority",
         type: "submenu",
         submenu: PRIORITY_LIST.map((p) => ({
-            icon: p === task.priority ? "iconSelect" : "",
+            icon: p === normalizePriority(task.priority) ? "iconSelect" : "",
             label: i18n?.[toI18nKey("priority", p)] || p,
             click: async () => {
                 try {
@@ -77,6 +78,18 @@ export function showTaskContextMenu(
                 : (i18n?.addToMyDay || "Add to My Day"),
             click: async () => {
                 callbacks.onMyDayToggle!(task.blockId, isInMyDay);
+            },
+        });
+
+        menu.addSeparator();
+    }
+
+    if (callbacks.onEdit) {
+        menu.addItem({
+            icon: "iconEdit",
+            label: i18n?.taskProperties || "Task Properties",
+            click: () => {
+                callbacks.onEdit!(task);
             },
         });
 

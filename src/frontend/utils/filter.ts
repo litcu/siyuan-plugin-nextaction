@@ -1,12 +1,13 @@
 // src/frontend/utils/filter.ts
 import type { TaskCacheEntry } from "../../shared/types";
-import { PRIORITY_LIST } from "../constants";
+import { normalizePriority, PRIORITY_LIST } from "../constants";
 
 const PRIORITY_OFFSET: Record<string, number> = {
     critical: 1.5,
     high: 0.8,
     medium: 0,
     low: -0.8,
+    veryLow: -1.2,
     none: -1.2,
 };
 
@@ -75,7 +76,8 @@ export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState): Tas
 
     // 3. Priority filter (OR within dimension)
     if (filters.priorities.length > 0) {
-        result = result.filter(t => filters.priorities.includes(t.priority));
+        const selectedPriorities = filters.priorities.map(normalizePriority);
+        result = result.filter(t => selectedPriorities.includes(normalizePriority(t.priority)));
     }
 
     // 4. Status filter (OR within dimension)
@@ -117,8 +119,8 @@ export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: bo
         case "priority":
             arr.sort((a, b) => {
                 const pw = [5, 4, 3, 2, 1];
-                const aIdx = PRIORITY_LIST.indexOf(a.priority as any);
-                const bIdx = PRIORITY_LIST.indexOf(b.priority as any);
+                const aIdx = PRIORITY_LIST.indexOf(normalizePriority(a.priority) as any);
+                const bIdx = PRIORITY_LIST.indexOf(normalizePriority(b.priority) as any);
                 return dir * ((pw[aIdx] || 0) - (pw[bIdx] || 0));
             });
             break;
@@ -133,8 +135,8 @@ export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: bo
                 } else if (b.due) {
                     return 1;
                 }
-                const aEff = effectiveImportance(a.importance, a.priority);
-                const bEff = effectiveImportance(b.importance, b.priority);
+                const aEff = effectiveImportance(a.importance, normalizePriority(a.priority));
+                const bEff = effectiveImportance(b.importance, normalizePriority(b.priority));
                 if (bEff !== aEff) return bEff - aEff;
                 return a.blockId.localeCompare(b.blockId);
             });

@@ -225,7 +225,7 @@ export class TaskService {
             const defaultAttrs: Record<string, string> = {};
             defaultAttrs[ATTR_TASK] = taskType;
             defaultAttrs[ATTR_STATUS] = "inbox";
-            defaultAttrs[ATTR_PRIORITY] = "none";
+            defaultAttrs[ATTR_PRIORITY] = "medium";
             defaultAttrs[ATTR_IMPORTANCE] = numberToAttr(this.settings.defaultImportance);
             defaultAttrs[ATTR_EFFORT] = numberToAttr(this.settings.defaultEffort);
             defaultAttrs[ATTR_CREATED] = new Date().toISOString().slice(0, 19);
@@ -385,7 +385,7 @@ export class TaskService {
                 const defaultAttrs: Record<string, string> = {};
                 defaultAttrs[ATTR_TASK] = taskType;
                 defaultAttrs[ATTR_STATUS] = "inbox";
-                defaultAttrs[ATTR_PRIORITY] = "none";
+                defaultAttrs[ATTR_PRIORITY] = "medium";
                 defaultAttrs[ATTR_IMPORTANCE] = numberToAttr(this.settings.defaultImportance);
                 defaultAttrs[ATTR_EFFORT] = numberToAttr(this.settings.defaultEffort);
                 defaultAttrs[ATTR_CREATED] = new Date().toISOString().slice(0, 19);
@@ -1129,8 +1129,11 @@ export class TaskService {
                 case "priority":
                     entries.sort((a, b) => {
                         const pw = [5, 4, 3, 2, 1];
-                        const aIdx = ["critical", "high", "medium", "low", "none"].indexOf(a.priority);
-                        const bIdx = ["critical", "high", "medium", "low", "none"].indexOf(b.priority);
+                        const priorityOrder = ["critical", "high", "medium", "low", "veryLow"];
+                        const aPriority = a.priority === "none" ? "veryLow" : a.priority;
+                        const bPriority = b.priority === "none" ? "veryLow" : b.priority;
+                        const aIdx = priorityOrder.indexOf(aPriority);
+                        const bIdx = priorityOrder.indexOf(bPriority);
                         return (pw[bIdx] || 0) - (pw[aIdx] || 0);
                     });
                     break;
@@ -1286,11 +1289,11 @@ export class TaskService {
         }));
 
         // === Priority Distribution ===
-        const priorityOrder = ["critical", "high", "medium", "low", "none"];
+        const priorityOrder = ["critical", "high", "medium", "low", "veryLow"];
         const priorityCounts: Record<string, number> = Object.create(null) as Record<string, number>;
         for (let i = 0; i < priorityOrder.length; i++) priorityCounts[priorityOrder[i]] = 0;
         for (let i = 0; i < tasks.length; i++) {
-            const p = tasks[i].priority;
+            const p = tasks[i].priority === "none" ? "veryLow" : tasks[i].priority;
             if (priorityCounts[p] !== undefined) priorityCounts[p]++;
             else priorityCounts[p] = 1;
         }
@@ -1594,7 +1597,7 @@ export class TaskService {
             blockId: blockId,
             parentId: parentId,
             status: attrs[ATTR_STATUS] || "todo",
-            priority: attrs[ATTR_PRIORITY] || "none",
+            priority: attrs[ATTR_PRIORITY] || "medium",
             importance: attrToNumber(attrs[ATTR_IMPORTANCE], this.settings.defaultImportance),
             effort: attrToNumber(attrs[ATTR_EFFORT], this.settings.defaultEffort),
             due: attrs[ATTR_DUE] || "",

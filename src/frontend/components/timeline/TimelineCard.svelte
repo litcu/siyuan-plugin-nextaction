@@ -7,7 +7,7 @@
     } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
-    import { PRIORITY_HEX_COLORS } from "../../constants";
+    import { normalizePriority, PRIORITY_HEX_COLORS } from "../../constants";
     import { minuteToTimeLabel, minuteToPixel, snapMinute } from "./timeline-utils";
     import { showTaskQuickMenu } from "./TaskQuickMenu";
     import { notifyError, formatRpcError } from "../../notify";
@@ -23,6 +23,7 @@
     export let bridge: KernelBridge;
     export let i18n: any;
     export let taskMap: Map<string, TaskCacheEntry>;
+    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
 
     type DragMode = "none" | "move" | "resize-start" | "resize-end";
 
@@ -44,8 +45,9 @@
     $: cardLeft = leftOffset + laneIndex * (containerWidth / laneCount);
     $: timeLabel = minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour);
     $: endTimeLabel = minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour);
-    $: priorityHex = PRIORITY_HEX_COLORS[task.priority] || "#5dade2";
-    $: priorityClass = `na-timeline-card--priority-${task.priority || 'none'}`;
+    $: displayPriority = normalizePriority(task.priority);
+    $: priorityHex = PRIORITY_HEX_COLORS[displayPriority] || "#5dade2";
+    $: priorityClass = `na-timeline-card--priority-${displayPriority}`;
     $: parentTitle = task.parentId ? taskMap.get(task.parentId)?.title ?? "" : "";
     $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
     $: isDone = task.status === "done";
@@ -69,6 +71,7 @@
     $: isRemoving = isDragging && previewOffsetX < -150;
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
+        if (e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
         dragMode = mode;
@@ -163,6 +166,7 @@
     on:pointerdown={(e) => handlePointerDown(e, "move")}
     on:pointermove={handlePointerMove}
     on:pointerup={handlePointerUp}
+    on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
     <div
         class="na-timeline-card__handle na-timeline-card__handle--top"
@@ -237,7 +241,11 @@
         --na-timeline-card-bg: color-mix(in srgb, #5dade2 8%, var(--b3-theme-surface));
     }
 
-    .na-timeline-card--priority-low,
+    .na-timeline-card--priority-low {
+        --na-timeline-card-bg: color-mix(in srgb, #95a5a6 6%, var(--b3-theme-surface));
+    }
+
+    .na-timeline-card--priority-veryLow,
     .na-timeline-card--priority-none {
         --na-timeline-card-bg: var(--b3-theme-surface);
     }
