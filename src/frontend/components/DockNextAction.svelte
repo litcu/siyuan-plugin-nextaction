@@ -101,7 +101,7 @@
 
         :global(.na-task-card) {
             border-radius: 6px;
-            padding: 8px 10px;
+            padding: 6px 8px 6px 9px;
         }
 
         :global(.na-task-card__meta) {

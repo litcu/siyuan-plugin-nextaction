@@ -5,6 +5,7 @@
   "description": "GTD task management plugin for SiYuan",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
+    "test": "node --test tests/*.test.ts",
     "dev": "run-p dev:kernel dev:app",
     "dev:app": "vite build --watch --mode development",
     "dev:kernel": "webpack --config webpack.kernel.config.js --mode development",
