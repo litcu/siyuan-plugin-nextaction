@@ -3,9 +3,10 @@
     import StatusCheckbox from "./StatusCheckbox.svelte";
     import { normalizePriority, PRIORITY_HEX_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
-    import NaBadge from "../ui/NaBadge.svelte";
     import NaTooltip from "../ui/NaTooltip.svelte";
     import { taskStore } from "../stores/task-store";
+    import DueDateLabel from "./DueDateLabel.svelte";
+    import { getDuePresentation } from "../utils/time-boundary";
 
     export let task: TaskCacheEntry;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -33,84 +34,33 @@
         ? (i18n?.blockedBySequence || "Blocked - waiting in sequence")
         : (i18n?.blockedByDependency || "Blocked - dependency incomplete");
     $: isDone = task.status === "done";
-    $: isOverdue = !isDone && task.due && compareDateTime(task.due) < 0;
-    $: isDueSoon = !isOverdue && task.due && (() => {
-        const diffMs = parseDateTimeForCompare(task.due).getTime() - new Date().getTime();
-        return diffMs >= 0 && diffMs <= 3 * 24 * 60 * 60 * 1000;
-    })();
+    let isOverdue = false;
+    let overdueSourceKey = "";
+    $: {
+        const nextOverdueSourceKey = `${task.due}|${isDone}`;
+        if (nextOverdueSourceKey !== overdueSourceKey) {
+            overdueSourceKey = nextOverdueSourceKey;
+            isOverdue = !isDone && !!task.due && getDuePresentation(task.due, Date.now()).isOverdue;
+        }
+    }
     $: isWaiting = task.status === "waiting";
     $: isSomeday = task.status === "someday";
     $: displayPriority = normalizePriority(task.priority);
     $: parentTitle = task.parentId
         ? ($taskStore.allTasks.find(t => t.blockId === task.parentId)?.title || i18n?.untitled || "(untitled)")
         : "";
+    $: taskTitle = task.title || (i18n?.untitled || "(untitled)");
+    $: compositeTitle = parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle;
 
     $: priorityBorderColor = task.taskType !== "2" && displayPriority
         ? PRIORITY_HEX_COLORS[displayPriority] || ""
         : "";
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : (priorityBorderColor || "transparent");
-    $: badgeTextColor = PRIORITY_HEX_COLORS[displayPriority] || "inherit";
+    $: priorityTextColor = PRIORITY_HEX_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
 
-    function parseDateTimeForCompare(dt: string): Date {
-        if (dt.includes("T")) {
-            return new Date(dt);
-        }
-        const d = new Date(dt);
-        d.setHours(23, 59, 59, 999);
-        return d;
-    }
-
-    function compareDateTime(dt: string): number {
-        return parseDateTimeForCompare(dt).getTime() - Date.now();
-    }
-
-    function parseLocalDateOnly(value: string): Date {
-        const datePart = value.split("T")[0];
-        const [year, month, day] = datePart.split("-").map(Number);
-        return new Date(year, month - 1, day);
-    }
-
-    function formatDueDate(due: string): string {
-        if (!due) return "";
-        const hasTime = due.includes("T");
-        const dueDate = hasTime ? new Date(due) : parseLocalDateOnly(due);
-        const dueDay = parseLocalDateOnly(due);
-        const timeStr = hasTime ? due.split("T")[1] : "";
-
-        // For datetime values, use precise comparison (same as isOverdue logic)
-        if (hasTime && compareDateTime(due) < 0) {
-            const now = new Date();
-            const diffMs = now.getTime() - dueDate.getTime();
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const base = diffDays > 0
-                ? (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(diffDays))
-                : i18n?.overdueToday || "Overdue today";
-            return timeStr ? `${base} ${timeStr}` : base;
-        }
-
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diffMs = dueDay.getTime() - today.getTime();
-        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) {
-            const base = (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(Math.abs(diffDays)));
-            return timeStr ? `${base} ${timeStr}` : base;
-        } else if (diffDays === 0) {
-            const base = i18n?.dueToday || "Due today";
-            return timeStr ? `${base} ${timeStr}` : base;
-        } else if (diffDays === 1) {
-            const base = i18n?.dueTomorrow || "Due tomorrow";
-            return timeStr ? `${base} ${timeStr}` : base;
-        } else if (diffDays <= 7) {
-            const base = (i18n?.dueInDays || "Due in {n} days").replace("{n}", String(diffDays));
-            return timeStr ? `${base} ${timeStr}` : base;
-        } else {
-            const month = dueDate.getMonth() + 1;
-            const day = dueDate.getDate();
-            const base = (i18n?.dueDateFormat || "{m}/{d}").replace("{m}", String(month)).replace("{d}", String(day));
-            return timeStr ? `${base} ${timeStr}` : base;
-        }
+    function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
+        isOverdue = !isDone && event.detail.isOverdue;
     }
 </script>
 
@@ -129,43 +79,45 @@
     on:click={() => { if (onSelect) onSelect(task); }}
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
-    <div
-        class="na-task-card__content"
-        class:na-task-card__content--has-parent={Boolean(parentTitle && isRoot)}
-    >
+    <div class="na-task-card__content">
         <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} />
         <div class="na-task-card__body" on:click|stopPropagation={() => onEdit(task)}>
-            {#if parentTitle && isRoot}
-                <div
-                    class="na-task-card__parent-path"
-                    title="{i18n?.parentTask || 'Parent'}: {parentTitle}"
-                >
-                    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 2.5v5a2 2 0 0 0 2 2h7" />
-                        <path d="m9.5 7 2.5 2.5L9.5 12" />
-                    </svg>
-                    <span>{parentTitle}</span>
-                </div>
-            {/if}
             <div class="na-task-card__title-row">
                 {#if task.taskType === "2"}
                     <span class="na-task-card__project-icon" title={i18n?.project || "Project"}>
                         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l1 1h5v9H2z"/></svg>
                     </span>
                 {/if}
-                <span class="na-task-card__title" class:untitled={!task.title}>
-                    {task.title || (i18n?.untitled || "(untitled)")}
+                <span
+                    class="na-task-card__title-composite"
+                    class:na-task-card__title-composite--has-parent={Boolean(parentTitle && isRoot)}
+                    title={compositeTitle}
+                >
+                    <span class="na-task-card__title" class:untitled={!task.title}>
+                        {taskTitle}
+                    </span>
+                    {#if parentTitle && isRoot}
+                        <span class="na-task-card__parent-context">
+                            <span class="na-task-card__parent-separator" aria-hidden="true">—</span>
+                            <span class="na-task-card__parent-title">{parentTitle}</span>
+                        </span>
+                    {/if}
                 </span>
                 {#if priorityLabel}
-                    <NaBadge text={priorityLabel} color={badgeTextColor} />
+                    <span
+                        class="na-task-card__priority"
+                        style="--na-task-priority-color: {priorityTextColor}"
+                        title={priorityLabel}
+                    >
+                        <span class="na-task-card__priority-dot" aria-hidden="true"></span>
+                        <span>{priorityLabel}</span>
+                    </span>
                 {/if}
             </div>
             <div class="na-task-card__meta">
                 <div class="na-task-card__meta-cluster">
                     {#if task.due && !isDone}
-                        <span class="na-task-card__due" class:overdue={isOverdue} class:due-soon={isDueSoon}>
-                            {formatDueDate(task.due)}
-                        </span>
+                        <DueDateLabel due={task.due} {i18n} on:overduechange={handleOverdueChange} />
                     {/if}
                     {#if isBlocked && task.taskType !== "2"}
                         <span class="na-task-card__blocked-badge" title={blockedText}>
