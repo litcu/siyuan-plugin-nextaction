@@ -111,6 +111,7 @@ export interface MyDayTaskEntry {
     scheduleStart: number | null;
     scheduleEnd: number | null;
     order: number;
+    completedAt?: number;
 }
 
 export interface MyDayState {

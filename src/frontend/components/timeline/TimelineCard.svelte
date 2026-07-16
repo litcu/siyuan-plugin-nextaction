@@ -12,6 +12,7 @@
     import { showTaskQuickMenu } from "./TaskQuickMenu";
     import { notifyError, formatRpcError } from "../../notify";
     import { taskStore } from "../../stores/task-store";
+    import { isMyDayEntryDone } from "../../../shared/my-day";
 
     export let entry: MyDayTaskEntry;
     export let task: TaskCacheEntry;
@@ -50,7 +51,7 @@
     $: priorityClass = `na-timeline-card--priority-${displayPriority}`;
     $: parentTitle = task.parentId ? taskMap.get(task.parentId)?.title ?? "" : "";
     $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
-    $: isDone = task.status === "done";
+    $: isDone = isMyDayEntryDone(entry, task.status);
 
     // 卡片较短时隐藏次要信息
     $: isCompact = cardHeight < 44;
@@ -133,7 +134,7 @@
                 onRemovedFromMyDay: (newState: MyDayState) => {
                     taskStore.applyMyDayUpdate(newState);
                 },
-            });
+            }, isDone);
             isDragging = false;
             return;
         }

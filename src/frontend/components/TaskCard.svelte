@@ -21,6 +21,7 @@
     export let onToggleCollapse: (() => void) | undefined = undefined;
     export let onActivate: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let isRoot = true;
+    export let completedOverride: boolean | undefined = undefined;
 
     $: isInbox = task.status === "inbox";
     $: isBlocked = task.blocked;
@@ -33,7 +34,7 @@
         : task.blockedReason === "sequential"
         ? (i18n?.blockedBySequence || "Blocked - waiting in sequence")
         : (i18n?.blockedByDependency || "Blocked - dependency incomplete");
-    $: isDone = task.status === "done";
+    $: isDone = completedOverride ?? task.status === "done";
     let isOverdue = false;
     let overdueSourceKey = "";
     $: {

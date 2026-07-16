@@ -5,6 +5,7 @@
     import type { KernelBridge } from "../../kernel-bridge";
     import { showTaskQuickMenu } from "./TaskQuickMenu";
     import { taskStore } from "../../stores/task-store";
+    import { isMyDayEntryDone } from "../../../shared/my-day";
 
     export let unscheduledEntries: MyDayTaskEntry[] = [];
     export let taskMap: Map<string, TaskCacheEntry>;
@@ -32,7 +33,7 @@
         e.preventDefault();
     }
 
-    function handleClick(e: MouseEvent, task: TaskCacheEntry) {
+    function handleClick(e: MouseEvent, task: TaskCacheEntry, entry: MyDayTaskEntry) {
         showTaskQuickMenu(task, e.clientX, e.clientY, bridge, i18n, {
             onScheduleRemoved: (newState: MyDayState) => {
                 taskStore.applyMyDayUpdate(newState);
@@ -43,7 +44,7 @@
             onRemovedFromMyDay: (newState: MyDayState) => {
                 taskStore.applyMyDayUpdate(newState);
             },
-        });
+        }, isMyDayEntryDone(entry, task.status));
     }
 
     function parseLocalDateOnly(value: string): Date {
@@ -102,11 +103,11 @@
                     {@const priorityClass = `na-unscheduled-card--priority-${displayPriority}`}
                     <div
                         class="na-unscheduled-card {priorityClass}"
-                        class:na-unscheduled-card--done={task.status === "done"}
+                        class:na-unscheduled-card--done={isMyDayEntryDone(entry, task.status)}
                         style="--na-unscheduled-card-accent: {hexColor};"
                         draggable="true"
                         on:dragstart={(e) => handleDragStart(e, entry.blockId)}
-                        on:click={(e) => handleClick(e, task)}
+                        on:click={(e) => handleClick(e, task, entry)}
                         on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
                     >
                         <span class="na-unscheduled-card__accent"></span>

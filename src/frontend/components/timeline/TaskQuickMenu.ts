@@ -19,6 +19,7 @@ export function showTaskQuickMenu(
     bridge: KernelBridge,
     i18n: any,
     callbacks: QuickMenuCallbacks,
+    instanceCompleted: boolean = task.status === "done",
 ): void {
     const menu = new Menu("na-timeline-quick");
 
@@ -37,19 +38,21 @@ export function showTaskQuickMenu(
 
     menu.addSeparator();
 
-    menu.addItem({
-        icon: "iconSelect",
-        label: i18n?.markComplete || "Mark Complete",
-        click: async () => {
-            try {
-                const updated = await bridge.updateTask(task.blockId, { "na-status": "done" });
-                callbacks.onTaskUpdated(updated);
-                notifyInfo(i18n?.taskMarkedDone || "Marked as done");
-            } catch (e: any) {
-                notifyError(formatRpcError(e, i18n));
-            }
-        },
-    });
+    if (!instanceCompleted) {
+        menu.addItem({
+            icon: "iconSelect",
+            label: i18n?.markComplete || "Mark Complete",
+            click: async () => {
+                try {
+                    const updated = await bridge.updateTask(task.blockId, { "na-status": "done" });
+                    callbacks.onTaskUpdated(updated);
+                    notifyInfo(i18n?.taskMarkedDone || "Marked as done");
+                } catch (e: any) {
+                    notifyError(formatRpcError(e, i18n));
+                }
+            },
+        });
+    }
 
     menu.addItem({
         icon: "iconSort",

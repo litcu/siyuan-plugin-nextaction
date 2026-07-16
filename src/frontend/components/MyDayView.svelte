@@ -12,6 +12,7 @@
     import TimelineView from "./timeline/TimelineView.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
+    import { isMyDayEntryDone } from "../../shared/my-day";
 
     export let bridge: KernelBridge;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -28,6 +29,7 @@
     $: resetHour = $taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR;
     $: defaultDuration = $taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION;
     $: myDayEntries = $taskStore.myDayState?.tasks ?? [];
+    $: myDayEntryMap = new Map(myDayEntries.map((entry) => [entry.blockId, entry]));
     $: scheduledCount = myDayEntries.filter((entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null).length;
     $: unscheduledCount = myDayEntries.length - scheduledCount;
     $: plannedMinutes = myDayEntries.reduce((sum, entry) => {
@@ -140,6 +142,7 @@
                 {#each filteredTasks as task (task.blockId)}
                     <TaskCard
                         {task}
+                        completedOverride={isMyDayEntryDone(myDayEntryMap.get(task.blockId), task.status)}
                         selected={task.blockId === selectedTaskId}
                         onSelect={onSelectTask}
                         {onEdit}
