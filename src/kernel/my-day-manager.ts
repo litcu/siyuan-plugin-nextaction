@@ -2,6 +2,7 @@ import type { MyDayState, MyDayTaskEntry } from "../shared/types";
 import { MY_DAY_DATA_PATH, DEFAULT_MY_DAY_RESET_HOUR } from "../shared/constants";
 import type { PluginSettings } from "../shared/settings";
 import { Mutex } from "./mutex";
+import { setMyDayTaskCompletedAt } from "../shared/my-day";
 
 function resolveDayKey(now: Date, resetHour: number): string {
     const boundaryHour = Math.max(0, Math.min(23, resetHour));
@@ -247,5 +248,43 @@ export class MyDayManager {
 
     async removeSchedule(blockId: string): Promise<MyDayState> {
         return this.setSchedule(blockId, null, null);
+    }
+
+    async markTaskCompleted(blockId: string, completedAt: number): Promise<MyDayState> {
+        return this.updateTaskCompletedAt(blockId, completedAt);
+    }
+
+    async clearTaskCompleted(blockId: string): Promise<MyDayState> {
+        return this.updateTaskCompletedAt(blockId, undefined);
+    }
+
+    private async updateTaskCompletedAt(blockId: string, completedAt: number | undefined): Promise<MyDayState> {
+        const { promise } = this.mutex.acquire();
+        const lock = await promise;
+        try {
+            const current = await this.getState();
+            const newState = setMyDayTaskCompletedAt(current, blockId, completedAt);
+            if (newState === current) return current;
+
+            const savedState = this.state;
+            this.state = newState;
+            try {
+                await this.persist();
+            } catch (e) {
+                this.state = savedState;
+                throw e;
+            }
+            try {
+                await this.siyuan.rpc.broadcast("myDayChanged", {
+                    ...this.state,
+                    tasks: [...this.state.tasks],
+                });
+            } catch (e: any) {
+                this.siyuan?.logger?.warn?.(`MyDayManager: failed to broadcast completion change: ${e.message || e}`);
+            }
+            return { ...this.state, tasks: [...this.state.tasks] };
+        } finally {
+            lock.release();
+        }
     }
 }

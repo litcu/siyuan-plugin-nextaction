@@ -9,6 +9,7 @@
     import TimelineColumn from "./timeline/TimelineColumn.svelte";
     import { PRIORITY_HEX_COLORS } from "../constants";
     import type { TaskCacheEntry, MyDayTaskEntry, MyDayState } from "../../shared/types";
+    import { isMyDayEntryDone } from "../../shared/my-day";
 
     export let bridge: KernelBridge;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -26,6 +27,7 @@
     $: myDayState = $taskStore.myDayState;
     $: allTasks = $taskStore.allTasks;
     $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map(t => [t.blockId, t] as [string, TaskCacheEntry]));
+    $: myDayEntryMap = new Map((myDayState?.tasks ?? []).map((entry) => [entry.blockId, entry]));
 
     $: myDayTasks = (() => {
         const state = myDayState;
@@ -138,7 +140,7 @@
                             {@const hexColor = PRIORITY_HEX_COLORS[task.priority] || "#5dade2"}
                             <div
                                 class="na-dock-myday__unscheduled-item"
-                                class:na-dock-myday__unscheduled-item--done={task.status === "done"}
+                                class:na-dock-myday__unscheduled-item--done={isMyDayEntryDone(entry, task.status)}
                                 style="--na-dock-myday-unscheduled-accent: {hexColor};"
                                 draggable="true"
                                 on:dragstart={(e) => handleDragStart(e, entry.blockId)}
@@ -183,6 +185,7 @@
                 {#each myDayTasks as task (task.blockId)}
                     <TaskCard
                         {task}
+                        completedOverride={isMyDayEntryDone(myDayEntryMap.get(task.blockId), task.status)}
                         {onEdit}
                         {onStatusClick}
                         {onContextMenu}

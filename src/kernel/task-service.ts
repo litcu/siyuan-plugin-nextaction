@@ -648,6 +648,8 @@ export class TaskService {
 
         const lock = await this.acquireWithTimeout();
         try {
+            const previousEntry = this.cacheManager.get(blockId);
+
             // Circular reference detection for na-parent changes
             if (attrs[ATTR_PARENT] !== undefined) {
                 const newParentId = attrs[ATTR_PARENT];
@@ -681,15 +683,29 @@ export class TaskService {
             });
 
             // 自动追加完成时间：status 变为 done 时（不是已经是 done）
-            let existing = this.cacheManager.get(blockId);
+            let existing = previousEntry;
             if (attrs[ATTR_STATUS] === "done" && existing && existing.status !== "done") {
                 const existingCompleted = existing.completed || "";
-                const now = new Date().toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss UTC
+                const completedAt = Date.now();
+                const now = new Date(completedAt).toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss UTC
                 const newCompleted = existingCompleted ? existingCompleted + "|" + now : now;
                 await siyuanFetch("/api/attr/setBlockAttrs", {
                     id: blockId,
                     attrs: { [ATTR_COMPLETED]: newCompleted },
                 });
+                try {
+                    await this.myDayManager.markTaskCompleted(blockId, completedAt);
+                } catch (e: any) {
+                    const siyuan = getSiyuan();
+                    siyuan?.logger?.warn(`updateTask: failed to mark My Day completion: ${e.message || e}`);
+                }
+            } else if (attrs[ATTR_STATUS] !== undefined && attrs[ATTR_STATUS] !== "done") {
+                try {
+                    await this.myDayManager.clearTaskCompleted(blockId);
+                } catch (e: any) {
+                    const siyuan = getSiyuan();
+                    siyuan?.logger?.warn(`updateTask: failed to clear My Day completion: ${e.message || e}`);
+                }
             }
 
             // Re-fetch full attrs

@@ -27,6 +27,7 @@ export default class NextActionPlugin extends Plugin {
     private bridge!: KernelBridge;
     private isMobile: boolean = false;
     private tasksChangedHandler: ((...params: any[]) => void) | null = null;
+    private myDayChangedHandler: ((...params: any[]) => void) | null = null;
     private blockIconHandler: (({detail}: any) => void) | null = null;
     private editorTitleIconHandler: (({detail}: any) => void) | null = null;
     private notificationHost?: NotificationHost;
@@ -720,6 +721,10 @@ export default class NextActionPlugin extends Plugin {
             taskStore.applyChangeNotification(notification);
         };
         this.kernel.rpc.bind("tasksChanged", this.tasksChangedHandler);
+        this.myDayChangedHandler = (state: any) => {
+            taskStore.applyMyDayUpdate(state);
+        };
+        this.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);
 
         // Load saved settings and push to kernel
         this.loadData("settings.json").then((saved: any) => {
@@ -793,6 +798,9 @@ export default class NextActionPlugin extends Plugin {
         document.removeEventListener('click', this.handleEditorStatusClick, true);
         if (this.tasksChangedHandler) {
             this.kernel.rpc.unbind("tasksChanged", this.tasksChangedHandler);
+        }
+        if (this.myDayChangedHandler) {
+            this.kernel.rpc.unbind("myDayChanged", this.myDayChangedHandler);
         }
         if (this.blockIconHandler) {
             this.eventBus.off("click-blockicon", this.blockIconHandler);
