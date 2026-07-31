@@ -21,6 +21,10 @@ function parseLocalDateOnly(value: string): Date {
     return new Date(year, month - 1, day);
 }
 
+function localCalendarDayNumber(value: Date): number {
+    return Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / DAY_MS;
+}
+
 function dueComparisonTime(due: string): number {
     if (!due) return Number.NaN;
     if (due.includes("T")) return new Date(due).getTime();
@@ -56,7 +60,7 @@ export function formatDueDate(due: string, nowMs: number, i18n?: DueDateI18n): s
     const dueMs = dueComparisonTime(due);
 
     if (hasTime && nowMs >= dueMs) {
-        const diffDays = Math.floor((nowMs - dueMs) / DAY_MS);
+        const diffDays = localCalendarDayNumber(new Date(nowMs)) - localCalendarDayNumber(dueDay);
         const base = diffDays > 0
             ? (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(diffDays))
             : i18n?.overdueToday || "Overdue today";
@@ -64,8 +68,7 @@ export function formatDueDate(due: string, nowMs: number, i18n?: DueDateI18n): s
     }
 
     const now = new Date(nowMs);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffDays = Math.round((dueDay.getTime() - today.getTime()) / DAY_MS);
+    const diffDays = localCalendarDayNumber(dueDay) - localCalendarDayNumber(now);
     if (diffDays < 0) {
         const base = (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(Math.abs(diffDays)));
         return timeStr ? `${base} ${timeStr}` : base;
@@ -101,11 +104,9 @@ export function getNextDueBoundary(due: string, nowMs: number): number | null {
     if (dueSoonMs > nowMs) candidates.push(dueSoonMs);
     if (dueMs > nowMs) candidates.push(dueMs);
 
-    // Datetime labels change from "overdue today" to an overdue-day count
-    // whenever another full 24-hour period has elapsed since the due instant.
+    // Datetime overdue labels count calendar days and therefore change at local midnight.
     if (due.includes("T") && dueMs <= nowMs) {
-        const elapsedDays = Math.floor((nowMs - dueMs) / DAY_MS);
-        candidates.push(dueMs + (elapsedDays + 1) * DAY_MS);
+        candidates.push(getNextLocalMidnight(nowMs));
     }
 
     if (candidates.length === 0) return null;
