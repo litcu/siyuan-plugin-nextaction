@@ -16,6 +16,7 @@ export interface TaskCacheEntry {
     depMode: string;        // na-dep-mode，默认 "all"
     sequential: boolean;    // na-sequential === "1"
     repeat: string;         // na-repeat 原始值
+    repeatState: string;    // na-repeat-state 原始值
     sort: number;           // na-sort 转数字，默认 -1（表示未设置）
     completed: string;      // na-completed 原始值
     note: string;           // na-note 原始值

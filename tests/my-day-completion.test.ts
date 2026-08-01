@@ -70,7 +70,9 @@ test("普通已完成任务仍然根据任务自身状态显示完成", () => {
 test("任务完成会写入我的一天实例，重复任务内部重开不会走清除分支", () => {
     assert.match(taskServiceSource, /myDayManager\.markTaskCompleted\(blockId, completedAt\)/);
     assert.match(taskServiceSource, /attrs\[ATTR_STATUS\] !== undefined && attrs\[ATTR_STATUS\] !== "done"/);
-    assert.match(taskServiceSource, /repeatAttrs[\s\S]*\[ATTR_STATUS\]: "todo"/);
+    assert.match(taskServiceSource, /advanceRepeatState\([\s\S]*"complete"\)/);
+    assert.match(taskServiceSource, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
+    assert.match(taskServiceSource, /\[ATTR_REPEAT_STATE\]: JSON\.stringify\(advanced\.state\)/);
 });
 
 test("时间表完成样式基于我的一天实例状态", () => {

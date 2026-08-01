@@ -15,6 +15,7 @@
     let viewYear: number;
     let viewMonth: number; // 0-11
     let containerEl: HTMLElement;
+    let dropdownEl: HTMLElement;
     let hoverDate: string = "";
     let timeMode: boolean = false;
     let selectedHour: number = 0;
@@ -155,7 +156,17 @@
     function updateDropdownPosition() {
         if (!fixedDropdown || !open || !containerEl) return;
         const rect = containerEl.getBoundingClientRect();
-        dropdownStyle = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.bottom + 4}px;width:228px;`;
+        const viewportGap = 8;
+        const dropdownWidth = 228;
+        const dropdownHeight = dropdownEl?.offsetHeight || 286;
+        const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
+        const spaceAbove = rect.top - viewportGap;
+        const openAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+        const left = Math.max(viewportGap, Math.min(rect.left, window.innerWidth - dropdownWidth - viewportGap));
+        const top = openAbove
+            ? Math.max(viewportGap, rect.top - dropdownHeight - 4)
+            : Math.min(rect.bottom + 4, window.innerHeight - dropdownHeight - viewportGap);
+        dropdownStyle = `position:fixed;z-index:9999;left:${left}px;top:${Math.max(viewportGap, top)}px;width:${dropdownWidth}px;`;
     }
 
     function toggleOpen() {
@@ -344,7 +355,7 @@
     </div>
 
     {#if open}
-        <div class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
+        <div bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
             <!-- Calendar -->
             <div class="na-date-picker__header">
                 <button class="na-date-picker__nav" on:click={prevMonth} aria-label="Previous month">

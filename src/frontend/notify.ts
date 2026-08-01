@@ -11,6 +11,9 @@ const ERROR_MESSAGE_MAP: [RegExp, string][] = [
     [/invalid repeat freq/i, "errInvalidRepeatFreq"],
     [/invalid repeat interval/i, "errInvalidRepeatInterval"],
     [/invalid repeat from/i, "errInvalidRepeatFrom"],
+    [/repeat task requires a start or due date/i, "repeatNeedsDate"],
+    [/repeat series is paused/i, "errRepeatSeriesPaused"],
+    [/repeat series has ended/i, "errRepeatSeriesEnded"],
     [/invalid repeat/i, "errInvalidRepeatJson"],
     [/invalid status/i, "errInvalidStatus"],
     [/schedule start and schedule end must both/i, "errScheduleBothOrNone"],
@@ -70,16 +73,10 @@ export function formatError(e: any): string {
 
 /**
  * Format an RPC error with i18n translation.
- * Tries error code mapping first, then message pattern matching.
+ * Tries specific message pattern matching first, then error code mapping.
  * Falls back to the raw error message.
  */
 export function formatRpcError(e: any, i18n: any): string {
-    // Try error code mapping first
-    if (e?.code && ERROR_CODE_MAP[e.code]) {
-        const key = ERROR_CODE_MAP[e.code];
-        return i18n?.[key] || e.message || key;
-    }
-    // Try message pattern matching
     const msg = e?.message || e?._rpcError?.message || String(e);
     if (typeof msg === "string") {
         for (const [pattern, key] of ERROR_MESSAGE_MAP) {
@@ -87,6 +84,12 @@ export function formatRpcError(e: any, i18n: any): string {
                 return i18n?.[key] || msg;
             }
         }
+    }
+    // Fall back to the generic error-code translation.
+    const code = e?.code || e?._rpcError?.code;
+    if (code && ERROR_CODE_MAP[code]) {
+        const key = ERROR_CODE_MAP[code];
+        return i18n?.[key] || msg || key;
     }
     return msg;
 }

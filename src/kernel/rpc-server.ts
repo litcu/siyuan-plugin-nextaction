@@ -70,6 +70,40 @@ export function registerRpcMethods(taskService: TaskService): void {
         }
     });
 
+    siyuan.rpc.bind("setRepeatRule", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.blockId || !p.rule || typeof p.rule !== "object") {
+            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId and rule are required");
+        }
+        try {
+            return await taskService.setRepeatRule(p.blockId, p.rule);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("skipRepeatOccurrence", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.blockId) return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
+        try {
+            return await taskService.skipRepeatOccurrence(p.blockId);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("setRepeatPaused", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.blockId || typeof p.paused !== "boolean") {
+            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId and paused are required");
+        }
+        try {
+            return await taskService.setRepeatPaused(p.blockId, p.paused);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
     siyuan.rpc.bind("getTask", async (...params: any[]) => {
         const p = params[0] || {};
         if (!p.blockId) {

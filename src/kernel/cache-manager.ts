@@ -1,5 +1,5 @@
 import { TaskCacheEntry } from "../shared/types";
-import { ATTR_PARENT, ATTR_STATUS, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_CONTEXT, ATTR_TASK, ATTR_EFFORT, ATTR_IMPORTANCE, ATTR_DEPENDS, ATTR_DEP_MODE, ATTR_SEQUENTIAL, ATTR_REPEAT, ATTR_SORT, ATTR_COMPLETED, ATTR_NOTE, ATTR_CREATED, ATTR_TAGS, ATTR_REVIEW_INTERVAL, ATTR_REVIEW_DATE, ATTR_REMINDER, ATTR_EXT_PREFIX } from "../shared/constants";
+import { ATTR_PARENT, ATTR_STATUS, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_CONTEXT, ATTR_TASK, ATTR_EFFORT, ATTR_IMPORTANCE, ATTR_DEPENDS, ATTR_DEP_MODE, ATTR_SEQUENTIAL, ATTR_REPEAT, ATTR_REPEAT_STATE, ATTR_SORT, ATTR_COMPLETED, ATTR_NOTE, ATTR_CREATED, ATTR_TAGS, ATTR_REVIEW_INTERVAL, ATTR_REVIEW_DATE, ATTR_REMINDER, ATTR_EXT_PREFIX } from "../shared/constants";
 import { DEFAULT_SETTINGS } from "../shared/settings";
 import { siyuanFetch, attrToNumber, cleanSlashFromTitle, getSiyuan } from "./utils";
 import { calculateOrder, getBlockedReason } from "./priority-engine";
@@ -81,6 +81,7 @@ export class CacheManager {
                 depMode: attrs[ATTR_DEP_MODE] || "all",
                 sequential: attrs[ATTR_SEQUENTIAL] === "1",
                 repeat: attrs[ATTR_REPEAT] || "",
+                repeatState: attrs[ATTR_REPEAT_STATE] || "",
                 sort: attrToNumber(attrs[ATTR_SORT], -1),
                 completed: attrs[ATTR_COMPLETED] || "",
                 note: attrs[ATTR_NOTE] || "",

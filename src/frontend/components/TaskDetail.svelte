@@ -6,13 +6,15 @@
     import { onMount, onDestroy } from "svelte";
     import { confirm, Dialog } from "siyuan";
     import { jumpToBlock as jump, toI18nKey } from "../utils";
-    import { notifyError, formatRpcError } from "../notify";
+    import { notifyError, notifyInfo, formatRpcError } from "../notify";
     import NaSearchSelect from "../ui/NaSearchSelect.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
     import NaDotRating from "../ui/NaDotRating.svelte";
     import NaDatePicker from "../ui/NaDatePicker.svelte";
     import ReminderPopup from "./ReminderPopup.svelte";
+    import RepeatRuleDialog from "./RepeatRuleDialog.svelte";
     import { parseReminderItems } from "../utils/reminder-utils";
+    import { parseRepeatState } from "../../shared/repeat";
     import type { CustomFieldDef } from "../../shared/settings";
 
     export let task: TaskCacheEntry;
@@ -50,9 +52,6 @@
     let depMode: string = task.depMode || "all";
     let sequentialEnabled: boolean = task.sequential || false;
     let repeatEnabled: boolean = !!task.repeat;
-    let repeatFreq: string = "week";
-    let repeatInterval: number = 1;
-    let repeatFrom: string = "due";
     let taskType: string = task.taskType || "1";
     let depError: string = "";
     let dateError: string = "";
@@ -122,19 +121,10 @@
         }
     }
 
-    // Parse repeat config once at init (not reactively — otherwise user edits get overwritten)
-    {
-        if (task.repeat) {
-            try {
-                const parsed = JSON.parse(task.repeat);
-                repeatFreq = parsed.freq || "week";
-                repeatInterval = parsed.interval || 1;
-                repeatFrom = parsed.from || "due";
-            } catch {}
-        }
-    }
-
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    $: repeatRuntimeState = parseRepeatState(task.repeatState);
+    $: repeatStatus = repeatRuntimeState?.status || (task.repeat ? "active" : "");
 
     function formatCreated(created: string): string {
         // created is "YYYY-MM-DDTHH:mm:ss" in UTC
@@ -166,14 +156,6 @@
         depError = "";
         dateError = "";
         prevDue = due;
-        if (task.repeat) {
-            try {
-                const parsed = JSON.parse(task.repeat);
-                repeatFreq = parsed.freq || "week";
-                repeatInterval = parsed.interval || 1;
-                repeatFrom = parsed.from || "due";
-            } catch {}
-        }
         contexts = task.context ? task.context.split("|").filter(Boolean) : [];
         taskTags = task.tags ? task.tags.split("|").filter(Boolean) : [];
         depends = task.depends ? task.depends.split("|").filter(Boolean) : [];
@@ -296,21 +278,82 @@
         }
     }
 
+    function applyRepeatUpdate(updated: TaskCacheEntry) {
+        task = updated;
+        repeatEnabled = !!updated.repeat;
+        status = updated.status || "todo";
+        due = updated.due || "";
+        start = updated.start || "";
+        onSave?.(updated);
+    }
+
+    async function openRepeatDialog() {
+        if (!start && !due) {
+            repeatEnabled = !!task.repeat;
+            notifyError(i18n?.repeatNeedsDate || "请先设置开始日期或截止日期");
+            return;
+        }
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+            await flushSave();
+        }
+
+        let component: RepeatRuleDialog | null = null;
+        const dialog = new Dialog({
+            title: i18n?.repeatSettingsTitle || "重复设置",
+            content: `<div id="na-repeat-rule-container"></div>`,
+            width: "620px",
+            destroyCallback: () => component?.$destroy(),
+        });
+        dialog.element.classList.add("nextaction");
+        const container = dialog.element.querySelector("#na-repeat-rule-container");
+        if (!container) return;
+        component = new RepeatRuleDialog({
+            target: container,
+            props: {
+                task: { ...task, start, due },
+                bridge,
+                i18n,
+                onSave: applyRepeatUpdate,
+                onClose: () => dialog.destroy(),
+            },
+        });
+    }
+
     async function handleRepeatToggle() {
-        // bind:checked already toggles repeatEnabled, so don't flip again
         if (!repeatEnabled) {
-            // 关闭时立即保存，不经防抖
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = null;
             try {
                 const updated = await bridge.updateTask(task.blockId, { "na-repeat": "" });
-                if (onSave) onSave(updated);
+                applyRepeatUpdate(updated);
             } catch (e: any) {
                 console.error("[NextAction] updateTask (repeat toggle) failed:", e);
                 notifyError(formatRpcError(e, i18n));
+                repeatEnabled = true;
             }
         } else {
-            handleChange();
+            repeatEnabled = !!task.repeat;
+            await openRepeatDialog();
+        }
+    }
+
+    async function handleRepeatPauseToggle() {
+        try {
+            const updated = await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused");
+            applyRepeatUpdate(updated);
+        } catch (e: any) {
+            notifyError(formatRpcError(e, i18n));
+        }
+    }
+
+    async function handleRepeatSkip() {
+        try {
+            const updated = await bridge.skipRepeatOccurrence(task.blockId);
+            applyRepeatUpdate(updated);
+        } catch (e: any) {
+            notifyError(formatRpcError(e, i18n));
         }
     }
 
@@ -364,7 +407,6 @@
                 "na-depends": dependsStr,
                 "na-dep-mode": depMode,
                 "na-sequential": sequentialEnabled ? "1" : "",
-                "na-repeat": repeatEnabled ? JSON.stringify({ freq: repeatFreq, interval: repeatInterval, from: repeatFrom }) : "",
                 "na-note": note,
                 "na-review-interval": reviewInterval > 0 ? String(reviewInterval) : "",
                 "na-review-date": reviewDate || "",
@@ -388,6 +430,7 @@
             if (updated.start !== undefined && updated.start !== start) {
                 start = updated.start || "";
             }
+            task = updated;
             if (onSave) onSave(updated);
         } catch (e: any) {
             console.error("[NextAction] updateTask failed:", e);
@@ -407,6 +450,19 @@
 
     function handleChange() {
         scheduleSave();
+    }
+
+    let repeatDateNoticeTaskId = "";
+
+    function handleDateChange() {
+        if (repeatEnabled && repeatDateNoticeTaskId !== task.blockId) {
+            repeatDateNoticeTaskId = task.blockId;
+            notifyInfo(
+                i18n?.repeatDateCurrentOnly
+                    || "This date change only affects the current occurrence. Edit the repeat rule to change the series."
+            );
+        }
+        handleChange();
     }
 
     function localDateStr(): string {
@@ -548,13 +604,13 @@
             <div class="na-detail__field">
                 <span class="na-detail__label">{i18n?.startTime || i18n?.startDate || "Start Time"}</span>
                 <div class="na-detail__value">
-                    <NaDatePicker bind:value={start} placeholder={i18n?.startTime || i18n?.startDate || "Start Time"} defaultTime="00:00" {i18n} on:change={handleChange} />
+                    <NaDatePicker bind:value={start} placeholder={i18n?.startTime || i18n?.startDate || "Start Time"} defaultTime="00:00" fixedDropdown={dialogMode} {i18n} on:change={handleDateChange} />
                 </div>
             </div>
             <div class="na-detail__field">
                 <span class="na-detail__label">{i18n?.dueTime || i18n?.dueDate || "Due Time"}</span>
                 <div class="na-detail__value na-detail__value--with-bell">
-                    <NaDatePicker bind:value={due} placeholder={i18n?.dueTime || i18n?.dueDate || "Due Time"} defaultTime="23:59" {i18n} on:change={handleChange} />
+                    <NaDatePicker bind:value={due} placeholder={i18n?.dueTime || i18n?.dueDate || "Due Time"} defaultTime="23:59" fixedDropdown={dialogMode} {i18n} on:change={handleDateChange} />
                     <button
                         class="na-detail__bell-btn"
                         class:na-detail__bell-btn--active={hasReminders}
@@ -671,38 +727,27 @@
             <div class="na-detail__section-title">{i18n?.detailGroupRepeat || "Repeat"}</div>
             <div class="na-detail__field">
                 <span class="na-detail__label">{i18n?.repeat || "Repeat"}</span>
-                <div class="na-detail__value">
+                <div class="na-detail__value na-detail__repeat-controls">
                     <NaToggle bind:checked={repeatEnabled} on:change={handleRepeatToggle} />
+                    {#if repeatEnabled}
+                        <div class="na-detail__repeat-actions">
+                            {#if repeatStatus !== "ended"}
+                                <button class="na-button na-button--sm" on:click={handleRepeatPauseToggle}>
+                                    {repeatStatus === "paused" ? (i18n?.repeatResume || "恢复") : (i18n?.repeatPause || "暂停")}
+                                </button>
+                            {/if}
+                            {#if repeatStatus === "active"}
+                                <button class="na-button na-button--sm" on:click={handleRepeatSkip}>
+                                    {i18n?.repeatSkipOccurrence || "跳过本次"}
+                                </button>
+                            {/if}
+                            <button class="na-button na-button--sm" on:click={openRepeatDialog}>
+                                {i18n?.repeatConfigure || "设置"}
+                            </button>
+                        </div>
+                    {/if}
                 </div>
             </div>
-            {#if repeatEnabled}
-                <div class="na-detail__field">
-                    <span class="na-detail__label">{i18n?.repeatFreq || "Frequency"}</span>
-                    <div class="na-detail__value">
-                        <select class="na-select" bind:value={repeatFreq} on:change={handleChange}>
-                            <option value="day">{i18n?.repeatEveryDay || "Every day"}</option>
-                            <option value="week">{i18n?.repeatEveryWeek || "Every week"}</option>
-                            <option value="month">{i18n?.repeatEveryMonth || "Every month"}</option>
-                            <option value="year">{i18n?.repeatEveryYear || "Every year"}</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="na-detail__field">
-                    <span class="na-detail__label">{i18n?.repeatInterval || "Interval"}</span>
-                    <div class="na-detail__value">
-                        <input class="na-input" type="number" min="1" max="999" bind:value={repeatInterval} on:change={handleChange} />
-                    </div>
-                </div>
-                <div class="na-detail__field">
-                    <span class="na-detail__label">{i18n?.repeatFrom || "From"}</span>
-                    <div class="na-detail__value">
-                        <select class="na-select" bind:value={repeatFrom} on:change={handleChange}>
-                            <option value="due">{i18n?.repeatFromDue || "Due date"}</option>
-                            <option value="complete">{i18n?.repeatFromComplete || "Completion date"}</option>
-                        </select>
-                    </div>
-                </div>
-            {/if}
         </div>
 
         <div class="na-detail__section">
@@ -728,7 +773,7 @@
                 <div class="na-detail__field">
                     <span class="na-detail__label">{i18n?.reviewDate || "Next Review"}</span>
                     <div class="na-detail__value">
-                        <NaDatePicker value={reviewDate} {i18n} on:change={(e) => { reviewDate = e.detail?.value || ""; handleChange(); }} />
+                        <NaDatePicker value={reviewDate} fixedDropdown={dialogMode} {i18n} on:change={(e) => { reviewDate = e.detail?.value || ""; handleChange(); }} />
                     </div>
                 </div>
             {/if}

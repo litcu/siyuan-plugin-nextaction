@@ -40,6 +40,7 @@ export const ATTR_DEPENDS = "custom-na-depends";
 export const ATTR_DEP_MODE = "custom-na-dep-mode";
 export const ATTR_SEQUENTIAL = "custom-na-sequential";
 export const ATTR_REPEAT = "custom-na-repeat";
+export const ATTR_REPEAT_STATE = "custom-na-repeat-state";
 export const ATTR_SORT = "custom-na-sort";
 export const ATTR_COMPLETED = "custom-na-completed";
 export const ATTR_NOTE = "custom-na-note";

@@ -7,6 +7,7 @@
     import { taskStore } from "../stores/task-store";
     import DueDateLabel from "./DueDateLabel.svelte";
     import { getDuePresentation } from "../utils/time-boundary";
+    import { parseRepeatState } from "../../shared/repeat";
 
     export let task: TaskCacheEntry;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -59,6 +60,13 @@
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : (priorityBorderColor || "transparent");
     $: priorityTextColor = PRIORITY_HEX_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
+    $: repeatState = parseRepeatState(task.repeatState);
+    $: repeatStatus = repeatState?.status || (task.repeat ? "active" : "");
+    $: repeatTooltip = repeatStatus === "paused"
+        ? (i18n?.repeatPaused || "Repeat paused")
+        : repeatStatus === "ended"
+            ? (i18n?.repeatEnded || "Repeat ended")
+            : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`;
 
     function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
         isOverdue = !isDone && event.detail.isOverdue;
@@ -126,7 +134,7 @@
                         </span>
                     {/if}
                     {#if task.repeat}
-                        <span class="na-task-card__icon na-task-card__icon--repeat" title={i18n?.repeat || "Repeat"}>
+                        <span class="na-task-card__icon na-task-card__icon--repeat na-task-card__icon--repeat-{repeatStatus}" title={repeatTooltip}>
                             <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="miter">
                                 <path d="M2.5 8a5.5 5.5 0 0 1 9.3-3.9"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="5" x2="9" y2="5"/>
                                 <path d="M13.5 8a5.5 5.5 0 0 1-9.3 3.9"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="4" y1="11" x2="7" y2="11"/>

@@ -13,6 +13,7 @@ import {
     ATTR_DEP_MODE,
     ATTR_SEQUENTIAL,
     ATTR_REPEAT,
+    ATTR_REPEAT_STATE,
     ATTR_SORT,
     ATTR_COMPLETED,
     ATTR_NOTE,
@@ -36,7 +37,15 @@ import { Mutex } from "./mutex";
 import { SyncEngine } from "./sync-engine";
 import { siyuanFetch, getSiyuan, attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle, errorToRpcError } from "./utils";
 import { calculateOrder, isNextActionCandidate, sortTasks, getBlockedReason, updatePriorityConfig } from "./priority-engine";
-import { parseRepeatRule, calculateNextDate } from "./repeat-engine";
+import {
+    advanceRepeatState,
+    createRepeatState,
+    normalizeRepeatRule,
+    parseRepeatRule,
+    parseRepeatState,
+    type RepeatRuleV2,
+    type RepeatStateV1,
+} from "./repeat-engine";
 import type { PluginSettings } from "../shared/settings";
 import { DEFAULT_SETTINGS, validateSettings, mergeSettings } from "../shared/settings";
 import { MyDayManager } from "./my-day-manager";
@@ -51,6 +60,11 @@ function isDueOverdue(due: string, todayStr: string): boolean {
     }
     // "YYYY-MM-DD" — compare against today's date
     return due < todayStr;
+}
+
+function localActionDate(date: Date = new Date()): string {
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export class TaskService {
@@ -103,6 +117,16 @@ export class TaskService {
             cancelAcquire();
             acquirePromise.then(lock => lock.release(), () => {});
             throw e;
+        }
+    }
+
+    private cacheWithRecalculatedOrder(entry: TaskCacheEntry): void {
+        entry.order = calculateOrder(entry, this.cacheManager.getCache());
+        this.cacheManager.set(entry);
+        if (!entry.parentId) return;
+        const parentEntry = this.cacheManager.get(entry.parentId);
+        if (parentEntry?.taskType === "2") {
+            parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
         }
     }
 
@@ -499,6 +523,7 @@ export class TaskService {
             clearAttrs[ATTR_DEP_MODE] = "";
             clearAttrs[ATTR_SEQUENTIAL] = "";
             clearAttrs[ATTR_REPEAT] = "";
+            clearAttrs[ATTR_REPEAT_STATE] = "";
             clearAttrs[ATTR_SORT] = "";
             clearAttrs[ATTR_COMPLETED] = "";
             clearAttrs[ATTR_NOTE] = "";
@@ -620,35 +645,39 @@ export class TaskService {
         // na-repeat 写入验证
         const repeatAttr = attrs[ATTR_REPEAT];
         if (repeatAttr !== undefined && repeatAttr !== "") {
-            try {
-                const parsed = JSON.parse(repeatAttr);
-                if (!["day", "week", "month", "year"].includes(parsed.freq)) {
-                    const err: any = new Error("Invalid repeat freq");
-                    err.code = RPC_ERROR_INVALID_PARAMS;
-                    throw err;
-                }
-                if (typeof parsed.interval !== "number" || parsed.interval < 1 || parsed.interval > 999 || !Number.isInteger(parsed.interval)) {
-                    const err: any = new Error("Invalid repeat interval");
-                    err.code = RPC_ERROR_INVALID_PARAMS;
-                    throw err;
-                }
-                if (parsed.from !== undefined && !["due", "complete"].includes(parsed.from)) {
-                    const err: any = new Error("Invalid repeat from");
-                    err.code = RPC_ERROR_INVALID_PARAMS;
-                    throw err;
-                }
-            } catch (e: any) {
-                // If it's already our typed error, re-throw as-is
-                if (e.code) throw e;
-                const err: any = new Error("Invalid repeat JSON");
+            if (!parseRepeatRule(repeatAttr)) {
+                const err: any = new Error("Invalid repeat rule");
                 err.code = RPC_ERROR_INVALID_PARAMS;
                 throw err;
             }
+        } else if (repeatAttr === "") {
+            attrs[ATTR_REPEAT_STATE] = "";
         }
 
         const lock = await this.acquireWithTimeout();
         try {
             const previousEntry = this.cacheManager.get(blockId);
+            let preparedRepeat: { rule: RepeatRuleV2; state: RepeatStateV1 } | null = null;
+            if (attrs[ATTR_STATUS] === "done" && previousEntry && previousEntry.status !== "done") {
+                const effectiveRepeat = repeatAttr !== undefined ? repeatAttr : previousEntry.repeat;
+                if (effectiveRepeat) {
+                    const rule = parseRepeatRule(effectiveRepeat);
+                    if (!rule) {
+                        const err: any = new Error("Invalid repeat rule");
+                        err.code = RPC_ERROR_INVALID_PARAMS;
+                        throw err;
+                    }
+                    const effectiveStart = attrs[ATTR_START] !== undefined ? attrs[ATTR_START] : previousEntry.start;
+                    const effectiveDue = attrs[ATTR_DUE] !== undefined ? attrs[ATTR_DUE] : previousEntry.due;
+                    const state = parseRepeatState(previousEntry.repeatState) || createRepeatState(rule, effectiveStart, effectiveDue);
+                    if (!state) {
+                        const err: any = new Error("Repeat task requires a start or due date");
+                        err.code = RPC_ERROR_INVALID_PARAMS;
+                        throw err;
+                    }
+                    preparedRepeat = { rule, state };
+                }
+            }
 
             // Circular reference detection for na-parent changes
             if (attrs[ATTR_PARENT] !== undefined) {
@@ -753,39 +782,24 @@ export class TaskService {
                 }
             }
 
-            // 循环/重复任务：status 变为 done 且 repeat 非空时触发
+            // 循环/重复任务：完成当前发生后推进轻量状态，不生成新块。
             const updatedEntry = this.cacheManager.get(blockId);
-            if (updatedEntry && attrs[ATTR_STATUS] === "done" && updatedEntry.repeat) {
-                const rule = parseRepeatRule(updatedEntry.repeat);
-                if (rule) {
-                    const td2 = new Date();
-                    const today = `${td2.getFullYear()}-${String(td2.getMonth() + 1).padStart(2, "0")}-${String(td2.getDate()).padStart(2, "0")}`;
-                    const baseDate = rule.from === "complete" ? today : (updatedEntry.due ? updatedEntry.due.split("T")[0] : today);
-                    const nextDate = calculateNextDate(baseDate, rule);
-                    const dueTimePart = updatedEntry.due && updatedEntry.due.includes("T") ? "T" + updatedEntry.due.split("T")[1] : "";
-                    const nextStart = updatedEntry.start ? calculateNextDate(updatedEntry.start.split("T")[0], rule) : null;
-                    const startTimePart = updatedEntry.start && updatedEntry.start.includes("T") ? "T" + updatedEntry.start.split("T")[1] : "";
-                    const repeatAttrs: Record<string, string> = {
-                        [ATTR_STATUS]: "todo",
-                    };
-                    if (updatedEntry.due) {
-                        repeatAttrs[ATTR_DUE] = nextDate + dueTimePart;
-                    }
-                    if (nextStart) {
-                        repeatAttrs[ATTR_START] = nextStart + startTimePart;
-                    }
-                    await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs: repeatAttrs });
-                    const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
-                    const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
-                    this.cacheManager.set(finalEntry);
-                } else {
-                    // 解析失败：清除 na-repeat，任务保持 done
-                    console.error(`[NextAction] invalid repeat rule for ${blockId}: ${updatedEntry.repeat}`);
-                    await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs: { [ATTR_REPEAT]: "" } });
-                    const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
-                    const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
-                    this.cacheManager.set(finalEntry);
+            if (updatedEntry && preparedRepeat) {
+                const advanced = advanceRepeatState(preparedRepeat.rule, preparedRepeat.state, localActionDate(), "complete");
+                const repeatAttrs: Record<string, string> = {
+                    [ATTR_REPEAT_STATE]: JSON.stringify(advanced.state),
+                };
+
+                if (!advanced.ended && advanced.state.status === "active") {
+                    repeatAttrs[ATTR_STATUS] = "todo";
+                    if (advanced.state.currentDue) repeatAttrs[ATTR_DUE] = advanced.state.currentDue;
+                    if (advanced.state.currentStart) repeatAttrs[ATTR_START] = advanced.state.currentStart;
                 }
+
+                await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs: repeatAttrs });
+                const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+                const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
+                this.cacheWithRecalculatedOrder(finalEntry);
             }
 
             // 回顾日期推算：status 变为 done 且有 review-interval 时，自动推算下次 review-date
@@ -811,6 +825,163 @@ export class TaskService {
                 return { ...result, _warning: "sequentialConflict" };
             }
             return result;
+        } finally {
+            lock.release();
+        }
+    }
+
+    async setRepeatRule(blockId: string, rawRule: unknown): Promise<TaskCacheEntry> {
+        if (!blockId) {
+            const err: any = new Error("blockId is required");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        const rule = normalizeRepeatRule(rawRule);
+        if (!rule) {
+            const err: any = new Error("Invalid repeat rule");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        this.checkReady();
+
+        const lock = await this.acquireWithTimeout();
+        try {
+            const entry = this.cacheManager.get(blockId);
+            if (!entry) {
+                const err: any = new Error("Task not found");
+                err.code = RPC_ERROR_TASK_NOT_FOUND;
+                throw err;
+            }
+            const state = createRepeatState(rule, entry.start, entry.due);
+            if (!state) {
+                const err: any = new Error("Repeat task requires a start or due date");
+                err.code = RPC_ERROR_INVALID_PARAMS;
+                throw err;
+            }
+
+            const attrs: Record<string, string> = {
+                [ATTR_REPEAT]: JSON.stringify(rule),
+                [ATTR_REPEAT_STATE]: JSON.stringify(state),
+            };
+            if (entry.status === "done") attrs[ATTR_STATUS] = "todo";
+            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+
+            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            this.cacheWithRecalculatedOrder(finalEntry);
+            this.cacheManager.recalcBlockedStatus();
+            this.syncEngine.addPendingChange(blockId, "update");
+            this.syncEngine.broadcastChanges();
+            return finalEntry;
+        } finally {
+            lock.release();
+        }
+    }
+
+    async skipRepeatOccurrence(blockId: string): Promise<TaskCacheEntry> {
+        if (!blockId) {
+            const err: any = new Error("blockId is required");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        this.checkReady();
+
+        const lock = await this.acquireWithTimeout();
+        try {
+            const entry = this.cacheManager.get(blockId);
+            if (!entry) {
+                const err: any = new Error("Task not found");
+                err.code = RPC_ERROR_TASK_NOT_FOUND;
+                throw err;
+            }
+            const rule = parseRepeatRule(entry.repeat);
+            const state = rule && (parseRepeatState(entry.repeatState) || createRepeatState(rule, entry.start, entry.due));
+            if (!rule || !state) {
+                const err: any = new Error("Invalid repeat rule or state");
+                err.code = RPC_ERROR_INVALID_PARAMS;
+                throw err;
+            }
+            if (state.status !== "active") {
+                const err: any = new Error(state.status === "paused" ? "Repeat series is paused" : "Repeat series has ended");
+                err.code = RPC_ERROR_INVALID_PARAMS;
+                throw err;
+            }
+
+            const advanced = advanceRepeatState(rule, state, localActionDate(), "skip");
+            const attrs: Record<string, string> = {
+                [ATTR_REPEAT_STATE]: JSON.stringify(advanced.state),
+                [ATTR_STATUS]: advanced.ended ? "done" : "todo",
+            };
+            if (!advanced.ended) {
+                if (advanced.state.currentDue) attrs[ATTR_DUE] = advanced.state.currentDue;
+                if (advanced.state.currentStart) attrs[ATTR_START] = advanced.state.currentStart;
+            }
+            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+            try {
+                await this.myDayManager.removeTask(blockId);
+            } catch (e: any) {
+                getSiyuan()?.logger?.warn(`skipRepeatOccurrence: failed to remove My Day entry: ${e.message || e}`);
+            }
+
+            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            this.cacheWithRecalculatedOrder(finalEntry);
+            this.cacheManager.recalcBlockedStatus();
+            this.syncEngine.addPendingChange(blockId, "update");
+            this.syncEngine.broadcastChanges();
+            return finalEntry;
+        } finally {
+            lock.release();
+        }
+    }
+
+    async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
+        if (!blockId || typeof paused !== "boolean") {
+            const err: any = new Error("blockId and paused are required");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        this.checkReady();
+
+        const lock = await this.acquireWithTimeout();
+        try {
+            const entry = this.cacheManager.get(blockId);
+            if (!entry) {
+                const err: any = new Error("Task not found");
+                err.code = RPC_ERROR_TASK_NOT_FOUND;
+                throw err;
+            }
+            const rule = parseRepeatRule(entry.repeat);
+            const state = rule && (parseRepeatState(entry.repeatState) || createRepeatState(rule, entry.start, entry.due));
+            if (!rule || !state) {
+                const err: any = new Error("Invalid repeat rule or state");
+                err.code = RPC_ERROR_INVALID_PARAMS;
+                throw err;
+            }
+            if (!paused && state.status === "ended") {
+                const err: any = new Error("Repeat series has ended; edit the rule to restart it");
+                err.code = RPC_ERROR_INVALID_PARAMS;
+                throw err;
+            }
+
+            const nextState: RepeatStateV1 = { ...state, status: paused ? "paused" : "active" };
+            const attrs: Record<string, string> = {
+                [ATTR_REPEAT_STATE]: JSON.stringify(nextState),
+            };
+            if (!paused && entry.status === "done") {
+                attrs[ATTR_STATUS] = "todo";
+                if (nextState.currentDue) attrs[ATTR_DUE] = nextState.currentDue;
+                if (nextState.currentStart) attrs[ATTR_START] = nextState.currentStart;
+            }
+            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+
+            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            this.cacheWithRecalculatedOrder(finalEntry);
+            this.cacheManager.recalcBlockedStatus();
+            this.syncEngine.addPendingChange(blockId, "update");
+            this.syncEngine.broadcastChanges();
+            return finalEntry;
         } finally {
             lock.release();
         }
@@ -1623,6 +1794,7 @@ export class TaskService {
             depMode: attrs[ATTR_DEP_MODE] || "all",
             sequential: attrs[ATTR_SEQUENTIAL] === "1",
             repeat: attrs[ATTR_REPEAT] || "",
+            repeatState: attrs[ATTR_REPEAT_STATE] || "",
             sort: attrToNumber(attrs[ATTR_SORT], -1),
             completed: attrs[ATTR_COMPLETED] || "",
             note: attrs[ATTR_NOTE] || "",

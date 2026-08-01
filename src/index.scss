@@ -1079,6 +1079,19 @@
     min-width: 0;
 }
 
+.na-detail__repeat-controls {
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.na-detail__repeat-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+}
+
 .na-detail .na-select,
 .na-detail .na-input,
 .na-detail .na-textarea {
@@ -1643,6 +1656,16 @@
         &:hover {
             opacity: 1;
         }
+    }
+
+    &--repeat-paused {
+        opacity: 0.55;
+        color: var(--b3-theme-on-surface-secondary);
+    }
+
+    &--repeat-ended {
+        opacity: 0.65;
+        color: var(--na-color-success);
     }
 }
 

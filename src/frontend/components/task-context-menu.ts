@@ -4,6 +4,7 @@ import { KernelBridge } from "../kernel-bridge";
 import { normalizePriority, STATUS_LIST, PRIORITY_LIST } from "../constants";
 import { toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";
+import { parseRepeatState } from "../../shared/repeat";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
@@ -80,6 +81,44 @@ export function showTaskContextMenu(
                 callbacks.onMyDayToggle!(task.blockId, isInMyDay);
             },
         });
+
+        menu.addSeparator();
+    }
+
+    if (task.repeat) {
+        const repeatState = parseRepeatState(task.repeatState);
+        const repeatStatus = repeatState?.status || "active";
+
+        if (repeatStatus === "active") {
+            menu.addItem({
+                label: i18n?.repeatSkipOccurrence || "跳过本次",
+                click: async () => {
+                    try {
+                        const updated = await bridge.skipRepeatOccurrence(task.blockId);
+                        callbacks.onUpdated(updated);
+                        notifyInfo(i18n?.repeatOccurrenceSkipped || "已跳到下一次");
+                    } catch (e: any) {
+                        notifyError(formatRpcError(e, i18n));
+                    }
+                },
+            });
+        }
+
+        if (repeatStatus !== "ended") {
+            menu.addItem({
+                label: repeatStatus === "paused"
+                    ? (i18n?.repeatResume || "恢复重复")
+                    : (i18n?.repeatPause || "暂停重复"),
+                click: async () => {
+                    try {
+                        const updated = await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused");
+                        callbacks.onUpdated(updated);
+                    } catch (e: any) {
+                        notifyError(formatRpcError(e, i18n));
+                    }
+                },
+            });
+        }
 
         menu.addSeparator();
     }

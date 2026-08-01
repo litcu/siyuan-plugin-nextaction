@@ -1,4 +1,5 @@
 import type { TaskCacheEntry, TaskChangeNotification, StatisticsResult, PluginSettings, MyDayState, ReviewData } from "../shared/types";
+import type { RepeatRuleV2 } from "../shared/repeat";
 
 interface RpcError {
     code: number;
@@ -47,6 +48,18 @@ export class KernelBridge {
 
     async updateTask(blockId: string, attrs: Record<string, string>): Promise<TaskCacheEntry> {
         return this.call("updateTask", { blockId, attrs });
+    }
+
+    async setRepeatRule(blockId: string, rule: RepeatRuleV2): Promise<TaskCacheEntry> {
+        return this.call("setRepeatRule", { blockId, rule });
+    }
+
+    async skipRepeatOccurrence(blockId: string): Promise<TaskCacheEntry> {
+        return this.call("skipRepeatOccurrence", { blockId });
+    }
+
+    async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
+        return this.call("setRepeatPaused", { blockId, paused });
     }
 
     async getTask(blockId: string): Promise<TaskCacheEntry | null> {
