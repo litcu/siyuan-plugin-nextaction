@@ -246,6 +246,34 @@ export function registerRpcMethods(taskService: TaskService): void {
         }
     });
 
+    siyuan.rpc.bind("getCustomFieldDiagnostics", async (..._params: any[]) => {
+        try {
+            return taskService.getCustomFieldDiagnostics();
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("purgeCustomField", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.fieldId) return rpcError(RPC_ERROR_INVALID_PARAMS, "fieldId is required");
+        try {
+            return await taskService.purgeCustomField(p.fieldId);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("purgeOrphanCustomField", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.key) return rpcError(RPC_ERROR_INVALID_PARAMS, "key is required");
+        try {
+            return await taskService.purgeOrphanCustomField(p.key);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
     siyuan.rpc.bind("getMyDay", async (..._params: any[]) => {
         try {
             return await taskService.getMyDay();

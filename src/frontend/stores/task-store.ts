@@ -205,7 +205,7 @@ function createTaskStore() {
             const filter = currentState.filterByView[viewId] || DEFAULT_FILTER_STATE;
             const tasks = currentState.allTasks;
 
-            result = applyFilters(tasks, filter);
+            result = applyFilters(tasks, filter, currentState.settings.customFields);
 
             return result;
         },

@@ -726,21 +726,22 @@ export default class NextActionPlugin extends Plugin {
         };
         this.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);
 
-        // Load saved settings and push to kernel
-        this.loadData("settings.json").then((saved: any) => {
+        // Load saved settings before the first task load so typed custom fields
+        // and project scopes are ready when the UI renders.
+        this.loadData("settings.json").then(async (saved: any) => {
             if (saved && typeof saved === "object") {
-                this.bridge.updateSettings(saved).then((merged: any) => {
+                try {
+                    const merged = await this.bridge.updateSettings(saved);
                     taskStore.applySettingsUpdate(merged);
-                }).catch((e: any) => {
+                } catch (e: any) {
                     console.warn("[NextAction] Failed to apply saved settings:", e);
-                });
+                }
             }
         }).catch(() => {
             // No saved settings yet, use defaults
+        }).finally(() => {
+            taskStore.loadTasks();
         });
-
-        // Initial load
-        taskStore.loadTasks();
 
         // Editor status checkbox click listener
         document.addEventListener('click', this.handleEditorStatusClick, true);
@@ -822,7 +823,7 @@ export default class NextActionPlugin extends Plugin {
         const dialog = new Dialog({
             title: "",
             content: `<div id="naSettingsPanel" class="nextaction"></div>`,
-            width: "580px",
+            width: "min(760px, calc(100vw - 32px))",
             hideCloseIcon: true,
             destroyCallback: () => {
                 const comp = (dialog as any)._naSettings;

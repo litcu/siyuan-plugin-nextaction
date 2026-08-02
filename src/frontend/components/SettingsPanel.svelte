@@ -1,9 +1,11 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings } from "../../shared/settings";
+    import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, migrateCustomFieldDefs, normalizeCustomFieldKey, type CustomFieldOption, type CustomFieldType } from "../../shared/custom-fields";
     import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, validateSettings } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
     import NaDotRating from "../ui/NaDotRating.svelte";
+    import NaToggle from "../ui/NaToggle.svelte";
     import { formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
 
@@ -55,7 +57,14 @@
     let customFields: CustomFieldDef[] = [];
     let newFieldKey: string = "";
     let newFieldLabel: string = "";
+    let newFieldType: CustomFieldType = "text";
+    let newFieldOptions: string = "";
+    let newFieldScope: "all" | "task" | "project" | "projectTree" = "all";
+    let newFieldProjectIds: string = "";
+    let newFieldShowOnCard = true;
     let newFieldError: string = "";
+    let customFieldUsage: Record<string, number> = {};
+    let settingsBodyEl: HTMLDivElement;
 
     $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
 
@@ -81,9 +90,29 @@
     $: tabTitle = tabs.find(t => t.id === activeTab)?.label || "";
     $: tabDesc = tabs.find(t => t.id === activeTab)?.desc || "";
 
+    function selectTab(tab: TabId) {
+        activeTab = tab;
+        requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
+        setTimeout(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }), 60);
+    }
+
     onMount(async () => {
         try {
-            const settings = await bridge.getSettings();
+            const rawSettings = await bridge.getSettings();
+            if (rawSettings?._rpcError) throw rawSettings._rpcError;
+            const settings: PluginSettings = {
+                ...DEFAULT_SETTINGS,
+                ...(rawSettings || {}),
+                priorityEngine: {
+                    ...DEFAULT_PRIORITY_ENGINE,
+                    ...(rawSettings?.priorityEngine || {}),
+                },
+                reminderSettings: {
+                    ...DEFAULT_REMINDER_SETTINGS,
+                    ...(rawSettings?.reminderSettings || {}),
+                },
+                customFields: migrateCustomFieldDefs(rawSettings?.customFields || []).fields,
+            };
             current = settings;
             defaultImportance = settings.defaultImportance;
             defaultEffort = settings.defaultEffort;
@@ -100,7 +129,13 @@
             startHorizon = settings.priorityEngine.startHorizon;
             effortScale = settings.priorityEngine.effortScale;
             startPreviewDays = settings.priorityEngine.startPreviewDays ?? DEFAULT_PRIORITY_ENGINE.startPreviewDays;
-            customFields = settings.customFields ? [...settings.customFields] : [];
+            customFields = [...settings.customFields];
+            try {
+                const diagnostics = await bridge.getCustomFieldDiagnostics();
+                customFieldUsage = Object.fromEntries((diagnostics.fields || []).map((item: any) => [item.key, item.count]));
+            } catch (_e) {
+                customFieldUsage = {};
+            }
             // Reminder settings
             const rs = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
             reminderEnabled = rs.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
@@ -108,6 +143,10 @@
             reminderDueSound = rs.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
             reminderReviewSound = rs.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
             reminderSoundEnabled = rs.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+            await tick();
+            settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" });
+            requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
+            setTimeout(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }), 60);
         } catch (e: any) {
             console.error("[NextAction] loadSettings failed:", e);
             error = formatRpcError(e, i18n);
@@ -116,6 +155,7 @@
 
     function buildSettings(): PluginSettings {
         return {
+            customFieldSchemaVersion: 2,
             defaultImportance,
             defaultEffort,
             priorityEngine: {
@@ -279,6 +319,22 @@
         return i18n?.reminderOffsetMinutes || "minutes";
     }
 
+    function getCustomFieldTypeLabel(type: CustomFieldType): string {
+        const key = `customFieldType${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+        const fallback: Record<CustomFieldType, string> = {
+            text: "Text",
+            textarea: "Long text",
+            number: "Number",
+            boolean: "Yes / No",
+            date: "Date",
+            datetime: "Date & time",
+            singleSelect: "Single select",
+            multiSelect: "Multi-select",
+            url: "URL",
+        };
+        return i18n?.[key] || fallback[type];
+    }
+
     function handleResetMyDay() {
         myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
         myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
@@ -290,16 +346,37 @@
         customFields = [];
     }
 
+    function createFieldId(): string {
+        try {
+            return crypto.randomUUID();
+        } catch (_e) {
+            return `field-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+    }
+
+    function parseOptions(raw: string): CustomFieldOption[] | undefined {
+        if (newFieldType !== "singleSelect" && newFieldType !== "multiSelect") return undefined;
+        const labels = raw.split(",").map(item => item.trim()).filter(Boolean);
+        if (labels.length === 0) return undefined;
+        return labels.map((label, index) => ({ id: `option-${index + 1}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "value"}`, label, status: "active" as const }));
+    }
+
+    function scopeFromForm() {
+        if (newFieldScope === "task" || newFieldScope === "project") return { mode: newFieldScope } as const;
+        if (newFieldScope === "projectTree") return { mode: "projectTree", projectIds: newFieldProjectIds.split(",").map(item => item.trim()).filter(Boolean) } as const;
+        return { mode: "all" } as const;
+    }
+
     function handleAddCustomField() {
         newFieldError = "";
-        const key = newFieldKey.trim();
+        const key = normalizeCustomFieldKey(newFieldKey);
         const label = newFieldLabel.trim();
         if (!key) {
             newFieldError = i18n?.customFieldKeyRequired || "Key is required";
             return;
         }
-        if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
-            newFieldError = i18n?.customFieldKeyInvalid || "Key must start with a letter, only letters, digits, underscores";
+        if (!isValidCustomFieldKey(key)) {
+            newFieldError = i18n?.customFieldKeyInvalid || "Key must use lowercase letters, digits and hyphens";
             return;
         }
         if (!label) {
@@ -310,13 +387,54 @@
             newFieldError = i18n?.customFieldKeyDuplicate || "Key already exists";
             return;
         }
-        customFields = [...customFields, { key, label, type: "text" }];
+        customFields = [...customFields, {
+            version: 2,
+            id: createFieldId(),
+            key,
+            label,
+            description: "",
+            type: newFieldType,
+            status: "active",
+            scope: scopeFromForm(),
+            showOnCard: newFieldShowOnCard,
+            options: parseOptions(newFieldOptions),
+        }];
         newFieldKey = "";
         newFieldLabel = "";
+        newFieldOptions = "";
+        newFieldType = "text";
+        newFieldScope = "all";
+        newFieldProjectIds = "";
+        newFieldShowOnCard = true;
     }
 
-    function handleRemoveCustomField(key: string) {
-        customFields = customFields.filter(f => f.key !== key);
+    function handleToggleCustomFieldStatus(index: number) {
+        const arr = [...customFields];
+        arr[index] = { ...arr[index], status: arr[index].status === "active" ? "archived" : "active", showOnCard: arr[index].status === "active" ? false : arr[index].showOnCard };
+        customFields = arr;
+    }
+
+    async function handlePurgeCustomField(field: CustomFieldDef, index: number) {
+        if (field.status !== "archived") return;
+        try {
+            const result = await bridge.purgeCustomField(field.id);
+            if (result.failedBlockIds?.length) {
+                newFieldError = (i18n?.customFieldPurgePartial || "{key}: {count} task value(s) could not be cleared")
+                    .replace("{key}", field.key)
+                    .replace("{count}", String(result.failedBlockIds.length));
+                return;
+            }
+            customFields = customFields.filter((_, i) => i !== index);
+            notifyInfo((i18n?.customFieldPurgeSuccess || "{label}: cleared {count} task value(s)")
+                .replace("{label}", field.label)
+                .replace("{count}", String(result.cleared)));
+        } catch (e: any) {
+            newFieldError = formatRpcError(e, i18n);
+        }
+    }
+
+    function handleRemoveCustomField(index: number) {
+        handleToggleCustomFieldStatus(index);
     }
 
     function handleMoveCustomFieldUp(index: number) {
@@ -339,6 +457,53 @@
         customFields = arr;
     }
 
+    function updateCustomField(index: number, patch: Partial<CustomFieldDef>) {
+        const arr = [...customFields];
+        arr[index] = { ...arr[index], ...patch };
+        customFields = arr;
+    }
+
+    function handleExistingOptionsChange(index: number, raw: string) {
+        const field = customFields[index];
+        const labels = raw.split(",").map(item => item.trim()).filter(Boolean);
+        const previous = field.options || [];
+        const options: CustomFieldOption[] = labels.map((label, optionIndex) => ({
+            id: previous[optionIndex]?.id || `option-${optionIndex + 1}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "value"}`,
+            label,
+            status: previous[optionIndex]?.status || "active",
+        }));
+        updateCustomField(index, { options });
+    }
+
+    function handleUpdateCustomFieldScope(index: number, value: string) {
+        if (value === "task" || value === "project") {
+            updateCustomField(index, { scope: { mode: value } });
+            return;
+        }
+        if (value === "projectTree") {
+            const currentScope = customFields[index]?.scope;
+            updateCustomField(index, { scope: { mode: "projectTree", projectIds: currentScope?.mode === "projectTree" ? currentScope.projectIds : [] } });
+            return;
+        }
+        updateCustomField(index, { scope: { mode: "all" } });
+    }
+
+    function handleExistingProjectIdsChange(index: number, raw: string) {
+        const field = customFields[index];
+        if (field?.scope.mode !== "projectTree") return;
+        updateCustomField(index, { scope: { mode: "projectTree", projectIds: raw.split(",").map(item => item.trim()).filter(Boolean) } });
+    }
+
+    function handleUpdateCustomFieldType(index: number, value: string) {
+        if (!(CUSTOM_FIELD_TYPES as readonly string[]).includes(value)) return;
+        const field = customFields[index];
+        if (field && (customFieldUsage[field.key] || 0) > 0 && value !== field.type) {
+            newFieldError = i18n?.customFieldTypeLocked || "A field with existing values cannot change type";
+            return;
+        }
+        updateCustomField(index, { type: value as CustomFieldType });
+    }
+
     function handleReset() {
         if (activeTab === "priority") handleResetPriority();
         else if (activeTab === "myDay") handleResetMyDay();
@@ -356,7 +521,7 @@
             <button
                 class="na-settings__nav-item"
                 class:active={activeTab === tab.id}
-                on:click={() => activeTab = tab.id}
+                on:click={() => selectTab(tab.id)}
             >
                 {#if tab.id === "defaults"}
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -403,7 +568,7 @@
         </div>
 
         <!-- Scrollable body -->
-        <div class="na-settings__body">
+        <div class="na-settings__body" bind:this={settingsBodyEl}>
             <!-- Tab: Defaults -->
             {#if activeTab === "defaults"}
                 <div class="na-settings__page">
@@ -460,10 +625,7 @@
                             <span class="na-settings__field-hint">{i18n.settingMyDayEnabledDesc || "Show the My Day view in the navigation rail"}</span>
                         </label>
                         <div class="na-settings__field-value">
-                            <label class="na-settings__toggle">
-                                <input type="checkbox" id="setting-myday-enabled" bind:checked={myDayEnabled} />
-                                <span class="na-settings__toggle-track"></span>
-                            </label>
+                            <NaToggle checked={myDayEnabled} on:change={(e) => myDayEnabled = e.detail.checked} />
                         </div>
                     </div>
                     <div class="na-settings__field" class:na-settings__field--disabled={!myDayEnabled}>
@@ -513,10 +675,7 @@
                             <span class="na-settings__field-hint">{i18n.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}</span>
                         </label>
                         <div class="na-settings__field-value">
-                            <label class="na-settings__toggle">
-                                <input type="checkbox" id="setting-reminder-enabled" bind:checked={reminderEnabled} />
-                                <span class="na-settings__toggle-track"></span>
-                            </label>
+                            <NaToggle checked={reminderEnabled} on:change={(e) => reminderEnabled = e.detail.checked} />
                         </div>
                     </div>
 
@@ -596,42 +755,167 @@
                             <span class="na-settings__field-hint">{i18n.reminderSettingSoundEnabledDesc || "Play sound on reminder"}</span>
                         </label>
                         <div class="na-settings__field-value">
-                            <label class="na-settings__toggle">
-                                <input type="checkbox" id="setting-reminder-sound-enabled" bind:checked={reminderSoundEnabled} disabled={!reminderEnabled} />
-                                <span class="na-settings__toggle-track"></span>
-                            </label>
+                            <NaToggle checked={reminderSoundEnabled} disabled={!reminderEnabled} on:change={(e) => reminderSoundEnabled = e.detail.checked} />
                         </div>
                     </div>
                 </div>
 
             {:else if activeTab === "customFields"}
                 <div class="na-settings__page">
+                    <!-- Add new field -->
+                    <div class="na-settings__add-field-card">
+                        <div class="na-settings__add-field-header">
+                            <span class="na-settings__add-field-kicker">{i18n?.customFieldBuilderKicker || "FIELD BUILDER"}</span>
+                            <span class="na-settings__add-field-title">{i18n?.addCustomField || "Add Custom Field"}</span>
+                            <span class="na-settings__add-field-subtitle">{i18n?.addCustomFieldDesc || "Key cannot be changed after creation"}</span>
+                        </div>
+                        <div class="na-settings__add-field-form">
+                            <div class="na-settings__add-field-control">
+                                <label class="na-settings__add-field-label" for="setting-new-field-key">{i18n?.customFieldKeyLabel || "Key"}</label>
+                                <input
+                                    type="text"
+                                    id="setting-new-field-key"
+                                    class="na-input na-settings__custom-field-key-input"
+                                    value={newFieldKey}
+                                    placeholder={i18n?.customFieldKeyPlaceholder || "e.g. delegated-to"}
+                                    on:input={(e) => {
+                                        const raw = e.currentTarget.value;
+                                        newFieldKey = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^[^a-z]/, '');
+                                    }}
+                                    on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
+                                />
+                            </div>
+                            <div class="na-settings__add-field-control">
+                                <label class="na-settings__add-field-label" for="setting-new-field-label">{i18n?.customFieldLabelPlaceholder || "Label"}</label>
+                                <input
+                                    type="text"
+                                    id="setting-new-field-label"
+                                    class="na-input"
+                                    bind:value={newFieldLabel}
+                                    placeholder={i18n?.customFieldLabelPlaceholder || "e.g. Delegated to"}
+                                    on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
+                                />
+                            </div>
+                            <div class="na-settings__add-field-control">
+                                <label class="na-settings__add-field-label" for="setting-new-field-type">{i18n?.customFieldType || "Type"}</label>
+                                <select id="setting-new-field-type" class="na-select" bind:value={newFieldType}>
+                                    {#each CUSTOM_FIELD_TYPES as type}
+                                        <option value={type}>{getCustomFieldTypeLabel(type)}</option>
+                                    {/each}
+                                </select>
+                            </div>
+                            {#if newFieldType === "singleSelect" || newFieldType === "multiSelect"}
+                                <div class="na-settings__add-field-control">
+                                    <label class="na-settings__add-field-label" for="setting-new-field-options">{i18n?.customFieldOptions || "Options"}</label>
+                                    <input id="setting-new-field-options" class="na-input" bind:value={newFieldOptions} placeholder={i18n?.customFieldOptionsPlaceholder || "Home, Work, Waiting"} />
+                                </div>
+                            {/if}
+                            <div class="na-settings__add-field-control">
+                                <label class="na-settings__add-field-label" for="setting-new-field-scope">{i18n?.customFieldScope || "Scope"}</label>
+                                <select id="setting-new-field-scope" class="na-select" bind:value={newFieldScope}>
+                                    <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option>
+                                    <option value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option>
+                                    <option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option>
+                                    <option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
+                                </select>
+                            </div>
+                            {#if newFieldScope === "projectTree"}
+                                <div class="na-settings__add-field-control na-settings__add-field-control--wide">
+                                    <label class="na-settings__add-field-label" for="setting-new-field-projects">{i18n?.customFieldProjectIds || "Project IDs"}</label>
+                                    <input id="setting-new-field-projects" class="na-input" bind:value={newFieldProjectIds} placeholder={i18n?.customFieldProjectIdsPlaceholder || "Project block IDs, comma separated"} />
+                                </div>
+                            {/if}
+                            <div class="na-settings__custom-field-check na-settings__add-field-card-check">
+                                <NaToggle checked={newFieldShowOnCard} on:change={(e) => newFieldShowOnCard = e.detail.checked} />
+                                <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
+                            </div>
+                            <div class="na-settings__add-field-btn-cell">
+                                <button class="na-button na-button--primary na-settings__add-field-btn" on:click={handleAddCustomField}>
+                                    <span class="na-settings__add-field-btn-icon">+</span>
+                                    {i18n?.addCustomFieldBtn || "Add"}
+                                </button>
+                            </div>
+                        </div>
+                        {#if newFieldError}
+                            <div class="na-settings__field-error">{newFieldError}</div>
+                        {/if}
+                    </div>
+
                     <!-- Existing fields -->
                     {#if customFields.length > 0}
+                        <div class="na-settings__custom-fields-heading">
+                            <div>
+                                <span class="na-settings__section-kicker">{i18n?.customFieldCollectionKicker || "YOUR SCHEMA"}</span>
+                                <span class="na-settings__custom-fields-title">{i18n?.customFieldExisting || "Existing fields"}</span>
+                            </div>
+                            <span class="na-settings__custom-fields-count">{customFields.length}</span>
+                        </div>
                         <div class="na-settings__custom-fields-list">
                             {#each customFields as field, i (field.key)}
-                                <div class="na-settings__custom-field-item">
-                                    <div class="na-settings__custom-field-info">
+                                <div class="na-settings__custom-field-item" class:na-settings__custom-field-item--archived={field.status === "archived"}>
+                                    <div class="na-settings__custom-field-bookmark">
+                                        <span class="na-settings__custom-field-bookmark-notch"></span>
                                         <span class="na-settings__custom-field-key">{field.key}</span>
-                                        <input
-                                            type="text"
-                                            class="na-input na-settings__custom-field-label-input"
-                                            bind:value={customFields[i].label}
-                                            placeholder={i18n?.customFieldLabelPlaceholder || "Field label"}
-                                            on:change={() => { customFields = [...customFields]; }}
-                                        />
-                                        <span class="na-settings__custom-field-type">{field.type}</span>
                                     </div>
-                                    <div class="na-settings__custom-field-actions">
-                                        <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldUp(i)} disabled={i === 0} title={i18n?.moveUp || "Move Up"}>
-                                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 8 6 12 10"/></svg>
-                                        </button>
-                                        <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldDown(i)} disabled={i === customFields.length - 1} title={i18n?.moveDown || "Move Down"}>
-                                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
-                                        </button>
-                                        <button class="na-settings__custom-field-btn na-settings__custom-field-btn--danger" on:click={() => handleRemoveCustomField(field.key)} title={i18n?.removeCustomField || "Remove"}>
-                                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
-                                        </button>
+                                    <div class="na-settings__custom-field-header">
+                                        <div class="na-settings__custom-field-identity">
+                                            <span class="na-settings__custom-field-inline-label">{i18n?.customFieldLabelPlaceholder || "Label"}</span>
+                                            <input type="text" class="na-input na-settings__custom-field-label-input" bind:value={customFields[i].label} placeholder={i18n?.customFieldLabelPlaceholder || "Field label"} on:change={() => { customFields = [...customFields]; }} />
+                                            <span class="na-settings__custom-field-usage">{customFieldUsage[field.key] || 0} {i18n?.customFieldUsed || "used"}{#if field.status === "archived"} · {i18n?.archived || "Archived"}{/if}</span>
+                                        </div>
+                                        <div class="na-settings__custom-field-check">
+                                            <NaToggle checked={field.showOnCard && field.status === "active"} disabled={field.status !== "active"} on:change={(e) => updateCustomField(i, { showOnCard: e.detail.checked })} />
+                                            <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
+                                        </div>
+                                        <div class="na-settings__custom-field-actions">
+                                            <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldUp(i)} disabled={i === 0} title={i18n?.moveUp || "Move Up"} aria-label={i18n?.moveUp || "Move Up"}>
+                                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 8 6 12 10"/></svg>
+                                            </button>
+                                            <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldDown(i)} disabled={i === customFields.length - 1} title={i18n?.moveDown || "Move Down"} aria-label={i18n?.moveDown || "Move Down"}>
+                                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                                            </button>
+                                            <button class="na-settings__custom-field-btn" on:click={() => handleToggleCustomFieldStatus(i)} title={field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")} aria-label={field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")}>
+                                                {field.status === "active" ? "⌁" : "↺"}
+                                            </button>
+                                            {#if field.status === "archived"}
+                                                <button class="na-settings__custom-field-btn na-settings__custom-field-btn--danger" on:click={() => handlePurgeCustomField(field, i)} title={i18n?.purgeCustomField || "Purge values and delete"} aria-label={i18n?.purgeCustomField || "Purge values and delete"}>×</button>
+                                            {/if}
+                                        </div>
+                                    </div>
+                                    <div class="na-settings__custom-field-body">
+                                        <div class="na-settings__custom-field-control">
+                                            <span class="na-settings__custom-field-control-label">{i18n?.customFieldType || "Type"}</span>
+                                            <select class="na-select na-settings__custom-field-type-select" value={field.type} on:change={(e) => handleUpdateCustomFieldType(i, e.currentTarget.value)} disabled={field.status === "archived"}>
+                                                {#each CUSTOM_FIELD_TYPES as type}
+                                                    <option value={type}>{getCustomFieldTypeLabel(type)}</option>
+                                                {/each}
+                                            </select>
+                                        </div>
+                                        <div class="na-settings__custom-field-control">
+                                            <span class="na-settings__custom-field-control-label">{i18n?.customFieldScope || "Scope"}</span>
+                                            <select class="na-select na-settings__custom-field-scope-select" value={field.scope.mode} on:change={(e) => handleUpdateCustomFieldScope(i, e.currentTarget.value)} disabled={field.status === "archived"}>
+                                                <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option>
+                                                <option value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option>
+                                                <option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option>
+                                                <option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
+                                            </select>
+                                        </div>
+                                        {#if field.type === "singleSelect" || field.type === "multiSelect" || field.scope.mode === "projectTree"}
+                                            <div class="na-settings__custom-field-dynamic">
+                                                {#if field.type === "singleSelect" || field.type === "multiSelect"}
+                                                    <div class="na-settings__custom-field-control">
+                                                        <span class="na-settings__custom-field-control-label">{i18n?.customFieldOptions || "Options"}</span>
+                                                        <input class="na-input na-settings__custom-field-options-input" value={(field.options || []).map(option => option.label).join(", ")} on:change={(e) => handleExistingOptionsChange(i, e.currentTarget.value)} placeholder={i18n?.customFieldOptionsPlaceholder || "Home, Work, Waiting"} disabled={field.status === "archived"} />
+                                                    </div>
+                                                {/if}
+                                                {#if field.scope.mode === "projectTree"}
+                                                    <div class="na-settings__custom-field-control">
+                                                        <span class="na-settings__custom-field-control-label">{i18n?.customFieldProjectIds || "Project IDs"}</span>
+                                                        <input class="na-input na-settings__custom-field-options-input" value={field.scope.projectIds.join(", ")} on:change={(e) => updateCustomField(i, { scope: { mode: "projectTree", projectIds: e.currentTarget.value.split(",").map(item => item.trim()).filter(Boolean) } })} placeholder={i18n?.customFieldProjectIdsPlaceholder || "Project block IDs, comma separated"} disabled={field.status === "archived"} />
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/if}
                                     </div>
                                 </div>
                             {/each}
@@ -639,59 +923,12 @@
                     {:else}
                         <div class="na-settings__empty-state">
                             <svg viewBox="0 0 48 48" width="32" height="32" fill="none" stroke="var(--b3-theme-on-surface-light)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
-                                <rect x="8" y="6" width="32" height="36" rx="4"/>
-                                <line x1="16" y1="16" x2="32" y2="16"/>
-                                <line x1="16" y1="22" x2="28" y2="22"/>
-                                <line x1="16" y1="28" x2="24" y2="28"/>
-                                <circle cx="34" cy="34" r="8" fill="var(--b3-theme-surface-lighter)" stroke="var(--b3-theme-primary)" stroke-width="1.5"/>
-                                <line x1="34" y1="30" x2="34" y2="38"/>
-                                <line x1="30" y1="34" x2="38" y2="34"/>
+                                <rect x="8" y="6" width="32" height="36" rx="4"/><line x1="16" y1="16" x2="32" y2="16"/><line x1="16" y1="22" x2="28" y2="22"/><line x1="16" y1="28" x2="24" y2="28"/><circle cx="34" cy="34" r="8" fill="var(--b3-theme-surface-lighter)" stroke="var(--b3-theme-primary)" stroke-width="1.5"/><line x1="34" y1="30" x2="34" y2="38"/><line x1="30" y1="34" x2="38" y2="34"/>
                             </svg>
                             <span class="na-settings__empty-text">{i18n?.customFieldEmpty || "No custom fields yet"}</span>
                             <span class="na-settings__empty-hint">{i18n?.customFieldEmptyHint || "Add fields to extend task attributes, e.g. delegated to, reference link, etc."}</span>
                         </div>
                     {/if}
-
-                    <!-- Add new field -->
-                    <div class="na-settings__add-field-card">
-                        <div class="na-settings__add-field-header">
-                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="var(--b3-theme-primary)" stroke-width="1.5" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
-                            <span class="na-settings__add-field-title">{i18n?.addCustomField || "Add Custom Field"}</span>
-                        </div>
-                        <div class="na-settings__add-field-form">
-                            <label class="na-settings__add-field-label na-settings__add-field-key-label" for="setting-new-field-key">Key</label>
-                            <input
-                                type="text"
-                                id="setting-new-field-key"
-                                class="na-input na-settings__custom-field-key-input na-settings__add-field-key-input"
-                                value={newFieldKey}
-                                placeholder={i18n?.customFieldKeyPlaceholder || "e.g. delegatedTo"}
-                                on:input={(e) => {
-                                    const raw = e.currentTarget.value;
-                                    newFieldKey = raw.replace(/[^a-zA-Z0-9_]/g, '').replace(/^[^a-zA-Z]/, '');
-                                }}
-                                on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                            />
-                            <label class="na-settings__add-field-label na-settings__add-field-name-label" for="setting-new-field-label">{i18n?.customFieldLabelPlaceholder || "Label"}</label>
-                            <input
-                                type="text"
-                                id="setting-new-field-label"
-                                class="na-input na-settings__add-field-name-input"
-                                bind:value={newFieldLabel}
-                                placeholder={i18n?.customFieldLabelPlaceholder || "e.g. Delegated to"}
-                                on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                            />
-                            <div class="na-settings__add-field-btn-cell">
-                                <button class="na-button na-button--primary na-button--sm" on:click={handleAddCustomField}>
-                                    {i18n?.addCustomFieldBtn || "Add"}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="na-settings__add-field-hint">{i18n?.addCustomFieldDesc || "Key cannot be changed after creation"}</div>
-                        {#if newFieldError}
-                            <div class="na-settings__field-error">{newFieldError}</div>
-                        {/if}
-                    </div>
                 </div>
 
             {:else if activeTab === "priority"}
@@ -1168,53 +1405,6 @@
         }
     }
 
-    // ===== Toggle switch =====
-    .na-settings__toggle {
-        position: relative;
-        display: inline-block;
-        cursor: pointer;
-
-        input {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-    }
-
-    .na-settings__toggle-track {
-        display: block;
-        width: 36px;
-        height: 20px;
-        border-radius: 10px;
-        background: var(--b3-theme-surface-lighter);
-        border: 1px solid var(--na-color-divider);
-        position: relative;
-        transition: background 0.2s, border-color 0.2s;
-
-        &::after {
-            content: "";
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--b3-theme-on-surface-light);
-            transition: transform 0.2s, background 0.2s;
-        }
-
-        .na-settings__toggle input:checked + & {
-            background: var(--b3-theme-primary);
-            border-color: var(--b3-theme-primary);
-
-            &::after {
-                transform: translateX(16px);
-                background: var(--b3-theme-on-primary);
-            }
-        }
-    }
-
     // ===== Radio =====
     .na-settings__radio {
         display: inline-flex;
@@ -1237,62 +1427,119 @@
     }
 
     // ===== Custom fields =====
+    .na-settings__custom-fields-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 26px 2px 10px;
+    }
+
+    .na-settings__section-kicker,
+    .na-settings__add-field-kicker {
+        display: block;
+        color: var(--b3-theme-primary);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    .na-settings__custom-fields-title {
+        display: block;
+        margin-top: 3px;
+        color: var(--b3-theme-on-surface);
+        font-size: var(--na-font-size-md);
+        font-weight: 650;
+    }
+
+    .na-settings__custom-fields-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: var(--na-radius-pill);
+        color: var(--b3-theme-on-primary);
+        background: var(--b3-theme-primary);
+        font-size: var(--na-font-size-xs);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
     .na-settings__custom-fields-list {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        margin-bottom: 16px;
+        gap: 12px;
     }
 
     .na-settings__custom-field-item {
+        position: relative;
         display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
-        background: var(--b3-theme-surface);
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-md);
-        transition: border-color 0.15s;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+        padding: 30px 16px 12px 22px;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-primary) 4%), var(--b3-theme-background));
+        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 18%, var(--na-color-divider));
+        border-radius: 12px;
+        box-shadow: 0 7px 20px rgba(0, 0, 0, 0.1);
+        animation: na-field-reveal 0.28s ease-out both;
+        transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 
+        &--archived { opacity: 0.62; border-style: dashed; }
         &:hover {
-            border-color: var(--b3-theme-primary-light, var(--na-color-divider));
+            border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-color-divider));
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
         }
     }
 
-    .na-settings__custom-field-info {
-        flex: 1;
-        display: flex;
+    .na-settings__custom-field-item:nth-child(2) { animation-delay: 0.04s; }
+    .na-settings__custom-field-item:nth-child(3) { animation-delay: 0.08s; }
+    .na-settings__custom-field-item:nth-child(4) { animation-delay: 0.12s; }
+
+    @keyframes na-field-reveal {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .na-settings__custom-field-bookmark {
+        position: absolute;
+        top: -1px;
+        left: 14px;
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
-        min-width: 0;
+        gap: 6px;
+        max-width: min(240px, calc(100% - 28px));
+        padding: 5px 11px 6px;
+        color: var(--b3-theme-on-primary);
+        background: linear-gradient(135deg, var(--b3-theme-primary), color-mix(in srgb, var(--b3-theme-primary) 72%, #111 28%));
+        border-radius: 0 0 7px 7px;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
     }
 
-    .na-settings__custom-field-key {
-        font-size: var(--na-font-size-xs);
-        font-family: var(--na-font-mono, monospace);
-        color: var(--b3-theme-primary);
-        flex-shrink: 0;
-        padding: 2px 8px;
-        background: var(--na-color-selected-bg);
-        border-radius: var(--na-radius-pill);
-        letter-spacing: 0.02em;
-    }
+    .na-settings__custom-field-bookmark-notch { width: 6px; height: 6px; border: 1px solid color-mix(in srgb, var(--b3-theme-on-primary) 70%, transparent); border-radius: 50%; opacity: 0.9; }
 
-    .na-settings__custom-field-type {
-        font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
-        padding: 1px 6px;
-        background: var(--b3-theme-surface-lighter);
-        border-radius: var(--na-radius-sm);
-        flex-shrink: 0;
-    }
+    .na-settings__custom-field-header { display: flex; align-items: flex-start; gap: 12px; min-width: 0; padding-top: 0; }
+    .na-settings__custom-field-identity { display: flex; flex: 0 1 320px; align-items: center; gap: 7px; min-width: 0; }
+    .na-settings__custom-field-inline-label { flex: 0 0 auto; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); white-space: nowrap; }
 
-    .na-settings__custom-field-actions {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        flex-shrink: 0;
-    }
+    .na-settings__custom-field-body { display: grid; grid-template-columns: 190px 200px minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--na-color-divider) 72%, transparent); }
+    .na-settings__custom-field-control { display: flex; flex-direction: row; align-items: center; gap: 6px; min-width: 0; }
+    .na-settings__custom-field-dynamic { display: flex; align-items: center; gap: 8px; grid-column: 3; min-width: 0; }
+    .na-settings__custom-field-dynamic > .na-settings__custom-field-control { flex: 1 1 0; min-width: 0; }
+    .na-settings__custom-field-control-label { flex: 0 0 auto; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); line-height: 1; white-space: nowrap; }
+    .na-settings__custom-field-key { max-width: 100%; font-size: 10px; font-family: var(--na-font-mono, monospace); color: var(--b3-theme-on-primary); letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .na-settings__custom-field-type-select,
+    .na-settings__custom-field-scope-select { width: 132px !important; min-width: 132px; height: 30px !important; font-size: var(--na-font-size-xs); }
+    .na-settings__custom-field-label-input { width: 220px; min-width: 120px; max-width: 220px; height: 30px !important; font-size: var(--na-font-size-sm); }
+    .na-settings__custom-field-usage { color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); flex-shrink: 0; white-space: nowrap; }
+    .na-settings__custom-field-options-input { width: 100% !important; min-width: 0; height: 30px !important; font-size: var(--na-font-size-xs); }
+    .na-settings__custom-field-check { display: inline-flex; align-items: center; gap: 5px; align-self: center; margin-left: auto; color: var(--b3-theme-on-surface-secondary); font-size: var(--na-font-size-xs); white-space: nowrap; }
+    .na-settings__custom-field-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 0; align-self: flex-start; padding-top: 1px; }
 
     .na-settings__custom-field-btn {
         display: inline-flex;
@@ -1351,54 +1598,156 @@
 
     // ===== Add field card =====
     .na-settings__add-field-card {
-        background: var(--b3-theme-surface);
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-        padding: 14px 16px;
+        position: relative;
+        overflow: hidden;
+        box-sizing: border-box;
+        max-width: 100%;
+        background: radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--b3-theme-primary) 14%, transparent), transparent 42%), linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-background));
+        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 24%, var(--na-color-divider));
+        border-radius: 14px;
+        padding: 18px 20px 18px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 4px;
+            background: linear-gradient(180deg, var(--b3-theme-primary), color-mix(in srgb, var(--b3-theme-primary) 45%, transparent));
+            opacity: 0.9;
+        }
     }
 
     .na-settings__add-field-header {
         display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        margin-bottom: 14px;
     }
 
     .na-settings__add-field-title {
-        font-size: var(--na-font-size-md);
-        font-weight: 600;
+        font-size: 18px;
+        font-weight: 700;
         color: var(--b3-theme-on-surface);
     }
 
+    .na-settings__add-field-subtitle { color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); }
+
     .na-settings__add-field-form {
         display: grid;
-        grid-template-columns: 120px 1fr auto;
-        grid-template-rows: auto auto;
-        gap: 3px 8px;
-        align-items: center;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        align-items: end;
     }
 
-    .na-settings__add-field-key-label   { grid-column: 1; grid-row: 1; }
-    .na-settings__add-field-key-input   { grid-column: 1; grid-row: 2; }
-    .na-settings__add-field-name-label  { grid-column: 2; grid-row: 1; }
-    .na-settings__add-field-name-input  { grid-column: 2; grid-row: 2; }
-    .na-settings__add-field-btn-cell    { grid-column: 3; grid-row: 1 / 3; align-self: center; }
+    .na-settings__add-field-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+
+        &--wide { grid-column: 1 / -1; }
+    }
+
+    .na-settings__add-field-control > .na-input,
+    .na-settings__add-field-control > .na-select { width: 0; min-width: 0; flex: 1 1 0; }
 
     .na-settings__add-field-label {
+        flex: 0 0 auto;
         font-size: var(--na-font-size-xs);
-        font-weight: 500;
+        font-weight: 650;
         color: var(--b3-theme-on-surface-secondary);
+        white-space: nowrap;
     }
 
     .na-settings__add-field-btn-cell {
         display: flex;
         align-items: center;
+        justify-content: flex-end;
+        min-height: 32px;
+        grid-column: auto;
+        justify-self: end;
     }
 
-    .na-settings__add-field-hint {
-        font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
-        margin-top: 8px;
+    .na-settings__add-field-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 14px; border-radius: 8px; font-weight: 650; }
+    .na-settings__add-field-btn-icon { font-size: 18px; line-height: 0; font-weight: 400; }
+
+    .na-settings__add-field-card-check {
+        align-self: center;
+        min-height: 30px;
+        grid-column: span 2;
+    }
+
+    @media (max-width: 680px) {
+        .na-settings {
+            height: min(640px, 88vh);
+        }
+
+        .na-settings__nav {
+            flex-basis: 116px;
+        }
+
+        .na-settings__nav-item {
+            padding-left: 12px;
+            padding-right: 10px;
+            font-size: var(--na-font-size-sm);
+        }
+
+        .na-settings__header,
+        .na-settings__body {
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+
+        .na-settings__add-field-form {
+            grid-template-columns: 1fr;
+        }
+
+        .na-settings__add-field-control--wide {
+            grid-column: auto;
+        }
+
+        .na-settings__add-field-btn-cell {
+            grid-column: auto;
+            justify-content: flex-start;
+            justify-self: start;
+        }
+
+        .na-settings__custom-field-header { flex-wrap: wrap; }
+        .na-settings__custom-field-identity { flex: 1 1 100%; flex-wrap: wrap; }
+        .na-settings__custom-field-label-input { width: min(100%, 220px); flex: 1 1 160px; }
+
+        .na-settings__custom-field-body {
+            grid-template-columns: minmax(0, 1fr);
+            align-items: stretch;
+        }
+
+        .na-settings__custom-field-type-select {
+            width: auto !important;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .na-settings__custom-field-scope-select { width: auto !important; min-width: 0; flex: 1 1 auto; }
+
+        .na-settings__custom-field-options-input {
+            width: 100% !important;
+        }
+
+        .na-settings__custom-field-dynamic { grid-column: auto; flex-direction: column; align-items: stretch; gap: 8px; }
+        .na-settings__custom-field-check { grid-column: auto; }
+
+        .na-settings__add-field-card-check {
+            grid-column: auto;
+        }
+
+        .na-settings__custom-field-actions {
+            margin-left: 0;
+            justify-content: flex-start;
+        }
+
+        .na-settings__custom-field-bookmark { left: 12px; max-width: calc(100% - 24px); }
     }
 
     :global(.na-settings__custom-field-key-input) {

@@ -20,7 +20,7 @@
     let collapsedIds: Set<string> = new Set();
 
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: filteredTasks = applyFilters($taskStore.allTasks.filter(t => t.status !== "done"), filterState);
+    $: filteredTasks = applyFilters($taskStore.allTasks.filter(t => t.status !== "done"), filterState, $taskStore.settings.customFields);
     $: projects = filteredTasks.filter(t => t.taskType === "2");
     $: childrenByParent = buildChildrenMap(filteredTasks);
 

@@ -1,6 +1,8 @@
 // src/frontend/utils/filter.ts
 import type { TaskCacheEntry } from "../../shared/types";
 import { normalizePriority, PRIORITY_LIST } from "../constants";
+import type { CustomFieldDef } from "../../shared/settings";
+import { decodeCustomFieldValue, formatCustomFieldValue } from "../../shared/custom-fields";
 
 const PRIORITY_OFFSET: Record<string, number> = {
     critical: 1.5,
@@ -22,8 +24,15 @@ export interface FilterState {
     priorities: string[];
     statuses: string[];
     tags: string[];
+    customFieldFilters: CustomFieldFilter[];
     sortBy: string; // "order" | "due" | "importance" | "priority"
     sortAsc: boolean;
+}
+
+export interface CustomFieldFilter {
+    key: string;
+    operator: "contains" | "equals" | "empty" | "notEmpty";
+    value?: string;
 }
 
 export const DEFAULT_FILTER_STATE: FilterState = {
@@ -32,6 +41,7 @@ export const DEFAULT_FILTER_STATE: FilterState = {
     priorities: [],
     statuses: [],
     tags: [],
+    customFieldFilters: [],
     sortBy: "order",
     sortAsc: false,
 };
@@ -52,7 +62,7 @@ export function isNextActionCandidate(entry: TaskCacheEntry, startPreviewDays: n
     return true;
 }
 
-export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState): TaskCacheEntry[] {
+export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState, customFields: CustomFieldDef[] = []): TaskCacheEntry[] {
     let result = tasks;
 
     // 1. Text search on title and tags
@@ -61,6 +71,7 @@ export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState): Tas
         result = result.filter(t => {
             if (t.title.toLowerCase().includes(q)) return true;
             if (t.tags && t.tags.replace(/\|/g, ', ').toLowerCase().includes(q)) return true;
+            if (customFields.some(field => t.customFields?.[field.key] && formatCustomFieldValue(field, t.customFields[field.key]).toLowerCase().includes(q))) return true;
             return false;
         });
     }
@@ -94,13 +105,26 @@ export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState): Tas
         });
     }
 
+    if ((filters.customFieldFilters || []).length > 0) {
+        result = result.filter(task => (filters.customFieldFilters || []).every(filter => {
+            const field = customFields.find(item => item.key === filter.key);
+            const formatted = field ? formatCustomFieldValue(field, task.customFields?.[filter.key]) : (task.customFields?.[filter.key] || "");
+            const value = formatted.toLowerCase();
+            const expected = (filter.value || "").toLowerCase();
+            if (filter.operator === "empty") return value === "";
+            if (filter.operator === "notEmpty") return value !== "";
+            if (filter.operator === "equals") return value === expected;
+            return value.includes(expected);
+        }));
+    }
+
     // 6. Sort
-    result = sortTasksBy(result, filters.sortBy, filters.sortAsc);
+    result = sortTasksBy(result, filters.sortBy, filters.sortAsc, customFields);
 
     return result;
 }
 
-export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: boolean): TaskCacheEntry[] {
+export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: boolean, customFields: CustomFieldDef[] = []): TaskCacheEntry[] {
     const arr = [...tasks];
     const dir = sortAsc ? 1 : -1;
 
@@ -124,8 +148,26 @@ export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: bo
                 return dir * ((pw[aIdx] || 0) - (pw[bIdx] || 0));
             });
             break;
-        case "order":
         default:
+            if (sortBy.startsWith("custom:")) {
+                const key = sortBy.slice("custom:".length);
+                const field = customFields.find(item => item.key === key);
+                arr.sort((a, b) => {
+                    const av = a.customFields?.[key] || "";
+                    const bv = b.customFields?.[key] || "";
+                    if (!av && !bv) return 0;
+                    if (!av) return 1;
+                    if (!bv) return -1;
+                    if (field?.type === "number") return dir * (Number(av) - Number(bv));
+                    const af = field ? formatCustomFieldValue(field, av) : av;
+                    const bf = field ? formatCustomFieldValue(field, bv) : bv;
+                    return dir * af.localeCompare(bf, undefined, { numeric: true, sensitivity: "base" });
+                });
+            } else {
+                arr.sort((a, b) => a.blockId.localeCompare(b.blockId));
+            }
+            break;
+        case "order":
             arr.sort((a, b) => {
                 if (b.order !== a.order) return b.order - a.order;
                 if (a.due && b.due) {

@@ -128,6 +128,18 @@ export class KernelBridge {
         return this.call("getSettings", {});
     }
 
+    async getCustomFieldDiagnostics(): Promise<{ fields: Array<{ fieldId: string; key: string; status: string; count: number }>; orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }> }> {
+        return this.call("getCustomFieldDiagnostics", {});
+    }
+
+    async purgeCustomField(fieldId: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
+        return this.call("purgeCustomField", { fieldId });
+    }
+
+    async purgeOrphanCustomField(key: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
+        return this.call("purgeOrphanCustomField", { key });
+    }
+
     async getMyDay(): Promise<MyDayState> {
         return this.call("getMyDay", {});
     }

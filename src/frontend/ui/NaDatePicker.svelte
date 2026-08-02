@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from "svelte";
+    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { portal } from "../utils/portal";
 
     export let value: string = ""; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm" or ""
     export let placeholder: string = "";
@@ -158,7 +159,8 @@
         const rect = containerEl.getBoundingClientRect();
         const viewportGap = 8;
         const dropdownWidth = 228;
-        const dropdownHeight = dropdownEl?.offsetHeight || 286;
+        const maxViewportHeight = Math.max(0, window.innerHeight - viewportGap * 2);
+        const dropdownHeight = Math.min(dropdownEl?.offsetHeight || 286, maxViewportHeight);
         const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
         const spaceAbove = rect.top - viewportGap;
         const openAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
@@ -166,7 +168,7 @@
         const top = openAbove
             ? Math.max(viewportGap, rect.top - dropdownHeight - 4)
             : Math.min(rect.bottom + 4, window.innerHeight - dropdownHeight - viewportGap);
-        dropdownStyle = `position:fixed;z-index:9999;left:${left}px;top:${Math.max(viewportGap, top)}px;width:${dropdownWidth}px;`;
+        dropdownStyle = `position:fixed;z-index:9999;left:${left}px;top:${Math.max(viewportGap, top)}px;width:${dropdownWidth}px;max-height:${maxViewportHeight}px;overflow-y:auto;`;
     }
 
     function toggleOpen() {
@@ -317,10 +319,21 @@
         if (e.key === "Escape") open = false;
     }
 
-    onMount(() => { initViewModel(); });
+    function handleViewportChange() {
+        if (open && fixedDropdown) requestAnimationFrame(updateDropdownPosition);
+    }
+
+    onMount(() => {
+        initViewModel();
+        document.addEventListener("scroll", handleViewportChange, true);
+    });
+
+    onDestroy(() => {
+        document.removeEventListener("scroll", handleViewportChange, true);
+    });
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
+<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} on:resize={handleViewportChange} />
 
 <div class="na-date-picker" bind:this={containerEl}>
     <div
@@ -355,7 +368,7 @@
     </div>
 
     {#if open}
-        <div bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
+        <div use:portal={fixedDropdown} bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
             <!-- Calendar -->
             <div class="na-date-picker__header">
                 <button class="na-date-picker__nav" on:click={prevMonth} aria-label="Previous month">

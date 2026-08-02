@@ -20,7 +20,7 @@
 
     $: filterState = $taskStore.filterByView[VIEW_INBOX] || DEFAULT_FILTER_STATE;
     $: inboxTasks = $taskStore.allTasks.filter(t => t.status === "inbox");
-    $: filteredTasks = applyFilters(inboxTasks, filterState);
+    $: filteredTasks = applyFilters(inboxTasks, filterState, $taskStore.settings.customFields);
 
     const inboxSortOptions = [
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },

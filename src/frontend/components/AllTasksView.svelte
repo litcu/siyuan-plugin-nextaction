@@ -48,7 +48,7 @@
     $: allTaskFilterState = filterState.statuses.includes("done")
         ? { ...filterState, statuses: filterState.statuses.filter((status) => status !== "done") }
         : filterState;
-    $: filteredTasks = applyFilters(activeTasks, allTaskFilterState);
+    $: filteredTasks = applyFilters(activeTasks, allTaskFilterState, $taskStore.settings.customFields);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_ALL_TASKS, state);

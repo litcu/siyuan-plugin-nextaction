@@ -52,7 +52,7 @@
         return result;
     })();
 
-    $: filteredTasks = applyFilters(myDayTasks, filterState);
+    $: filteredTasks = applyFilters(myDayTasks, filterState, $taskStore.settings.customFields);
 
     const myDaySortOptions = [
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },

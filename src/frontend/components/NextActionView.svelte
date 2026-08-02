@@ -18,7 +18,7 @@
 
     $: filterState = $taskStore.filterByView[VIEW_NEXT_ACTION] || DEFAULT_FILTER_STATE;
     $: nextActionTasks = $taskStore.allTasks.filter(t => isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays));
-    $: filteredTasks = applyFilters(nextActionTasks, filterState);
+    $: filteredTasks = applyFilters(nextActionTasks, filterState, $taskStore.settings.customFields);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_NEXT_ACTION, state);

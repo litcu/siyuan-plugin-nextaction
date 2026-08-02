@@ -48,6 +48,7 @@ import {
 } from "./repeat-engine";
 import type { PluginSettings } from "../shared/settings";
 import { DEFAULT_SETTINGS, validateSettings, mergeSettings } from "../shared/settings";
+import { encodeCustomFieldValue, isCustomFieldApplicable, validateCustomFieldDefinition, type CustomFieldDef } from "../shared/custom-fields";
 import { MyDayManager } from "./my-day-manager";
 import type { MyDayState } from "../shared/types";
 import { ATTR_EXT_PREFIX } from "../shared/constants";
@@ -607,6 +608,13 @@ export class TaskService {
         }
 
         this.checkReady();
+
+        const customAttrError = this.validateCustomExtensionAttrs(blockId, attrs);
+        if (customAttrError) {
+            const err: any = new Error(customAttrError);
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
 
         // 依赖环路检测
         const dependsAttr = attrs[ATTR_DEPENDS];
@@ -1401,11 +1409,16 @@ export class TaskService {
     }
 
     updateSettings(partial: Partial<PluginSettings>): PluginSettings | { _rpcError: { code: number; message: string } } {
-        const error = validateSettings(partial);
+        const normalized: Partial<PluginSettings> = {
+            ...partial,
+            customFieldSchemaVersion: 2,
+            customFields: partial.customFields ? mergeSettings(DEFAULT_SETTINGS, partial).customFields : partial.customFields,
+        };
+        const error = validateSettings(normalized);
         if (error) {
             return { _rpcError: { code: RPC_ERROR_INVALID_PARAMS, message: error } };
         }
-        this.settings = mergeSettings(this.settings, partial);
+        this.settings = mergeSettings(this.settings, normalized);
         // Propagate priority engine params
         if (partial.priorityEngine) {
             updatePriorityConfig(partial.priorityEngine);
@@ -1416,6 +1429,40 @@ export class TaskService {
 
     getSettings(): PluginSettings {
         return this.settings;
+    }
+
+    getCustomFieldDiagnostics(): { fields: Array<{ fieldId: string; key: string; status: string; count: number }>; orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }> } {
+        const definitions = new Map(this.settings.customFields.map(field => [field.key, field]));
+        const counts = new Map<string, number>();
+        const orphanSamples = new Map<string, string[]>();
+        for (const entry of this.cacheManager.getAll()) {
+            for (const key of Object.keys(entry.customFields || {})) {
+                if (definitions.has(key)) {
+                    counts.set(key, (counts.get(key) || 0) + 1);
+                } else {
+                    const samples = orphanSamples.get(key) || [];
+                    if (samples.length < 5) samples.push(entry.blockId);
+                    orphanSamples.set(key, samples);
+                }
+            }
+        }
+        return {
+            fields: this.settings.customFields.map(field => ({ fieldId: field.id, key: field.key, status: field.status, count: counts.get(field.key) || 0 })),
+            orphans: [...orphanSamples.entries()].map(([key, sampleBlockIds]) => ({ key, count: this.cacheManager.getAll().filter(entry => Object.prototype.hasOwnProperty.call(entry.customFields || {}, key)).length, sampleBlockIds })),
+        };
+    }
+
+    async purgeCustomField(fieldId: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
+        const field = this.settings.customFields.find(item => item.id === fieldId);
+        if (!field) throw new Error("Custom field not found: " + fieldId);
+        if (field.status !== "archived") throw new Error("Only archived custom fields can be purged");
+        return this.clearCustomFieldValues(field.key);
+    }
+
+    async purgeOrphanCustomField(key: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
+        const fieldKey = key?.startsWith(ATTR_EXT_PREFIX) ? key.slice(ATTR_EXT_PREFIX.length) : key;
+        if (!fieldKey) throw new Error("key is required");
+        return this.clearCustomFieldValues(fieldKey);
     }
 
     getStatistics(period: "week" | "month" = "week"): StatisticsResult {
@@ -1771,6 +1818,70 @@ export class TaskService {
             // Ignore
         }
         return "";
+    }
+
+    private validateCustomExtensionAttrs(blockId: string, attrs: Record<string, string>): string | null {
+        const extensionKeys = Object.keys(attrs).filter(key => key.startsWith(ATTR_EXT_PREFIX));
+        if (extensionKeys.length === 0) return null;
+        const entry = this.cacheManager.get(blockId);
+        const taskMap = new Map(this.cacheManager.getAll().map(item => [item.blockId, item]));
+        for (const key of extensionKeys) {
+            const fieldKey = key.slice(ATTR_EXT_PREFIX.length);
+            const field = this.settings.customFields.find(item => item.key === fieldKey);
+            const rawValue = attrs[key];
+            // Empty values are allowed for cleanup, including archived and orphaned fields.
+            if (rawValue === "") continue;
+            if (!field) return `Unknown custom field: ${fieldKey}`;
+            const definitionError = validateCustomFieldDefinition(field);
+            if (definitionError) return definitionError;
+            if (field.status !== "active") return `Custom field is archived: ${fieldKey}`;
+            if (entry && !isCustomFieldApplicable(field, entry, taskMap)) return `Custom field is not applicable to task: ${fieldKey}`;
+            try {
+                encodeCustomFieldValue(field, rawValue);
+            } catch (error: any) {
+                return `${fieldKey}: ${error.message || error}`;
+            }
+        }
+        return null;
+    }
+
+    private async clearCustomFieldValues(fieldKey: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
+        this.checkReady();
+        const targets = this.cacheManager.getAll().filter(entry => Object.prototype.hasOwnProperty.call(entry.customFields || {}, fieldKey));
+        if (targets.length === 0) return { cleared: 0, failedBlockIds: [] };
+        const lock = await this.acquireWithTimeout();
+        const failedBlockIds: string[] = [];
+        const clearedIds: string[] = [];
+        try {
+            const blockAttrs = targets.map(entry => ({ id: entry.blockId, attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" } }));
+            try {
+                await siyuanFetch("/api/attr/batchSetBlockAttrs", { blockAttrs });
+                clearedIds.push(...targets.map(entry => entry.blockId));
+            } catch (_batchError: any) {
+                // The endpoint is available in current kernels but is not present in all older API documents.
+                // Fall back to idempotent single-block writes so partial failures are observable.
+                for (const entry of targets) {
+                    try {
+                        await siyuanFetch("/api/attr/setBlockAttrs", { id: entry.blockId, attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" } });
+                        clearedIds.push(entry.blockId);
+                    } catch (_singleError: any) {
+                        failedBlockIds.push(entry.blockId);
+                    }
+                }
+            }
+            for (const blockId of clearedIds) {
+                const entry = this.cacheManager.get(blockId);
+                if (!entry) continue;
+                const next = { ...entry, customFields: { ...entry.customFields } };
+                delete next.customFields[fieldKey];
+                this.cacheManager.set(next);
+                this.syncEngine.addPendingChange(blockId, "update");
+            }
+            if (clearedIds.length > 0) this.syncEngine.broadcastChanges();
+            return { cleared: clearedIds.length, failedBlockIds };
+        } finally {
+            lock.release();
+        }
     }
 
     private buildEntryFromAttrs(

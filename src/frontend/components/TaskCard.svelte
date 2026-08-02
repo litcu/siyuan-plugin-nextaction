@@ -8,6 +8,7 @@
     import DueDateLabel from "./DueDateLabel.svelte";
     import { getDuePresentation } from "../utils/time-boundary";
     import { parseRepeatState } from "../../shared/repeat";
+    import { formatCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
 
     export let task: TaskCacheEntry;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -67,6 +68,12 @@
         : repeatStatus === "ended"
             ? (i18n?.repeatEnded || "Repeat ended")
             : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`;
+    $: customFieldMap = new Map($taskStore.allTasks.map(entry => [entry.blockId, entry]));
+    $: cardCustomFields = ($taskStore.settings.customFields || [])
+        .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, customFieldMap) && !!task.customFields?.[def.key])
+        .slice(0, 3);
+    $: hiddenCustomFieldCount = Math.max(0, ($taskStore.settings.customFields || [])
+        .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, customFieldMap) && !!task.customFields?.[def.key]).length - cardCustomFields.length);
 
     function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
         isOverdue = !isDone && event.detail.isOverdue;
@@ -157,12 +164,11 @@
                     {#if task.tags}
                         <span class="na-task-card__tags">{task.tags.replace(/\|/g, ', ')}</span>
                     {/if}
-                    {#if task.customFields && Object.keys(task.customFields).length > 0}
-                        {#each $taskStore.settings.customFields || [] as def}
-                            {#if task.customFields[def.key]}
-                                <span class="na-task-card__custom-field">{def.label}: {task.customFields[def.key]}</span>
-                            {/if}
+                    {#if cardCustomFields.length > 0}
+                        {#each cardCustomFields as def}
+                            <span class="na-task-card__custom-field">{def.label}: {formatCustomFieldValue(def, task.customFields?.[def.key])}</span>
                         {/each}
+                        {#if hiddenCustomFieldCount > 0}<span class="na-task-card__custom-field na-task-card__custom-field--more">+{hiddenCustomFieldCount}</span>{/if}
                     {/if}
                     {#if isCollapsed && childCount > 0}
                         <span class="na-task-card__child-count">▸ {(i18n?.childCount || "{n} subtasks").replace("{n}", String(childCount))}</span>

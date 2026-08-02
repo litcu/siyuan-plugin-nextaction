@@ -1,5 +1,20 @@
 // Plugin settings: type definition, defaults, and validation
 import { type ReminderSoundId, REMINDER_SOUND_IDS } from "./constants";
+import {
+    migrateCustomFieldDefs,
+    validateCustomFieldDefinitions,
+    type CustomFieldDef,
+} from "./custom-fields";
+
+export type {
+    CustomFieldDef,
+    CustomFieldInput,
+    CustomFieldOption,
+    CustomFieldScope,
+    CustomFieldStatus,
+    CustomFieldTaskType,
+    CustomFieldType,
+} from "./custom-fields";
 
 export interface PriorityEngineSettings {
     dueWeight: number;
@@ -23,14 +38,6 @@ export interface PriorityEngineSettings {
 
 export type MyDayViewMode = "timeline" | "list";
 
-export type CustomFieldType = "text";
-
-export interface CustomFieldDef {
-    key: string;
-    label: string;
-    type: CustomFieldType;
-}
-
 export interface ReminderSettings {
     enabled: boolean;
     defaultOffsets: number[];       // 默认提前量（分钟数）
@@ -40,6 +47,7 @@ export interface ReminderSettings {
 }
 
 export interface PluginSettings {
+    customFieldSchemaVersion: 2;
     defaultImportance: number;
     defaultEffort: number;
     priorityEngine: PriorityEngineSettings;
@@ -80,6 +88,7 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
 };
 
 export const DEFAULT_SETTINGS: PluginSettings = {
+    customFieldSchemaVersion: 2,
     defaultImportance: 4,
     defaultEffort: 4,
     priorityEngine: { ...DEFAULT_PRIORITY_ENGINE },
@@ -137,19 +146,8 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
     }
     if (settings.customFields) {
-        const keys = new Set<string>();
-        for (const field of settings.customFields) {
-            if (!field.key || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(field.key)) {
-                return "customFields key must start with a letter and contain only letters, digits, underscores";
-            }
-            if (keys.has(field.key)) {
-                return "customFields key must be unique: " + field.key;
-            }
-            keys.add(field.key);
-            if (!field.label || field.label.trim().length === 0) {
-                return "customFields label must not be empty";
-            }
-        }
+        const error = validateCustomFieldDefinitions(settings.customFields);
+        if (error) return error;
     }
     const rs = settings.reminderSettings;
     if (rs) {
@@ -187,7 +185,9 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
 }
 
 export function mergeSettings(base: PluginSettings, override: Partial<PluginSettings>): PluginSettings {
+    const migratedFields = migrateCustomFieldDefs(override.customFields ?? base.customFields).fields;
     return {
+        customFieldSchemaVersion: 2,
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
         defaultEffort: override.defaultEffort ?? base.defaultEffort,
         priorityEngine: {
@@ -198,7 +198,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
         myDayResetHour: override.myDayResetHour ?? base.myDayResetHour,
         myDayDefaultViewMode: override.myDayDefaultViewMode ?? base.myDayDefaultViewMode,
         myDayDefaultDuration: override.myDayDefaultDuration ?? base.myDayDefaultDuration,
-        customFields: override.customFields ?? base.customFields,
+        customFields: migratedFields,
         reminderSettings: {
             ...base.reminderSettings,
             ...(override.reminderSettings ?? {}),

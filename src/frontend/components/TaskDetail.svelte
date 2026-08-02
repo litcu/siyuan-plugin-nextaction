@@ -11,11 +11,13 @@
     import NaToggle from "../ui/NaToggle.svelte";
     import NaDotRating from "../ui/NaDotRating.svelte";
     import NaDatePicker from "../ui/NaDatePicker.svelte";
+    import NaLinkInput from "../ui/NaLinkInput.svelte";
     import ReminderPopup from "./ReminderPopup.svelte";
     import RepeatRuleDialog from "./RepeatRuleDialog.svelte";
     import { parseReminderItems } from "../utils/reminder-utils";
     import { parseRepeatState } from "../../shared/repeat";
     import type { CustomFieldDef } from "../../shared/settings";
+    import { decodeCustomFieldValue, encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
 
     export let task: TaskCacheEntry;
     export let bridge: KernelBridge;
@@ -98,6 +100,53 @@
     // Custom fields state
     let customFieldDefs: CustomFieldDef[] = [];
     let customFieldValues: Record<string, string> = {};
+    let customFieldError = "";
+
+    function getCustomFieldTypePlaceholder(def: CustomFieldDef): string {
+        const labels: Record<CustomFieldDef["type"], string> = {
+            text: i18n?.customFieldTypeText || "Text",
+            textarea: i18n?.customFieldTypeTextarea || "Long text",
+            number: i18n?.customFieldTypeNumber || "Number",
+            boolean: i18n?.customFieldTypeBoolean || "Yes / No",
+            date: i18n?.customFieldTypeDate || "Date",
+            datetime: i18n?.customFieldTypeDatetime || "Date & time",
+            singleSelect: i18n?.customFieldTypeSingleSelect || "Single select",
+            multiSelect: i18n?.customFieldTypeMultiSelect || "Multi-select",
+            url: i18n?.customFieldTypeUrl || "URL",
+        };
+        return labels[def.type];
+    }
+
+    function openCustomFieldLink(raw: string) {
+        const value = raw.trim();
+        try {
+            const url = new URL(value);
+            if (url.protocol === "siyuan:" && value.startsWith("siyuan://blocks/")) {
+                const blockId = value.slice("siyuan://blocks/".length).split(/[/?#]/)[0];
+                if (!blockId) throw new Error("missing block id");
+                jump(blockId);
+                return;
+            }
+            if (url.protocol === "http:" || url.protocol === "https:") {
+                window.open(url.toString(), "_blank", "noopener,noreferrer");
+                return;
+            }
+            throw new Error("unsupported protocol");
+        } catch (_error) {
+            notifyError(i18n?.customFieldInvalidLink || "Invalid link");
+        }
+    }
+
+    function getCustomFieldValidationError(def: CustomFieldDef): string {
+        if (def.type === "number") return i18n?.customFieldInvalidNumber || "Enter a valid number";
+        if (def.type === "date") return i18n?.customFieldInvalidDate || "Enter a valid date";
+        if (def.type === "datetime") return i18n?.customFieldInvalidDatetime || "Enter a valid date and time";
+        if (def.type === "singleSelect" || def.type === "multiSelect") return i18n?.customFieldInvalidSelection || "The selected value is invalid";
+        if (def.type === "url") return i18n?.customFieldInvalidLink || "Invalid link";
+        if (def.type === "textarea") return i18n?.customFieldTextareaTooLong || "Long text cannot exceed 4000 characters";
+        if (def.type === "text") return i18n?.customFieldTextTooLong || "Text cannot exceed 500 characters";
+        return i18n?.customFieldInvalidValue || "Invalid value";
+    }
 
     // Initialize review interval mode from task data
     {
@@ -212,6 +261,8 @@
             }
 
             customFieldDefs = storeState?.settings?.customFields || [];
+            const taskMap = new Map((storeState?.allTasks || []).map((entry: TaskCacheEntry) => [entry.blockId, entry]));
+            customFieldDefs = customFieldDefs.filter((field: CustomFieldDef) => isCustomFieldApplicable(field, task, taskMap));
         } finally {
             unsub();
         }
@@ -390,9 +441,15 @@
 
             // Build custom field attrs
             const customAttrs: Record<string, string> = {};
+            customFieldError = "";
             for (const def of customFieldDefs) {
                 const val = customFieldValues[def.key] || "";
-                customAttrs["na-ext-" + def.key] = val;
+                try {
+                    customAttrs["na-ext-" + def.key] = encodeCustomFieldValue(def, val);
+                } catch (e: any) {
+                    customFieldError = `${def.label}: ${getCustomFieldValidationError(def)}`;
+                    return;
+                }
             }
 
             const updated = await bridge.updateTask(task.blockId, {
@@ -645,6 +702,7 @@
                         emptyText={i18n?.noOptions || "No options"}
                         noMatchText={i18n?.noMatches || "No matches"}
                         loadingText={i18n?.loadingMore || "Loading..."}
+                        fixedDropdown={dialogMode}
                         on:change={handleContextChange}
                     />
                 </div>
@@ -661,6 +719,7 @@
                         emptyText={i18n?.noOptions || "No options"}
                         noMatchText={i18n?.noMatches || "No matches"}
                         loadingText={i18n?.loadingMore || "Loading..."}
+                        fixedDropdown={dialogMode}
                         on:change={handleChange}
                     />
                 </div>
@@ -677,6 +736,7 @@
                         emptyText={i18n?.noOptions || "No options"}
                         noMatchText={i18n?.noMatches || "No matches"}
                         loadingText={i18n?.loadingMore || "Loading..."}
+                        fixedDropdown={dialogMode}
                         on:change={handleParentChange}
                     />
                 </div>
@@ -697,6 +757,7 @@
                         emptyText={i18n?.noOptions || "No options"}
                         noMatchText={i18n?.noMatches || "No matches"}
                         loadingText={i18n?.loadingMore || "Loading..."}
+                        fixedDropdown={dialogMode}
                         on:change={handleChange}
                     />
                 </div>
@@ -792,17 +853,94 @@
                     <div class="na-detail__field">
                         <span class="na-detail__label">{def.label}</span>
                         <div class="na-detail__value">
-                            <input
-                                class="na-input"
-                                type="text"
-                                value={customFieldValues[def.key] || ''}
-                                on:change={(e) => { customFieldValues[def.key] = e.currentTarget.value; handleChange(); }}
-                                placeholder={def.label}
-                            />
+                            {#if def.type === "textarea"}
+                                <textarea class="na-textarea" rows="3" value={customFieldValues[def.key] || ''} on:input={(e) => { customFieldValues[def.key] = e.currentTarget.value; handleChange(); }} placeholder={getCustomFieldTypePlaceholder(def)}></textarea>
+                            {:else if def.type === "boolean"}
+                                <div class="na-detail__custom-toggle">
+                                    <NaToggle
+                                        checked={customFieldValues[def.key] === "1" || customFieldValues[def.key] === "true"}
+                                        on:change={(e) => { customFieldValues[def.key] = e.detail.checked ? "1" : "0"; handleChange(); }}
+                                    />
+                                    <span>{customFieldValues[def.key] === "1" || customFieldValues[def.key] === "true"
+                                        ? (i18n?.customFieldBooleanYes || "Yes")
+                                        : (i18n?.customFieldBooleanNo || "No")}</span>
+                                </div>
+                            {:else if def.type === "singleSelect"}
+                                {@const selectedId = customFieldValues[def.key] || ""}
+                                {@const selectedOption = (def.options || []).find(option => option.id === selectedId)}
+                                {@const optionLabels = Object.fromEntries((def.options || []).map(option => [option.id, option.label + (option.status === "archived" ? (i18n?.customFieldArchivedOptionSuffix || " (archived)") : "")]))}
+                                <NaSearchSelect
+                                    multi={false}
+                                    selected={selectedId}
+                                    selectedLabel={selectedOption ? optionLabels[selectedOption.id] : ""}
+                                    initialLabels={optionLabels}
+                                    searchFn={(query) => Promise.resolve((def.options || [])
+                                        .filter(option => option.status === "active" || option.id === selectedId)
+                                        .filter(option => !query || option.label.toLowerCase().includes(query.toLowerCase()))
+                                        .map(option => ({ id: option.id, label: optionLabels[option.id] })))}
+                                    placeholder={getCustomFieldTypePlaceholder(def)}
+                                    emptyText={i18n?.noOptions || "No options"}
+                                    noMatchText={i18n?.noMatches || "No matches"}
+                                    loadingText={i18n?.loadingMore || "Loading..."}
+                                    fixedDropdown={dialogMode}
+                                    on:change={(e) => {
+                                        customFieldValues[def.key] = Array.isArray(e.detail?.selected) ? (e.detail.selected[0] || "") : String(e.detail?.selected || "");
+                                        handleChange();
+                                    }}
+                                />
+                            {:else if def.type === "multiSelect"}
+                                {@const selected = (() => { try { return new Set(JSON.parse(customFieldValues[def.key] || "[]")); } catch { return new Set(); } })()}
+                                {@const optionLabels = Object.fromEntries((def.options || []).map(option => [option.id, option.label + (option.status === "archived" ? (i18n?.customFieldArchivedOptionSuffix || " (archived)") : "")]))}
+                                <NaSearchSelect
+                                    multi={true}
+                                    selected={[...selected].map(String)}
+                                    initialLabels={optionLabels}
+                                    searchFn={(query) => Promise.resolve((def.options || [])
+                                        .filter(option => option.status === "active" || selected.has(option.id))
+                                        .filter(option => !query || option.label.toLowerCase().includes(query.toLowerCase()))
+                                        .map(option => ({ id: option.id, label: option.label + (option.status === "archived" ? (i18n?.customFieldArchivedOptionSuffix || " (archived)") : "") })))}
+                                    placeholder={getCustomFieldTypePlaceholder(def)}
+                                    emptyText={i18n?.noOptions || "No options"}
+                                    noMatchText={i18n?.noMatches || "No matches"}
+                                    loadingText={i18n?.loadingMore || "Loading..."}
+                                    fixedDropdown={dialogMode}
+                                    on:change={(e) => {
+                                        const next = Array.isArray(e.detail?.selected) ? e.detail.selected.map(String) : [];
+                                        customFieldValues[def.key] = JSON.stringify(next);
+                                        handleChange();
+                                    }}
+                                />
+                            {:else if def.type === "date" || def.type === "datetime"}
+                                <NaDatePicker
+                                    value={customFieldValues[def.key] || ""}
+                                    placeholder={getCustomFieldTypePlaceholder(def)}
+                                    requireTime={def.type === "datetime"}
+                                    fixedDropdown={dialogMode}
+                                    {i18n}
+                                    on:change={(e) => { customFieldValues[def.key] = e.detail?.value || ""; handleChange(); }}
+                                />
+                            {:else if def.type === "url"}
+                                <NaLinkInput
+                                    value={customFieldValues[def.key] || ""}
+                                    placeholder={getCustomFieldTypePlaceholder(def)}
+                                    openLabel={i18n?.customFieldOpenLink || "Open link"}
+                                    on:input={(e) => { customFieldValues[def.key] = e.detail.value; handleChange(); }}
+                                    on:open={(e) => openCustomFieldLink(e.detail.value)}
+                                />
+                            {:else}
+                                <input
+                                    class="na-input"
+                                    type={def.type === "number" ? "number" : "text"}
+                                    value={customFieldValues[def.key] || ''}
+                                    on:input={(e) => { customFieldValues[def.key] = e.currentTarget.value; handleChange(); }}
+                                    placeholder={getCustomFieldTypePlaceholder(def)}
+                                />
+                            {/if}
                         </div>
                     </div>
                 {/each}
             {/if}
+            {#if customFieldError}<div class="na-detail__error">{customFieldError}</div>{/if}
         </div>
     </div>
 

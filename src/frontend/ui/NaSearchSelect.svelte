@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onDestroy, createEventDispatcher } from "svelte";
+    import { onDestroy, onMount, createEventDispatcher } from "svelte";
+    import { portal } from "../utils/portal";
 
     export let placeholder = "";
     export let multi = false;
@@ -12,8 +13,9 @@
     export let emptyText: string = "No options";
     export let noMatchText: string = "No matches";
     export let loadingText: string = "Loading...";
+    export let fixedDropdown: boolean = false;
 
-    const dispatch = createEventDispatcher();
+    const dispatch = createEventDispatcher<{ change: { selected: string | string[] } }>();
 
     let input = "";
     let results: { id: string; label: string }[] = [];
@@ -21,7 +23,9 @@
     let searching = false;
     let searchTimer: ReturnType<typeof setTimeout> | null = null;
     let containerEl: HTMLElement;
+    let dropdownEl: HTMLElement;
     let inputEl: HTMLInputElement | undefined;
+    let dropdownStyle = "position:fixed;z-index:9999;visibility:hidden;";
     let _prevInitialLabels: Record<string, string> = initialLabels;
     let labelMap: Map<string, string> = new Map(Object.entries(initialLabels));
     $: if (initialLabels !== _prevInitialLabels) {
@@ -42,10 +46,36 @@
     $: filteredResults = results.filter(r => !selectedArray.includes(r.id));
     $: hasDropdownContent = filteredResults.length > 0 || filteredOptions.length > 0;
 
+    function updateDropdownPosition() {
+        if (!fixedDropdown || !dropdownOpen || !containerEl || typeof window === "undefined") return;
+
+        const rect = containerEl.getBoundingClientRect();
+        const viewportGap = 8;
+        const dropdownGap = 4;
+        const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - viewportGap - dropdownGap);
+        const spaceAbove = Math.max(0, rect.top - viewportGap - dropdownGap);
+        const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow;
+        const availableHeight = openAbove ? spaceAbove : spaceBelow;
+        const maxHeight = Math.max(0, Math.min(200, availableHeight));
+        const width = Math.min(rect.width, window.innerWidth - viewportGap * 2);
+        const left = Math.max(viewportGap, Math.min(rect.left, window.innerWidth - width - viewportGap));
+        const verticalPosition = openAbove
+            ? `bottom:${Math.max(viewportGap, window.innerHeight - rect.top + dropdownGap)}px;`
+            : `top:${Math.max(viewportGap, rect.bottom + dropdownGap)}px;`;
+
+        dropdownStyle = `position:fixed;z-index:9999;visibility:visible;left:${left}px;${verticalPosition}width:${width}px;max-height:${maxHeight}px;`;
+    }
+
+    function scheduleDropdownPosition() {
+        if (!fixedDropdown || typeof requestAnimationFrame === "undefined") return;
+        requestAnimationFrame(updateDropdownPosition);
+    }
+
     function openDropdown() {
         if (hasDropdownContent) {
             // Cached results available — open immediately, no flicker
             dropdownOpen = true;
+            scheduleDropdownPosition();
         }
         // Always refresh; doSearch will open dropdown when results arrive
         doSearch();
@@ -72,7 +102,7 @@
         selectedLabel = "";
         results = [];
         input = "";
-        dispatch("change");
+        dispatch("change", { selected });
         // Focus input after Svelte updates the DOM (input becomes visible)
         setTimeout(() => {
             if (inputEl) inputEl.focus();
@@ -94,9 +124,11 @@
             // Open (or keep open) now that we have results
             if (hasDropdownContent || allowCreate) {
                 dropdownOpen = true;
+                scheduleDropdownPosition();
             } else if (allOptions.length === 0) {
                 // No searchFn and no allOptions — still show dropdown with "No options"
                 dropdownOpen = true;
+                scheduleDropdownPosition();
             } else {
                 dropdownOpen = false;
             }
@@ -127,7 +159,7 @@
         input = "";
         dropdownOpen = false;
         results = [];
-        dispatch("change");
+        dispatch("change", { selected });
     }
 
     function selectOption(option: string) {
@@ -141,7 +173,7 @@
             selected = "";
             selectedLabel = "";
         }
-        dispatch("change");
+        dispatch("change", { selected });
     }
 
     function onKeydown(e: KeyboardEvent) {
@@ -165,12 +197,21 @@
         }
     }
 
+    function handleViewportChange() {
+        if (dropdownOpen) scheduleDropdownPosition();
+    }
+
+    onMount(() => {
+        document.addEventListener("scroll", handleViewportChange, true);
+    });
+
     onDestroy(() => {
         if (searchTimer) clearTimeout(searchTimer);
+        document.removeEventListener("scroll", handleViewportChange, true);
     });
 </script>
 
-<svelte:window on:click={closeDropdown} />
+<svelte:window on:click={closeDropdown} on:resize={handleViewportChange} />
 
 <div class="na-search-select" bind:this={containerEl}>
     <div class="na-search-select__box" on:mousedown={handleBoxMousedown} on:click={handleBoxClick}>
@@ -216,7 +257,14 @@
         {/if}
     </div>
     {#if dropdownOpen}
-        <div class="na-search-select__dropdown">
+        <div
+            use:portal={fixedDropdown}
+            bind:this={dropdownEl}
+            class="na-search-select__dropdown"
+            class:na-search-select__dropdown--fixed={fixedDropdown}
+            style={fixedDropdown ? dropdownStyle : ""}
+            on:click|stopPropagation
+        >
             {#each filteredResults as item}
                 <div class="na-search-select__option" on:click={() => selectItem(item)}>
                     {item.label}
@@ -371,6 +419,13 @@
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
         margin-top: 4px;
         padding: 4px 0;
+    }
+
+    .na-search-select__dropdown--fixed {
+        position: fixed;
+        right: auto;
+        margin-top: 0;
+        z-index: 9999;
     }
 
     .na-search-select__option {

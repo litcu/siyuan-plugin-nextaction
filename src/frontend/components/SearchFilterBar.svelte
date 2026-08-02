@@ -4,7 +4,8 @@
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { PRIORITY_COLORS } from "../constants";
     import { toI18nKey } from "../utils";
-    import type { FilterState } from "../utils/filter";
+    import type { FilterState, CustomFieldFilter } from "../utils/filter";
+    import { taskStore } from "../stores/task-store";
 
     export let contexts: string[] = [];
     export let tags: string[] = [];
@@ -18,6 +19,9 @@
 
     let searchText = filterState.searchText;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let customFieldKey = "";
+    let customFieldOperator: CustomFieldFilter["operator"] = "contains";
+    let customFieldValue = "";
 
     $: contextOptions = contexts.map(c => ({ value: c, label: c }));
     $: tagOptions = tags.map(t => ({ value: t, label: t }));
@@ -35,7 +39,10 @@
         { value: "due", label: i18n?.sortByDue || "Due date" },
         { value: "importance", label: i18n?.sortByImportance || "Importance" },
         { value: "priority", label: i18n?.sortByPriority || "Manual priority" },
+        ...($taskStore.settings.customFields || []).filter(field => field.status === "active").map(field => ({ value: `custom:${field.key}`, label: `${field.label} ↕` })),
     ];
+
+    $: customFieldOptions = ($taskStore.settings.customFields || []).filter(field => field.status === "active");
 
     function onSearchInput() {
         if (debounceTimer) clearTimeout(debounceTimer);
@@ -62,6 +69,21 @@
 
     function onSortChange(value: string, ascending: boolean) {
         onFilterChange({ ...filterState, sortBy: value, sortAsc: ascending });
+    }
+
+    function addCustomFieldFilter() {
+        if (!customFieldKey) return;
+        const next = [...(filterState.customFieldFilters || []), {
+            key: customFieldKey,
+            operator: customFieldOperator,
+            ...(customFieldOperator === "empty" || customFieldOperator === "notEmpty" ? {} : { value: customFieldValue }),
+        }];
+        onFilterChange({ ...filterState, customFieldFilters: next });
+        customFieldValue = "";
+    }
+
+    function removeCustomFieldFilter(index: number) {
+        onFilterChange({ ...filterState, customFieldFilters: (filterState.customFieldFilters || []).filter((_, i) => i !== index) });
     }
 </script>
 
@@ -118,6 +140,29 @@
                     onChange={onStatusChange}
                 />
             </div>
+        {/if}
+        {#if customFieldOptions.length > 0}
+            <div class="na-search-filter-bar__custom-field-filter">
+                <select class="na-select" bind:value={customFieldKey} aria-label={i18n?.customFieldFilter || "Custom field"}>
+                    <option value="">{i18n?.customFieldFilter || "Custom field"}</option>
+                    {#each customFieldOptions as field}<option value={field.key}>{field.label}</option>{/each}
+                </select>
+                <select class="na-select" bind:value={customFieldOperator}>
+                    <option value="contains">{i18n?.contains || "contains"}</option>
+                    <option value="equals">{i18n?.equals || "equals"}</option>
+                    <option value="notEmpty">{i18n?.notEmpty || "has value"}</option>
+                    <option value="empty">{i18n?.empty || "is empty"}</option>
+                </select>
+                {#if customFieldOperator !== "empty" && customFieldOperator !== "notEmpty"}
+                    <input class="na-input" value={customFieldValue} on:input={(e) => customFieldValue = e.currentTarget.value} placeholder={i18n?.customFieldFilterValue || "Value"} on:keydown={(e) => e.key === "Enter" && addCustomFieldFilter()} />
+                {/if}
+                <button class="na-button na-button--sm" on:click={addCustomFieldFilter}>+</button>
+            </div>
+            {#each filterState.customFieldFilters || [] as filter, index}
+                <button class="na-chip na-chip--filter" on:click={() => removeCustomFieldFilter(index)} title={i18n?.removeFilter || "Remove filter"}>
+                    {customFieldOptions.find(field => field.key === filter.key)?.label || filter.key} {filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`} ×
+                </button>
+            {/each}
         {/if}
         <NaSortSelect
             options={computedSortOptions}

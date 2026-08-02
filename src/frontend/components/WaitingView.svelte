@@ -18,7 +18,7 @@
 
     $: filterState = $taskStore.filterByView[VIEW_WAITING] || DEFAULT_FILTER_STATE;
     $: waitingTasks = $taskStore.allTasks.filter(t => t.status === "waiting");
-    $: filteredTasks = applyFilters(waitingTasks, filterState);
+    $: filteredTasks = applyFilters(waitingTasks, filterState, $taskStore.settings.customFields);
 
     const waitingSortOptions = [
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },

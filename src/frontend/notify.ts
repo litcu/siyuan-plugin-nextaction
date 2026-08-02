@@ -108,9 +108,9 @@ const VALIDATION_MESSAGE_MAP: [RegExp, string][] = [
     [/myDayResetHour must be integer 0-23/i, "settingMyDayResetHourDesc"],
     [/myDayDefaultViewMode must be/i, "errInvalidParams"],
     [/myDayDefaultDuration must be integer 15-480/i, "errInvalidParams"],
-    [/customFields key must start with a letter/i, "customFieldKeyInvalid"],
-    [/customFields key must be unique/i, "customFieldKeyDuplicate"],
-    [/customFields label must not be empty/i, "customFieldLabelRequired"],
+    [/custom field key must use lowercase/i, "customFieldKeyInvalid"],
+    [/custom field key must be unique/i, "customFieldKeyDuplicate"],
+    [/custom field label must not be empty/i, "customFieldLabelRequired"],
 ];
 
 /**

@@ -294,6 +294,30 @@
     margin-left: auto;
 }
 
+.na-search-filter-bar__custom-field-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    .na-select,
+    .na-input {
+        height: 26px;
+        min-width: 74px;
+        font-size: 11px;
+    }
+
+    .na-input { width: 92px; }
+}
+
+.na-chip--filter {
+    height: 24px;
+    border: 1px solid var(--na-color-divider);
+    background: var(--na-color-selected-bg);
+    color: var(--b3-theme-on-surface-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
 // Task card
 .na-task-card {
     display: flex;
@@ -564,6 +588,11 @@
 
 .na-task-card__custom-field {
     color: var(--b3-theme-on-surface-secondary);
+}
+
+.na-task-card__custom-field--more {
+    color: var(--b3-theme-primary);
+    font-weight: 600;
 }
 
 .na-task-card__child-count {
@@ -1106,6 +1135,23 @@
     background: rgba(231, 76, 60, 0.08);
     border: 1px solid rgba(231, 76, 60, 0.14);
     border-radius: 6px;
+}
+
+.na-detail__custom-toggle,
+.na-detail__custom-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    color: var(--b3-theme-on-surface-secondary);
+    font-size: 12px;
+}
+
+.na-detail__custom-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 4px 0;
 }
 
 .na-detail__value--with-bell {

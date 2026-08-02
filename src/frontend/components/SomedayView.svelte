@@ -20,7 +20,7 @@
 
     $: filterState = $taskStore.filterByView[VIEW_SOMEDAY] || DEFAULT_FILTER_STATE;
     $: somedayTasks = $taskStore.allTasks.filter(t => t.status === "someday");
-    $: filteredTasks = applyFilters(somedayTasks, filterState);
+    $: filteredTasks = applyFilters(somedayTasks, filterState, $taskStore.settings.customFields);
 
     const somedaySortOptions = [
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
