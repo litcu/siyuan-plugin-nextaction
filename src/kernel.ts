@@ -6,7 +6,8 @@ import { SyncEngine } from "./kernel/sync-engine";
 import { TaskService } from "./kernel/task-service";
 import { registerRpcMethods } from "./kernel/rpc-server";
 import { MyDayManager } from "./kernel/my-day-manager";
-import { DEFAULT_SETTINGS } from "./shared/settings";
+import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "./shared/settings";
+import { McpToolManager } from "./kernel/mcp-tool-manager";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -14,6 +15,7 @@ class NextActionKernelPlugin {
     private mutex!: Mutex;
     private syncEngine!: SyncEngine;
     private taskService!: TaskService;
+    private mcpToolManager!: McpToolManager;
     private isReady = false;
 
     constructor() {
@@ -32,8 +34,21 @@ class NextActionKernelPlugin {
         this.syncEngine = new SyncEngine();
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
         this.taskService = new TaskService(this.cacheManager, this.mutex, this.syncEngine, myDayManager);
+        const loadedSettings = await this.loadSettings();
+        const appliedSettings = this.taskService.updateSettings(loadedSettings);
+        if ("_rpcError" in appliedSettings) {
+            await logger.warn("onload: saved settings invalid, using defaults: " + appliedSettings._rpcError.message);
+            this.taskService.updateSettings(DEFAULT_SETTINGS);
+        }
+        this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings());
 
-        registerRpcMethods(this.taskService);
+        registerRpcMethods(this.taskService, {
+            updateSettings: this.updateSettings.bind(this),
+            getMcpStatus: () => this.mcpToolManager.getStatus(),
+            listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
+            resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
+        });
+        await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
         this.cacheManager.loadAll().then(async () => {
             const mismatches = await this.cacheManager.verifyIntegrity();
@@ -60,7 +75,32 @@ class NextActionKernelPlugin {
         this.syncEngine.stop();
         this.isReady = false;
         this.taskService.setIsReady(false);
+        await this.mcpToolManager?.unload();
         await logger.info("onunload: NextAction kernel plugin unloaded");
+    }
+
+    private async loadSettings(): Promise<PluginSettings> {
+        try {
+            const data = await this.siyuan.storage.get("settings.json");
+            const saved = await data.json() as Partial<PluginSettings>;
+            if (saved && typeof saved === "object") return mergeSettings(DEFAULT_SETTINGS, saved);
+        } catch (_error) {
+            // First run or unreadable legacy settings: use defaults.
+        }
+        return mergeSettings(DEFAULT_SETTINGS, {});
+    }
+
+    private async updateSettings(partial: Partial<PluginSettings>): Promise<PluginSettings | { _rpcError: { code: number; message: string } }> {
+        const current = this.taskService.getSettings();
+        const next = mergeSettings(current, partial);
+        const validationError = validateSettings(next);
+        if (validationError) return { _rpcError: { code: -32001, message: validationError } };
+        await this.mcpToolManager.validateSettings(next);
+        await this.siyuan.storage.put("settings.json", JSON.stringify(next));
+        const applied = this.taskService.updateSettings(next);
+        if ("_rpcError" in applied) return applied;
+        await this.mcpToolManager.reconcile(applied);
+        return applied;
     }
 }
 

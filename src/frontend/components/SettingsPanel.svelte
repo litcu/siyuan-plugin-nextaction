@@ -1,8 +1,8 @@
 <script lang="ts">
     import { onMount, tick } from "svelte";
-    import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings } from "../../shared/settings";
+    import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings, McpCreateTarget } from "../../shared/settings";
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, migrateCustomFieldDefs, normalizeCustomFieldKey, type CustomFieldOption, type CustomFieldType } from "../../shared/custom-fields";
-    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, validateSettings } from "../../shared/settings";
+    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, validateSettings } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
     import NaDotRating from "../ui/NaDotRating.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
@@ -13,8 +13,9 @@
     export let i18n: any;
     export let onSave: (settings: PluginSettings) => void;
     export let onClose: () => void;
+    export let getCurrentDocumentId: () => string = () => "";
 
-    type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder";
+    type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder" | "mcp";
 
     let activeTab: TabId = "defaults";
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
@@ -53,6 +54,19 @@
     let newOffsetValue: number = 60;
     let newOffsetUnit: "minutes" | "hours" | "days" = "minutes";
 
+    // MCP
+    let mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
+    let mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
+    let mcpDefaultCreateTarget: McpCreateTarget = DEFAULT_MCP_SETTINGS.defaultCreateTarget;
+    let mcpInboxDocumentId = DEFAULT_MCP_SETTINGS.inboxDocumentId;
+    let mcpDailyNoteNotebookId = DEFAULT_MCP_SETTINGS.dailyNoteNotebookId;
+    let mcpStatus: any = null;
+    let mcpNotebooks: Array<{ id: string; name: string; icon: string }> = [];
+    let mcpResolvedDocument: { id: string; title: string; notebookId: string } | null = null;
+    let mcpResolvingDocument = false;
+    let mcpCopied = false;
+    $: mcpEndpoint = `${window.location.origin}/mcp`;
+
     // Custom fields
     let customFields: CustomFieldDef[] = [];
     let newFieldKey: string = "";
@@ -73,6 +87,7 @@
         { id: "myDay", label: "", desc: "" },
         { id: "reminder", label: "", desc: "" },
         { id: "customFields", label: "", desc: "" },
+        { id: "mcp", label: "", desc: "" },
         { id: "priority", label: "", desc: "" },
     ];
 
@@ -84,8 +99,10 @@
     $: tabs[2].desc = i18n.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates";
     $: tabs[3].label = i18n.settingCustomFields || "Custom Fields";
     $: tabs[3].desc = i18n.settingCustomFieldsDesc || "Add custom attribute fields to tasks";
-    $: tabs[4].label = i18n.settingPriorityEngine || "Priority Parameters";
-    $: tabs[4].desc = i18n.settingPriorityEngineDesc || "Auto priority calculation parameters — do not modify if unsure";
+    $: tabs[4].label = i18n.settingMcp || "MCP";
+    $: tabs[4].desc = i18n.settingMcpDesc || "Expose NextAction task tools through SiYuan MCP";
+    $: tabs[5].label = i18n.settingPriorityEngine || "Priority Parameters";
+    $: tabs[5].desc = i18n.settingPriorityEngineDesc || "Auto priority calculation parameters — do not modify if unsure";
 
     $: tabTitle = tabs.find(t => t.id === activeTab)?.label || "";
     $: tabDesc = tabs.find(t => t.id === activeTab)?.desc || "";
@@ -110,6 +127,10 @@
                 reminderSettings: {
                     ...DEFAULT_REMINDER_SETTINGS,
                     ...(rawSettings?.reminderSettings || {}),
+                },
+                mcpSettings: {
+                    ...DEFAULT_MCP_SETTINGS,
+                    ...(rawSettings?.mcpSettings || {}),
                 },
                 customFields: migrateCustomFieldDefs(rawSettings?.customFields || []).fields,
             };
@@ -143,6 +164,22 @@
             reminderDueSound = rs.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
             reminderReviewSound = rs.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
             reminderSoundEnabled = rs.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+            const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
+            mcpEnabled = mcp.enabled;
+            mcpAllowWrite = mcp.allowWrite;
+            mcpDefaultCreateTarget = mcp.defaultCreateTarget;
+            mcpInboxDocumentId = mcp.inboxDocumentId;
+            mcpDailyNoteNotebookId = mcp.dailyNoteNotebookId;
+            try {
+                [mcpStatus, mcpNotebooks] = await Promise.all([
+                    bridge.getMcpStatus(),
+                    bridge.listMcpTargetNotebooks(),
+                ]);
+                if (mcpInboxDocumentId) await resolveMcpInboxDocument(false);
+            } catch (_e) {
+                mcpStatus = null;
+                mcpNotebooks = [];
+            }
             await tick();
             settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" });
             requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
@@ -188,6 +225,13 @@
                 dueSound: reminderDueSound,
                 reviewSound: reminderReviewSound,
                 soundEnabled: reminderSoundEnabled,
+            },
+            mcpSettings: {
+                enabled: mcpEnabled,
+                allowWrite: mcpAllowWrite,
+                defaultCreateTarget: mcpDefaultCreateTarget,
+                inboxDocumentId: mcpInboxDocumentId.trim(),
+                dailyNoteNotebookId: mcpDailyNoteNotebookId,
             },
         };
     }
@@ -274,6 +318,50 @@
         reminderDueSound = DEFAULT_REMINDER_SETTINGS.dueSound;
         reminderReviewSound = DEFAULT_REMINDER_SETTINGS.reviewSound;
         reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
+    }
+
+    function handleResetMcp() {
+        mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
+        mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
+        mcpDefaultCreateTarget = DEFAULT_MCP_SETTINGS.defaultCreateTarget;
+        mcpInboxDocumentId = DEFAULT_MCP_SETTINGS.inboxDocumentId;
+        mcpDailyNoteNotebookId = DEFAULT_MCP_SETTINGS.dailyNoteNotebookId;
+        mcpResolvedDocument = null;
+    }
+
+    async function resolveMcpInboxDocument(showError = true) {
+        mcpResolvedDocument = null;
+        if (!mcpInboxDocumentId.trim()) return;
+        mcpResolvingDocument = true;
+        try {
+            const resolved = await bridge.resolveMcpDocumentTarget(mcpInboxDocumentId.trim());
+            mcpResolvedDocument = resolved;
+            mcpInboxDocumentId = resolved.id;
+        } catch (e: any) {
+            if (showError) error = formatRpcError(e, i18n);
+        } finally {
+            mcpResolvingDocument = false;
+        }
+    }
+
+    async function useCurrentDocumentForMcp() {
+        const id = getCurrentDocumentId();
+        if (!id) {
+            error = i18n?.settingMcpNoCurrentDocument || "No active document found";
+            return;
+        }
+        mcpInboxDocumentId = id;
+        await resolveMcpInboxDocument();
+    }
+
+    async function copyMcpEndpoint() {
+        try {
+            await navigator.clipboard.writeText(mcpEndpoint);
+            mcpCopied = true;
+            setTimeout(() => { mcpCopied = false; }, 1600);
+        } catch (_e) {
+            error = i18n?.settingMcpCopyFailed || "Failed to copy MCP endpoint";
+        }
     }
 
     function offsetToMinutes(value: number, unit: "minutes" | "hours" | "days"): number {
@@ -509,6 +597,7 @@
         else if (activeTab === "myDay") handleResetMyDay();
         else if (activeTab === "customFields") handleResetCustomFields();
         else if (activeTab === "reminder") handleResetReminder();
+        else if (activeTab === "mcp") handleResetMcp();
         else handleResetDefaults();
     }
 </script>
@@ -546,6 +635,11 @@
                         <line x1="7" y1="7" x2="13" y2="7"/>
                         <line x1="7" y1="10" x2="13" y2="10"/>
                         <line x1="7" y1="13" x2="10" y2="13"/>
+                    </svg>
+                {:else if tab.id === "mcp"}
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 5.5h8a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z"/>
+                        <circle cx="8" cy="10" r="1"/><circle cx="12" cy="10" r="1"/><path d="M10 3v2.5M7 14.5v2M13 14.5v2"/>
                     </svg>
                 {:else}
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -931,6 +1025,115 @@
                     {/if}
                 </div>
 
+            {:else if activeTab === "mcp"}
+                <div class="na-settings__page na-settings__mcp-page">
+                    <div class="na-settings__mcp-status" class:na-settings__mcp-status--active={mcpStatus?.supported && mcpEnabled}>
+                        <div class="na-settings__mcp-status-orb">
+                            <span></span>
+                        </div>
+                        <div class="na-settings__mcp-status-copy">
+                            <strong>{mcpStatus?.supported ? (mcpEnabled ? (i18n?.settingMcpStatusEnabled || "MCP tools enabled") : (i18n?.settingMcpStatusDisabled || "MCP tools disabled")) : (i18n?.settingMcpUnsupported || "MCP unavailable")}</strong>
+                            <span>{mcpStatus?.supported ? `${mcpStatus?.tools?.length || 0} ${i18n?.settingMcpRegisteredTools || "registered tools"}` : (mcpStatus?.lastError || i18n?.settingMcpUnsupportedDesc || "Upgrade SiYuan to a version that supports kernel MCP tools")}</span>
+                        </div>
+                        <span class="na-settings__mcp-source">source: plugin</span>
+                    </div>
+
+                    <div class="na-settings__field">
+                        <label class="na-settings__field-label" for="setting-mcp-enabled">
+                            {i18n?.settingMcpEnabled || "Enable MCP tools"}
+                            <span class="na-settings__field-hint">{i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}</span>
+                        </label>
+                        <div class="na-settings__field-value">
+                            <NaToggle id="setting-mcp-enabled" bind:checked={mcpEnabled} disabled={!mcpStatus?.supported} />
+                        </div>
+                    </div>
+
+                    <div class="na-settings__field">
+                        <label class="na-settings__field-label" for="setting-mcp-write">
+                            {i18n?.settingMcpAllowWrite || "Allow write tools"}
+                            <span class="na-settings__field-hint">{i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}</span>
+                        </label>
+                        <div class="na-settings__field-value">
+                            <NaToggle id="setting-mcp-write" bind:checked={mcpAllowWrite} disabled={!mcpEnabled || !mcpStatus?.supported} />
+                            {#if mcpAllowWrite}
+                                <span class="na-settings__mcp-warning">{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data"}</span>
+                            {/if}
+                        </div>
+                    </div>
+
+                    <div class="na-settings__mcp-endpoint-card">
+                        <span class="na-settings__section-kicker">MCP ENDPOINT</span>
+                        <div class="na-settings__mcp-endpoint-row">
+                            <code>{mcpEndpoint}</code>
+                            <button class="na-settings__mcp-copy" on:click={copyMcpEndpoint} title={i18n?.settingMcpCopyEndpoint || "Copy endpoint"}>
+                                {mcpCopied ? (i18n?.settingMcpCopied || "Copied") : (i18n?.settingMcpCopy || "Copy")}
+                            </button>
+                        </div>
+                        <span class="na-settings__mcp-endpoint-hint">{i18n?.settingMcpEndpointHint || "Uses SiYuan authentication. Tools may also be available to SiYuan's built-in AI Agent."}</span>
+                    </div>
+
+                    <div class="na-settings__card" class:na-settings__card--muted={!mcpAllowWrite}>
+                        <div class="na-settings__card-header">
+                            <span class="na-settings__card-title">{i18n?.settingMcpCreateTarget || "Task creation target"}</span>
+                            <span class="na-settings__card-desc">{i18n?.settingMcpCreateTargetDesc || "Default location used when create_task does not specify a destination"}</span>
+                        </div>
+                        <div class="na-settings__field">
+                            <label class="na-settings__field-label" for="setting-mcp-target">{i18n?.settingMcpDefaultTarget || "Default target"}</label>
+                            <select id="setting-mcp-target" class="na-select" bind:value={mcpDefaultCreateTarget} disabled={!mcpAllowWrite}>
+                                <option value="inbox">{i18n?.settingMcpTargetInbox || "Configured inbox document"}</option>
+                                <option value="daily_note">{i18n?.settingMcpTargetDailyNote || "Today's daily note"}</option>
+                            </select>
+                        </div>
+
+                        {#if mcpDefaultCreateTarget === "inbox"}
+                            <div class="na-settings__field">
+                                <label class="na-settings__field-label" for="setting-mcp-inbox">{i18n?.settingMcpInboxDocument || "Inbox document"}</label>
+                                <div class="na-settings__mcp-target-row">
+                                    <input id="setting-mcp-inbox" class="na-input" bind:value={mcpInboxDocumentId} on:blur={() => resolveMcpInboxDocument(false)} placeholder="20260802120000-abcdefg / siyuan://blocks/..." disabled={!mcpAllowWrite} />
+                                    <button class="na-button na-button--sm" on:click={useCurrentDocumentForMcp} disabled={!mcpAllowWrite}>{i18n?.settingMcpUseCurrentDocument || "Use current"}</button>
+                                    <button class="na-button na-button--sm" on:click={() => resolveMcpInboxDocument()} disabled={!mcpAllowWrite || mcpResolvingDocument}>{mcpResolvingDocument ? "…" : (i18n?.settingMcpVerify || "Verify")}</button>
+                                </div>
+                                {#if mcpResolvedDocument}
+                                    <div class="na-settings__mcp-resolved">
+                                        <span class="na-settings__mcp-check">✓</span>
+                                        <span>{mcpResolvedDocument.title || i18n?.untitled || "Untitled"}</span>
+                                        <code>{mcpResolvedDocument.id}</code>
+                                    </div>
+                                {/if}
+                            </div>
+                        {:else}
+                            <div class="na-settings__field">
+                                <label class="na-settings__field-label" for="setting-mcp-notebook">{i18n?.settingMcpDailyNoteNotebook || "Daily note notebook"}</label>
+                                <select id="setting-mcp-notebook" class="na-select" bind:value={mcpDailyNoteNotebookId} disabled={!mcpAllowWrite}>
+                                    <option value="">{i18n?.settingMcpSelectNotebook || "Select a notebook"}</option>
+                                    {#each mcpNotebooks as notebook}
+                                        <option value={notebook.id}>{notebook.name}</option>
+                                    {/each}
+                                </select>
+                            </div>
+                        {/if}
+                    </div>
+
+                    {#if mcpStatus?.tools?.length}
+                        <div class="na-settings__mcp-tools">
+                            <div class="na-settings__mcp-tools-heading">
+                                <span class="na-settings__section-kicker">{i18n?.settingMcpToolInventory || "TOOL INVENTORY"}</span>
+                                <span>{mcpStatus.tools.length}</span>
+                            </div>
+                            {#each mcpStatus.tools as tool}
+                                <div class="na-settings__mcp-tool-row">
+                                    <span class="na-settings__mcp-tool-mode" class:na-settings__mcp-tool-mode--write={tool.write}>{tool.write ? "WRITE" : "READ"}</span>
+                                    <div>
+                                        <strong>{tool.title}</strong>
+                                        <code>{tool.fullName}</code>
+                                    </div>
+                                    <span class="na-settings__mcp-source">{tool.source}</span>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+
             {:else if activeTab === "priority"}
                 <div class="na-settings__page">
                     <!-- Weight distribution card -->
@@ -1273,6 +1476,198 @@
         font-size: var(--na-font-size-xs);
         color: var(--b3-theme-on-surface-light);
         margin-top: 2px;
+    }
+
+    .na-settings__card--muted {
+        opacity: 0.58;
+    }
+
+    .na-settings__mcp-page {
+        gap: 12px;
+    }
+
+    .na-settings__mcp-status {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-lg);
+        background: linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-surface-lighter));
+    }
+
+    .na-settings__mcp-status-orb {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--b3-theme-surface-lighter);
+
+        span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--b3-theme-on-surface-light);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--b3-theme-on-surface-light) 12%, transparent);
+        }
+    }
+
+    .na-settings__mcp-status--active .na-settings__mcp-status-orb span {
+        background: var(--na-color-done);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--na-color-done) 15%, transparent), 0 0 12px color-mix(in srgb, var(--na-color-done) 40%, transparent);
+    }
+
+    .na-settings__mcp-status-copy {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        strong {
+            color: var(--b3-theme-on-surface);
+            font-size: var(--na-font-size-md);
+        }
+
+        span {
+            color: var(--b3-theme-on-surface-light);
+            font-size: var(--na-font-size-xs);
+        }
+    }
+
+    .na-settings__mcp-source {
+        color: var(--b3-theme-on-surface-light);
+        font: 10px/1.2 var(--b3-font-family-code);
+        white-space: nowrap;
+    }
+
+    .na-settings__mcp-warning {
+        color: var(--na-color-warning, var(--b3-card-warning-color));
+        font-size: var(--na-font-size-xs);
+    }
+
+    .na-settings__mcp-endpoint-card {
+        padding: 12px 14px;
+        border-left: 3px solid var(--b3-theme-primary);
+        background: var(--b3-theme-surface);
+        border-radius: 0 var(--na-radius-md) var(--na-radius-md) 0;
+    }
+
+    .na-settings__mcp-endpoint-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 5px 0 3px;
+
+        code {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--b3-theme-on-surface);
+            font-size: var(--na-font-size-sm);
+        }
+    }
+
+    .na-settings__mcp-copy {
+        border: 1px solid var(--na-color-divider);
+        background: var(--b3-theme-background);
+        color: var(--b3-theme-primary);
+        border-radius: var(--na-radius-sm);
+        padding: 3px 9px;
+        cursor: pointer;
+        font-size: var(--na-font-size-xs);
+    }
+
+    .na-settings__mcp-endpoint-hint {
+        color: var(--b3-theme-on-surface-light);
+        font-size: var(--na-font-size-xs);
+    }
+
+    .na-settings__mcp-target-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .na-settings__mcp-resolved {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        color: var(--b3-theme-on-surface-secondary);
+        font-size: var(--na-font-size-xs);
+
+        code {
+            margin-left: auto;
+            color: var(--b3-theme-on-surface-light);
+        }
+    }
+
+    .na-settings__mcp-check {
+        color: var(--na-color-done);
+        font-weight: 700;
+    }
+
+    .na-settings__mcp-tools {
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-lg);
+        overflow: hidden;
+    }
+
+    .na-settings__mcp-tools-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        background: var(--b3-theme-surface);
+        border-bottom: 1px solid var(--na-color-divider);
+        color: var(--b3-theme-on-surface-light);
+        font-size: var(--na-font-size-xs);
+    }
+
+    .na-settings__mcp-tool-row {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--na-color-divider);
+
+        &:last-child {
+            border-bottom: 0;
+        }
+
+        > div {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        strong {
+            color: var(--b3-theme-on-surface);
+            font-size: var(--na-font-size-sm);
+            font-weight: 500;
+        }
+
+        code {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--b3-theme-on-surface-light);
+            font-size: 10px;
+        }
+    }
+
+    .na-settings__mcp-tool-mode {
+        color: var(--b3-theme-primary);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+    }
+
+    .na-settings__mcp-tool-mode--write {
+        color: var(--na-color-warning, var(--b3-card-warning-color));
     }
 
     // ===== Weight distribution rows =====

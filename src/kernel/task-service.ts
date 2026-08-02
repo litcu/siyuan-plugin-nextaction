@@ -68,6 +68,13 @@ function localActionDate(date: Date = new Date()): string {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+export interface ConvertToTaskOptions {
+    /** The caller has just created the block and verified its text DOM. */
+    knownTextBlock?: boolean;
+    /** Direct parent returned by SiYuan's insert transaction. */
+    parentIdHint?: string;
+}
+
 export class TaskService {
     private cacheManager: CacheManager;
     private mutex: Mutex;
@@ -87,6 +94,10 @@ export class TaskService {
 
     setIsReady(val: boolean): void {
         this.isReady = val;
+    }
+
+    assertReady(): void {
+        this.checkReady();
     }
 
     private checkReady(): void {
@@ -133,7 +144,12 @@ export class TaskService {
 
     // ---- Write operations ----
 
-    async convertToTask(blockId: string, cleanTitle?: string, taskType: string = "1"): Promise<TaskCacheEntry> {
+    async convertToTask(
+        blockId: string,
+        cleanTitle?: string,
+        taskType: string = "1",
+        options: ConvertToTaskOptions = {},
+    ): Promise<TaskCacheEntry> {
         if (!blockId) {
             const err: any = new Error("blockId is required");
             err.code = RPC_ERROR_INVALID_PARAMS;
@@ -141,28 +157,32 @@ export class TaskService {
         }
         this.checkReady();
 
-        // Only text-type blocks (paragraph, heading, document) can be converted to tasks
-        const typeRows: Array<{ type: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "'",
-        });
-        const blockType = (typeRows && typeRows.length > 0) ? typeRows[0].type : "";
-        if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
-            const err: any = new Error("errNotTextBlock");
-            err.code = RPC_ERROR_NOT_TEXT_BLOCK;
-            throw err;
+        // Newly inserted blocks are already present in SiYuan's block tree when
+        // appendBlock returns. Their SQL index may lag behind, so trusted callers
+        // can skip this eventual-consistency check.
+        if (!options.knownTextBlock) {
+            const typeRows: Array<{ type: string }> = await siyuanFetch("/api/query/sql", {
+                stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "'",
+            });
+            const blockType = (typeRows && typeRows.length > 0) ? typeRows[0].type : "";
+            if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
+                const err: any = new Error("errNotTextBlock");
+                err.code = RPC_ERROR_NOT_TEXT_BLOCK;
+                throw err;
+            }
         }
 
-        // Fetch block content for title (may contain stale slash text)
-        let title = await this.fetchBlockTitle(blockId);
-        // If frontend provided a clean title from DOM, prefer it over potentially stale SQL data
-        if (cleanTitle) {
-            title = cleanTitle;
-        }
+        // A caller-provided title is authoritative and avoids an unnecessary SQL
+        // read for blocks that were just inserted.
+        const title = cleanTitle || await this.fetchBlockTitle(blockId);
 
         // Check if already a task
         const existingAttrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
             id: blockId,
         });
+        const hintedParentId = options.parentIdHint
+            ? await this.findTaskParentHint(options.parentIdHint, blockId)
+            : "";
 
         if (existingAttrs[ATTR_TASK] && existingAttrs[ATTR_TASK] !== "") {
             const lock = await this.acquireWithTimeout();
@@ -185,7 +205,7 @@ export class TaskService {
                     // Parent not set, try to find ancestor task
                     let ancestorId = "";
                     try {
-                        ancestorId = await this.findAncestorTask(blockId);
+                        ancestorId = hintedParentId || await this.findAncestorTask(blockId);
                     } catch (_e: any) { /* ignore */ }
 
                     if (ancestorId) {
@@ -263,7 +283,7 @@ export class TaskService {
             // Find ancestor task to set na-parent
             let parentTaskId = "";
             try {
-                parentTaskId = await this.findAncestorTask(blockId);
+                parentTaskId = hintedParentId || await this.findAncestorTask(blockId);
             } catch (_e: any) {
                 // Ignore errors in finding ancestor
             }
@@ -1938,6 +1958,12 @@ export class TaskService {
             }
         }
         return result;
+    }
+
+    private async findTaskParentHint(parentId: string, blockId: string): Promise<string> {
+        if (!parentId || parentId === blockId) return "";
+        const attrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", { id: parentId });
+        return attrs[ATTR_TASK] ? parentId : "";
     }
 
     private async findAncestorTask(blockId: string): Promise<string> {

@@ -128,6 +128,18 @@ export class KernelBridge {
         return this.call("getSettings", {});
     }
 
+    async getMcpStatus(): Promise<any> {
+        return this.call("getMcpStatus", {});
+    }
+
+    async listMcpTargetNotebooks(): Promise<Array<{ id: string; name: string; icon: string }>> {
+        return this.call("listMcpTargetNotebooks", {});
+    }
+
+    async resolveMcpDocumentTarget(value: string): Promise<{ id: string; title: string; notebookId: string }> {
+        return this.call("resolveMcpDocumentTarget", { value });
+    }
+
     async getCustomFieldDiagnostics(): Promise<{ fields: Array<{ fieldId: string; key: string; status: string; count: number }>; orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }> }> {
         return this.call("getCustomFieldDiagnostics", {});
     }

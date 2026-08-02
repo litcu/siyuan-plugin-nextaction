@@ -4,13 +4,21 @@ import {
     RPC_ERROR_INVALID_PARAMS,
 } from "../shared/constants";
 import type { MyDayState } from "../shared/types";
+import type { PluginSettings } from "../shared/settings";
 
 interface RpcResult {
     _rpcError?: { code: number; message: string };
     [key: string]: any;
 }
 
-export function registerRpcMethods(taskService: TaskService): void {
+export interface RpcServerHooks {
+    updateSettings?: (settings: Partial<PluginSettings>) => Promise<PluginSettings | RpcResult>;
+    getMcpStatus?: () => any;
+    listMcpTargetNotebooks?: () => Promise<any>;
+    resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
+}
+
+export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHooks = {}): void {
     const siyuan = getSiyuan();
 
     siyuan.rpc.bind("echo", async (...params: any[]) => {
@@ -232,7 +240,9 @@ export function registerRpcMethods(taskService: TaskService): void {
             return rpcError(RPC_ERROR_INVALID_PARAMS, "settings is required and must be an object");
         }
         try {
-            return taskService.updateSettings(p.settings);
+            return hooks.updateSettings
+                ? await hooks.updateSettings(p.settings)
+                : taskService.updateSettings(p.settings);
         } catch (e: any) {
             return errorToRpcError(e);
         }
@@ -241,6 +251,41 @@ export function registerRpcMethods(taskService: TaskService): void {
     siyuan.rpc.bind("getSettings", async (..._params: any[]) => {
         try {
             return taskService.getSettings();
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("getMcpStatus", async (..._params: any[]) => {
+        try {
+            return hooks.getMcpStatus ? hooks.getMcpStatus() : {
+                supported: false,
+                enabled: false,
+                allowWrite: false,
+                endpoint: "/mcp",
+                tools: [],
+                lastError: "MCP manager is unavailable",
+            };
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("listMcpTargetNotebooks", async (..._params: any[]) => {
+        try {
+            return hooks.listMcpTargetNotebooks ? await hooks.listMcpTargetNotebooks() : [];
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("resolveMcpDocumentTarget", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.value) return rpcError(RPC_ERROR_INVALID_PARAMS, "value is required");
+        try {
+            return hooks.resolveMcpDocumentTarget
+                ? await hooks.resolveMcpDocumentTarget(p.value)
+                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
         } catch (e: any) {
             return errorToRpcError(e);
         }

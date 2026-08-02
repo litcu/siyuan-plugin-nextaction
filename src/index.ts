@@ -726,22 +726,8 @@ export default class NextActionPlugin extends Plugin {
         };
         this.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);
 
-        // Load saved settings before the first task load so typed custom fields
-        // and project scopes are ready when the UI renders.
-        this.loadData("settings.json").then(async (saved: any) => {
-            if (saved && typeof saved === "object") {
-                try {
-                    const merged = await this.bridge.updateSettings(saved);
-                    taskStore.applySettingsUpdate(merged);
-                } catch (e: any) {
-                    console.warn("[NextAction] Failed to apply saved settings:", e);
-                }
-            }
-        }).catch(() => {
-            // No saved settings yet, use defaults
-        }).finally(() => {
-            taskStore.loadTasks();
-        });
+        // The kernel owns settings persistence and applies settings before cache loading.
+        taskStore.loadTasks();
 
         // Editor status checkbox click listener
         document.addEventListener('click', this.handleEditorStatusClick, true);
@@ -844,9 +830,9 @@ export default class NextActionPlugin extends Plugin {
                 props: {
                     bridge: plugin.bridge,
                     i18n: i18n,
+                    getCurrentDocumentId: () => plugin.getEditor()?.protyle?.block?.rootID || "",
                     onSave: async (settings: PluginSettings) => {
                         try {
-                            await plugin.saveData("settings.json", settings);
                             await plugin.bridge.recalcAllOrders();
                             taskStore.applySettingsUpdate(settings);
                             taskStore.loadTasks();

@@ -5,6 +5,15 @@ import {
     validateCustomFieldDefinitions,
     type CustomFieldDef,
 } from "./custom-fields";
+import {
+    DEFAULT_MCP_SETTINGS,
+    mergeMcpSettings,
+    validateMcpSettings,
+    type McpSettings,
+} from "./mcp-settings";
+
+export { DEFAULT_MCP_SETTINGS } from "./mcp-settings";
+export type { McpSettings, McpCreateTarget } from "./mcp-settings";
 
 export type {
     CustomFieldDef,
@@ -57,6 +66,7 @@ export interface PluginSettings {
     myDayDefaultDuration: number;
     customFields: CustomFieldDef[];
     reminderSettings: ReminderSettings;
+    mcpSettings: McpSettings;
 }
 
 export const DEFAULT_PRIORITY_ENGINE: PriorityEngineSettings = {
@@ -98,6 +108,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     myDayDefaultDuration: 60,
     customFields: [],
     reminderSettings: { ...DEFAULT_REMINDER_SETTINGS },
+    mcpSettings: { ...DEFAULT_MCP_SETTINGS },
 };
 
 export function validateSettings(settings: Partial<PluginSettings>): string | null {
@@ -181,6 +192,8 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
             return "reminderSettings.soundEnabled must be boolean";
         }
     }
+    const mcpError = validateMcpSettings(settings.mcpSettings);
+    if (mcpError) return mcpError;
     return null;
 }
 
@@ -203,5 +216,6 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             ...base.reminderSettings,
             ...(override.reminderSettings ?? {}),
         },
+        mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
     };
 }
