@@ -18,6 +18,7 @@
     import { parseRepeatState } from "../../shared/repeat";
     import type { CustomFieldDef } from "../../shared/settings";
     import { decodeCustomFieldValue, encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
+    import { runAiDecomposeTask } from "../ai/ai-feature-service";
 
     export let task: TaskCacheEntry;
     export let bridge: KernelBridge;
@@ -946,7 +947,10 @@
 
     <div class="na-detail__footer">
         {#if dialogMode}
-            <span></span>
+            <button class="na-button na-button--sm na-ai-trigger na-detail__ai-button" on:click={() => runAiDecomposeTask(task)}>
+                <svg><use xlink:href="#iconSparkles"></use></svg>
+                {i18n?.aiDecomposeTask || "AI 拆解任务"}
+            </button>
             <button class="na-button na-button--danger na-button--sm" on:click={handleRemove}>
                 {i18n?.removeTask || "Remove Task"}
             </button>
@@ -955,9 +959,11 @@
                 <button class="na-link" on:click={() => jump(task.blockId)}>
                     {i18n?.jumpToBlock || "Jump to Block"}
                 </button>
-            {:else}
-                <span></span>
             {/if}
+            <button class="na-button na-button--sm na-ai-trigger na-detail__ai-button" on:click={() => runAiDecomposeTask(task)}>
+                <svg><use xlink:href="#iconSparkles"></use></svg>
+                {i18n?.aiDecomposeTask || "AI 拆解任务"}
+            </button>
             <button class="na-button na-button--danger na-button--sm" on:click={handleRemove}>
                 {i18n?.removeTask || "Remove Task"}
             </button>

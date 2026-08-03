@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { runAiReview } from "../ai/ai-feature-service";
     import type { KernelBridge } from "../kernel-bridge";
     import type { TaskCacheEntry, ReviewData } from "../../shared/types";
     import ReviewGuide from "./ReviewGuide.svelte";
@@ -45,6 +46,12 @@
 </script>
 
 <div class="na-view na-review">
+    <div class="na-review__toolbar">
+        <button class="na-button na-button--sm na-ai-trigger na-review__ai-btn" on:click={runAiReview}>
+            <svg><use xlink:href="#iconSparkles"></use></svg>
+            {i18n?.aiReview || "智能回顾"}
+        </button>
+    </div>
     {#if loading && !reviewData}
         <NaEmpty loading={true} />
     {:else if reviewData}
@@ -86,6 +93,16 @@
         display: flex;
         flex-direction: column;
         height: 100%;
+    }
+
+    .na-review__toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 38px;
+        padding: 5px 12px;
+        border-bottom: 1px solid var(--na-color-divider);
+        background: var(--b3-theme-surface);
     }
 
     .na-review__scroll {

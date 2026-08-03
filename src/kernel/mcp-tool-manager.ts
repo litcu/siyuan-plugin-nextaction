@@ -601,6 +601,14 @@ export class McpToolManager {
         return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
     }
 
+    async createTaskForPlugin(input: Record<string, any>) {
+        return this.createTask(input);
+    }
+
+    async convertTaskForPlugin(input: Record<string, any>) {
+        return this.convertBlock(input);
+    }
+
     private async createTask(input: Record<string, any>) {
         if (typeof input.title !== "string") throw new McpToolError("INVALID_INPUT", "title is required");
         const title = input.title.replace(/[\r\n]+/g, " ").trim();

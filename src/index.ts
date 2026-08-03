@@ -10,6 +10,7 @@ import { initReminderStore, destroyReminderStore } from "./frontend/stores/remin
 import NotificationHost from "./frontend/components/NotificationHost.svelte";
 import { normalizePriority, PRIORITY_LIST } from "./frontend/constants";
 import { toI18nKey } from "./frontend/utils";
+import { initAiFeatureService, runAiDecomposeTask, runAiExtractTasks } from "./frontend/ai/ai-feature-service";
 
 const TAB_TYPE = "nextaction_tab";
 const DOCK_TYPE = "nextaction_dock";
@@ -155,6 +156,22 @@ export default class NextActionPlugin extends Plugin {
                 },
             });
         }
+
+        menu.addSeparator();
+
+        menu.addItem({
+            icon: "iconSparkles",
+            label: this.i18n.ai || "AI",
+            type: "submenu",
+            submenu: [{
+                icon: "iconSparkles",
+                label: this.i18n.aiDecomposeTask || "AI 拆解任务",
+                click: async () => {
+                    const task = get(taskStore).allTasks.find(item => item.blockId === blockId);
+                    if (task) await runAiDecomposeTask(task);
+                },
+            }],
+        });
 
         menu.addSeparator();
 
@@ -575,12 +592,38 @@ export default class NextActionPlugin extends Plugin {
                     }
                 },
             },
+            {
+                filter: [this.i18n.aiExtractTasks || "AI 提取任务", "extract tasks", "zrw-ai"],
+                html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.i18n.aiExtractTasks || "AI 提取任务"}</span></div>`,
+                id: "aiExtractTasks",
+                callback: async (protyle: any, nodeElement: HTMLElement) => {
+                    const savedRange = protyle?.toolbar?.range;
+                    const sel = window.getSelection();
+                    if (savedRange) {
+                        try { savedRange.deleteContents(); } catch (_e) { /* ignore */ }
+                    } else if (sel && sel.rangeCount > 0) {
+                        try { sel.getRangeAt(0).deleteContents(); } catch (_e) { /* ignore */ }
+                    }
+                    nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    const blockId = nodeElement.dataset.nodeId;
+                    if (!blockId) {
+                        showMessage(`[NextAction] ${this.i18n.errorCannotDetermineBlockId || "Cannot determine block ID"}`);
+                        return;
+                    }
+                    await runAiExtractTasks([blockId]);
+                },
+            },
         ];
     }
 
     onLayoutReady() {
         this.bridge = new KernelBridge(this);
         taskStore.setBridge(this.bridge);
+        initAiFeatureService({
+            bridge: this.bridge,
+            i18n: this.i18n,
+            getCurrentDocumentId: () => this.getEditor()?.protyle?.block?.rootID || "",
+        });
 
         // Initialize reminder store
         initReminderStore(this);
@@ -595,6 +638,28 @@ export default class NextActionPlugin extends Plugin {
 
         // Block icon menu
         this.blockIconHandler = ({ detail }: any) => {
+            const blockElements = detail.blockElements || [];
+            const taskBlock = blockElements.length === 1 && blockElements[0].hasAttribute("custom-na-task");
+            detail.menu.addItem({
+                icon: "iconSparkles",
+                label: `[NextAction] ${this.i18n.ai || "AI"}`,
+                type: "submenu",
+                submenu: [
+                    {
+                        icon: "iconSparkles",
+                        label: this.i18n.aiExtractTasks || "AI 提取任务",
+                        click: async () => runAiExtractTasks(blockElements.map((element: HTMLElement) => element.dataset.nodeId).filter(Boolean)),
+                    },
+                    ...(taskBlock ? [{
+                        icon: "iconSplitLR",
+                        label: this.i18n.aiDecomposeTask || "AI 拆解任务",
+                        click: async () => {
+                            const task = get(taskStore).allTasks.find(item => item.blockId === blockElements[0].dataset.nodeId);
+                            if (task) await runAiDecomposeTask(task);
+                        },
+                    }] : []),
+                ],
+            });
             detail.menu.addItem({
                 icon: "iconNextAction",
                 label: `[NextAction] ${this.i18n.convertToTask}`,
@@ -663,6 +728,11 @@ export default class NextActionPlugin extends Plugin {
         this.editorTitleIconHandler = ({ detail }: any) => {
             const docId = detail.data?.id;
             if (!docId) return;
+            detail.menu.addItem({
+                icon: "iconSparkles",
+                label: `[NextAction] ${this.i18n.aiExtractTasks || "AI 提取任务"}`,
+                click: async () => runAiExtractTasks([docId]),
+            });
             detail.menu.addItem({
                 icon: "iconNextAction",
                 label: `[NextAction] ${this.i18n.convertToTask}`,
@@ -778,6 +848,24 @@ export default class NextActionPlugin extends Plugin {
             globalCallback: () => { this.openTaskPanel(); },
             editorCallback: () => { this.openTaskPanel(); },
             dockCallback: () => { this.openTaskPanel(); },
+        });
+
+        this.addCommand({
+            langKey: "aiExtractTasks",
+            langText: `[${this.i18n.pluginName}] ${this.i18n.aiExtractTasks || "AI 提取任务"}`,
+            hotkey: "",
+            callback: () => {
+                const blockId = this.getCommandBlockId();
+                if (blockId) runAiExtractTasks([blockId]);
+            },
+            editorCallback: (protyle: any) => {
+                const blockId = this.getCommandBlockId(protyle);
+                if (blockId) runAiExtractTasks([blockId]);
+            },
+            globalCallback: () => {
+                const blockId = this.getCommandBlockId();
+                if (blockId) runAiExtractTasks([blockId]);
+            },
         });
     }
 

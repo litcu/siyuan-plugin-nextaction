@@ -10,6 +10,7 @@
     import { PRIORITY_HEX_COLORS } from "../constants";
     import type { TaskCacheEntry, MyDayTaskEntry, MyDayState } from "../../shared/types";
     import { isMyDayEntryDone } from "../../shared/my-day";
+    import { runAiPlanMyDay } from "../ai/ai-feature-service";
 
     export let bridge: KernelBridge;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -97,6 +98,9 @@
 
 <div class="na-dock-myday">
     <div class="na-dock-myday__toolbar">
+        <button class="na-button na-button--sm na-ai-trigger na-ai-trigger--icon na-dock-myday__ai-btn" on:click={runAiPlanMyDay} title={i18n?.aiPlanMyDay || "自动规划"}>
+            <svg><use xlink:href="#iconSparkles"></use></svg>
+        </button>
         <div class="na-dock-myday__add">
             <NaSearchSelect
                 placeholder={i18n?.dockSearchAddTask || "搜索添加任务…"}
@@ -179,7 +183,10 @@
         {#if $taskStore.loading}
             <NaEmpty loading={true} />
         {:else if myDayTasks.length === 0}
-            <NaEmpty text={i18n?.noMyDayTasks || "No tasks planned for today."} />
+            <NaEmpty
+                text={i18n?.noMyDayTasks || "No tasks planned for today."}
+                action={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
+            />
         {:else}
             <div class="na-dock-myday__list">
                 {#each myDayTasks as task (task.blockId)}

@@ -13,6 +13,7 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
     import { isMyDayEntryDone } from "../../shared/my-day";
+    import { runAiPlanMyDay } from "../ai/ai-feature-service";
 
     export let bridge: KernelBridge;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -103,6 +104,10 @@
             </span>
         </div>
         <div class="na-myday-mode-toggle">
+            <button class="na-button na-button--sm na-ai-trigger na-myday-ai-btn" on:click={runAiPlanMyDay}>
+                <svg><use xlink:href="#iconSparkles"></use></svg>
+                {i18n?.aiPlanMyDay || "自动规划"}
+            </button>
             <button
                 class="na-myday-mode-btn"
                 class:na-myday-mode-btn--active={viewMode === "timeline"}
@@ -136,7 +141,10 @@
         {#if $taskStore.loading}
             <NaEmpty loading={true} />
         {:else if filteredTasks.length === 0}
-            <NaEmpty text={i18n?.noMyDayTasks || "No tasks planned for today."} />
+            <NaEmpty
+                text={i18n?.noMyDayTasks || "No tasks planned for today."}
+                action={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
+            />
         {:else}
             <div class="na-view__list">
                 {#each filteredTasks as task (task.blockId)}

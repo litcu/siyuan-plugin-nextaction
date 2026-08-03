@@ -5,6 +5,288 @@
     font-family: var(--b3-font-family);
 }
 
+// ===== AI controls and dialogs =====
+// AI actions are intentionally compact so they can live in dense GTD toolbars.
+.nextaction .na-ai-trigger {
+    height: 26px;
+    min-height: 26px;
+    padding: 0 9px;
+    gap: 5px;
+    border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 34%, var(--na-color-divider));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--b3-theme-primary) 9%, var(--b3-theme-surface));
+    color: var(--b3-theme-primary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: none;
+}
+
+.nextaction .na-ai-trigger:hover {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 65%, var(--na-color-divider));
+    background: color-mix(in srgb, var(--b3-theme-primary) 16%, var(--b3-theme-surface));
+    color: var(--b3-theme-primary);
+}
+
+.nextaction .na-ai-trigger:active {
+    transform: translateY(1px);
+}
+
+.nextaction .na-ai-trigger svg {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
+}
+
+.nextaction .na-ai-trigger--icon {
+    width: 26px;
+    padding: 0;
+}
+
+.nextaction .na-ai-trigger--icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.nextaction .na-button--ghost {
+    color: var(--b3-theme-on-surface-secondary);
+    background: transparent;
+    border-color: transparent;
+}
+
+.nextaction .na-button--ghost:hover {
+    color: var(--b3-theme-on-background);
+    background: var(--b3-theme-surface-light);
+    border-color: var(--na-color-divider);
+}
+
+.na-ai-dialog.b3-dialog,
+.na-ai-dialog {
+    --na-ai-dialog-bg: var(--b3-theme-background);
+}
+
+.na-ai-dialog .b3-dialog__body {
+    padding: 0 !important;
+    overflow: auto;
+    background: var(--na-ai-dialog-bg);
+}
+
+.na-ai-dialog .b3-dialog__container {
+    width: 520px !important;
+    max-width: calc(100vw - 32px);
+    overflow: hidden;
+    border: 1px solid var(--na-color-divider);
+    border-radius: 10px;
+}
+
+.na-ai-dialog .b3-dialog__header {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 16px;
+    line-height: 1.2;
+    border-bottom: 1px solid var(--na-color-divider);
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-background);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.na-ai-dialog .b3-dialog__header::before {
+    width: 7px;
+    height: 7px;
+    margin-right: 9px;
+    border-radius: 50%;
+    background: var(--b3-theme-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 13%, transparent);
+    content: "";
+    flex: 0 0 7px;
+}
+
+.na-ai-dialog .b3-dialog__header {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.na-ai-dialog .b3-dialog__container {
+    max-height: min(680px, calc(100vh - 40px));
+}
+
+.na-ai-dialog .na-ai-dialog-host {
+    max-height: none;
+    overflow: visible;
+}
+
+.na-ai-dialog .na-ai-proposal,
+.na-ai-dialog .na-ai-review {
+    padding: 20px 22px 16px;
+    font-size: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__intro,
+.na-ai-dialog .na-ai-review__intro {
+    padding: 0 0 11px;
+}
+
+.na-ai-dialog .na-ai-proposal h3,
+.na-ai-dialog .na-ai-review h3 {
+    margin: 4px 0 0;
+    font-size: 15px;
+    line-height: 1.35;
+    font-weight: 650;
+}
+
+.na-ai-dialog .na-ai-proposal__list {
+    max-height: min(330px, 45vh);
+}
+
+.na-ai-dialog .na-ai-review__groups {
+    max-height: none;
+}
+
+.na-ai-dialog .na-ai-proposal__row {
+    min-height: 42px;
+    padding: 8px 9px;
+    gap: 8px;
+    border-radius: 7px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy {
+    gap: 2px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy strong {
+    font-size: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy small {
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__section-title {
+    margin: 12px 2px 6px;
+    font-size: 10px;
+}
+
+.na-ai-dialog .na-ai-proposal__target {
+    margin: 12px 2px 0;
+    gap: 5px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__target select,
+.na-ai-dialog .na-ai-proposal__target input {
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__actions,
+.na-ai-dialog .na-ai-review__footer {
+    padding-top: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__actions .na-button,
+.na-ai-dialog .na-ai-review__footer .na-button {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-review__groups {
+    padding-top: 0;
+    gap: 10px;
+}
+
+.na-ai-dialog .na-ai-review__group {
+    padding: 13px 14px 12px;
+    border-radius: 11px;
+}
+
+.na-ai-dialog .na-ai-review__group p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.na-ai-dialog .na-ai-review__actions-list {
+    margin-top: 18px;
+}
+
+.na-ai-dialog .na-ai-review__action {
+    padding: 11px 12px 11px 10px;
+    font-size: 12px;
+}
+
+.na-ai-loading-dialog .b3-dialog__body {
+    padding: 0 !important;
+}
+
+.na-ai-loading {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    align-items: center;
+    column-gap: 9px;
+    row-gap: 3px;
+    padding: 18px 20px;
+    color: var(--b3-theme-on-background);
+}
+
+.na-ai-loading__spinner {
+    grid-row: span 2;
+    width: 16px;
+    height: 16px;
+    border: 2px solid color-mix(in srgb, var(--b3-theme-primary) 22%, transparent);
+    border-top-color: var(--b3-theme-primary);
+    border-radius: 50%;
+    animation: na-ai-spin .75s linear infinite;
+}
+
+.na-ai-loading strong {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.na-ai-loading small {
+    color: var(--b3-theme-on-surface-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+@keyframes na-ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+.nextaction.na-ai-raw-response {
+    max-width: min(620px, calc(100vw - 32px));
+    padding: 14px 16px;
+    color: var(--b3-theme-on-background);
+    font-size: 12px;
+}
+
+.nextaction.na-ai-raw-response pre {
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--na-color-divider);
+    border-radius: 6px;
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-background);
+    font: 11px/1.5 var(--b3-font-family);
+}
+
+.nextaction .na-ai-raw-response__hint {
+    margin-bottom: 8px;
+    color: var(--b3-theme-error);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
 // Shorthand aliases for SiYuan built-in variables
 .nextaction {
     --b3-theme-on-surface-secondary: var(--b3-theme-on-surface, #9aa0a6);

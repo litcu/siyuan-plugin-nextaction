@@ -1,0 +1,122 @@
+import type { AiProposal, AiProposedTask, AiWriteTarget } from "../shared/ai.ts";
+import { validateAiProposal } from "../shared/ai.ts";
+import { ATTR_DEPENDS, ATTR_PARENT } from "../shared/constants.ts";
+import type { MyDayState, TaskCacheEntry } from "../shared/types.ts";
+import type { TaskService } from "./task-service";
+
+export interface AiProposalApplyResult {
+    feature: AiProposal["feature"];
+    created: any[];
+    converted: any[];
+    myDay: MyDayState | null;
+    warnings: string[];
+}
+
+type CreateTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
+type ConvertTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
+
+export class AiProposalService {
+    private readonly taskService: TaskService;
+    private readonly createTask: CreateTaskHandler;
+    private readonly convertTask: ConvertTaskHandler;
+
+    constructor(
+        taskService: TaskService,
+        createTask: CreateTaskHandler,
+        convertTask: ConvertTaskHandler,
+    ) {
+        this.taskService = taskService;
+        this.createTask = createTask;
+        this.convertTask = convertTask;
+    }
+
+    validate(input: unknown) {
+        return validateAiProposal(input);
+    }
+
+    async apply(input: unknown): Promise<AiProposalApplyResult> {
+        const validation = validateAiProposal(input);
+        if (validation.errors.length) throw new Error(validation.errors.join("; "));
+        const proposal = validation.proposal;
+        if (proposal.feature === "review") throw new Error("Review proposals are read-only");
+
+        if (proposal.feature === "planMyDay") {
+            const current = await this.taskService.getMyDay();
+            const existing = new Set(current.tasks.map(item => item.blockId));
+            let next = current;
+            const warnings: string[] = [];
+            for (const suggestion of proposal.myDay || []) {
+                if (existing.has(suggestion.blockId)) continue;
+                if (!this.taskService.getTask(suggestion.blockId)) {
+                    warnings.push(`Task not found: ${suggestion.blockId}`);
+                    continue;
+                }
+                next = await this.taskService.addTaskToMyDay(suggestion.blockId);
+                existing.add(suggestion.blockId);
+            }
+            return { feature: proposal.feature, created: [], converted: [], myDay: next, warnings };
+        }
+
+        const created: TaskCacheEntry[] = [];
+        const converted: TaskCacheEntry[] = [];
+        const warnings = [...(proposal.warnings || [])];
+        const createdIds: string[] = [];
+        for (const item of proposal.tasks || []) {
+            const fields = this.toFields(item, createdIds);
+            const target = proposal.target || { type: "mcp_default" } as AiWriteTarget;
+            if (target.type === "original" && item.sourceBlockId) {
+                const result = await this.convertTask({
+                    blockId: item.sourceBlockId,
+                    kind: item.kind === "project" ? "project" : "task",
+                    status: item.status,
+                    fields,
+                });
+                converted.push(result.task);
+                createdIds.push(result.task.blockId);
+                warnings.push(...(result.warnings || []));
+                continue;
+            }
+
+            const destination = target.type === "document" || target.type === "current_document" || target.type === "source_document"
+                ? { type: "document", documentId: target.documentId }
+                : undefined;
+            const result = await this.createTask({
+                title: item.title,
+                kind: item.kind === "project" ? "project" : "task",
+                status: item.status,
+                destination,
+                fields,
+            });
+            created.push(result.task);
+            createdIds.push(result.task.blockId);
+            warnings.push(...(result.warnings || []));
+        }
+
+        // Dependency indexes refer to proposal-local task positions. Apply them after all IDs exist.
+        for (let index = 0; index < (proposal.tasks || []).length; index++) {
+            const item = proposal.tasks![index];
+            if (!item.dependsOnIndexes?.length) continue;
+            const targetId = createdIds[index];
+            const dependencyIds = item.dependsOnIndexes.map(dep => createdIds[dep]).filter(Boolean);
+            if (targetId && dependencyIds.length) {
+                const updated = await this.taskService.updateTask(targetId, { [ATTR_DEPENDS]: dependencyIds.join("|") });
+                const position = created.findIndex(task => task.blockId === targetId);
+                if (position >= 0) created[position] = updated;
+                const convertedPosition = converted.findIndex(task => task.blockId === targetId);
+                if (convertedPosition >= 0) converted[convertedPosition] = updated;
+            }
+        }
+
+        return { feature: proposal.feature, created, converted, myDay: null, warnings };
+    }
+
+    private toFields(item: AiProposedTask, createdIds: string[]): Record<string, any> {
+        const fields: Record<string, any> = {};
+        for (const key of ["priority", "importance", "effort", "start", "due", "contexts", "tags", "note"] as const) {
+            if (item[key] !== undefined) fields[key] = item[key];
+        }
+        if (item.parentId !== undefined) fields.parentId = item.parentId;
+        if (item.dependsOnIndexes?.length) fields.dependencyIds = item.dependsOnIndexes.map(index => createdIds[index]).filter(Boolean);
+        return fields;
+    }
+}

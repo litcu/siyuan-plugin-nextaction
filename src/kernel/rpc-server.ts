@@ -5,6 +5,7 @@ import {
 } from "../shared/constants";
 import type { MyDayState } from "../shared/types";
 import type { PluginSettings } from "../shared/settings";
+import type { AiProposalService } from "./ai-proposal-service";
 
 interface RpcResult {
     _rpcError?: { code: number; message: string };
@@ -16,6 +17,7 @@ export interface RpcServerHooks {
     getMcpStatus?: () => any;
     listMcpTargetNotebooks?: () => Promise<any>;
     resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
+    aiProposalService?: AiProposalService;
 }
 
 export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHooks = {}): void {
@@ -251,6 +253,24 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
     siyuan.rpc.bind("getSettings", async (..._params: any[]) => {
         try {
             return taskService.getSettings();
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("validateAiProposal", async (...params: any[]) => {
+        if (!hooks.aiProposalService) return rpcError(RPC_ERROR_INVALID_PARAMS, "AI proposal service is unavailable");
+        try {
+            return hooks.aiProposalService.validate(params[0]?.proposal);
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("applyAiProposal", async (...params: any[]) => {
+        if (!hooks.aiProposalService) return rpcError(RPC_ERROR_INVALID_PARAMS, "AI proposal service is unavailable");
+        try {
+            return await hooks.aiProposalService.apply(params[0]?.proposal);
         } catch (e: any) {
             return errorToRpcError(e);
         }

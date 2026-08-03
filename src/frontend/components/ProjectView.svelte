@@ -9,6 +9,7 @@
     import NaViewHint from "../ui/NaViewHint.svelte";
     import SearchFilterBar from "./SearchFilterBar.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
+    import { runAiDecomposeTask } from "../ai/ai-feature-service";
 
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -60,6 +61,17 @@
 </script>
 
 <div class="na-view na-view--project">
+    {#if selectedTaskId}
+        {@const selectedProject = projects.find(project => project.blockId === selectedTaskId)}
+        {#if selectedProject}
+            <div class="na-project-ai-toolbar">
+                <button class="na-button na-button--sm na-ai-trigger" on:click={() => runAiDecomposeTask(selectedProject)}>
+                    <svg><use xlink:href="#iconSparkles"></use></svg>
+                    {i18n?.aiDecomposeTask || "AI 拆解任务"}
+                </button>
+            </div>
+        {/if}
+    {/if}
     <SearchFilterBar
         contexts={$taskStore.contexts}
         tags={$taskStore.tags}
@@ -114,3 +126,14 @@
     {/if}
     <NaViewHint text={i18n?.viewHintProject} />
 </div>
+
+<style lang="scss">
+    .na-project-ai-toolbar {
+        display: flex;
+        align-items: center;
+        min-height: 38px;
+        padding: 5px 12px;
+        border-bottom: 1px solid var(--na-color-divider);
+        background: var(--b3-theme-surface);
+    }
+</style>

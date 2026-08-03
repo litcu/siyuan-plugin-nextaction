@@ -5,6 +5,7 @@ import { normalizePriority, STATUS_LIST, PRIORITY_LIST } from "../constants";
 import { toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";
 import { parseRepeatState } from "../../shared/repeat";
+import { runAiDecomposeTask } from "../ai/ai-feature-service";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
@@ -134,6 +135,14 @@ export function showTaskContextMenu(
 
         menu.addSeparator();
     }
+
+    menu.addItem({
+        icon: "iconSparkles",
+        label: i18n?.aiDecomposeTask || "AI 拆解任务",
+        click: async () => runAiDecomposeTask(task),
+    });
+
+    menu.addSeparator();
 
     menu.addItem({
         icon: "iconClock",

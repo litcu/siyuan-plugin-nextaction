@@ -8,6 +8,7 @@ import { registerRpcMethods } from "./kernel/rpc-server";
 import { MyDayManager } from "./kernel/my-day-manager";
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "./shared/settings";
 import { McpToolManager } from "./kernel/mcp-tool-manager";
+import { AiProposalService } from "./kernel/ai-proposal-service";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -41,12 +42,18 @@ class NextActionKernelPlugin {
             this.taskService.updateSettings(DEFAULT_SETTINGS);
         }
         this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings());
+        const aiProposalService = new AiProposalService(
+            this.taskService,
+            this.mcpToolManager.createTaskForPlugin.bind(this.mcpToolManager),
+            this.mcpToolManager.convertTaskForPlugin.bind(this.mcpToolManager),
+        );
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
             getMcpStatus: () => this.mcpToolManager.getStatus(),
             listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
             resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
+            aiProposalService,
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 

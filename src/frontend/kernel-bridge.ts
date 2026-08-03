@@ -1,4 +1,5 @@
 import type { TaskCacheEntry, TaskChangeNotification, StatisticsResult, PluginSettings, MyDayState, ReviewData } from "../shared/types";
+import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
 
 interface RpcError {
@@ -126,6 +127,14 @@ export class KernelBridge {
 
     async getSettings(): Promise<PluginSettings> {
         return this.call("getSettings", {});
+    }
+
+    async validateAiProposal(proposal: AiProposal): Promise<{ proposal: AiProposal; errors: string[] }> {
+        return this.call("validateAiProposal", { proposal });
+    }
+
+    async applyAiProposal(proposal: AiProposal): Promise<{ feature: string; created: TaskCacheEntry[]; converted: TaskCacheEntry[]; myDay: MyDayState | null; warnings: string[] }> {
+        return this.call("applyAiProposal", { proposal });
     }
 
     async getMcpStatus(): Promise<any> {
