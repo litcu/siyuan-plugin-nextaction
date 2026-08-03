@@ -1,6 +1,6 @@
 {
   "name": "siyuan-plugin-nextaction",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "GTD task management plugin for SiYuan",
   "license": "SEE LICENSE IN LICENSE",
