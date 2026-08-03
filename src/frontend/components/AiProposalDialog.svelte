@@ -12,6 +12,8 @@
     export let onDone: (() => void) | undefined = undefined;
     export let myDayOnly = false;
     export let defaultDocumentId = "";
+    export let childParentBlockId = "";
+    export let childParentTitle = "";
 
     let selected = new Set<number>((proposal.tasks || proposal.myDay || []).map((_item, index) => index));
     let target = proposal.target?.type || "mcp_default";
@@ -34,7 +36,11 @@
         const indexMap = new Map(selectedIndexes.map((originalIndex, nextIndex) => [originalIndex, nextIndex]));
         const next: AiProposal = {
             ...proposal,
-            target: myDayOnly ? undefined : { type: target as any, documentId: documentId || undefined },
+            target: myDayOnly ? undefined : {
+                type: target as any,
+                documentId: documentId || undefined,
+                ...(target === "child" && childParentBlockId ? { parentBlockId: childParentBlockId } : {}),
+            },
             tasks: selectedIndexes.map(originalIndex => {
                 const item = tasks[originalIndex];
                 const dependsOnIndexes = item.dependsOnIndexes
@@ -125,6 +131,9 @@
             </span>
             <select bind:value={target}>
                 <option value="mcp_default">{i18n?.aiTargetDefault || "使用默认收集位置"}</option>
+                {#if childParentBlockId}
+                    <option value="child">{i18n?.aiTargetChild || "保存为父任务的子任务"}{childParentTitle ? ` · ${childParentTitle}` : ""}</option>
+                {/if}
                 <option value="current_document">{i18n?.aiTargetCurrentDocument || "当前文档"}</option>
                 <option value="source_document">{i18n?.aiTargetSourceDocument || "来源文档"}</option>
                 <option value="document">{i18n?.aiTargetDocument || "指定文档"}</option>

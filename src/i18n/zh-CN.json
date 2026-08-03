@@ -555,6 +555,7 @@
     "aiChanges": "建议变更",
     "aiWriteTarget": "创建落点",
     "aiTargetDefault": "使用默认收集位置",
+    "aiTargetChild": "保存为父任务的子任务",
     "aiTargetCurrentDocument": "当前文档",
     "aiTargetSourceDocument": "来源文档",
     "aiTargetDocument": "指定文档",

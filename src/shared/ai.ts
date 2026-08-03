@@ -2,11 +2,13 @@ import { ALL_STATUSES, PRIORITY_WEIGHTS, TASK_TYPE_PROJECT, TASK_TYPE_TASK } fro
 
 export type AiFeatureId = "extractTasks" | "decomposeTask" | "planMyDay" | "review";
 
-export type AiWriteTargetType = "original" | "source_document" | "current_document" | "document" | "mcp_default";
+export type AiWriteTargetType = "original" | "source_document" | "current_document" | "document" | "mcp_default" | "child";
 
 export interface AiWriteTarget {
     type: AiWriteTargetType;
     documentId?: string;
+    /** 子块落点对应的逻辑父任务块 ID。 */
+    parentBlockId?: string;
 }
 
 export interface AiProposedTask {
@@ -148,16 +150,20 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
         target: isRecord(input.target) ? {
             type: input.target.type as AiWriteTargetType,
             documentId: typeof input.target.documentId === "string" ? input.target.documentId : undefined,
+            parentBlockId: typeof input.target.parentBlockId === "string" ? input.target.parentBlockId : undefined,
         } : undefined,
         warnings: Array.isArray(input.warnings) ? input.warnings.filter((item): item is string => typeof item === "string") : undefined,
     };
     if (!proposal.summary || proposal.summary.length > 4000) errors.push("summary must contain 1-4000 characters");
 
-    if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default"].includes(proposal.target.type)) {
+    if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default", "child"].includes(proposal.target.type)) {
         errors.push("target.type is invalid");
     }
     if (proposal.target?.type === "document" && !BLOCK_ID_RE.test(proposal.target.documentId || "")) {
         errors.push("target.documentId is required for document target");
+    }
+    if (proposal.target?.type === "child" && !BLOCK_ID_RE.test(proposal.target.parentBlockId || "")) {
+        errors.push("target.parentBlockId is required for child target");
     }
 
     if (proposal.feature === "review") {

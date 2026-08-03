@@ -17,6 +17,7 @@ export interface RpcServerHooks {
     getMcpStatus?: () => any;
     listMcpTargetNotebooks?: () => Promise<any>;
     resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
+    resolveChildTarget?: (value: unknown) => Promise<any>;
     aiProposalService?: AiProposalService;
 }
 
@@ -305,6 +306,18 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         try {
             return hooks.resolveMcpDocumentTarget
                 ? await hooks.resolveMcpDocumentTarget(p.value)
+                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("resolveChildTarget", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.value) return rpcError(RPC_ERROR_INVALID_PARAMS, "value is required");
+        try {
+            return hooks.resolveChildTarget
+                ? await hooks.resolveChildTarget(p.value)
                 : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
         } catch (e: any) {
             return errorToRpcError(e);

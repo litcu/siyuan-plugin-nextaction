@@ -182,5 +182,21 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
             nodeType: "NodeParagraph",
         },
     );
+    assert.deepEqual(
+        extractInsertedBlockMeta([{
+            doOperations: [{
+                action: "insert",
+                id: "20260802120000-listabc",
+                parentID: "20260802119999-parent",
+                data: '<div data-node-id="20260802120000-listabc" data-type="NodeList"><div data-node-id="20260802120001-childaa" data-type="NodeParagraph"><div>Child</div></div></div>',
+            }],
+        }]),
+        {
+            id: "20260802120001-childaa",
+            parentId: "20260802119999-parent",
+            nodeType: "NodeParagraph",
+            rootId: "20260802120000-listabc",
+        },
+    );
     assert.equal(escapeMarkdownText("[Call] *Alice*\nnow"), "\\[Call\\] \\*Alice\\* now");
 });

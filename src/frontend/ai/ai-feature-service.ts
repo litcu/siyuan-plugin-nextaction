@@ -285,6 +285,12 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
     const { bridge, i18n } = requireHost();
     const loading = showAiLoading(i18n?.aiDecomposeTask || "AI 拆解任务");
     try {
+        let childTarget: { available: boolean; parentBlockId: string } | null = null;
+        try {
+            childTarget = await bridge.resolveChildTarget(task.blockId);
+        } catch (error) {
+            console.warn("[NextAction] resolve AI child target failed:", error);
+        }
         const state = get(taskStore);
         const children = state.allTasks.filter(item => item.parentId === task.blockId).map(taskSnapshot);
         const proposal = await requestProposal("decomposeTask", [task.blockId], { task: taskSnapshot(task), children });
@@ -295,6 +301,8 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
             bridge,
             i18n,
             defaultDocumentId: host?.getCurrentDocumentId?.(),
+            childParentBlockId: childTarget?.available ? task.blockId : "",
+            childParentTitle: childTarget?.available ? task.title : "",
             onDone: () => taskStore.loadTasks(),
         });
     } catch (error: any) {

@@ -149,6 +149,10 @@ export class KernelBridge {
         return this.call("resolveMcpDocumentTarget", { value });
     }
 
+    async resolveChildTarget(value: string): Promise<{ available: boolean; parentBlockId: string; containerId?: string; reason?: string }> {
+        return this.call("resolveChildTarget", { value });
+    }
+
     async getCustomFieldDiagnostics(): Promise<{ fields: Array<{ fieldId: string; key: string; status: string; count: number }>; orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }> }> {
         return this.call("getCustomFieldDiagnostics", {});
     }

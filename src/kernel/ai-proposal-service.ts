@@ -79,7 +79,9 @@ export class AiProposalService {
 
             const destination = target.type === "document" || target.type === "current_document" || target.type === "source_document"
                 ? { type: "document", documentId: target.documentId }
-                : undefined;
+                : target.type === "child"
+                    ? { type: "block", parentBlockId: target.parentBlockId }
+                    : undefined;
             const result = await this.createTask({
                 title: item.title,
                 kind: item.kind === "project" ? "project" : "task",

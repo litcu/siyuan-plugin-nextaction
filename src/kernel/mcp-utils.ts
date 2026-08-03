@@ -423,6 +423,8 @@ export interface InsertedBlockMeta {
     id: string;
     parentId: string;
     nodeType: string;
+    /** 当 markdown 根节点是列表时，记录需要整体回滚的根块。 */
+    rootId?: string;
 }
 
 export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
@@ -434,6 +436,16 @@ export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
             if (operation?.action !== "insert" || typeof operation.id !== "string") continue;
             const dom = typeof operation.data === "string" ? operation.data : "";
             const typeMatch = dom.match(/data-type=["']([^"']+)["']/i);
+            const paragraphMatch = dom.match(/data-node-id=["'](\d{14}-[a-z0-9]{7})["'][^>]*data-type=["']NodeParagraph["']/i)
+                || dom.match(/data-type=["']NodeParagraph["'][^>]*data-node-id=["'](\d{14}-[a-z0-9]{7})["']/i);
+            if (paragraphMatch?.[1] && paragraphMatch[1] !== operation.id) {
+                return {
+                    id: paragraphMatch[1],
+                    parentId: typeof operation.parentID === "string" ? operation.parentID : "",
+                    nodeType: "NodeParagraph",
+                    rootId: operation.id,
+                };
+            }
             return {
                 id: operation.id,
                 parentId: typeof operation.parentID === "string" ? operation.parentID : "",

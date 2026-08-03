@@ -39,6 +39,23 @@ test("AI My Day 提案只接受合法任务 block ID", () => {
     assert.ok(result.errors.some(error => error.includes("myDay")));
 });
 
+test("AI 提案支持保存到已有任务的子块", () => {
+    const valid = validateAiProposal({
+        feature: "decomposeTask",
+        summary: "拆解",
+        target: { type: "child", parentBlockId: "20260802120000-abcdefg" },
+        tasks: [{ title: "子任务" }],
+    });
+    assert.equal(valid.errors.length, 0);
+    const invalid = validateAiProposal({
+        feature: "decomposeTask",
+        summary: "拆解",
+        target: { type: "child" },
+        tasks: [{ title: "子任务" }],
+    });
+    assert.ok(invalid.errors.some(error => error.includes("parentBlockId")));
+});
+
 test("AI 回顾提案只读且必须包含报告", () => {
     const invalid = validateAiProposal({ feature: "review", summary: "x" });
     assert.ok(invalid.errors.includes("review is required for review proposals"));

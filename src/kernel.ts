@@ -53,6 +53,7 @@ class NextActionKernelPlugin {
             getMcpStatus: () => this.mcpToolManager.getStatus(),
             listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
             resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
+            resolveChildTarget: (value) => this.mcpToolManager.resolveChildTarget(value),
             aiProposalService,
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());

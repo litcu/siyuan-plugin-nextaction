@@ -555,6 +555,7 @@
     "aiChanges": "Suggested changes",
     "aiWriteTarget": "Creation target",
     "aiTargetDefault": "Use default inbox target",
+    "aiTargetChild": "Save as child tasks",
     "aiTargetCurrentDocument": "Current document",
     "aiTargetSourceDocument": "Source document",
     "aiTargetDocument": "Specific document",
