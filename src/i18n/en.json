@@ -556,6 +556,7 @@
     "aiWriteTarget": "Creation target",
     "aiTargetDefault": "Use default inbox target",
     "aiTargetChild": "Save as child tasks",
+    "aiTargetSourceChild": "Save as children of source blocks",
     "aiTargetCurrentDocument": "Current document",
     "aiTargetSourceDocument": "Source document",
     "aiTargetDocument": "Specific document",

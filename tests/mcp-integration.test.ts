@@ -39,3 +39,18 @@ test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引",
     assert.match(managerSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
     assert.match(taskServiceSource, /cleanTitle \|\| await this\.fetchBlockTitle/);
 });
+
+test("列表容器创建任务通过兄弟插入保持 NodeListItem 结构", () => {
+    assert.match(managerSource, /containerType === "l"/);
+    assert.match(managerSource, /buildListItemBlockDom/);
+    assert.match(managerSource, /\/api\/block\/getChildBlocks/);
+    assert.match(managerSource, /\/api\/block\/insertBlock/);
+    assert.match(managerSource, /previousID: lastChild\.id/);
+});
+
+test("列表项父块会复用已有的子列表", () => {
+    assert.match(managerSource, /current\.type === "i"/);
+    assert.match(managerSource, /\/api\/block\/getChildBlocks/);
+    assert.match(managerSource, /nestedList\?\.id/);
+    assert.match(managerSource, /containerId: nestedList\.id, containerType: "l"/);
+});

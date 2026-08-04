@@ -13,6 +13,7 @@ import { siyuanFetch } from "./utils";
 import {
     WRITE_MCP_TOOL_NAMES,
     buildTaskAttrsFromMcpPatch,
+    buildListItemBlockDom,
     escapeMarkdownText,
     extractBlockId,
     extractInsertedBlockMeta,
@@ -612,7 +613,7 @@ export class McpToolManager {
     }
 
     /** Resolve a logical task block to a physical container for a nested list. */
-    private async resolveChildContainer(value: unknown): Promise<{ taskBlockId: string; containerId: string }> {
+    private async resolveChildContainer(value: unknown): Promise<{ taskBlockId: string; containerId: string; containerType: string }> {
         const taskBlockId = extractBlockId(value);
         if (!taskBlockId) throw new McpToolError("INVALID_INPUT", "parentBlockId is invalid");
         const rows = await siyuanFetch<Array<{ id: string; parent_id: string; type: string }>>("/api/query/sql", {
@@ -626,17 +627,37 @@ export class McpToolManager {
         const containerTypes = new Set(["b", "i", "l", "s", "callout"]);
         let current = byId.get(taskBlockId);
         while (current) {
-            if (containerTypes.has(current.type)) return { taskBlockId, containerId: current.id };
+            if (containerTypes.has(current.type)) {
+                // 列表项的第一个子任务会创建 NodeList；后续子任务必须复用这
+                // 个列表，否则每次 appendBlock 都会在同一列表项下再创建一个
+                // 并列的 NodeList，最终表现为子任务之间出现空行。
+                if (current.type === "i") {
+                    try {
+                        const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
+                            id: current.id,
+                        });
+                        const nestedList = Array.isArray(children)
+                            ? [...children].reverse().find(item => item?.id && item.type === "l")
+                            : undefined;
+                        if (nestedList?.id) {
+                            return { taskBlockId, containerId: nestedList.id, containerType: "l" };
+                        }
+                    } catch {
+                        // 子块查询失败时仍使用列表项作为容器，让思源创建首个子列表。
+                    }
+                }
+                return { taskBlockId, containerId: current.id, containerType: current.type };
+            }
             if (!current.parent_id) break;
             current = byId.get(current.parent_id);
         }
         throw new McpToolError("TARGET_UNSUPPORTED", "This block has no container that can receive child tasks");
     }
 
-    async resolveChildTarget(value: unknown): Promise<{ available: boolean; parentBlockId: string; containerId?: string; reason?: string }> {
+    async resolveChildTarget(value: unknown): Promise<{ available: boolean; parentBlockId: string; containerId?: string; containerType?: string; reason?: string }> {
         try {
             const target = await this.resolveChildContainer(value);
-            return { available: true, parentBlockId: target.taskBlockId, containerId: target.containerId };
+            return { available: true, parentBlockId: target.taskBlockId, containerId: target.containerId, containerType: target.containerType };
         } catch (error: any) {
             return { available: false, parentBlockId: extractBlockId(value), reason: String(error?.message || error) };
         }
@@ -672,15 +693,67 @@ export class McpToolManager {
         try {
             if (destination.type === "block") {
                 const childTarget = await this.resolveChildContainer(destination.parentBlockId);
-                const inserted = await siyuanFetch<any[]>("/api/block/appendBlock", {
+                let dataType: "markdown" | "dom" = "markdown";
+                let data = "- " + escapeMarkdownText(title);
+                let insertPath = "/api/block/appendBlock";
+                let insertBody: Record<string, any> = {
                     parentID: childTarget.containerId,
-                    dataType: "markdown",
-                    data: "- " + escapeMarkdownText(title),
-                });
+                    dataType,
+                    data,
+                };
+                if (childTarget.containerType === "l") {
+                    // NodeList 只能直接包含 NodeListItem。将列表项 DOM 直接追加到
+                    // 现有列表，避免把每个任务解析成一个新的嵌套 NodeList。
+                    let subtype: "u" | "o" | "t" = "u";
+                    try {
+                        const blockDom = await siyuanFetch<{ dom?: string }>("/api/block/getBlockDOM", {
+                            id: childTarget.containerId,
+                        });
+                        const listElement = String(blockDom?.dom || "").match(/<div\b[^>]*data-type=["']NodeList["'][^>]*>/i)?.[0] || "";
+                        const subtypeValue = listElement.match(/data-subtype=["']([uot])["']/i)?.[1]?.toLowerCase();
+                        if (subtypeValue === "o" || subtypeValue === "t") subtype = subtypeValue;
+                    } catch {
+                        // 列表 DOM 仅用于保留有序/任务列表样式，读取失败时使用普通无序列表。
+                    }
+                    dataType = "dom";
+                    data = buildListItemBlockDom(title, subtype);
+                    // 使用最后一个列表项作为 previousID，走 insertBlock 的兄弟插入
+                    // 分支，避免 appendInsert 在不同思源版本中把 NodeListItem 再包
+                    // 一层。正常列表都会有至少一个直接子列表项。
+                    try {
+                        const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
+                            id: childTarget.containerId,
+                        });
+                        const lastChild = Array.isArray(children)
+                            ? [...children].reverse().find(item => item?.id && item.type === "i")
+                            : undefined;
+                        if (lastChild?.id) {
+                            insertPath = "/api/block/insertBlock";
+                            insertBody = {
+                                parentID: childTarget.containerId,
+                                previousID: lastChild.id,
+                                dataType,
+                                data,
+                            };
+                        } else {
+                            insertPath = "/api/block/insertBlock";
+                            insertBody = { parentID: childTarget.containerId, dataType, data };
+                        }
+                    } catch {
+                        insertPath = "/api/block/insertBlock";
+                        insertBody = { parentID: childTarget.containerId, dataType, data };
+                    }
+                }
+                const inserted = await siyuanFetch<any[]>(insertPath, insertBody);
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
-                destinationResult = { type: "block", parentBlockId: childTarget.taskBlockId, containerId: childTarget.containerId };
+                destinationResult = {
+                    type: "block",
+                    parentBlockId: childTarget.taskBlockId,
+                    containerId: childTarget.containerId,
+                    containerType: childTarget.containerType,
+                };
             } else if (destination.type === "daily_note") {
                 const notebookId = destination.notebookId || this.settings.mcpSettings.dailyNoteNotebookId;
                 if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");

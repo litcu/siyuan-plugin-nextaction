@@ -149,7 +149,7 @@ export class KernelBridge {
         return this.call("resolveMcpDocumentTarget", { value });
     }
 
-    async resolveChildTarget(value: string): Promise<{ available: boolean; parentBlockId: string; containerId?: string; reason?: string }> {
+    async resolveChildTarget(value: string): Promise<{ available: boolean; parentBlockId: string; containerId?: string; containerType?: string; reason?: string }> {
         return this.call("resolveChildTarget", { value });
     }
 

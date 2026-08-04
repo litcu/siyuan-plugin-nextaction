@@ -14,7 +14,6 @@ interface AiServiceHost {
 }
 
 let host: AiServiceHost | null = null;
-const AI_REQUEST_TIMEOUT_MS = 120_000;
 const MAX_MY_DAY_CANDIDATES = 40;
 // 回顾是最容易把大量上下文发送给模型的功能。限制条目并压缩字段，
 // 避免请求体过大导致首 token 等待过久。
@@ -42,6 +41,17 @@ function requireHost(): AiServiceHost {
     return host;
 }
 
+async function canUseChildTarget(bridge: KernelBridge, blockIds: string[]): Promise<boolean> {
+    if (!blockIds.length) return false;
+    try {
+        const results = await Promise.all(blockIds.map(blockId => bridge.resolveChildTarget(blockId)));
+        return results.length > 0 && results.every(result => result.available);
+    } catch (error) {
+        console.warn("[NextAction] resolve AI child targets failed:", error);
+        return false;
+    }
+}
+
 function showRawAiResponse(title: string, raw: string, details = ""): void {
     const dialog = new Dialog({
         title,
@@ -52,26 +62,6 @@ function showRawAiResponse(title: string, raw: string, details = ""): void {
     if (pre) pre.textContent = raw;
     const hint = dialog.element.querySelector(".na-ai-raw-response__hint");
     if (hint) hint.textContent = details;
-}
-
-function showAiLoading(title: string): { close: () => void } {
-    const dialog = new Dialog({
-        title,
-        content: `<div class="nextaction na-ai-loading"><span class="na-ai-loading__spinner"></span><strong>正在请求思源 AI…</strong><small>根据内容量和模型响应速度，可能需要一些时间</small></div>`,
-        width: "360px",
-        hideCloseIcon: true,
-    });
-    dialog.element.classList.add("nextaction", "na-ai-dialog", "na-ai-loading-dialog");
-    dialog.element.querySelector(".b3-dialog")?.classList.add("nextaction", "na-ai-dialog", "na-ai-loading-dialog");
-    let closed = false;
-    return {
-        close: () => {
-            if (closed) return;
-            closed = true;
-            if (!dialog.element.isConnected) return;
-            dialog.destroy();
-        },
-    };
 }
 
 function taskSnapshot(task: TaskCacheEntry): Record<string, unknown> {
@@ -157,22 +147,12 @@ function completeReviewProposal(proposal: AiProposal, context: Record<string, un
 }
 
 async function callSiyuanAi(blockIds: string[], action: string): Promise<string> {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
-    let response: Response;
-    try {
-        response = await fetch("/api/ai/chatGPTWithAction", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: blockIds, action }),
-            signal: controller.signal,
-        });
-    } catch (error: any) {
-        if (error?.name === "AbortError") throw new Error("AI 请求超时，请检查思源 AI Provider 或网络连接");
-        throw error;
-    } finally {
-        window.clearTimeout(timeout);
-    }
+    // 超时由思源 AI 配置统一管理，插件不再设置第二套超时。
+    const response = await fetch("/api/ai/chatGPTWithAction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: blockIds, action }),
+    });
     if (!response.ok) throw new Error(`SiYuan AI HTTP ${response.status}`);
     const payload = await response.json();
     if (payload?.code !== 0) throw new Error(payload?.msg || "SiYuan AI is not configured");
@@ -261,8 +241,8 @@ async function openComponent(title: string, loader: () => Promise<any>, props: R
 
 export async function runAiExtractTasks(blockIds: string[]): Promise<void> {
     const { bridge, i18n } = requireHost();
-    const loading = showAiLoading(i18n?.aiExtractTasks || "AI 提取任务");
     try {
+        const childFromSource = await canUseChildTarget(bridge, blockIds);
         const proposal = await requestProposal("extractTasks", blockIds, { sourceBlockIds: blockIds });
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         await openComponent(i18n?.aiExtractTasks || "AI 提取任务", () => import("../components/AiProposalDialog.svelte"), {
@@ -270,27 +250,20 @@ export async function runAiExtractTasks(blockIds: string[]): Promise<void> {
             bridge,
             i18n,
             defaultDocumentId: host?.getCurrentDocumentId?.(),
+            childFromSource,
             onDone: () => taskStore.loadTasks(),
         });
     } catch (error: any) {
         console.error("[NextAction] AI extract failed:", error);
         if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
         else notifyError(error?.message || String(error));
-    } finally {
-        loading.close();
     }
 }
 
 export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
     const { bridge, i18n } = requireHost();
-    const loading = showAiLoading(i18n?.aiDecomposeTask || "AI 拆解任务");
     try {
-        let childTarget: { available: boolean; parentBlockId: string } | null = null;
-        try {
-            childTarget = await bridge.resolveChildTarget(task.blockId);
-        } catch (error) {
-            console.warn("[NextAction] resolve AI child target failed:", error);
-        }
+        const childAvailable = await canUseChildTarget(bridge, [task.blockId]);
         const state = get(taskStore);
         const children = state.allTasks.filter(item => item.parentId === task.blockId).map(taskSnapshot);
         const proposal = await requestProposal("decomposeTask", [task.blockId], { task: taskSnapshot(task), children });
@@ -301,22 +274,19 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
             bridge,
             i18n,
             defaultDocumentId: host?.getCurrentDocumentId?.(),
-            childParentBlockId: childTarget?.available ? task.blockId : "",
-            childParentTitle: childTarget?.available ? task.title : "",
+            childParentBlockId: childAvailable ? task.blockId : "",
+            childParentTitle: childAvailable ? task.title : "",
             onDone: () => taskStore.loadTasks(),
         });
     } catch (error: any) {
         console.error("[NextAction] AI decompose failed:", error);
         if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
         else notifyError(error?.message || String(error));
-    } finally {
-        loading.close();
     }
 }
 
 export async function runAiPlanMyDay(): Promise<void> {
     const { bridge, i18n } = requireHost();
-    const loading = showAiLoading(i18n?.aiPlanMyDay || "自动规划我的一天");
     try {
         const state = get(taskStore);
         const existing = new Set((state.myDayState?.tasks || []).map(item => item.blockId));
@@ -336,14 +306,11 @@ export async function runAiPlanMyDay(): Promise<void> {
         console.error("[NextAction] AI My Day planning failed:", error);
         if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
         else notifyError(error?.message || String(error));
-    } finally {
-        loading.close();
     }
 }
 
 export async function runAiReview(): Promise<void> {
     const { bridge, i18n } = requireHost();
-    const loading = showAiLoading(i18n?.aiReview || "智能回顾");
     try {
         const review = await bridge.getReviewData();
         const reviewContext = buildReviewContext(review);
@@ -366,8 +333,6 @@ export async function runAiReview(): Promise<void> {
         console.error("[NextAction] AI review failed:", error);
         if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
         else notifyError(error?.message || String(error));
-    } finally {
-        loading.close();
     }
 }
 

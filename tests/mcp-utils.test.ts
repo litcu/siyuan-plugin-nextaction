@@ -6,6 +6,8 @@ import {
     READ_MCP_TOOL_NAMES,
     WRITE_MCP_TOOL_NAMES,
     buildTaskAttrsFromMcpPatch,
+    buildListItemBlockDom,
+    createNodeId,
     escapeMarkdownText,
     extractBlockId,
     extractInsertedBlockMeta,
@@ -199,4 +201,15 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
         },
     );
     assert.equal(escapeMarkdownText("[Call] *Alice*\nnow"), "\\[Call\\] \\*Alice\\* now");
+});
+
+test("列表容器插入使用列表项包裹段落，而不是生成嵌套列表", () => {
+    const id = createNodeId();
+    assert.match(id, /^\d{14}-[a-z0-9]{7}$/);
+    const dom = buildListItemBlockDom("任务 <一>", "o");
+    assert.match(dom, /data-type="NodeListItem"/);
+    assert.match(dom, /data-subtype="o"/);
+    assert.match(dom, /data-type="NodeParagraph"/);
+    assert.doesNotMatch(dom, /data-type="NodeList"/);
+    assert.match(dom, /任务 &lt;一&gt;/);
 });

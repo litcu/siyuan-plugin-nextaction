@@ -14,6 +14,7 @@
     export let defaultDocumentId = "";
     export let childParentBlockId = "";
     export let childParentTitle = "";
+    export let childFromSource = false;
 
     let selected = new Set<number>((proposal.tasks || proposal.myDay || []).map((_item, index) => index));
     let target = proposal.target?.type || "mcp_default";
@@ -22,6 +23,8 @@
     $: tasks = proposal.tasks || [];
     $: proposalItems = proposal.feature === "planMyDay" ? (proposal.myDay || []) : tasks;
     $: selectedCount = proposalItems.filter((_item, index) => selected.has(index)).length;
+    $: canUseSourceChild = childFromSource && !myDayOnly && tasks.length > 0 && tasks.every(item => !!item.sourceBlockId);
+    $: if (target === "source_child" && !canUseSourceChild) target = "mcp_default";
 
     function toggle(index: number) {
         const next = new Set(selected);
@@ -133,6 +136,9 @@
                 <option value="mcp_default">{i18n?.aiTargetDefault || "使用默认收集位置"}</option>
                 {#if childParentBlockId}
                     <option value="child">{i18n?.aiTargetChild || "保存为父任务的子任务"}{childParentTitle ? ` · ${childParentTitle}` : ""}</option>
+                {/if}
+                {#if canUseSourceChild}
+                    <option value="source_child">{i18n?.aiTargetSourceChild || "保存为来源块的子任务"}</option>
                 {/if}
                 <option value="current_document">{i18n?.aiTargetCurrentDocument || "当前文档"}</option>
                 <option value="source_document">{i18n?.aiTargetSourceDocument || "来源文档"}</option>

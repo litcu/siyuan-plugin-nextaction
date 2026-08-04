@@ -224,45 +224,6 @@
     font-size: 12px;
 }
 
-.na-ai-loading-dialog .b3-dialog__body {
-    padding: 0 !important;
-}
-
-.na-ai-loading {
-    display: grid;
-    grid-template-columns: 18px 1fr;
-    align-items: center;
-    column-gap: 9px;
-    row-gap: 3px;
-    padding: 18px 20px;
-    color: var(--b3-theme-on-background);
-}
-
-.na-ai-loading__spinner {
-    grid-row: span 2;
-    width: 16px;
-    height: 16px;
-    border: 2px solid color-mix(in srgb, var(--b3-theme-primary) 22%, transparent);
-    border-top-color: var(--b3-theme-primary);
-    border-radius: 50%;
-    animation: na-ai-spin .75s linear infinite;
-}
-
-.na-ai-loading strong {
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.na-ai-loading small {
-    color: var(--b3-theme-on-surface-secondary);
-    font-size: 10px;
-    line-height: 1.4;
-}
-
-@keyframes na-ai-spin {
-    to { transform: rotate(360deg); }
-}
-
 .nextaction.na-ai-raw-response {
     max-width: min(620px, calc(100vw - 32px));
     padding: 14px 16px;

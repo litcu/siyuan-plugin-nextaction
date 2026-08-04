@@ -54,6 +54,20 @@ test("AI 提案支持保存到已有任务的子块", () => {
         tasks: [{ title: "子任务" }],
     });
     assert.ok(invalid.errors.some(error => error.includes("parentBlockId")));
+    const sourceChild = validateAiProposal({
+        feature: "extractTasks",
+        summary: "提取",
+        target: { type: "source_child" },
+        tasks: [{ title: "子任务", sourceBlockId: "20260802120000-abcdefg" }],
+    });
+    assert.equal(sourceChild.errors.length, 0);
+    const missingSource = validateAiProposal({
+        feature: "extractTasks",
+        summary: "提取",
+        target: { type: "source_child" },
+        tasks: [{ title: "子任务" }],
+    });
+    assert.ok(missingSource.errors.some(error => error.includes("sourceBlockId")));
 });
 
 test("AI 回顾提案只读且必须包含报告", () => {

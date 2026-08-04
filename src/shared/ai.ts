@@ -2,7 +2,7 @@ import { ALL_STATUSES, PRIORITY_WEIGHTS, TASK_TYPE_PROJECT, TASK_TYPE_TASK } fro
 
 export type AiFeatureId = "extractTasks" | "decomposeTask" | "planMyDay" | "review";
 
-export type AiWriteTargetType = "original" | "source_document" | "current_document" | "document" | "mcp_default" | "child";
+export type AiWriteTargetType = "original" | "source_document" | "current_document" | "document" | "mcp_default" | "child" | "source_child";
 
 export interface AiWriteTarget {
     type: AiWriteTargetType;
@@ -156,7 +156,7 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
     };
     if (!proposal.summary || proposal.summary.length > 4000) errors.push("summary must contain 1-4000 characters");
 
-    if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default", "child"].includes(proposal.target.type)) {
+    if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default", "child", "source_child"].includes(proposal.target.type)) {
         errors.push("target.type is invalid");
     }
     if (proposal.target?.type === "document" && !BLOCK_ID_RE.test(proposal.target.documentId || "")) {
@@ -248,6 +248,11 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
     if (proposal.target?.type === "original") {
         proposal.tasks.forEach((task, index) => {
             if (!task.sourceBlockId) errors.push(`tasks[${index}].sourceBlockId is required for original target`);
+        });
+    }
+    if (proposal.target?.type === "source_child") {
+        proposal.tasks.forEach((task, index) => {
+            if (!task.sourceBlockId) errors.push(`tasks[${index}].sourceBlockId is required for source_child target`);
         });
     }
     if ((proposal.target?.type === "current_document" || proposal.target?.type === "source_document") && !proposal.target.documentId) {

@@ -460,6 +460,56 @@ export function escapeMarkdownText(value: string): string {
     return value.replace(/[\r\n]+/g, " ").replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1").trim();
 }
 
+/**
+ * 生成符合思源块 ID 格式的临时节点 ID。
+ * DOM 插入允许调用方直接提供节点 ID；使用同一格式可以让插入事务和后续
+ * convertToTask 在 SQL 索引建立前都能稳定识别新段落。
+ */
+export function createNodeId(): string {
+    const now = new Date();
+    const timestamp = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+        String(now.getHours()).padStart(2, "0"),
+        String(now.getMinutes()).padStart(2, "0"),
+        String(now.getSeconds()).padStart(2, "0"),
+    ].join("");
+    const random = Math.floor(Math.random() * 36 ** 7).toString(36).padStart(7, "0").slice(-7);
+    return `${timestamp}-${random}`;
+}
+
+function escapeHtmlText(value: string): string {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+/**
+ * 构造一个可直接追加到既有 NodeList 下的 NodeListItem。
+ * NodeList 不能直接包含段落或另一个列表，必须插入列表项并在其内部放段落。
+ */
+export function buildListItemBlockDom(title: string, subtype: "u" | "o" | "t" = "u"): string {
+    const normalizedSubtype = subtype === "o" || subtype === "t" ? subtype : "u";
+    const marker = normalizedSubtype === "o" ? "1." : "*";
+    const listItemId = createNodeId();
+    const paragraphId = createNodeId();
+    const updated = listItemId.slice(0, 14);
+    const actionClass = normalizedSubtype === "t" ? "protyle-action protyle-action--task" : "protyle-action";
+    const icon = normalizedSubtype === "t" ? "Unc" : "Dot";
+    const taskAttr = normalizedSubtype === "t" ? " data-task=\" \"" : "";
+
+    return `<div data-marker="${marker}" data-subtype="${normalizedSubtype}" data-node-id="${listItemId}" data-type="NodeListItem" class="li" updated="${updated}"${taskAttr}>`
+        + `<div class="${actionClass}" draggable="true"><svg><use xlink:href="#icon${icon}"></use></svg></div>`
+        + `<div data-node-id="${paragraphId}" data-type="NodeParagraph" class="p" updated="${updated}">`
+        + `<div contenteditable="true" spellcheck="false">${escapeHtmlText(title)}</div>`
+        + `<div class="protyle-attr" contenteditable="false"></div></div>`
+        + `<div class="protyle-attr" contenteditable="false"></div></div>`;
+}
+
 export function validateMcpStatus(status: unknown): string {
     if (typeof status !== "string" || !(ALL_STATUSES as readonly string[]).includes(status)) {
         throw new Error("status is invalid");
