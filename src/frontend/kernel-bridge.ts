@@ -193,6 +193,10 @@ export class KernelBridge {
         return this.call("getReviewData", {});
     }
 
+    async completeReview(): Promise<ReviewData> {
+        return this.call("completeReview", {});
+    }
+
     async markTaskReviewed(blockIds: string[]): Promise<TaskCacheEntry[]> {
         return this.call("markTaskReviewed", { blockIds });
     }

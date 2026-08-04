@@ -123,6 +123,7 @@ export interface MyDayState {
 }
 
 export interface ReviewData {
+    lastReviewAt: string;
     overdueTasks: TaskCacheEntry[];
     nextActions: TaskCacheEntry[];
     inboxTasks: TaskCacheEntry[];

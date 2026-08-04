@@ -170,6 +170,8 @@
         --na-myday-panel-bg: var(--b3-theme-surface);
         --na-myday-panel-border: var(--na-task-card-border, var(--b3-border-color));
         --na-myday-panel-soft-bg: var(--na-task-card-child-bg, var(--b3-theme-surface-light));
+        container-name: myday-view;
+        container-type: inline-size;
         background:
             linear-gradient(180deg, rgba(93, 173, 226, 0.035), transparent 160px),
             var(--b3-theme-background);
@@ -185,8 +187,10 @@
     }
 
     .na-myday-title-group {
+        grid-area: title;
         min-width: 0;
         margin-right: auto;
+        overflow: hidden;
     }
 
     .na-myday-title {
@@ -194,6 +198,7 @@
         font-size: 13px;
         font-weight: 700;
         line-height: 1.25;
+        white-space: nowrap;
     }
 
     .na-myday-subtitle {
@@ -202,9 +207,12 @@
         font-size: var(--na-font-size-xs, 10px);
         line-height: 1.3;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .na-myday-summary {
+        grid-area: summary;
         display: flex;
         align-items: center;
         gap: 6px;
@@ -245,6 +253,7 @@
     }
 
     .na-myday-mode-toggle {
+        grid-area: mode;
         display: flex;
         gap: 2px;
         padding: 2px;
@@ -273,16 +282,46 @@
         }
     }
 
-    @media (max-width: 760px) {
+    @container myday-view (max-width: 520px) {
         .na-myday-header {
-            align-items: flex-start;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas:
+                "title mode"
+                "summary summary";
+            align-items: center;
+            gap: 8px 12px;
         }
 
         .na-myday-summary {
-            order: 3;
-            width: 100%;
             justify-content: flex-start;
+            flex-wrap: nowrap;
+            min-width: 0;
+            overflow-x: auto;
+            padding-bottom: 1px;
+        }
+    }
+
+    @container myday-view (max-width: 380px) {
+        .na-myday-header {
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-areas:
+                "title"
+                "mode"
+                "summary";
+        }
+
+        .na-myday-mode-toggle {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .na-myday-ai-btn,
+        .na-myday-mode-btn {
+            flex: 1 1 0;
+            min-width: 0;
+            padding-right: 6px;
+            padding-left: 6px;
         }
     }
 </style>

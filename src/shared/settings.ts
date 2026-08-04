@@ -145,6 +145,7 @@ export interface PluginSettings {
     myDayResetHour: number;
     myDayDefaultViewMode: MyDayViewMode;
     myDayDefaultDuration: number;
+    lastReviewAt: string;
     customFields: CustomFieldDef[];
     reminderSettings: ReminderSettings;
     mcpSettings: McpSettings;
@@ -188,6 +189,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     myDayResetHour: 5,
     myDayDefaultViewMode: "timeline",
     myDayDefaultDuration: 60,
+    lastReviewAt: "",
     customFields: [],
     reminderSettings: { ...DEFAULT_REMINDER_SETTINGS },
     mcpSettings: { ...DEFAULT_MCP_SETTINGS },
@@ -203,6 +205,11 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
     if (settings.defaultEffort !== undefined) {
         if (!Number.isInteger(settings.defaultEffort) || settings.defaultEffort < 1 || settings.defaultEffort > 7) {
             return "defaultEffort must be integer 1-7";
+        }
+    }
+    if (settings.lastReviewAt !== undefined) {
+        if (typeof settings.lastReviewAt !== "string" || (settings.lastReviewAt !== "" && Number.isNaN(Date.parse(settings.lastReviewAt)))) {
+            return "lastReviewAt must be empty or a valid date-time string";
         }
     }
     const pe = settings.priorityEngine;
@@ -313,6 +320,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
         myDayResetHour: override.myDayResetHour ?? base.myDayResetHour,
         myDayDefaultViewMode: override.myDayDefaultViewMode ?? base.myDayDefaultViewMode,
         myDayDefaultDuration: override.myDayDefaultDuration ?? base.myDayDefaultDuration,
+        lastReviewAt: override.lastReviewAt ?? base.lastReviewAt,
         customFields: migratedFields,
         reminderSettings: {
             ...base.reminderSettings,

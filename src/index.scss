@@ -263,6 +263,8 @@
     background: var(--b3-theme-background);
     color: var(--b3-theme-on-background);
     overflow: hidden;
+    container-name: nextaction-app;
+    container-type: inline-size;
 }
 
 .na-app__center {
@@ -437,6 +439,7 @@
     cursor: pointer;
     transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
     white-space: nowrap;
+    position: relative;
 
     &:hover {
         color: var(--b3-theme-primary);
@@ -451,6 +454,71 @@
         color: var(--na-color-success, #4caf50);
         border-color: var(--na-color-success, #4caf50);
         background: var(--na-color-success-bg, rgba(76, 175, 80, 0.1));
+    }
+}
+
+@container nextaction-app (max-width: 520px) {
+    .na-nav-rail {
+        flex: 0 0 44px;
+        width: 44px;
+        position: relative;
+        z-index: 30;
+        overflow: visible;
+    }
+
+    .na-nav-rail__item {
+        justify-content: center;
+        min-height: 40px;
+        padding: 10px 0;
+        gap: 0;
+    }
+
+    .na-nav-rail__label,
+    .na-nav-rail__action-label {
+        display: none;
+    }
+
+    .na-nav-rail__footer {
+        padding: 8px 6px 12px;
+    }
+
+    .na-nav-rail__action-btn {
+        width: 32px;
+        height: 28px;
+        padding: 0;
+    }
+
+    .na-nav-rail__item::after,
+    .na-nav-rail__action-btn::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: calc(100% + 8px);
+        top: 50%;
+        z-index: 40;
+        padding: 4px 8px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: 4px;
+        background: var(--b3-theme-surface);
+        color: var(--b3-theme-on-background);
+        box-shadow: var(--na-shadow-sm);
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.4;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-50%) translateX(-2px);
+        transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+    }
+
+    .na-nav-rail__item:hover::after,
+    .na-nav-rail__item:focus-visible::after,
+    .na-nav-rail__action-btn:hover::after,
+    .na-nav-rail__action-btn:focus-visible::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(-50%) translateX(0);
     }
 }
 
@@ -1742,6 +1810,12 @@
     gap: 10px;
     background: var(--b3-theme-surface);
     flex-shrink: 0;
+}
+
+.na-detail__jump-button svg {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
 }
 
 // 任务属性弹窗（从编辑器状态图标菜单打开）

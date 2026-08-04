@@ -1661,7 +1661,16 @@ export class TaskService {
             }
         }
 
-        return { overdueTasks, nextActions, inboxTasks, waitingTasks, somedayTasks, activeProjects, reviewDueTasks };
+        return {
+            lastReviewAt: this.settings.lastReviewAt,
+            overdueTasks,
+            nextActions,
+            inboxTasks,
+            waitingTasks,
+            somedayTasks,
+            activeProjects,
+            reviewDueTasks,
+        };
     }
 
     async markTaskReviewed(blockIds: string[]): Promise<TaskCacheEntry[]> {

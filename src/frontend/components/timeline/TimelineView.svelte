@@ -67,7 +67,7 @@
     });
 </script>
 
-<div class="na-timeline-view" bind:this={containerEl}>
+<div class="na-timeline-view" class:na-timeline-view--narrow={isNarrow} bind:this={containerEl}>
     {#if isNarrow}
         <div class="na-timeline-view__top">
             <UnscheduledPanel
@@ -76,6 +76,7 @@
                 {bridge}
                 {i18n}
                 {onContextMenu}
+                horizontal={true}
                 isDropTarget={dropTargetActive}
                 on:dragover={handleDragOver}
                 on:dragleave={handleDragLeave}
@@ -131,6 +132,10 @@
         background: transparent;
     }
 
+    .na-timeline-view--narrow {
+        flex-direction: column;
+    }
+
     .na-timeline-view__left {
         width: 236px;
         flex-shrink: 0;
@@ -154,7 +159,8 @@
     }
 
     .na-timeline-view__top {
-        height: 120px;
+        width: 100%;
+        height: 148px;
         flex-shrink: 0;
         border: 1px solid var(--na-myday-panel-border, var(--b3-border-color));
         border-radius: 8px;
@@ -163,11 +169,11 @@
     }
 
     .na-timeline-view__bottom {
+        width: 100%;
         flex: 1;
         min-height: 0;
         display: flex;
         flex-direction: column;
-        margin-top: 10px;
         border: 1px solid var(--na-myday-panel-border, var(--b3-border-color));
         border-radius: 8px;
         overflow: hidden;

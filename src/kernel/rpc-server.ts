@@ -3,7 +3,7 @@ import { getSiyuan, rpcError, errorToRpcError } from "./utils";
 import {
     RPC_ERROR_INVALID_PARAMS,
 } from "../shared/constants";
-import type { MyDayState } from "../shared/types";
+import type { MyDayState, ReviewData } from "../shared/types";
 import type { PluginSettings } from "../shared/settings";
 import type { AiProposalService } from "./ai-proposal-service";
 
@@ -14,6 +14,7 @@ interface RpcResult {
 
 export interface RpcServerHooks {
     updateSettings?: (settings: Partial<PluginSettings>) => Promise<PluginSettings | RpcResult>;
+    completeReview?: () => Promise<ReviewData | RpcResult>;
     getMcpStatus?: () => any;
     listMcpTargetNotebooks?: () => Promise<any>;
     resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
@@ -423,6 +424,17 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
     siyuan.rpc.bind("getReviewData", async (..._params: any[]) => {
         try {
             return taskService.getReviewData();
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("completeReview", async (..._params: any[]) => {
+        if (!hooks.completeReview) {
+            return rpcError(RPC_ERROR_INVALID_PARAMS, "completeReview is unavailable");
+        }
+        try {
+            return await hooks.completeReview();
         } catch (e: any) {
             return errorToRpcError(e);
         }

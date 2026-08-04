@@ -18,6 +18,15 @@
 
     let reviewData: ReviewData | null = null;
     let loading = false;
+    let completing = false;
+
+    function formatLastReview(value: string): string {
+        if (!value) return i18n?.reviewNeverCompleted || "No checklist review recorded";
+        const timestamp = new Date(value);
+        if (Number.isNaN(timestamp.getTime())) return i18n?.reviewNeverCompleted || "No checklist review recorded";
+        const template = i18n?.reviewLastCompleted || "Last review: {time}";
+        return template.replace("{time}", timestamp.toLocaleString());
+    }
 
     async function loadReviewData() {
         loading = true;
@@ -40,6 +49,18 @@
         }
     }
 
+    async function handleCompleteReview() {
+        if (completing) return;
+        completing = true;
+        try {
+            reviewData = await bridge.completeReview();
+        } catch (e: any) {
+            console.error("[NextAction] completeReview failed:", e);
+        } finally {
+            completing = false;
+        }
+    }
+
     onMount(() => {
         loadReviewData();
     });
@@ -47,10 +68,20 @@
 
 <div class="na-view na-review">
     <div class="na-review__toolbar">
-        <button class="na-button na-button--sm na-ai-trigger na-review__ai-btn" on:click={runAiReview}>
-            <svg><use xlink:href="#iconSparkles"></use></svg>
-            {i18n?.aiReview || "智能回顾"}
-        </button>
+        <div class="na-review__last-review" aria-live="polite">
+            <span class="na-review__last-review-label">{i18n?.reviewChecklistStatus || "Checklist status"}</span>
+            <span class="na-review__last-review-time">{formatLastReview(reviewData?.lastReviewAt || "")}</span>
+        </div>
+        <div class="na-review__actions">
+            <button class="na-button na-button--sm na-ai-trigger na-review__ai-btn" on:click={runAiReview}>
+                <svg><use xlink:href="#iconSparkles"></use></svg>
+                {i18n?.aiReview || "智能回顾"}
+            </button>
+            <button class="na-button na-button--sm na-review__complete-btn" on:click={handleCompleteReview} disabled={completing}>
+                <svg aria-hidden="true"><use xlink:href="#iconSelect"></use></svg>
+                {completing ? (i18n?.reviewCompleting || "Recording...") : (i18n?.reviewCompleteChecklist || "Complete review")}
+            </button>
+        </div>
     </div>
     {#if loading && !reviewData}
         <NaEmpty loading={true} />
@@ -97,12 +128,51 @@
 
     .na-review__toolbar {
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
         align-items: center;
+        gap: 8px 12px;
+        flex-wrap: wrap;
         min-height: 38px;
-        padding: 5px 12px;
+        padding: 7px 12px;
         border-bottom: 1px solid var(--na-color-divider);
         background: var(--b3-theme-surface);
+    }
+
+    .na-review__last-review {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 1px;
+    }
+
+    .na-review__last-review-label {
+        color: var(--b3-theme-on-surface-light);
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .na-review__last-review-time {
+        color: var(--b3-theme-on-background);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .na-review__actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+    }
+
+    .na-review__complete-btn {
+        color: var(--na-color-success, #3d8b5f);
+        border-color: color-mix(in srgb, var(--na-color-success, #3d8b5f) 38%, var(--na-color-divider));
+    }
+
+    .na-review__complete-btn svg {
+        width: 13px;
+        height: 13px;
+        flex: 0 0 13px;
     }
 
     .na-review__scroll {
@@ -123,7 +193,7 @@
         font-size: var(--na-font-size-xs, 11px);
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0;
         color: var(--b3-theme-on-surface-light);
         margin: 0 0 var(--na-space-sm, 8px);
     }

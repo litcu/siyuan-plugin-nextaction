@@ -49,6 +49,8 @@
             class="na-nav-rail__item"
             class:active={activeView === item.view}
             on:click={() => onSwitchView(item.view)}
+            aria-label={item.label}
+            data-tooltip={item.label}
         >
             <span class="na-nav-rail__icon">
                 {#if item.icon === "inbox"}
@@ -121,12 +123,21 @@
     {/each}
     <div class="na-nav-rail__spacer"></div>
     <div class="na-nav-rail__footer">
-        <button class="na-nav-rail__action-btn" class:is-done={refreshDone} on:click={handleRefresh}>
+        <button
+            class="na-nav-rail__action-btn"
+            class:is-done={refreshDone}
+            on:click={handleRefresh}
+            aria-label={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
+            data-tooltip={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
+        >
             {#if refreshDone}
                 <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5 8.5 6.5 11.5 12.5 5"/></svg>
-                {i18n?.refreshed || "Refreshed"}
+                <span class="na-nav-rail__action-label">{i18n?.refreshed || "Refreshed"}</span>
             {:else}
-                {i18n?.refreshTasks || "Refresh Tasks"}
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M13 4.5V1.8l-1.7 1.7A5.5 5.5 0 1 0 13.2 9"/>
+                </svg>
+                <span class="na-nav-rail__action-label">{i18n?.refreshTasks || "Refresh Tasks"}</span>
             {/if}
         </button>
     </div>

@@ -12,6 +12,7 @@
     export let bridge: KernelBridge;
     export let i18n: any;
     export let isDropTarget: boolean = false;
+    export let horizontal: boolean = false;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
 
     function handleDragStart(e: DragEvent, blockId: string) {
@@ -82,6 +83,7 @@
 <div
     class="na-unscheduled"
     class:na-unscheduled--drop-target={isDropTarget}
+    class:na-unscheduled--horizontal={horizontal}
     on:dragover={handleDragOver}
     on:drop={handleDrop}
 >
@@ -181,6 +183,20 @@
         flex: 1;
         overflow-y: auto;
         padding: 8px;
+    }
+
+    .na-unscheduled--horizontal .na-unscheduled__list {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(180px, 240px);
+        align-content: start;
+        gap: 7px;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .na-unscheduled--horizontal .na-unscheduled-card {
+        margin-bottom: 0;
     }
 
     .na-unscheduled-card {

@@ -956,7 +956,8 @@
             </button>
         {:else}
             {#if showJumpToBlock}
-                <button class="na-link" on:click={() => jump(task.blockId)}>
+                <button class="na-button na-button--sm na-detail__jump-button" on:click={() => jump(task.blockId)}>
+                    <svg aria-hidden="true"><use xlink:href="#iconOpenWindow"></use></svg>
                     {i18n?.jumpToBlock || "Jump to Block"}
                 </button>
             {/if}

@@ -9,6 +9,7 @@ import { MyDayManager } from "./kernel/my-day-manager";
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "./shared/settings";
 import { McpToolManager } from "./kernel/mcp-tool-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
+import type { ReviewData } from "./shared/types";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -50,6 +51,7 @@ class NextActionKernelPlugin {
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
+            completeReview: this.completeReview.bind(this),
             getMcpStatus: () => this.mcpToolManager.getStatus(),
             listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
             resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
@@ -109,6 +111,12 @@ class NextActionKernelPlugin {
         if ("_rpcError" in applied) return applied;
         await this.mcpToolManager.reconcile(applied);
         return applied;
+    }
+
+    private async completeReview(): Promise<ReviewData | { _rpcError: { code: number; message: string } }> {
+        const applied = await this.updateSettings({ lastReviewAt: new Date().toISOString() });
+        if ("_rpcError" in applied) return applied;
+        return this.taskService.getReviewData();
     }
 }
 
