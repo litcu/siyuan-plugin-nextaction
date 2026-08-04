@@ -70,6 +70,41 @@ test("AI 提案支持保存到已有任务的子块", () => {
     assert.ok(missingSource.errors.some(error => error.includes("sourceBlockId")));
 });
 
+test("AI 任务提案允许可选的重要性和工作量使用 null", () => {
+    const result = validateAiProposal({
+        feature: "extractTasks",
+        summary: "提取任务",
+        tasks: [{
+            title: "下午去拿快递",
+            sourceBlockId: "20260803220441-9fbfdvw",
+            importance: null,
+            effort: null,
+            start: null,
+            due: null,
+            contexts: null,
+            tags: null,
+            note: null,
+        }],
+    });
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.proposal.tasks?.[0].importance, undefined);
+    assert.equal(result.proposal.tasks?.[0].effort, undefined);
+    assert.equal(result.proposal.tasks?.[0].contexts, undefined);
+    assert.equal(result.proposal.tasks?.[0].tags, undefined);
+});
+
+test("AI 任务提案仍拒绝非法的重要性和工作量", () => {
+    const result = validateAiProposal({
+        feature: "extractTasks",
+        summary: "提取任务",
+        tasks: [{ title: "任务", importance: 0, effort: 8 }, { title: "任务2", importance: "4", effort: "large" }],
+    });
+    assert.ok(result.errors.some(error => error.includes("tasks[0].importance")));
+    assert.ok(result.errors.some(error => error.includes("tasks[0].effort")));
+    assert.ok(result.errors.some(error => error.includes("tasks[1].importance")));
+    assert.ok(result.errors.some(error => error.includes("tasks[1].effort")));
+});
+
 test("AI 回顾提案只读且必须包含报告", () => {
     const invalid = validateAiProposal({ feature: "review", summary: "x" });
     assert.ok(invalid.errors.includes("review is required for review proposals"));

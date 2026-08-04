@@ -54,3 +54,11 @@ test("列表项父块会复用已有的子列表", () => {
     assert.match(managerSource, /nestedList\?\.id/);
     assert.match(managerSource, /containerId: nestedList\.id, containerType: "l"/);
 });
+
+test("设置页提供四个内置 AI 功能的提示词编辑器", () => {
+    assert.match(settingsSource, /type TabId = .*"ai"/);
+    assert.match(settingsSource, /activeTab === "ai"/);
+    assert.match(settingsSource, /aiPrompts\[feature\.id\]/);
+    assert.match(settingsSource, /maxlength="12000"/);
+    assert.match(settingsSource, /handleResetAi/);
+});

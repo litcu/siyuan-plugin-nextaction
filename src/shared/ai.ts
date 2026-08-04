@@ -118,7 +118,9 @@ function isValidDate(value: string): boolean {
 }
 
 function normalizeStringList(value: unknown, field: string, errors: string[]): string[] | undefined {
-    if (value === undefined) return undefined;
+    // 提示词协议使用 null 表示“未提供”。将其视为空值而不是非法数组，
+    // 这样模型返回 null 时不会因为可选字段导致整份提案无法写入。
+    if (value === undefined || value === null) return undefined;
     if (!Array.isArray(value)) {
         errors.push(`${field} must be an array`);
         return undefined;
@@ -134,6 +136,12 @@ function normalizeStringList(value: unknown, field: string, errors: string[]): s
     }
     if (result.length > 50) errors.push(`${field} must contain at most 50 items`);
     return result;
+}
+
+function normalizeOptionalScale(value: unknown): number | undefined {
+    // importance / effort 在 JSON 协议中允许使用 null 表示未知；
+    // 其他非空值仍原样交给后续校验，以继续拒绝字符串、小数和越界数值。
+    return value === null || value === undefined ? undefined : value as number;
 }
 
 export function validateAiProposal(input: unknown): AiPlanValidationResult {
@@ -217,8 +225,8 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             dependsOnIndexes: Array.isArray(task?.dependsOnIndexes) ? task.dependsOnIndexes.filter((value: unknown): value is number => Number.isInteger(value)) : undefined,
             status: typeof task?.status === "string" ? task.status : undefined,
             priority: typeof task?.priority === "string" ? task.priority : undefined,
-            importance: task?.importance,
-            effort: task?.effort,
+            importance: normalizeOptionalScale(task?.importance),
+            effort: normalizeOptionalScale(task?.effort),
             start: task?.start === null ? null : (typeof task?.start === "string" ? task.start : undefined),
             due: task?.due === null ? null : (typeof task?.due === "string" ? task.due : undefined),
             contexts: normalizeStringList(task?.contexts, `tasks[${index}].contexts`, errors),

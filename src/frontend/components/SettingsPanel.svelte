@@ -1,13 +1,15 @@
 <script lang="ts">
     import { onMount, tick } from "svelte";
     import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings, McpCreateTarget } from "../../shared/settings";
+    import type { AiFeatureId } from "../../shared/ai";
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, migrateCustomFieldDefs, normalizeCustomFieldKey, type CustomFieldOption, type CustomFieldType } from "../../shared/custom-fields";
-    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, validateSettings } from "../../shared/settings";
+    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS, validateSettings } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
     import NaDotRating from "../ui/NaDotRating.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
     import { formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
+    import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
 
     export let bridge: any;
     export let i18n: any;
@@ -15,7 +17,7 @@
     export let onClose: () => void;
     export let getCurrentDocumentId: () => string = () => "";
 
-    type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder" | "mcp";
+    type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder" | "mcp" | "ai";
 
     let activeTab: TabId = "defaults";
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
@@ -67,6 +69,34 @@
     let mcpCopied = false;
     $: mcpEndpoint = `${window.location.origin}/mcp`;
 
+    // AI prompts
+    let aiPrompts: Record<AiFeatureId, string> = { ...DEFAULT_AI_SETTINGS.prompts };
+    const aiPromptFeatures: Array<{ id: AiFeatureId; label: string; description: string }> = [
+        { id: "extractTasks", label: "", description: "" },
+        { id: "decomposeTask", label: "", description: "" },
+        { id: "planMyDay", label: "", description: "" },
+        { id: "review", label: "", description: "" },
+    ];
+    $: aiPromptFeatures[0].label = i18n?.settingAiPromptExtractTasks || "Extract tasks";
+    $: aiPromptFeatures[0].description = i18n?.settingAiPromptExtractTasksDesc || "Identify executable tasks from selected note content.";
+    $: aiPromptFeatures[1].label = i18n?.settingAiPromptDecomposeTask || "Decompose task";
+    $: aiPromptFeatures[1].description = i18n?.settingAiPromptDecomposeTaskDesc || "Break a task or project into concrete next actions.";
+    $: aiPromptFeatures[2].label = i18n?.settingAiPromptPlanMyDay || "Plan My Day";
+    $: aiPromptFeatures[2].description = i18n?.settingAiPromptPlanMyDayDesc || "Choose the most valuable tasks for today.";
+    $: aiPromptFeatures[3].label = i18n?.settingAiPromptReview || "Review";
+    $: aiPromptFeatures[3].description = i18n?.settingAiPromptReviewDesc || "Analyze GTD review groups and suggest follow-up actions.";
+    const aiVariableGroups = [
+        { id: "runtime", names: ["{{today}}", "{{currentDateTime}}", "{{timezone}}", "{{feature}}"] },
+        { id: "task", names: ["{{currentTaskBlock}}", "{{currentTaskBlockWithChildren}}", "{{currentTaskBlockWithParent}}", "{{selectedBlocks}}", "{{block:块ID}}"] },
+        { id: "gtd", names: ["{{nextaction}}", "{{myDay}}", "{{inbox}}", "{{waiting}}", "{{someday}}", "{{overdue}}", "{{reviewDue}}", "{{activeProjects}}"] },
+    ];
+
+    function aiVariableGroupTitle(id: string): string {
+        if (id === "runtime") return i18n?.settingAiVariablesRuntime || "日期与运行环境";
+        if (id === "task") return i18n?.settingAiVariablesTask || "当前任务与笔记";
+        return i18n?.settingAiVariablesGtd || "GTD 任务集合";
+    }
+
     // Custom fields
     let customFields: CustomFieldDef[] = [];
     let newFieldKey: string = "";
@@ -88,6 +118,7 @@
         { id: "reminder", label: "", desc: "" },
         { id: "customFields", label: "", desc: "" },
         { id: "mcp", label: "", desc: "" },
+        { id: "ai", label: "", desc: "" },
         { id: "priority", label: "", desc: "" },
     ];
 
@@ -101,8 +132,10 @@
     $: tabs[3].desc = i18n.settingCustomFieldsDesc || "Add custom attribute fields to tasks";
     $: tabs[4].label = i18n.settingMcp || "MCP";
     $: tabs[4].desc = i18n.settingMcpDesc || "Expose NextAction task tools through SiYuan MCP";
-    $: tabs[5].label = i18n.settingPriorityEngine || "Priority Parameters";
-    $: tabs[5].desc = i18n.settingPriorityEngineDesc || "Auto priority calculation parameters — do not modify if unsure";
+    $: tabs[5].label = i18n.settingAi || "AI";
+    $: tabs[5].desc = i18n.settingAiDesc || "Customize prompts for built-in AI features";
+    $: tabs[6].label = i18n.settingPriorityEngine || "Priority Parameters";
+    $: tabs[6].desc = i18n.settingPriorityEngineDesc || "Auto priority calculation parameters — do not modify if unsure";
 
     $: tabTitle = tabs.find(t => t.id === activeTab)?.label || "";
     $: tabDesc = tabs.find(t => t.id === activeTab)?.desc || "";
@@ -131,6 +164,14 @@
                 mcpSettings: {
                     ...DEFAULT_MCP_SETTINGS,
                     ...(rawSettings?.mcpSettings || {}),
+                },
+                aiSettings: {
+                    ...DEFAULT_AI_SETTINGS,
+                    ...(rawSettings?.aiSettings || {}),
+                    prompts: {
+                        ...DEFAULT_AI_SETTINGS.prompts,
+                        ...(rawSettings?.aiSettings?.prompts || {}),
+                    },
                 },
                 customFields: migrateCustomFieldDefs(rawSettings?.customFields || []).fields,
             };
@@ -170,6 +211,7 @@
             mcpDefaultCreateTarget = mcp.defaultCreateTarget;
             mcpInboxDocumentId = mcp.inboxDocumentId;
             mcpDailyNoteNotebookId = mcp.dailyNoteNotebookId;
+            aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
             try {
                 [mcpStatus, mcpNotebooks] = await Promise.all([
                     bridge.getMcpStatus(),
@@ -232,6 +274,9 @@
                 defaultCreateTarget: mcpDefaultCreateTarget,
                 inboxDocumentId: mcpInboxDocumentId.trim(),
                 dailyNoteNotebookId: mcpDailyNoteNotebookId,
+            },
+            aiSettings: {
+                prompts: { ...aiPrompts },
             },
         };
     }
@@ -327,6 +372,14 @@
         mcpInboxDocumentId = DEFAULT_MCP_SETTINGS.inboxDocumentId;
         mcpDailyNoteNotebookId = DEFAULT_MCP_SETTINGS.dailyNoteNotebookId;
         mcpResolvedDocument = null;
+    }
+
+    function handleResetAi() {
+        aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts };
+    }
+
+    function handleResetAiPrompt(feature: AiFeatureId) {
+        aiPrompts = { ...aiPrompts, [feature]: DEFAULT_AI_SETTINGS.prompts[feature] };
     }
 
     async function resolveMcpInboxDocument(showError = true) {
@@ -598,6 +651,7 @@
         else if (activeTab === "customFields") handleResetCustomFields();
         else if (activeTab === "reminder") handleResetReminder();
         else if (activeTab === "mcp") handleResetMcp();
+        else if (activeTab === "ai") handleResetAi();
         else handleResetDefaults();
     }
 </script>
@@ -640,6 +694,11 @@
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M6 5.5h8a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z"/>
                         <circle cx="8" cy="10" r="1"/><circle cx="12" cy="10" r="1"/><path d="M10 3v2.5M7 14.5v2M13 14.5v2"/>
+                    </svg>
+                {:else if tab.id === "ai"}
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 2.5l1.3 4.2L15.5 8l-4.2 1.3L10 13.5l-1.3-4.2L4.5 8l4.2-1.3L10 2.5z"/>
+                        <path d="M15.5 12.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6.6-1.9z"/>
                     </svg>
                 {:else}
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -1134,6 +1193,78 @@
                     {/if}
                 </div>
 
+            {:else if activeTab === "ai"}
+                <div class="na-settings__page na-settings__ai-page">
+                    <div class="na-settings__ai-intro">
+                        <div class="na-settings__ai-intro-mark">✦</div>
+                        <div>
+                            <strong>{i18n?.settingAiPromptTitle || "内置 AI 提示词"}</strong>
+                            <p>{i18n?.settingAiPromptDesc || "调整每项功能的工作方式。插件会继续附加固定的 JSON 格式约束，避免模型返回不可写入的结果。"}</p>
+                        </div>
+                    </div>
+
+                    <div class="na-settings__ai-variables">
+                        <div class="na-settings__ai-variables-title">{i18n?.settingAiVariablesTitle || "可用变量"}</div>
+                        <p>{i18n?.settingAiVariablesDesc || "在提示词中使用变量会由插件替换为本次请求的真实上下文；暂时无法提供的内容会标记为“未提供”，不会被模型当作事实。"}</p>
+                        {#each aiVariableGroups as group}
+                            <div class="na-settings__ai-variable-group">
+                                <span>{aiVariableGroupTitle(group.id)}</span>
+                                <div>
+                                    {#each group.names as name}
+                                        <code>{name}</code>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+
+                    {#each aiPromptFeatures as feature, index}
+                        <section class="na-settings__ai-prompt-card">
+                            <div class="na-settings__ai-prompt-heading">
+                                <div class="na-settings__ai-prompt-index">0{index + 1}</div>
+                                <div>
+                                    <h3>{feature.label}</h3>
+                                    <p>{feature.description}</p>
+                                </div>
+                            </div>
+                            <label class="na-settings__ai-prompt-label" for={`setting-ai-prompt-${feature.id}`}>
+                                {i18n?.settingAiPromptInstruction || "功能指令"}
+                            </label>
+                            <textarea
+                                id={`setting-ai-prompt-${feature.id}`}
+                                class="na-settings__ai-prompt-textarea"
+                                rows={4}
+                                maxlength="12000"
+                                bind:value={aiPrompts[feature.id]}
+                                placeholder={DEFAULT_AI_SETTINGS.prompts[feature.id]}
+                            ></textarea>
+                            <div class="na-settings__ai-prompt-footer">
+                                <span>{i18n?.settingAiPromptHint || "建议描述目标、判断标准和需要避免的内容。"}</span>
+                                <span class="na-settings__ai-prompt-count">{(aiPrompts[feature.id] || "").length}/12000</span>
+                                <button type="button" class="na-settings__ai-prompt-reset" on:click={() => handleResetAiPrompt(feature.id)}>
+                                    {i18n?.settingAiPromptReset || "恢复默认"}
+                                </button>
+                            </div>
+                            <details class="na-settings__ai-runtime-preview">
+                                <summary>{i18n?.settingAiRuntimePreview || "查看实际请求中的固定部分（只读）"}</summary>
+                                <p>{i18n?.settingAiRuntimePreviewDesc || "这些内容不会保存到功能指令中，而是在每次运行时由插件根据当前任务数据自动生成。"}</p>
+                                <div class="na-settings__ai-runtime-section">
+                                    <span>输入数据区块</span>
+                                    <pre>{getAiPromptRuntimePreview(feature.id).input}</pre>
+                                </div>
+                                <div class="na-settings__ai-runtime-section">
+                                    <span>严格输出协议</span>
+                                    <pre>{getAiPromptRuntimePreview(feature.id).schema}</pre>
+                                </div>
+                                <div class="na-settings__ai-runtime-section">
+                                    <span>完整 JSON 示例</span>
+                                    <pre>{getAiPromptRuntimePreview(feature.id).example}</pre>
+                                </div>
+                            </details>
+                        </section>
+                    {/each}
+                </div>
+
             {:else if activeTab === "priority"}
                 <div class="na-settings__page">
                     <!-- Weight distribution card -->
@@ -1484,6 +1615,242 @@
 
     .na-settings__mcp-page {
         gap: 12px;
+    }
+
+    .na-settings__ai-page {
+        gap: 14px;
+    }
+
+    .na-settings__ai-intro {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 22%, var(--na-color-divider));
+        border-radius: var(--na-radius-lg);
+        background: linear-gradient(135deg, color-mix(in srgb, var(--b3-theme-primary) 10%, var(--b3-theme-surface)), var(--b3-theme-surface));
+    }
+
+    .na-settings__ai-intro-mark {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        border-radius: 9px;
+        color: var(--b3-theme-primary);
+        background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+        font-size: 17px;
+    }
+
+    .na-settings__ai-intro strong {
+        display: block;
+        color: var(--b3-theme-on-surface);
+        font-size: var(--na-font-size-md);
+    }
+
+    .na-settings__ai-intro p {
+        margin: 4px 0 0;
+        color: var(--b3-theme-on-surface-light);
+        font-size: var(--na-font-size-xs);
+        line-height: 1.55;
+    }
+
+    .na-settings__ai-variables {
+        padding: 12px 14px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-lg);
+        background: color-mix(in srgb, var(--b3-theme-surface) 82%, var(--b3-theme-background));
+    }
+
+    .na-settings__ai-variables-title {
+        color: var(--b3-theme-on-surface);
+        font-size: var(--na-font-size-sm);
+        font-weight: 600;
+    }
+
+    .na-settings__ai-variables > p {
+        margin: 4px 0 10px;
+        color: var(--b3-theme-on-surface-light);
+        font-size: var(--na-font-size-xs);
+        line-height: 1.45;
+    }
+
+    .na-settings__ai-variable-group {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+        margin-top: 7px;
+        color: var(--b3-theme-on-surface-secondary);
+        font-size: 11px;
+
+        > div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        code {
+            padding: 2px 5px;
+            border-radius: 4px;
+            color: var(--b3-theme-primary);
+            background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
+            font-size: 10px;
+        }
+    }
+
+    .na-settings__ai-prompt-card {
+        padding: 15px 16px 12px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-lg);
+        background: var(--b3-theme-surface);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--b3-theme-on-background) 4%, transparent);
+    }
+
+    .na-settings__ai-prompt-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 13px;
+    }
+
+    .na-settings__ai-prompt-index {
+        color: var(--b3-theme-primary);
+        font: 600 11px/1 var(--b3-font-family-code);
+        letter-spacing: 0.08em;
+        padding-top: 3px;
+    }
+
+    .na-settings__ai-prompt-heading h3 {
+        margin: 0;
+        color: var(--b3-theme-on-surface);
+        font-size: var(--na-font-size-md);
+        font-weight: 600;
+    }
+
+    .na-settings__ai-prompt-heading p {
+        margin: 3px 0 0;
+        color: var(--b3-theme-on-surface-light);
+        font-size: var(--na-font-size-xs);
+        line-height: 1.45;
+    }
+
+    .na-settings__ai-prompt-label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--b3-theme-on-surface-secondary);
+        font-size: var(--na-font-size-xs);
+        font-weight: 600;
+    }
+
+    .na-settings__ai-prompt-textarea {
+        display: block;
+        width: 100%;
+        min-height: 94px;
+        resize: vertical;
+        box-sizing: border-box;
+        padding: 10px 11px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-md);
+        outline: none;
+        color: var(--b3-theme-on-surface);
+        background: var(--b3-theme-background);
+        font: 13px/1.6 var(--b3-font-family);
+        transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+
+        &:hover {
+            border-color: color-mix(in srgb, var(--b3-theme-primary) 36%, var(--na-color-divider));
+        }
+
+        &:focus {
+            border-color: var(--b3-theme-primary);
+            background: var(--b3-theme-surface);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+        }
+
+        &::placeholder {
+            color: var(--b3-theme-on-surface-light);
+            opacity: 0.65;
+        }
+    }
+
+    .na-settings__ai-prompt-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 6px;
+        color: var(--b3-theme-on-surface-light);
+        font-size: 10px;
+
+        .na-settings__ai-prompt-count {
+            flex: 0 0 auto;
+            font-family: var(--b3-font-family-code);
+        }
+    }
+
+    .na-settings__ai-prompt-reset {
+        flex: 0 0 auto;
+        padding: 2px 6px;
+        border: 1px solid var(--na-color-divider);
+        border-radius: var(--na-radius-sm);
+        color: var(--b3-theme-on-surface-light);
+        background: transparent;
+        cursor: pointer;
+        font-size: 10px;
+        transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+        &:hover {
+            border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-color-divider));
+            color: var(--b3-theme-primary);
+            background: var(--na-color-hover-bg);
+        }
+    }
+
+    .na-settings__ai-runtime-preview {
+        margin-top: 12px;
+        border-top: 1px solid var(--na-color-divider);
+        padding-top: 10px;
+
+        summary {
+            cursor: pointer;
+            color: var(--b3-theme-primary);
+            font-size: var(--na-font-size-xs);
+            font-weight: 600;
+        }
+
+        > p {
+            margin: 8px 0 10px;
+            color: var(--b3-theme-on-surface-light);
+            font-size: 11px;
+            line-height: 1.45;
+        }
+    }
+
+    .na-settings__ai-runtime-section {
+        margin-top: 9px;
+
+        > span {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--b3-theme-on-surface-secondary);
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        pre {
+            max-height: 220px;
+            margin: 0;
+            overflow: auto;
+            padding: 9px 10px;
+            border: 1px solid var(--na-color-divider);
+            border-radius: var(--na-radius-md);
+            color: var(--b3-theme-on-surface);
+            background: var(--b3-theme-background);
+            font: 11px/1.5 var(--b3-font-family-code);
+            white-space: pre-wrap;
+            user-select: text;
+        }
     }
 
     .na-settings__mcp-status {
