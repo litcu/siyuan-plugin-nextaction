@@ -62,6 +62,24 @@ const checks = [
         && !sortSelect.includes("rgba(79, 195, 247");
     },
   },
+  {
+    name: "modern settings pages rely on SiYuan theme variables",
+    run() {
+      const files = [
+        "src/frontend/components/settings/GeneralSettingsPage.svelte",
+        "src/frontend/components/settings/CustomFieldsSettingsPage.svelte",
+        "src/frontend/components/settings/AiSettingsPage.svelte",
+        "src/frontend/components/settings/McpSettingsPage.svelte",
+        "src/frontend/components/settings/AdvancedSettingsPage.svelte",
+      ];
+      return files.every((path) => {
+        const source = read(path);
+        return source.includes("var(--b3-")
+          && !/#(?:fff(?:fff)?|000(?:000)?)\b/i.test(source)
+          && !/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\.1\s*\)/i.test(source);
+      });
+    },
+  },
 ];
 
 let failed = 0;

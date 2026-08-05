@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount, tick } from "svelte";
+    import { confirm } from "siyuan";
     import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings, McpCreateTarget } from "../../shared/settings";
     import type { AiFeatureId } from "../../shared/ai";
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, migrateCustomFieldDefs, normalizeCustomFieldKey, type CustomFieldOption, type CustomFieldType } from "../../shared/custom-fields";
@@ -10,6 +11,12 @@
     import { formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
+    import SettingsIcon from "./settings/SettingsIcon.svelte";
+    import GeneralSettingsPage from "./settings/GeneralSettingsPage.svelte";
+    import CustomFieldsSettingsPage from "./settings/CustomFieldsSettingsPage.svelte";
+    import AiSettingsPage from "./settings/AiSettingsPage.svelte";
+    import McpSettingsPage from "./settings/McpSettingsPage.svelte";
+    import AdvancedSettingsPage from "./settings/AdvancedSettingsPage.svelte";
 
     export let bridge: any;
     export let i18n: any;
@@ -18,6 +25,7 @@
     export let getCurrentDocumentId: () => string = () => "";
 
     type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder" | "mcp" | "ai";
+    type ModernTabId = "general" | "customFields" | "ai" | "mcp" | "advanced";
 
     let activeTab: TabId = "defaults";
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
@@ -25,6 +33,18 @@
     let rebuilding = false;
     let rebuildingParents = false;
     let error = "";
+    let modernTab: ModernTabId = "general";
+    let settingsRootEl: HTMLDivElement;
+    let settingsLoaded = false;
+    let savedSignature = "";
+
+    $: modernTabs = [
+        { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
+        { id: "customFields" as const, label: i18n?.settingCustomFields || "Custom fields", desc: i18n?.settingCustomFieldsDesc || "Extend task attributes", icon: "iconDatabase", group: i18n?.settingNavGroupTask || "Workspace" },
+        { id: "ai" as const, label: i18n?.settingAi || "Built-in AI", desc: i18n?.settingAiDesc || "Customize built-in AI prompts", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
+        { id: "mcp" as const, label: i18n?.settingMcp || "MCP", desc: i18n?.settingMcpDesc || "Expose task tools to AI clients", icon: "iconCloud", group: i18n?.settingNavGroupIntegration || "Integrations" },
+        { id: "advanced" as const, label: i18n?.settingAdvanced || "Advanced", desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance", icon: "iconSort", group: i18n?.settingNavGroupSystem || "System" },
+    ];
 
     // Local editable copies
     let defaultImportance: number = DEFAULT_SETTINGS.defaultImportance;
@@ -111,6 +131,9 @@
     let settingsBodyEl: HTMLDivElement;
 
     $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
+
+    $: draftSignature = settingsLoaded ? JSON.stringify(buildSettings()) : "";
+    $: isDirty = settingsLoaded && draftSignature !== savedSignature;
 
     const tabs: { id: TabId; label: string; desc: string }[] = [
         { id: "defaults", label: "", desc: "" },
@@ -226,11 +249,45 @@
             settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" });
             requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
             setTimeout(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }), 60);
+            await tick();
+            savedSignature = JSON.stringify(buildSettings());
+            settingsLoaded = true;
         } catch (e: any) {
             console.error("[NextAction] loadSettings failed:", e);
             error = formatRpcError(e, i18n);
         }
     });
+
+    function selectModernTab(tab: ModernTabId) {
+        modernTab = tab;
+        requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
+    }
+
+    function isTopmostSettingsDialog(): boolean {
+        const ownDialog = settingsRootEl?.closest(".b3-dialog");
+        const dialogs = (window as any).siyuan?.dialogs || [];
+        const topDialog = dialogs.length ? dialogs[dialogs.length - 1]?.element?.querySelector(".b3-dialog") : null;
+        return !topDialog || ownDialog === topDialog;
+    }
+
+    export function requestClose() {
+        if (!isDirty) {
+            onClose();
+            return;
+        }
+        confirm(
+            i18n?.settingsUnsavedTitle || i18n?.settingsTitle || "Unsaved changes",
+            i18n?.settingsUnsavedDesc || "You have unsaved changes. Close without saving?",
+            () => onClose(),
+        );
+    }
+
+    function handleWindowKeydown(event: KeyboardEvent) {
+        if (event.key !== "Escape" || event.isComposing || !isTopmostSettingsDialog()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        requestClose();
+    }
 
     function buildSettings(): PluginSettings {
         return {
@@ -341,6 +398,10 @@
     }
 
     function handleResetPriority() {
+        current = {
+            ...current,
+            priorityEngine: { ...DEFAULT_PRIORITY_ENGINE },
+        };
         dueWeight = DEFAULT_PRIORITY_ENGINE.dueWeight;
         startWeight = DEFAULT_PRIORITY_ENGINE.startWeight;
         importanceWeight = DEFAULT_PRIORITY_ENGINE.importanceWeight;
@@ -485,6 +546,23 @@
 
     function handleResetCustomFields() {
         customFields = [];
+    }
+
+    function handleResetAll() {
+        confirm(
+            i18n?.settingResetAllTitle || i18n?.settingResetAll || "Reset all settings",
+            i18n?.settingResetAllConfirm || "Restore every saved setting to its default value? You can still cancel the settings dialog afterwards.",
+            () => {
+                handleResetDefaults();
+                handleResetMyDay();
+                handleResetReminder();
+                handleResetCustomFields();
+                handleResetMcp();
+                handleResetAi();
+                handleResetPriority();
+                error = "";
+            },
+        );
     }
 
     function createFieldId(): string {
@@ -656,6 +734,129 @@
     }
 </script>
 
+<svelte:window on:keydown|capture={handleWindowKeydown} />
+
+<div class="na-settings-modern" bind:this={settingsRootEl}>
+    <aside class="na-settings-modern__nav" aria-label={i18n?.settingsTitle || "Settings"}>
+        <div class="na-settings-modern__brand">
+            <span class="na-settings-modern__brand-mark"><SettingsIcon symbol="iconNextAction" size={19} /></span>
+            <div><strong>{i18n?.settingsTitle || "Settings"}</strong><span>NextAction</span></div>
+        </div>
+        {#each [i18n?.settingNavGroupTask || "Workspace", i18n?.settingNavGroupIntegration || "Integrations", i18n?.settingNavGroupSystem || "System"] as group}
+            <div class="na-settings-modern__group">
+                <span>{group}</span>
+                {#each modernTabs.filter(tab => tab.group === group) as tab}
+                    <button type="button" class:active={modernTab === tab.id} class="na-settings-modern__nav-item" on:click={() => selectModernTab(tab.id)} title={tab.label} aria-current={modernTab === tab.id ? "page" : undefined}>
+                        <SettingsIcon symbol={tab.icon} size={17} />
+                        <span>{tab.label}</span>
+                    </button>
+                {/each}
+            </div>
+        {/each}
+        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" on:click={handleResetAll} title={i18n?.settingResetAll || "Reset all settings"}>
+            <SettingsIcon symbol="iconRefresh" size={16} />
+            <span>{i18n?.settingResetAll || "Reset all settings"}</span>
+        </button>
+    </aside>
+
+    <main class="na-settings-modern__content">
+        <header class="na-settings-modern__header">
+            <div>
+                <span class="na-settings-modern__kicker">{i18n?.settingsTitle || "Settings"}</span>
+                <h1>{modernTabs.find(tab => tab.id === modernTab)?.label}</h1>
+                <p>{modernTabs.find(tab => tab.id === modernTab)?.desc}</p>
+            </div>
+            <button type="button" class="b3-button b3-button--text na-settings-modern__close" on:click={requestClose} title={i18n?.cancel || "Close"} aria-label={i18n?.cancel || "Close"}>
+                <SettingsIcon symbol="iconCloseRound" size={18} />
+            </button>
+        </header>
+
+        <div class="na-settings-modern__body" bind:this={settingsBodyEl}>
+            {#if modernTab === "general"}
+                <GeneralSettingsPage
+                    {i18n}
+                    bind:defaultImportance
+                    bind:defaultEffort
+                    bind:myDayEnabled
+                    bind:myDayResetHour
+                    bind:myDayDefaultViewMode
+                    bind:myDayDefaultDuration
+                    bind:reminderEnabled
+                    bind:reminderDefaultOffsets
+                    bind:reminderDueSound
+                    bind:reminderReviewSound
+                    bind:reminderSoundEnabled
+                    bind:newOffsetValue
+                    bind:newOffsetUnit
+                    soundIds={REMINDER_SOUND_IDS}
+                    {getSoundLabel}
+                    {getUnitLabel}
+                    {minutesToDisplay}
+                    onAddOffset={handleAddOffset}
+                    onRemoveOffset={handleRemoveOffset}
+                    onPreviewSound={handlePreviewSound}
+                    onResetDefaults={handleResetDefaults}
+                    onResetMyDay={handleResetMyDay}
+                    onResetReminder={handleResetReminder}
+                />
+            {:else if modernTab === "customFields"}
+                <CustomFieldsSettingsPage {i18n} {bridge} bind:customFields {customFieldUsage} />
+            {:else if modernTab === "ai"}
+                <AiSettingsPage {i18n} bind:aiPrompts defaultPrompts={DEFAULT_AI_SETTINGS.prompts} getRuntimePreview={getAiPromptRuntimePreview} />
+            {:else if modernTab === "mcp"}
+                <McpSettingsPage
+                    {i18n}
+                    bind:mcpEnabled
+                    bind:mcpAllowWrite
+                    bind:mcpDefaultCreateTarget
+                    bind:mcpInboxDocumentId
+                    bind:mcpDailyNoteNotebookId
+                    {mcpStatus}
+                    {mcpNotebooks}
+                    {mcpResolvedDocument}
+                    {mcpResolvingDocument}
+                    {mcpCopied}
+                    {mcpEndpoint}
+                    onResolveDocument={() => resolveMcpInboxDocument()}
+                    onUseCurrentDocument={useCurrentDocumentForMcp}
+                    onCopyEndpoint={copyMcpEndpoint}
+                    onReset={handleResetMcp}
+                />
+            {:else}
+                <AdvancedSettingsPage
+                    {i18n}
+                    bind:dueWeight
+                    bind:startWeight
+                    bind:importanceWeight
+                    bind:dueDecayTau
+                    bind:overdueGrowth
+                    bind:overdueCap
+                    bind:startHorizon
+                    bind:effortScale
+                    bind:startPreviewDays
+                    {weightSum}
+                    {rebuilding}
+                    {rebuildingParents}
+                    onResetPriority={handleResetPriority}
+                    onRebuildCache={handleRebuildCache}
+                    onRebuildParents={handleRebuildParents}
+                />
+            {/if}
+        </div>
+
+        {#if error}<div class="na-settings-modern__error" role="alert" aria-live="polite">{error}</div>{/if}
+        <footer class="na-settings-modern__footer">
+            <div class="na-settings-modern__dirty" class:visible={isDirty}><span></span>{i18n?.settingsUnsaved || "Unsaved changes"}</div>
+            <div class="na-settings-modern__footer-actions">
+                <button type="button" class="b3-button b3-button--text" on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
+                <button type="button" class="b3-button b3-button--primary" on:click={handleSave} disabled={saving || !settingsLoaded || !isDirty}>{saving ? (i18n?.loading || "…") : (i18n?.confirm || "Save")}</button>
+            </div>
+        </footer>
+    </main>
+</div>
+
+{#if false}
+<div class="na-settings--legacy" aria-hidden="true" hidden>
 <div class="na-settings">
     <!-- Left nav -->
     <nav class="na-settings__nav">
@@ -1400,6 +1601,10 @@
         </div>
     </div>
 </div>
+
+<!-- The legacy markup remains temporarily for source compatibility while the modern shell is active. -->
+</div>
+{/if}
 
 <style lang="scss">
     :global(.b3-dialog__content:has(.na-settings)) {
@@ -2629,5 +2834,175 @@
             opacity: 0.45;
             cursor: default;
         }
+    }
+    // ===== Modern settings shell =====
+    :global(.b3-dialog__content:has(.na-settings-modern)) {
+        display: flex;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden !important;
+        padding: 0 !important;
+    }
+
+    :global(#naSettingsPanel:has(.na-settings-modern)) {
+        flex: 1;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .na-settings-modern {
+        --na-settings-nav-width: 176px;
+        display: flex;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        color: var(--b3-theme-on-background);
+        background: var(--b3-theme-background);
+        font-family: var(--b3-font-family);
+    }
+
+    .na-settings-modern__nav {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex: 0 0 var(--na-settings-nav-width);
+        flex-direction: column;
+        gap: 16px;
+        padding: 19px 10px 14px;
+        overflow: hidden;
+        border-right: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
+    }
+
+    .na-settings-modern__brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 7px 8px;
+        border-bottom: 1px solid var(--b3-border-color);
+
+        > div { display: flex; flex-direction: column; min-width: 0; }
+        strong { color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 650; }
+        span { margin-top: 1px; color: var(--b3-theme-on-surface-light); font-size: 10px; }
+    }
+
+    .na-settings-modern__brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        color: var(--b3-theme-on-primary);
+        background: var(--b3-theme-primary);
+    }
+
+    .na-settings-modern__group {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+
+        > span {
+            padding: 0 9px 4px;
+            color: var(--b3-theme-on-surface-light);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+    }
+
+    .na-settings-modern__nav-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 34px;
+        padding: 0 9px;
+        border: 0;
+        border-radius: var(--b3-border-radius);
+        color: var(--b3-theme-on-surface-light);
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        transition: background 130ms ease, color 130ms ease;
+
+        &:hover { color: var(--b3-theme-on-surface); background: var(--b3-list-hover); }
+        &.active { color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); font-weight: 600; }
+    }
+
+    .na-settings-modern__reset-all {
+        display: flex;
+        align-items: center;
+        align-self: flex-start;
+        gap: 8px;
+        width: auto;
+        min-height: 30px;
+        margin-top: auto;
+        padding: 4px 8px;
+        color: var(--b3-theme-on-surface-light);
+        font: 400 11px/1.4 var(--b3-font-family);
+
+        &:hover {
+            color: var(--b3-theme-error);
+            background: color-mix(in srgb, var(--b3-theme-error) 7%, var(--b3-theme-surface));
+        }
+    }
+
+    .na-settings-modern__content { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+    .na-settings-modern__header { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex: 0 0 auto; padding: 21px 24px 16px; border-bottom: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
+    .na-settings-modern__kicker { display: block; margin-bottom: 4px; color: var(--b3-theme-primary); font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    .na-settings-modern__header h1 { margin: 0; color: var(--b3-theme-on-background); font-size: 17px; font-weight: 650; line-height: 23px; }
+    .na-settings-modern__header p { margin: 3px 0 0; color: var(--b3-theme-on-surface-light); font-size: 11px; line-height: 17px; }
+    :global(.na-settings-modern__close) { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--b3-theme-on-surface-light); }
+    .na-settings-modern__body { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px 22px; scrollbar-gutter: stable; }
+    .na-settings-modern__error { flex: 0 0 auto; padding: 9px 24px; border-top: 1px solid color-mix(in srgb, var(--b3-theme-error) 25%, var(--b3-border-color)); color: var(--b3-theme-error); background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-background)); font-size: 11px; line-height: 16px; }
+    .na-settings-modern__footer { position: sticky; z-index: 2; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: 0 0 auto; min-height: 52px; padding: 9px 24px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); }
+    .na-settings-modern__footer-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .na-settings-modern__dirty { display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface-light); font-size: 10px; opacity: 0; transition: opacity 130ms ease; }
+    .na-settings-modern__dirty.visible { opacity: 1; }
+    .na-settings-modern__dirty span { width: 6px; height: 6px; border-radius: 50%; background: var(--b3-theme-primary); }
+
+    :global(.na-settings-modern input.b3-text-field),
+    :global(.na-settings-modern select.b3-select) {
+        box-sizing: border-box;
+        min-height: 30px;
+        font-family: var(--b3-font-family);
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
+    }
+
+    :global(.na-settings-modern select.b3-select) {
+        height: 30px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        vertical-align: middle;
+    }
+
+    @media (max-width: 720px) {
+        .na-settings-modern { --na-settings-nav-width: 58px; }
+        .na-settings-modern__nav { align-items: center; padding: 13px 7px; }
+        .na-settings-modern__brand { padding: 0 0 9px; border-bottom: 0; }
+        .na-settings-modern__brand > div, .na-settings-modern__group > span, .na-settings-modern__nav-item > span, .na-settings-modern__reset-all > span { display: none; }
+        .na-settings-modern__group { width: 100%; gap: 5px; }
+        .na-settings-modern__nav-item, .na-settings-modern__reset-all { justify-content: center; width: 44px; padding: 0; }
+    }
+
+    @media (max-width: 520px) {
+        .na-settings-modern { flex-direction: column; }
+        .na-settings-modern__nav { position: sticky; flex: 0 0 auto; flex-direction: row; gap: 5px; width: 100%; padding: 7px 9px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--b3-border-color); }
+        .na-settings-modern__brand { flex: 0 0 auto; padding: 0 7px 0 0; }
+        .na-settings-modern__group { flex: 0 0 auto; flex-direction: row; width: auto; }
+        .na-settings-modern__nav-item { width: 38px; min-height: 34px; }
+        .na-settings-modern__reset-all { flex: 0 0 38px; width: 38px; min-height: 34px; margin-top: 0; margin-left: auto; }
+        .na-settings-modern__header { padding: 15px 16px 13px; }
+        .na-settings-modern__body { padding: 14px 16px 18px; }
+        .na-settings-modern__footer { padding: 8px 16px; }
+        .na-settings-modern__dirty { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .na-settings-modern__nav-item, .na-settings-modern__dirty { transition: none; }
     }
 </style>

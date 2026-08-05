@@ -897,7 +897,9 @@ export default class NextActionPlugin extends Plugin {
         const dialog = new Dialog({
             title: "",
             content: `<div id="naSettingsPanel" class="nextaction"></div>`,
-            width: "min(760px, calc(100vw - 32px))",
+            width: "min(840px, calc(100vw - 24px))",
+            height: "min(620px, calc(100vh - 24px))",
+            disableClose: true,
             hideCloseIcon: true,
             destroyCallback: () => {
                 const comp = (dialog as any)._naSettings;
@@ -911,6 +913,16 @@ export default class NextActionPlugin extends Plugin {
 
         const containerEl = dialog.element.querySelector("#naSettingsPanel");
         if (!containerEl) return;
+
+        const dialogContainer = dialog.element.querySelector(".b3-dialog__container") as HTMLElement | null;
+        const dialogContent = dialog.element.querySelector(".b3-dialog__content") as HTMLElement | null;
+        if (dialogContainer) dialogContainer.style.overflow = "hidden";
+        if (dialogContent) {
+            dialogContent.style.display = "flex";
+            dialogContent.style.minHeight = "0";
+            dialogContent.style.overflow = "hidden";
+        }
+        (containerEl as HTMLElement).style.cssText += "height:100%;min-height:0;overflow:hidden;flex:1;";
 
         import("./frontend/components/SettingsPanel.svelte").then(({ default: SettingsPanel }) => {
             const comp = new SettingsPanel({
@@ -936,6 +948,13 @@ export default class NextActionPlugin extends Plugin {
                 },
             });
             (dialog as any)._naSettings = comp;
+
+            const scrim = dialog.element.querySelector(".b3-dialog__scrim");
+            scrim?.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                comp.requestClose();
+            }, { capture: true });
         });
     }
 }
