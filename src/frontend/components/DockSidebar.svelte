@@ -7,7 +7,7 @@
     import { showTaskContextMenu } from "./task-context-menu";
     import { showStatusMenu } from "../utils";
     import { Dialog } from "siyuan";
-    import ReminderPopup from "./ReminderPopup.svelte";
+    import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
     import type { TaskCacheEntry } from "../../shared/types";
     import { get } from "svelte/store";
 
@@ -35,7 +35,9 @@
         const dialog = new Dialog({
             title: "",
             content: `<div class="nextaction na-task-dialog-content"></div>`,
-            width: "480px",
+            width: "min(520px, calc(100vw - 24px))",
+            height: "min(720px, calc(100vh - 24px))",
+            disableClose: true,
             hideCloseIcon: true,
             destroyCallback: () => {
                 const comp = (dialog as any)._naDetail;
@@ -50,9 +52,11 @@
         if (header) header.remove();
 
         const dialogContainer = dialog.element.querySelector(".b3-dialog__container") as HTMLElement;
-        if (dialogContainer) {
-            dialogContainer.style.maxHeight = "80vh";
-        }
+        dialogContainer?.classList.add("na-task-dialog-container");
+
+        dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
+            (dialog as any)._naDetail?.requestClose();
+        });
 
         import("./TaskDetail.svelte").then(({ default: TaskDetailComp }) => {
             bridge.getTask(task.blockId).then((freshTask) => {
@@ -116,26 +120,9 @@
             const storeState = get(taskStore);
             const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);
             if (!taskEntry) return;
-            const reminderDialog = new Dialog({
-                title: i18n?.reminderPopupTitle || "提醒设置",
-                content: `<div id="na-reminder-popup-dock"></div>`,
-                width: "360px",
+            openReminderSettingsDialog(taskEntry, bridge, i18n, {
+                onSave: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
             });
-            reminderDialog.element.classList.add("nextaction");
-            const container = reminderDialog.element.querySelector("#na-reminder-popup-dock");
-            if (container) {
-                new ReminderPopup({
-                    target: container,
-                    props: {
-                        task: taskEntry,
-                        bridge,
-                        i18n,
-                        onSave: (updated: TaskCacheEntry) => {
-                            taskStore.applyUpdate(updated);
-                        },
-                    },
-                });
-            }
         };
         showTaskContextMenu(task, event, bridge, i18n, callbacks, activeTab, inMyDay);
     }
@@ -201,7 +188,7 @@
 
     .na-dock__tabs {
         display: flex;
-        border-bottom: 1px solid var(--b3-theme-surface-lighter, rgba(0, 0, 0, 0.06));
+        border-bottom: 1px solid var(--b3-border-color);
         flex-shrink: 0;
     }
 
@@ -210,7 +197,7 @@
         padding: 8px 4px 6px;
         font-size: 12px;
         font-weight: 500;
-        color: var(--b3-theme-on-surface-dim, #888);
+        color: var(--b3-theme-on-surface-light);
         background: transparent;
         border: none;
         border-bottom: 2px solid transparent;
@@ -222,12 +209,12 @@
         text-align: center;
 
         &:hover {
-            color: var(--b3-theme-on-surface, #333);
+            color: var(--b3-theme-on-surface);
         }
 
         &--active {
-            color: var(--na-accent, #3b82f6);
-            border-bottom-color: var(--na-accent, #3b82f6);
+            color: var(--b3-theme-primary);
+            border-bottom-color: var(--b3-theme-primary);
         }
     }
 

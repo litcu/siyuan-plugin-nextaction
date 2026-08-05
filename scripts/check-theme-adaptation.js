@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
 
@@ -60,6 +60,69 @@ const checks = [
         "--na-filter-active-fg",
       ].every((needle) => sortSelect.includes(needle))
         && !sortSelect.includes("rgba(79, 195, 247");
+    },
+  },
+  {
+    name: "modern settings pages rely on SiYuan theme variables",
+    run() {
+      const files = [
+        "src/frontend/components/settings/GeneralSettingsPage.svelte",
+        "src/frontend/components/settings/CustomFieldsSettingsPage.svelte",
+        "src/frontend/components/settings/AiSettingsPage.svelte",
+        "src/frontend/components/settings/McpSettingsPage.svelte",
+        "src/frontend/components/settings/AdvancedSettingsPage.svelte",
+      ];
+      return files.every((path) => {
+        const source = read(path);
+        return source.includes("var(--b3-")
+          && !/#(?:fff(?:fff)?|000(?:000)?)\b/i.test(source)
+          && !/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\.1\s*\)/i.test(source);
+      });
+    },
+  },
+  {
+    name: "public Na UI layer uses SiYuan colors only",
+    run() {
+      const files = readdirSync("src/frontend/ui")
+        .filter((name) => name.endsWith(".svelte") || name.endsWith(".scss"));
+      return files.every((name) => {
+        const source = read(`src/frontend/ui/${name}`);
+        return !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\()/i.test(source);
+      });
+    },
+  },
+  {
+    name: "public Svelte components use the Na prefix",
+    run() {
+      return readdirSync("src/frontend/ui")
+        .filter((name) => name.endsWith(".svelte"))
+        .every((name) => name.startsWith("Na"));
+    },
+  },
+  {
+    name: "task property panel and dialog hosts use theme-derived colors only",
+    run() {
+      const files = [
+        "src/frontend/components/TaskDetail.svelte",
+        "src/frontend/components/NextActionApp.svelte",
+        "src/frontend/components/DockSidebar.svelte",
+        "src/frontend/dialogs/task-property-dialogs.ts",
+      ];
+      return files.every((path) => {
+        const source = read(path);
+        return !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\(|hsla?\s*\()/i.test(source);
+      });
+    },
+  },
+  {
+    name: "legacy task detail and popup visual layers were removed",
+    run() {
+      const styles = read("src/index.scss");
+      return !styles.includes(".na-detail__")
+        && !styles.includes(".na-reminder-popup")
+        && !styles.includes(".na-app__detail-pane")
+        && !existsSync("src/frontend/components/ReminderPopup.svelte")
+        && !existsSync("src/frontend/components/RepeatRuleDialog.svelte");
     },
   },
 ];

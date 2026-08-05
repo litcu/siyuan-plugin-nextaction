@@ -1,15 +1,20 @@
 <script lang="ts">
-    import { onMount, tick } from "svelte";
-    import type { PluginSettings, PriorityEngineSettings, MyDayViewMode, CustomFieldDef, ReminderSettings, McpCreateTarget } from "../../shared/settings";
+    import { afterUpdate, onMount, tick } from "svelte";
+    import { confirm } from "siyuan";
+    import type { PluginSettings, MyDayViewMode, CustomFieldDef, McpCreateTarget } from "../../shared/settings";
     import type { AiFeatureId } from "../../shared/ai";
-    import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, migrateCustomFieldDefs, normalizeCustomFieldKey, type CustomFieldOption, type CustomFieldType } from "../../shared/custom-fields";
+    import { migrateCustomFieldDefs } from "../../shared/custom-fields";
     import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS, validateSettings } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
-    import NaDotRating from "../ui/NaDotRating.svelte";
-    import NaToggle from "../ui/NaToggle.svelte";
     import { formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
+    import NaIcon from "../ui/NaIcon.svelte";
+    import GeneralSettingsPage from "./settings/GeneralSettingsPage.svelte";
+    import CustomFieldsSettingsPage from "./settings/CustomFieldsSettingsPage.svelte";
+    import AiSettingsPage from "./settings/AiSettingsPage.svelte";
+    import McpSettingsPage from "./settings/McpSettingsPage.svelte";
+    import AdvancedSettingsPage from "./settings/AdvancedSettingsPage.svelte";
 
     export let bridge: any;
     export let i18n: any;
@@ -17,46 +22,53 @@
     export let onClose: () => void;
     export let getCurrentDocumentId: () => string = () => "";
 
-    type TabId = "defaults" | "myDay" | "customFields" | "priority" | "reminder" | "mcp" | "ai";
+    type ModernTabId = "general" | "customFields" | "ai" | "mcp" | "advanced";
 
-    let activeTab: TabId = "defaults";
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
     let saving = false;
     let rebuilding = false;
     let rebuildingParents = false;
     let error = "";
+    let modernTab: ModernTabId = "general";
+    let settingsRootEl: HTMLDivElement;
+    let settingsBodyEl: HTMLDivElement;
+    let settingsLoaded = false;
+    let savedSignature = "";
+    let draftSignature = "";
 
-    // Local editable copies
-    let defaultImportance: number = DEFAULT_SETTINGS.defaultImportance;
-    let defaultEffort: number = DEFAULT_SETTINGS.defaultEffort;
+    $: modernTabs = [
+        { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
+        { id: "customFields" as const, label: i18n?.settingCustomFields || "Custom fields", desc: i18n?.settingCustomFieldsDesc || "Extend task attributes", icon: "iconDatabase", group: i18n?.settingNavGroupTask || "Workspace" },
+        { id: "ai" as const, label: i18n?.settingAi || "Built-in AI", desc: i18n?.settingAiDesc || "Customize built-in AI prompts", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
+        { id: "mcp" as const, label: i18n?.settingMcp || "MCP", desc: i18n?.settingMcpDesc || "Expose task tools to AI clients", icon: "iconCloud", group: i18n?.settingNavGroupIntegration || "Integrations" },
+        { id: "advanced" as const, label: i18n?.settingAdvanced || "Advanced", desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance", icon: "iconSort", group: i18n?.settingNavGroupSystem || "System" },
+    ];
 
-    // My Day
-    let myDayEnabled: boolean = DEFAULT_SETTINGS.myDayEnabled;
-    let myDayResetHour: number = DEFAULT_SETTINGS.myDayResetHour;
+    let defaultImportance = DEFAULT_SETTINGS.defaultImportance;
+    let defaultEffort = DEFAULT_SETTINGS.defaultEffort;
+    let myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
+    let myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
     let myDayDefaultViewMode: MyDayViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
-    let myDayDefaultDuration: number = DEFAULT_SETTINGS.myDayDefaultDuration;
+    let myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
 
-    // Priority engine
-    let dueWeight: number = DEFAULT_PRIORITY_ENGINE.dueWeight;
-    let startWeight: number = DEFAULT_PRIORITY_ENGINE.startWeight;
-    let importanceWeight: number = DEFAULT_PRIORITY_ENGINE.importanceWeight;
-    let dueDecayTau: number = DEFAULT_PRIORITY_ENGINE.dueDecayTau;
-    let overdueGrowth: number = DEFAULT_PRIORITY_ENGINE.overdueGrowth;
-    let overdueCap: number = DEFAULT_PRIORITY_ENGINE.overdueCap;
-    let startHorizon: number = DEFAULT_PRIORITY_ENGINE.startHorizon;
-    let effortScale: number = DEFAULT_PRIORITY_ENGINE.effortScale;
-    let startPreviewDays: number = DEFAULT_PRIORITY_ENGINE.startPreviewDays;
+    let dueWeight = DEFAULT_PRIORITY_ENGINE.dueWeight;
+    let startWeight = DEFAULT_PRIORITY_ENGINE.startWeight;
+    let importanceWeight = DEFAULT_PRIORITY_ENGINE.importanceWeight;
+    let dueDecayTau = DEFAULT_PRIORITY_ENGINE.dueDecayTau;
+    let overdueGrowth = DEFAULT_PRIORITY_ENGINE.overdueGrowth;
+    let overdueCap = DEFAULT_PRIORITY_ENGINE.overdueCap;
+    let startHorizon = DEFAULT_PRIORITY_ENGINE.startHorizon;
+    let effortScale = DEFAULT_PRIORITY_ENGINE.effortScale;
+    let startPreviewDays = DEFAULT_PRIORITY_ENGINE.startPreviewDays;
 
-    // Reminder
-    let reminderEnabled: boolean = DEFAULT_REMINDER_SETTINGS.enabled;
-    let reminderDefaultOffsets: number[] = [...DEFAULT_REMINDER_SETTINGS.defaultOffsets];
+    let reminderEnabled = DEFAULT_REMINDER_SETTINGS.enabled;
+    let reminderDefaultOffsets = [...DEFAULT_REMINDER_SETTINGS.defaultOffsets];
     let reminderDueSound: ReminderSoundId = DEFAULT_REMINDER_SETTINGS.dueSound;
     let reminderReviewSound: ReminderSoundId = DEFAULT_REMINDER_SETTINGS.reviewSound;
-    let reminderSoundEnabled: boolean = DEFAULT_REMINDER_SETTINGS.soundEnabled;
-    let newOffsetValue: number = 60;
+    let reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
+    let newOffsetValue = 60;
     let newOffsetUnit: "minutes" | "hours" | "days" = "minutes";
 
-    // MCP
     let mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
     let mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
     let mcpDefaultCreateTarget: McpCreateTarget = DEFAULT_MCP_SETTINGS.defaultCreateTarget;
@@ -67,84 +79,22 @@
     let mcpResolvedDocument: { id: string; title: string; notebookId: string } | null = null;
     let mcpResolvingDocument = false;
     let mcpCopied = false;
-    $: mcpEndpoint = `${window.location.origin}/mcp`;
+    $: mcpEndpoint = window.location.origin + "/mcp";
 
-    // AI prompts
     let aiPrompts: Record<AiFeatureId, string> = { ...DEFAULT_AI_SETTINGS.prompts };
-    const aiPromptFeatures: Array<{ id: AiFeatureId; label: string; description: string }> = [
-        { id: "extractTasks", label: "", description: "" },
-        { id: "decomposeTask", label: "", description: "" },
-        { id: "planMyDay", label: "", description: "" },
-        { id: "review", label: "", description: "" },
-    ];
-    $: aiPromptFeatures[0].label = i18n?.settingAiPromptExtractTasks || "Extract tasks";
-    $: aiPromptFeatures[0].description = i18n?.settingAiPromptExtractTasksDesc || "Identify executable tasks from selected note content.";
-    $: aiPromptFeatures[1].label = i18n?.settingAiPromptDecomposeTask || "Decompose task";
-    $: aiPromptFeatures[1].description = i18n?.settingAiPromptDecomposeTaskDesc || "Break a task or project into concrete next actions.";
-    $: aiPromptFeatures[2].label = i18n?.settingAiPromptPlanMyDay || "Plan My Day";
-    $: aiPromptFeatures[2].description = i18n?.settingAiPromptPlanMyDayDesc || "Choose the most valuable tasks for today.";
-    $: aiPromptFeatures[3].label = i18n?.settingAiPromptReview || "Review";
-    $: aiPromptFeatures[3].description = i18n?.settingAiPromptReviewDesc || "Analyze GTD review groups and suggest follow-up actions.";
-    const aiVariableGroups = [
-        { id: "runtime", names: ["{{today}}", "{{currentDateTime}}", "{{timezone}}", "{{feature}}"] },
-        { id: "task", names: ["{{currentTaskBlock}}", "{{currentTaskBlockWithChildren}}", "{{currentTaskBlockWithParent}}", "{{selectedBlocks}}", "{{block:块ID}}"] },
-        { id: "gtd", names: ["{{nextaction}}", "{{myDay}}", "{{inbox}}", "{{waiting}}", "{{someday}}", "{{overdue}}", "{{reviewDue}}", "{{activeProjects}}"] },
-    ];
-
-    function aiVariableGroupTitle(id: string): string {
-        if (id === "runtime") return i18n?.settingAiVariablesRuntime || "日期与运行环境";
-        if (id === "task") return i18n?.settingAiVariablesTask || "当前任务与笔记";
-        return i18n?.settingAiVariablesGtd || "GTD 任务集合";
-    }
-
-    // Custom fields
     let customFields: CustomFieldDef[] = [];
-    let newFieldKey: string = "";
-    let newFieldLabel: string = "";
-    let newFieldType: CustomFieldType = "text";
-    let newFieldOptions: string = "";
-    let newFieldScope: "all" | "task" | "project" | "projectTree" = "all";
-    let newFieldProjectIds: string = "";
-    let newFieldShowOnCard = true;
-    let newFieldError: string = "";
     let customFieldUsage: Record<string, number> = {};
-    let settingsBodyEl: HTMLDivElement;
 
     $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
+    $: isDirty = settingsLoaded && draftSignature !== savedSignature;
 
-    const tabs: { id: TabId; label: string; desc: string }[] = [
-        { id: "defaults", label: "", desc: "" },
-        { id: "myDay", label: "", desc: "" },
-        { id: "reminder", label: "", desc: "" },
-        { id: "customFields", label: "", desc: "" },
-        { id: "mcp", label: "", desc: "" },
-        { id: "ai", label: "", desc: "" },
-        { id: "priority", label: "", desc: "" },
-    ];
-
-    $: tabs[0].label = i18n.settingDefaults || "Task Defaults";
-    $: tabs[0].desc = i18n.settingDefaultsDesc || "Initial attributes when creating a task";
-    $: tabs[1].label = i18n.settingMyDay || "My Day";
-    $: tabs[1].desc = i18n.settingMyDayDesc || "Settings for the daily task planning view";
-    $: tabs[2].label = i18n.reminder || "Reminders";
-    $: tabs[2].desc = i18n.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates";
-    $: tabs[3].label = i18n.settingCustomFields || "Custom Fields";
-    $: tabs[3].desc = i18n.settingCustomFieldsDesc || "Add custom attribute fields to tasks";
-    $: tabs[4].label = i18n.settingMcp || "MCP";
-    $: tabs[4].desc = i18n.settingMcpDesc || "Expose NextAction task tools through SiYuan MCP";
-    $: tabs[5].label = i18n.settingAi || "AI";
-    $: tabs[5].desc = i18n.settingAiDesc || "Customize prompts for built-in AI features";
-    $: tabs[6].label = i18n.settingPriorityEngine || "Priority Parameters";
-    $: tabs[6].desc = i18n.settingPriorityEngineDesc || "Auto priority calculation parameters — do not modify if unsure";
-
-    $: tabTitle = tabs.find(t => t.id === activeTab)?.label || "";
-    $: tabDesc = tabs.find(t => t.id === activeTab)?.desc || "";
-
-    function selectTab(tab: TabId) {
-        activeTab = tab;
-        requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
-        setTimeout(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }), 60);
-    }
+    // Child component bindings are not visible inside a legacy reactive function call.
+    // Recompute after updates so custom-field edits and every other setting enable Save.
+    afterUpdate(() => {
+        if (!settingsLoaded) return;
+        const nextSignature = JSON.stringify(buildSettings());
+        if (draftSignature !== nextSignature) draftSignature = nextSignature;
+    });
 
     onMount(async () => {
         try {
@@ -175,6 +125,7 @@
                 },
                 customFields: migrateCustomFieldDefs(rawSettings?.customFields || []).fields,
             };
+
             current = settings;
             defaultImportance = settings.defaultImportance;
             defaultEffort = settings.defaultEffort;
@@ -192,19 +143,21 @@
             effortScale = settings.priorityEngine.effortScale;
             startPreviewDays = settings.priorityEngine.startPreviewDays ?? DEFAULT_PRIORITY_ENGINE.startPreviewDays;
             customFields = [...settings.customFields];
+
             try {
                 const diagnostics = await bridge.getCustomFieldDiagnostics();
                 customFieldUsage = Object.fromEntries((diagnostics.fields || []).map((item: any) => [item.key, item.count]));
             } catch (_e) {
                 customFieldUsage = {};
             }
-            // Reminder settings
-            const rs = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
-            reminderEnabled = rs.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
-            reminderDefaultOffsets = [...(rs.defaultOffsets ?? DEFAULT_REMINDER_SETTINGS.defaultOffsets)];
-            reminderDueSound = rs.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
-            reminderReviewSound = rs.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
-            reminderSoundEnabled = rs.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+
+            const reminder = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
+            reminderEnabled = reminder.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
+            reminderDefaultOffsets = [...(reminder.defaultOffsets ?? DEFAULT_REMINDER_SETTINGS.defaultOffsets)];
+            reminderDueSound = reminder.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
+            reminderReviewSound = reminder.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
+            reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+
             const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
             mcpEnabled = mcp.enabled;
             mcpAllowWrite = mcp.allowWrite;
@@ -212,6 +165,7 @@
             mcpInboxDocumentId = mcp.inboxDocumentId;
             mcpDailyNoteNotebookId = mcp.dailyNoteNotebookId;
             aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
+
             try {
                 [mcpStatus, mcpNotebooks] = await Promise.all([
                     bridge.getMcpStatus(),
@@ -222,15 +176,47 @@
                 mcpStatus = null;
                 mcpNotebooks = [];
             }
+
             await tick();
             settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" });
-            requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
-            setTimeout(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }), 60);
+            savedSignature = JSON.stringify(buildSettings());
+            settingsLoaded = true;
         } catch (e: any) {
             console.error("[NextAction] loadSettings failed:", e);
             error = formatRpcError(e, i18n);
         }
     });
+
+    function selectModernTab(tab: ModernTabId) {
+        modernTab = tab;
+        requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
+    }
+
+    function isTopmostSettingsDialog(): boolean {
+        const ownDialog = settingsRootEl?.closest(".b3-dialog");
+        const dialogs = (window as any).siyuan?.dialogs || [];
+        const topDialog = dialogs.length ? dialogs[dialogs.length - 1]?.element?.querySelector(".b3-dialog") : null;
+        return !topDialog || ownDialog === topDialog;
+    }
+
+    export function requestClose() {
+        if (!isDirty) {
+            onClose();
+            return;
+        }
+        confirm(
+            i18n?.settingsUnsavedTitle || i18n?.settingsTitle || "Unsaved changes",
+            i18n?.settingsUnsavedDesc || "You have unsaved changes. Close without saving?",
+            () => onClose(),
+        );
+    }
+
+    function handleWindowKeydown(event: KeyboardEvent) {
+        if (event.key !== "Escape" || event.isComposing || !isTopmostSettingsDialog()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        requestClose();
+    }
 
     function buildSettings(): PluginSettings {
         return {
@@ -292,7 +278,7 @@
         saving = true;
         try {
             const result = await bridge.updateSettings(settings);
-            if (result && result._rpcError) {
+            if (result?._rpcError) {
                 error = formatRpcError(result._rpcError, i18n);
                 return;
             }
@@ -313,8 +299,7 @@
             notifyInfo(i18n?.rebuildCacheSuccess || "Cache rebuilt successfully");
         } catch (e: any) {
             console.error("[NextAction] rebuildCache failed:", e);
-            const msg = formatRpcError(e, i18n);
-            error = msg;
+            error = formatRpcError(e, i18n);
             notifyError(i18n?.rebuildCacheFailed || "Failed to rebuild cache");
         } finally {
             rebuilding = false;
@@ -325,15 +310,15 @@
         rebuildingParents = true;
         error = "";
         try {
-            const fixed = await bridge.rebuildParentRelationships();
-            const msg = i18n?.rebuildParentsSuccess
+            const result = await bridge.rebuildParents();
+            const fixed = result?.fixed ?? result?.count ?? 0;
+            const message = i18n?.rebuildParentsSuccess
                 ? i18n.rebuildParentsSuccess.replace("{count}", String(fixed))
-                : `Fixed ${fixed} parent relationship(s)`;
-            notifyInfo(msg);
+                : "Fixed " + fixed + " parent relationship(s)";
+            notifyInfo(message);
         } catch (e: any) {
             console.error("[NextAction] rebuildParents failed:", e);
-            const msg = formatRpcError(e, i18n);
-            error = msg;
+            error = formatRpcError(e, i18n);
             notifyError(i18n?.rebuildParentsFailed || "Failed to fix parent relationships");
         } finally {
             rebuildingParents = false;
@@ -341,6 +326,7 @@
     }
 
     function handleResetPriority() {
+        current = { ...current, priorityEngine: { ...DEFAULT_PRIORITY_ENGINE } };
         dueWeight = DEFAULT_PRIORITY_ENGINE.dueWeight;
         startWeight = DEFAULT_PRIORITY_ENGINE.startWeight;
         importanceWeight = DEFAULT_PRIORITY_ENGINE.importanceWeight;
@@ -355,6 +341,13 @@
     function handleResetDefaults() {
         defaultImportance = DEFAULT_SETTINGS.defaultImportance;
         defaultEffort = DEFAULT_SETTINGS.defaultEffort;
+    }
+
+    function handleResetMyDay() {
+        myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
+        myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
+        myDayDefaultViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
+        myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
     }
 
     function handleResetReminder() {
@@ -378,8 +371,25 @@
         aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts };
     }
 
-    function handleResetAiPrompt(feature: AiFeatureId) {
-        aiPrompts = { ...aiPrompts, [feature]: DEFAULT_AI_SETTINGS.prompts[feature] };
+    function handleResetCustomFields() {
+        customFields = [];
+    }
+
+    function handleResetAll() {
+        confirm(
+            i18n?.settingResetAllTitle || i18n?.settingResetAll || "Reset all settings",
+            i18n?.settingResetAllConfirm || "Restore every saved setting to its default value?",
+            () => {
+                handleResetDefaults();
+                handleResetMyDay();
+                handleResetReminder();
+                handleResetCustomFields();
+                handleResetMcp();
+                handleResetAi();
+                handleResetPriority();
+                error = "";
+            },
+        );
     }
 
     async function resolveMcpInboxDocument(showError = true) {
@@ -424,24 +434,19 @@
     }
 
     function minutesToDisplay(minutes: number): { value: number; unit: "minutes" | "hours" | "days" } {
-        if (minutes % 1440 === 0 && minutes >= 1440) {
-            return { value: minutes / 1440, unit: "days" };
-        }
-        if (minutes % 60 === 0 && minutes >= 60) {
-            return { value: minutes / 60, unit: "hours" };
-        }
+        if (minutes % 1440 === 0 && minutes >= 1440) return { value: minutes / 1440, unit: "days" };
+        if (minutes % 60 === 0 && minutes >= 60) return { value: minutes / 60, unit: "hours" };
         return { value: minutes, unit: "minutes" };
     }
 
     function handleAddOffset() {
-        const mins = offsetToMinutes(newOffsetValue, newOffsetUnit);
-        if (mins < 1 || mins > 20160) return;
-        if (reminderDefaultOffsets.includes(mins)) return;
-        reminderDefaultOffsets = [...reminderDefaultOffsets, mins].sort((a, b) => a - b);
+        const minutes = offsetToMinutes(newOffsetValue, newOffsetUnit);
+        if (minutes < 1 || minutes > 20160 || reminderDefaultOffsets.includes(minutes)) return;
+        reminderDefaultOffsets = [...reminderDefaultOffsets, minutes].sort((a, b) => a - b);
     }
 
     function handleRemoveOffset(minutes: number) {
-        reminderDefaultOffsets = reminderDefaultOffsets.filter(o => o !== minutes);
+        reminderDefaultOffsets = reminderDefaultOffsets.filter((offset) => offset !== minutes);
     }
 
     function handlePreviewSound(soundId: ReminderSoundId) {
@@ -459,2175 +464,282 @@
         if (unit === "days") return i18n?.reminderOffsetDays || "days";
         return i18n?.reminderOffsetMinutes || "minutes";
     }
-
-    function getCustomFieldTypeLabel(type: CustomFieldType): string {
-        const key = `customFieldType${type.charAt(0).toUpperCase()}${type.slice(1)}`;
-        const fallback: Record<CustomFieldType, string> = {
-            text: "Text",
-            textarea: "Long text",
-            number: "Number",
-            boolean: "Yes / No",
-            date: "Date",
-            datetime: "Date & time",
-            singleSelect: "Single select",
-            multiSelect: "Multi-select",
-            url: "URL",
-        };
-        return i18n?.[key] || fallback[type];
-    }
-
-    function handleResetMyDay() {
-        myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
-        myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
-        myDayDefaultViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
-        myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
-    }
-
-    function handleResetCustomFields() {
-        customFields = [];
-    }
-
-    function createFieldId(): string {
-        try {
-            return crypto.randomUUID();
-        } catch (_e) {
-            return `field-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        }
-    }
-
-    function parseOptions(raw: string): CustomFieldOption[] | undefined {
-        if (newFieldType !== "singleSelect" && newFieldType !== "multiSelect") return undefined;
-        const labels = raw.split(",").map(item => item.trim()).filter(Boolean);
-        if (labels.length === 0) return undefined;
-        return labels.map((label, index) => ({ id: `option-${index + 1}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "value"}`, label, status: "active" as const }));
-    }
-
-    function scopeFromForm() {
-        if (newFieldScope === "task" || newFieldScope === "project") return { mode: newFieldScope } as const;
-        if (newFieldScope === "projectTree") return { mode: "projectTree", projectIds: newFieldProjectIds.split(",").map(item => item.trim()).filter(Boolean) } as const;
-        return { mode: "all" } as const;
-    }
-
-    function handleAddCustomField() {
-        newFieldError = "";
-        const key = normalizeCustomFieldKey(newFieldKey);
-        const label = newFieldLabel.trim();
-        if (!key) {
-            newFieldError = i18n?.customFieldKeyRequired || "Key is required";
-            return;
-        }
-        if (!isValidCustomFieldKey(key)) {
-            newFieldError = i18n?.customFieldKeyInvalid || "Key must use lowercase letters, digits and hyphens";
-            return;
-        }
-        if (!label) {
-            newFieldError = i18n?.customFieldLabelRequired || "Label is required";
-            return;
-        }
-        if (customFields.some(f => f.key === key)) {
-            newFieldError = i18n?.customFieldKeyDuplicate || "Key already exists";
-            return;
-        }
-        customFields = [...customFields, {
-            version: 2,
-            id: createFieldId(),
-            key,
-            label,
-            description: "",
-            type: newFieldType,
-            status: "active",
-            scope: scopeFromForm(),
-            showOnCard: newFieldShowOnCard,
-            options: parseOptions(newFieldOptions),
-        }];
-        newFieldKey = "";
-        newFieldLabel = "";
-        newFieldOptions = "";
-        newFieldType = "text";
-        newFieldScope = "all";
-        newFieldProjectIds = "";
-        newFieldShowOnCard = true;
-    }
-
-    function handleToggleCustomFieldStatus(index: number) {
-        const arr = [...customFields];
-        arr[index] = { ...arr[index], status: arr[index].status === "active" ? "archived" : "active", showOnCard: arr[index].status === "active" ? false : arr[index].showOnCard };
-        customFields = arr;
-    }
-
-    async function handlePurgeCustomField(field: CustomFieldDef, index: number) {
-        if (field.status !== "archived") return;
-        try {
-            const result = await bridge.purgeCustomField(field.id);
-            if (result.failedBlockIds?.length) {
-                newFieldError = (i18n?.customFieldPurgePartial || "{key}: {count} task value(s) could not be cleared")
-                    .replace("{key}", field.key)
-                    .replace("{count}", String(result.failedBlockIds.length));
-                return;
-            }
-            customFields = customFields.filter((_, i) => i !== index);
-            notifyInfo((i18n?.customFieldPurgeSuccess || "{label}: cleared {count} task value(s)")
-                .replace("{label}", field.label)
-                .replace("{count}", String(result.cleared)));
-        } catch (e: any) {
-            newFieldError = formatRpcError(e, i18n);
-        }
-    }
-
-    function handleRemoveCustomField(index: number) {
-        handleToggleCustomFieldStatus(index);
-    }
-
-    function handleMoveCustomFieldUp(index: number) {
-        if (index <= 0) return;
-        const arr = [...customFields];
-        [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
-        customFields = arr;
-    }
-
-    function handleMoveCustomFieldDown(index: number) {
-        if (index >= customFields.length - 1) return;
-        const arr = [...customFields];
-        [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
-        customFields = arr;
-    }
-
-    function handleUpdateCustomFieldLabel(index: number, newLabel: string) {
-        const arr = [...customFields];
-        arr[index] = { ...arr[index], label: newLabel };
-        customFields = arr;
-    }
-
-    function updateCustomField(index: number, patch: Partial<CustomFieldDef>) {
-        const arr = [...customFields];
-        arr[index] = { ...arr[index], ...patch };
-        customFields = arr;
-    }
-
-    function handleExistingOptionsChange(index: number, raw: string) {
-        const field = customFields[index];
-        const labels = raw.split(",").map(item => item.trim()).filter(Boolean);
-        const previous = field.options || [];
-        const options: CustomFieldOption[] = labels.map((label, optionIndex) => ({
-            id: previous[optionIndex]?.id || `option-${optionIndex + 1}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "value"}`,
-            label,
-            status: previous[optionIndex]?.status || "active",
-        }));
-        updateCustomField(index, { options });
-    }
-
-    function handleUpdateCustomFieldScope(index: number, value: string) {
-        if (value === "task" || value === "project") {
-            updateCustomField(index, { scope: { mode: value } });
-            return;
-        }
-        if (value === "projectTree") {
-            const currentScope = customFields[index]?.scope;
-            updateCustomField(index, { scope: { mode: "projectTree", projectIds: currentScope?.mode === "projectTree" ? currentScope.projectIds : [] } });
-            return;
-        }
-        updateCustomField(index, { scope: { mode: "all" } });
-    }
-
-    function handleExistingProjectIdsChange(index: number, raw: string) {
-        const field = customFields[index];
-        if (field?.scope.mode !== "projectTree") return;
-        updateCustomField(index, { scope: { mode: "projectTree", projectIds: raw.split(",").map(item => item.trim()).filter(Boolean) } });
-    }
-
-    function handleUpdateCustomFieldType(index: number, value: string) {
-        if (!(CUSTOM_FIELD_TYPES as readonly string[]).includes(value)) return;
-        const field = customFields[index];
-        if (field && (customFieldUsage[field.key] || 0) > 0 && value !== field.type) {
-            newFieldError = i18n?.customFieldTypeLocked || "A field with existing values cannot change type";
-            return;
-        }
-        updateCustomField(index, { type: value as CustomFieldType });
-    }
-
-    function handleReset() {
-        if (activeTab === "priority") handleResetPriority();
-        else if (activeTab === "myDay") handleResetMyDay();
-        else if (activeTab === "customFields") handleResetCustomFields();
-        else if (activeTab === "reminder") handleResetReminder();
-        else if (activeTab === "mcp") handleResetMcp();
-        else if (activeTab === "ai") handleResetAi();
-        else handleResetDefaults();
-    }
 </script>
 
-<div class="na-settings">
-    <!-- Left nav -->
-    <nav class="na-settings__nav">
-        <div class="na-settings__nav-title">{i18n.settingsTitle || "Settings"}</div>
-        {#each tabs as tab}
-            <button
-                class="na-settings__nav-item"
-                class:active={activeTab === tab.id}
-                on:click={() => selectTab(tab.id)}
-            >
-                {#if tab.id === "defaults"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="14" height="14" rx="2"/><polyline points="7 10 9 12 13 8"/>
-                    </svg>
-                {:else if tab.id === "myDay"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="10" cy="10" r="4"/>
-                        <line x1="10" y1="2" x2="10" y2="3.5"/>
-                        <line x1="10" y1="16.5" x2="10" y2="18"/>
-                        <line x1="2" y1="10" x2="3.5" y2="10"/>
-                        <line x1="16.5" y1="10" x2="18" y2="10"/>
-                    </svg>
-                {:else if tab.id === "reminder"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10 2a5 5 0 015 5c0 4 2 5 2 5H3s2-1 2-5a5 5 0 015-5"/>
-                        <path d="M8 17a2 2 0 004 0"/>
-                    </svg>
-                {:else if tab.id === "customFields"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="14" height="14" rx="2"/>
-                        <line x1="7" y1="7" x2="13" y2="7"/>
-                        <line x1="7" y1="10" x2="13" y2="10"/>
-                        <line x1="7" y1="13" x2="10" y2="13"/>
-                    </svg>
-                {:else if tab.id === "mcp"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M6 5.5h8a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z"/>
-                        <circle cx="8" cy="10" r="1"/><circle cx="12" cy="10" r="1"/><path d="M10 3v2.5M7 14.5v2M13 14.5v2"/>
-                    </svg>
-                {:else if tab.id === "ai"}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10 2.5l1.3 4.2L15.5 8l-4.2 1.3L10 13.5l-1.3-4.2L4.5 8l4.2-1.3L10 2.5z"/>
-                        <path d="M15.5 12.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6.6-1.9z"/>
-                    </svg>
-                {:else}
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                        <path d="M4 14l4-8 3 5 2-3 3 6"/>
-                    </svg>
-                {/if}
-                <span>{tab.label}</span>
-            </button>
-        {/each}
-    </nav>
+<svelte:window on:keydown|capture={handleWindowKeydown} />
 
-    <!-- Right content -->
-    <div class="na-settings__content">
-        <!-- Page header -->
-        <div class="na-settings__header">
-            <div class="na-settings__header-text">
-                <span class="na-settings__header-title">{tabTitle}</span>
-                <span class="na-settings__header-desc">{tabDesc}</span>
-            </div>
+<div class="na-settings-modern" bind:this={settingsRootEl}>
+    <aside class="na-settings-modern__nav" aria-label={i18n?.settingsTitle || "Settings"}>
+        <div class="na-settings-modern__brand">
+            <span class="na-settings-modern__brand-mark"><NaIcon symbol="iconNextAction" size={19} /></span>
+            <div><strong>{i18n?.settingsTitle || "Settings"}</strong><span>NextAction</span></div>
         </div>
+        {#each [i18n?.settingNavGroupTask || "Workspace", i18n?.settingNavGroupIntegration || "Integrations", i18n?.settingNavGroupSystem || "System"] as group}
+            <div class="na-settings-modern__group">
+                <span>{group}</span>
+                {#each modernTabs.filter(tab => tab.group === group) as tab}
+                    <button type="button" class:active={modernTab === tab.id} class="na-settings-modern__nav-item" on:click={() => selectModernTab(tab.id)} title={tab.label} aria-current={modernTab === tab.id ? "page" : undefined}>
+                        <NaIcon symbol={tab.icon} size={17} />
+                        <span>{tab.label}</span>
+                    </button>
+                {/each}
+            </div>
+        {/each}
+        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" on:click={handleResetAll} title={i18n?.settingResetAll || "Reset all settings"}>
+            <NaIcon symbol="iconRefresh" size={16} />
+            <span>{i18n?.settingResetAll || "Reset all settings"}</span>
+        </button>
+    </aside>
 
-        <!-- Scrollable body -->
-        <div class="na-settings__body" bind:this={settingsBodyEl}>
-            <!-- Tab: Defaults -->
-            {#if activeTab === "defaults"}
-                <div class="na-settings__page">
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-default-importance">
-                            {i18n.settingDefaultImportance || "Default Importance"}
-                            <span class="na-settings__field-hint">{i18n.settingDefaultImportanceDesc || "1-7"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaDotRating count={7} bind:value={defaultImportance} color="var(--na-color-importance)" id="setting-default-importance" />
-                        </div>
-                    </div>
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-default-effort">
-                            {i18n.settingDefaultEffort || "Default Effort"}
-                            <span class="na-settings__field-hint">{i18n.settingDefaultEffortDesc || "1-7"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaDotRating count={7} bind:value={defaultEffort} color="var(--na-color-effort)" id="setting-default-effort" />
-                        </div>
-                    </div>
+    <main class="na-settings-modern__content">
+        <header class="na-settings-modern__header">
+            <div>
+                <span class="na-settings-modern__kicker">{i18n?.settingsTitle || "Settings"}</span>
+                <h1>{modernTabs.find(tab => tab.id === modernTab)?.label}</h1>
+                <p>{modernTabs.find(tab => tab.id === modernTab)?.desc}</p>
+            </div>
+            <button type="button" class="b3-button b3-button--text na-settings-modern__close" on:click={requestClose} title={i18n?.cancel || "Close"} aria-label={i18n?.cancel || "Close"}>
+                <NaIcon symbol="iconCloseRound" size={18} />
+            </button>
+        </header>
 
-                    <!-- Rebuild cache -->
-                    <div class="na-settings__field na-settings__field--action">
-                        <span class="na-settings__field-label">
-                            {i18n.rebuildCache || "Rebuild Cache"}
-                            <span class="na-settings__field-hint">{i18n.rebuildCacheDesc || "Reload all task data from database"}</span>
-                        </span>
-                        <div class="na-settings__field-value">
-                            <button class="na-button na-button--sm" on:click={handleRebuildCache} disabled={rebuilding}>
-                                {rebuilding ? (i18n.loading || "...") : (i18n.rebuildCache || "Rebuild Cache")}
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Rebuild parent relationships -->
-                    <div class="na-settings__field na-settings__field--action">
-                        <span class="na-settings__field-label">
-                            {i18n.rebuildParents || "Fix Parent Relationships"}
-                            <span class="na-settings__field-hint">{i18n.rebuildParentsDesc || "Check and fix task hierarchy relationships"}</span>
-                        </span>
-                        <div class="na-settings__field-value">
-                            <button class="na-button na-button--sm" on:click={handleRebuildParents} disabled={rebuildingParents}>
-                                {rebuildingParents ? (i18n.loading || "...") : (i18n.rebuildParents || "Fix Parent Relationships")}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-            {:else if activeTab === "myDay"}
-                <div class="na-settings__page">
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-myday-enabled">
-                            {i18n.settingMyDayEnabled || "Enable My Day"}
-                            <span class="na-settings__field-hint">{i18n.settingMyDayEnabledDesc || "Show the My Day view in the navigation rail"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaToggle checked={myDayEnabled} on:change={(e) => myDayEnabled = e.detail.checked} />
-                        </div>
-                    </div>
-                    <div class="na-settings__field" class:na-settings__field--disabled={!myDayEnabled}>
-                        <label class="na-settings__field-label" for="setting-myday-reset-hour">
-                            {i18n.settingMyDayResetHour || "Daily Reset Hour"}
-                            <span class="na-settings__field-hint">{i18n.settingMyDayResetHourDesc || "0-23"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <input type="number" id="setting-myday-reset-hour" class="na-input na-settings__input--sm" min={0} max={23} step={1} bind:value={myDayResetHour} disabled={!myDayEnabled} />
-                            <span class="na-settings__unit">:00</span>
-                        </div>
-                    </div>
-                    <div class="na-settings__field" class:na-settings__field--disabled={!myDayEnabled}>
-                        <span class="na-settings__field-label">
-                            {i18n.settingMyDayDefaultViewMode || "Default View Mode"}
-                            <span class="na-settings__field-hint">{i18n.settingMyDayDefaultViewModeDesc || ""}</span>
-                        </span>
-                        <div class="na-settings__field-value">
-                            <label class="na-settings__radio">
-                                <input type="radio" name="myDayViewMode" value="timeline" bind:group={myDayDefaultViewMode} disabled={!myDayEnabled} />
-                                <span>{i18n.settingMyDayDefaultViewModeTimeline || "Timeline"}</span>
-                            </label>
-                            <label class="na-settings__radio">
-                                <input type="radio" name="myDayViewMode" value="list" bind:group={myDayDefaultViewMode} disabled={!myDayEnabled} />
-                                <span>{i18n.settingMyDayDefaultViewModeList || "List"}</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="na-settings__field" class:na-settings__field--disabled={!myDayEnabled}>
-                        <label class="na-settings__field-label" for="setting-myday-duration">
-                            {i18n.settingMyDayDefaultDuration || "Default Schedule Duration"}
-                            <span class="na-settings__field-hint">{i18n.settingMyDayDefaultDurationDesc || "min"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <input type="number" id="setting-myday-duration" class="na-input na-settings__input--sm" min={15} max={480} step={15} bind:value={myDayDefaultDuration} disabled={!myDayEnabled} />
-                            <span class="na-settings__unit">{i18n.settingMinutes || "min"}</span>
-                        </div>
-                    </div>
-                </div>
-
-            {:else if activeTab === "reminder"}
-                <div class="na-settings__page">
-                    <!-- Enabled toggle -->
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-reminder-enabled">
-                            {i18n.reminderSettingEnabled || "Enable Reminders"}
-                            <span class="na-settings__field-hint">{i18n.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaToggle checked={reminderEnabled} on:change={(e) => reminderEnabled = e.detail.checked} />
-                        </div>
-                    </div>
-
-                    <!-- Default offsets list -->
-                    <div class="na-settings__field" class:na-settings__field--disabled={!reminderEnabled}>
-                        <span class="na-settings__field-label">
-                            {i18n.reminderSettingDefaultOffsets || "Default Advance Times"}
-                            <span class="na-settings__field-hint">{i18n.reminderSettingDefaultOffsetsDesc || "List of advance times for due reminders"}</span>
-                        </span>
-                        <div class="na-settings__offset-list">
-                            {#each reminderDefaultOffsets as offset (offset)}
-                                {@const display = minutesToDisplay(offset)}
-                                <div class="na-settings__offset-item">
-                                    <span class="na-settings__offset-value">{display.value}</span>
-                                    <span class="na-settings__offset-unit">{getUnitLabel(display.unit)}</span>
-                                    <button class="na-settings__offset-remove" on:click={() => handleRemoveOffset(offset)} title={i18n?.reminderRemoveOffset || "Remove"} disabled={!reminderEnabled}>
-                                        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
-                                    </button>
-                                </div>
-                            {/each}
-                            {#if reminderDefaultOffsets.length === 0}
-                                <div class="na-settings__offset-empty">{i18n?.reminderNoPending || "No advance times configured"}</div>
-                            {/if}
-                        </div>
-                        <!-- Add new offset -->
-                        <div class="na-settings__offset-add">
-                            <input type="number" class="na-input na-settings__input--sm" min={1} bind:value={newOffsetValue} disabled={!reminderEnabled} />
-                            <select class="na-settings__offset-unit-select" bind:value={newOffsetUnit} disabled={!reminderEnabled}>
-                                <option value="minutes">{i18n?.reminderOffsetMinutes || "minutes"}</option>
-                                <option value="hours">{i18n?.reminderOffsetHours || "hours"}</option>
-                                <option value="days">{i18n?.reminderOffsetDays || "days"}</option>
-                            </select>
-                            <button class="na-button na-button--sm" on:click={handleAddOffset} disabled={!reminderEnabled}>
-                                {i18n?.reminderAddOffset || "Add"}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Due sound -->
-                    <div class="na-settings__field" class:na-settings__field--disabled={!reminderEnabled}>
-                        <label class="na-settings__field-label" for="setting-reminder-due-sound">
-                            {i18n.reminderSettingDueSound || "Due Reminder Sound"}
-                        </label>
-                        <div class="na-settings__field-value">
-                            <select id="setting-reminder-due-sound" class="na-settings__sound-select" bind:value={reminderDueSound} disabled={!reminderEnabled}>
-                                {#each REMINDER_SOUND_IDS as sid}
-                                    <option value={sid}>{getSoundLabel(sid)}</option>
-                                {/each}
-                            </select>
-                            <button class="na-button na-button--sm" on:click={() => handlePreviewSound(reminderDueSound)} disabled={!reminderEnabled} title={i18n?.reminderSoundPreview || "Preview"}>
-                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,5 7,2 7,14 3,11"/><path d="M10 5a3 3 0 010 6"/><path d="M12 3a6 6 0 010 10"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Review sound -->
-                    <div class="na-settings__field" class:na-settings__field--disabled={!reminderEnabled}>
-                        <label class="na-settings__field-label" for="setting-reminder-review-sound">
-                            {i18n.reminderSettingReviewSound || "Review Reminder Sound"}
-                        </label>
-                        <div class="na-settings__field-value">
-                            <select id="setting-reminder-review-sound" class="na-settings__sound-select" bind:value={reminderReviewSound} disabled={!reminderEnabled}>
-                                {#each REMINDER_SOUND_IDS as sid}
-                                    <option value={sid}>{getSoundLabel(sid)}</option>
-                                {/each}
-                            </select>
-                            <button class="na-button na-button--sm" on:click={() => handlePreviewSound(reminderReviewSound)} disabled={!reminderEnabled} title={i18n?.reminderSoundPreview || "Preview"}>
-                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,5 7,2 7,14 3,11"/><path d="M10 5a3 3 0 010 6"/><path d="M12 3a6 6 0 010 10"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Sound enabled -->
-                    <div class="na-settings__field" class:na-settings__field--disabled={!reminderEnabled}>
-                        <label class="na-settings__field-label" for="setting-reminder-sound-enabled">
-                            {i18n.reminderSettingSoundEnabled || "Sound"}
-                            <span class="na-settings__field-hint">{i18n.reminderSettingSoundEnabledDesc || "Play sound on reminder"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaToggle checked={reminderSoundEnabled} disabled={!reminderEnabled} on:change={(e) => reminderSoundEnabled = e.detail.checked} />
-                        </div>
-                    </div>
-                </div>
-
-            {:else if activeTab === "customFields"}
-                <div class="na-settings__page">
-                    <!-- Add new field -->
-                    <div class="na-settings__add-field-card">
-                        <div class="na-settings__add-field-header">
-                            <span class="na-settings__add-field-kicker">{i18n?.customFieldBuilderKicker || "FIELD BUILDER"}</span>
-                            <span class="na-settings__add-field-title">{i18n?.addCustomField || "Add Custom Field"}</span>
-                            <span class="na-settings__add-field-subtitle">{i18n?.addCustomFieldDesc || "Key cannot be changed after creation"}</span>
-                        </div>
-                        <div class="na-settings__add-field-form">
-                            <div class="na-settings__add-field-control">
-                                <label class="na-settings__add-field-label" for="setting-new-field-key">{i18n?.customFieldKeyLabel || "Key"}</label>
-                                <input
-                                    type="text"
-                                    id="setting-new-field-key"
-                                    class="na-input na-settings__custom-field-key-input"
-                                    value={newFieldKey}
-                                    placeholder={i18n?.customFieldKeyPlaceholder || "e.g. delegated-to"}
-                                    on:input={(e) => {
-                                        const raw = e.currentTarget.value;
-                                        newFieldKey = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^[^a-z]/, '');
-                                    }}
-                                    on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                                />
-                            </div>
-                            <div class="na-settings__add-field-control">
-                                <label class="na-settings__add-field-label" for="setting-new-field-label">{i18n?.customFieldLabelPlaceholder || "Label"}</label>
-                                <input
-                                    type="text"
-                                    id="setting-new-field-label"
-                                    class="na-input"
-                                    bind:value={newFieldLabel}
-                                    placeholder={i18n?.customFieldLabelPlaceholder || "e.g. Delegated to"}
-                                    on:keydown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                                />
-                            </div>
-                            <div class="na-settings__add-field-control">
-                                <label class="na-settings__add-field-label" for="setting-new-field-type">{i18n?.customFieldType || "Type"}</label>
-                                <select id="setting-new-field-type" class="na-select" bind:value={newFieldType}>
-                                    {#each CUSTOM_FIELD_TYPES as type}
-                                        <option value={type}>{getCustomFieldTypeLabel(type)}</option>
-                                    {/each}
-                                </select>
-                            </div>
-                            {#if newFieldType === "singleSelect" || newFieldType === "multiSelect"}
-                                <div class="na-settings__add-field-control">
-                                    <label class="na-settings__add-field-label" for="setting-new-field-options">{i18n?.customFieldOptions || "Options"}</label>
-                                    <input id="setting-new-field-options" class="na-input" bind:value={newFieldOptions} placeholder={i18n?.customFieldOptionsPlaceholder || "Home, Work, Waiting"} />
-                                </div>
-                            {/if}
-                            <div class="na-settings__add-field-control">
-                                <label class="na-settings__add-field-label" for="setting-new-field-scope">{i18n?.customFieldScope || "Scope"}</label>
-                                <select id="setting-new-field-scope" class="na-select" bind:value={newFieldScope}>
-                                    <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option>
-                                    <option value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option>
-                                    <option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option>
-                                    <option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
-                                </select>
-                            </div>
-                            {#if newFieldScope === "projectTree"}
-                                <div class="na-settings__add-field-control na-settings__add-field-control--wide">
-                                    <label class="na-settings__add-field-label" for="setting-new-field-projects">{i18n?.customFieldProjectIds || "Project IDs"}</label>
-                                    <input id="setting-new-field-projects" class="na-input" bind:value={newFieldProjectIds} placeholder={i18n?.customFieldProjectIdsPlaceholder || "Project block IDs, comma separated"} />
-                                </div>
-                            {/if}
-                            <div class="na-settings__custom-field-check na-settings__add-field-card-check">
-                                <NaToggle checked={newFieldShowOnCard} on:change={(e) => newFieldShowOnCard = e.detail.checked} />
-                                <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
-                            </div>
-                            <div class="na-settings__add-field-btn-cell">
-                                <button class="na-button na-button--primary na-settings__add-field-btn" on:click={handleAddCustomField}>
-                                    <span class="na-settings__add-field-btn-icon">+</span>
-                                    {i18n?.addCustomFieldBtn || "Add"}
-                                </button>
-                            </div>
-                        </div>
-                        {#if newFieldError}
-                            <div class="na-settings__field-error">{newFieldError}</div>
-                        {/if}
-                    </div>
-
-                    <!-- Existing fields -->
-                    {#if customFields.length > 0}
-                        <div class="na-settings__custom-fields-heading">
-                            <div>
-                                <span class="na-settings__section-kicker">{i18n?.customFieldCollectionKicker || "YOUR SCHEMA"}</span>
-                                <span class="na-settings__custom-fields-title">{i18n?.customFieldExisting || "Existing fields"}</span>
-                            </div>
-                            <span class="na-settings__custom-fields-count">{customFields.length}</span>
-                        </div>
-                        <div class="na-settings__custom-fields-list">
-                            {#each customFields as field, i (field.key)}
-                                <div class="na-settings__custom-field-item" class:na-settings__custom-field-item--archived={field.status === "archived"}>
-                                    <div class="na-settings__custom-field-bookmark">
-                                        <span class="na-settings__custom-field-bookmark-notch"></span>
-                                        <span class="na-settings__custom-field-key">{field.key}</span>
-                                    </div>
-                                    <div class="na-settings__custom-field-header">
-                                        <div class="na-settings__custom-field-identity">
-                                            <span class="na-settings__custom-field-inline-label">{i18n?.customFieldLabelPlaceholder || "Label"}</span>
-                                            <input type="text" class="na-input na-settings__custom-field-label-input" bind:value={customFields[i].label} placeholder={i18n?.customFieldLabelPlaceholder || "Field label"} on:change={() => { customFields = [...customFields]; }} />
-                                            <span class="na-settings__custom-field-usage">{customFieldUsage[field.key] || 0} {i18n?.customFieldUsed || "used"}{#if field.status === "archived"} · {i18n?.archived || "Archived"}{/if}</span>
-                                        </div>
-                                        <div class="na-settings__custom-field-check">
-                                            <NaToggle checked={field.showOnCard && field.status === "active"} disabled={field.status !== "active"} on:change={(e) => updateCustomField(i, { showOnCard: e.detail.checked })} />
-                                            <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
-                                        </div>
-                                        <div class="na-settings__custom-field-actions">
-                                            <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldUp(i)} disabled={i === 0} title={i18n?.moveUp || "Move Up"} aria-label={i18n?.moveUp || "Move Up"}>
-                                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 8 6 12 10"/></svg>
-                                            </button>
-                                            <button class="na-settings__custom-field-btn" on:click={() => handleMoveCustomFieldDown(i)} disabled={i === customFields.length - 1} title={i18n?.moveDown || "Move Down"} aria-label={i18n?.moveDown || "Move Down"}>
-                                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
-                                            </button>
-                                            <button class="na-settings__custom-field-btn" on:click={() => handleToggleCustomFieldStatus(i)} title={field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")} aria-label={field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")}>
-                                                {field.status === "active" ? "⌁" : "↺"}
-                                            </button>
-                                            {#if field.status === "archived"}
-                                                <button class="na-settings__custom-field-btn na-settings__custom-field-btn--danger" on:click={() => handlePurgeCustomField(field, i)} title={i18n?.purgeCustomField || "Purge values and delete"} aria-label={i18n?.purgeCustomField || "Purge values and delete"}>×</button>
-                                            {/if}
-                                        </div>
-                                    </div>
-                                    <div class="na-settings__custom-field-body">
-                                        <div class="na-settings__custom-field-control">
-                                            <span class="na-settings__custom-field-control-label">{i18n?.customFieldType || "Type"}</span>
-                                            <select class="na-select na-settings__custom-field-type-select" value={field.type} on:change={(e) => handleUpdateCustomFieldType(i, e.currentTarget.value)} disabled={field.status === "archived"}>
-                                                {#each CUSTOM_FIELD_TYPES as type}
-                                                    <option value={type}>{getCustomFieldTypeLabel(type)}</option>
-                                                {/each}
-                                            </select>
-                                        </div>
-                                        <div class="na-settings__custom-field-control">
-                                            <span class="na-settings__custom-field-control-label">{i18n?.customFieldScope || "Scope"}</span>
-                                            <select class="na-select na-settings__custom-field-scope-select" value={field.scope.mode} on:change={(e) => handleUpdateCustomFieldScope(i, e.currentTarget.value)} disabled={field.status === "archived"}>
-                                                <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option>
-                                                <option value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option>
-                                                <option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option>
-                                                <option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
-                                            </select>
-                                        </div>
-                                        {#if field.type === "singleSelect" || field.type === "multiSelect" || field.scope.mode === "projectTree"}
-                                            <div class="na-settings__custom-field-dynamic">
-                                                {#if field.type === "singleSelect" || field.type === "multiSelect"}
-                                                    <div class="na-settings__custom-field-control">
-                                                        <span class="na-settings__custom-field-control-label">{i18n?.customFieldOptions || "Options"}</span>
-                                                        <input class="na-input na-settings__custom-field-options-input" value={(field.options || []).map(option => option.label).join(", ")} on:change={(e) => handleExistingOptionsChange(i, e.currentTarget.value)} placeholder={i18n?.customFieldOptionsPlaceholder || "Home, Work, Waiting"} disabled={field.status === "archived"} />
-                                                    </div>
-                                                {/if}
-                                                {#if field.scope.mode === "projectTree"}
-                                                    <div class="na-settings__custom-field-control">
-                                                        <span class="na-settings__custom-field-control-label">{i18n?.customFieldProjectIds || "Project IDs"}</span>
-                                                        <input class="na-input na-settings__custom-field-options-input" value={field.scope.projectIds.join(", ")} on:change={(e) => updateCustomField(i, { scope: { mode: "projectTree", projectIds: e.currentTarget.value.split(",").map(item => item.trim()).filter(Boolean) } })} placeholder={i18n?.customFieldProjectIdsPlaceholder || "Project block IDs, comma separated"} disabled={field.status === "archived"} />
-                                                    </div>
-                                                {/if}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    {:else}
-                        <div class="na-settings__empty-state">
-                            <svg viewBox="0 0 48 48" width="32" height="32" fill="none" stroke="var(--b3-theme-on-surface-light)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
-                                <rect x="8" y="6" width="32" height="36" rx="4"/><line x1="16" y1="16" x2="32" y2="16"/><line x1="16" y1="22" x2="28" y2="22"/><line x1="16" y1="28" x2="24" y2="28"/><circle cx="34" cy="34" r="8" fill="var(--b3-theme-surface-lighter)" stroke="var(--b3-theme-primary)" stroke-width="1.5"/><line x1="34" y1="30" x2="34" y2="38"/><line x1="30" y1="34" x2="38" y2="34"/>
-                            </svg>
-                            <span class="na-settings__empty-text">{i18n?.customFieldEmpty || "No custom fields yet"}</span>
-                            <span class="na-settings__empty-hint">{i18n?.customFieldEmptyHint || "Add fields to extend task attributes, e.g. delegated to, reference link, etc."}</span>
-                        </div>
-                    {/if}
-                </div>
-
-            {:else if activeTab === "mcp"}
-                <div class="na-settings__page na-settings__mcp-page">
-                    <div class="na-settings__mcp-status" class:na-settings__mcp-status--active={mcpStatus?.supported && mcpEnabled}>
-                        <div class="na-settings__mcp-status-orb">
-                            <span></span>
-                        </div>
-                        <div class="na-settings__mcp-status-copy">
-                            <strong>{mcpStatus?.supported ? (mcpEnabled ? (i18n?.settingMcpStatusEnabled || "MCP tools enabled") : (i18n?.settingMcpStatusDisabled || "MCP tools disabled")) : (i18n?.settingMcpUnsupported || "MCP unavailable")}</strong>
-                            <span>{mcpStatus?.supported ? `${mcpStatus?.tools?.length || 0} ${i18n?.settingMcpRegisteredTools || "registered tools"}` : (mcpStatus?.lastError || i18n?.settingMcpUnsupportedDesc || "Upgrade SiYuan to a version that supports kernel MCP tools")}</span>
-                        </div>
-                        <span class="na-settings__mcp-source">source: plugin</span>
-                    </div>
-
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-mcp-enabled">
-                            {i18n?.settingMcpEnabled || "Enable MCP tools"}
-                            <span class="na-settings__field-hint">{i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaToggle id="setting-mcp-enabled" bind:checked={mcpEnabled} disabled={!mcpStatus?.supported} />
-                        </div>
-                    </div>
-
-                    <div class="na-settings__field">
-                        <label class="na-settings__field-label" for="setting-mcp-write">
-                            {i18n?.settingMcpAllowWrite || "Allow write tools"}
-                            <span class="na-settings__field-hint">{i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}</span>
-                        </label>
-                        <div class="na-settings__field-value">
-                            <NaToggle id="setting-mcp-write" bind:checked={mcpAllowWrite} disabled={!mcpEnabled || !mcpStatus?.supported} />
-                            {#if mcpAllowWrite}
-                                <span class="na-settings__mcp-warning">{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data"}</span>
-                            {/if}
-                        </div>
-                    </div>
-
-                    <div class="na-settings__mcp-endpoint-card">
-                        <span class="na-settings__section-kicker">MCP ENDPOINT</span>
-                        <div class="na-settings__mcp-endpoint-row">
-                            <code>{mcpEndpoint}</code>
-                            <button class="na-settings__mcp-copy" on:click={copyMcpEndpoint} title={i18n?.settingMcpCopyEndpoint || "Copy endpoint"}>
-                                {mcpCopied ? (i18n?.settingMcpCopied || "Copied") : (i18n?.settingMcpCopy || "Copy")}
-                            </button>
-                        </div>
-                        <span class="na-settings__mcp-endpoint-hint">{i18n?.settingMcpEndpointHint || "Uses SiYuan authentication. Tools may also be available to SiYuan's built-in AI Agent."}</span>
-                    </div>
-
-                    <div class="na-settings__card" class:na-settings__card--muted={!mcpAllowWrite}>
-                        <div class="na-settings__card-header">
-                            <span class="na-settings__card-title">{i18n?.settingMcpCreateTarget || "Task creation target"}</span>
-                            <span class="na-settings__card-desc">{i18n?.settingMcpCreateTargetDesc || "Default location used when create_task does not specify a destination"}</span>
-                        </div>
-                        <div class="na-settings__field">
-                            <label class="na-settings__field-label" for="setting-mcp-target">{i18n?.settingMcpDefaultTarget || "Default target"}</label>
-                            <select id="setting-mcp-target" class="na-select" bind:value={mcpDefaultCreateTarget} disabled={!mcpAllowWrite}>
-                                <option value="inbox">{i18n?.settingMcpTargetInbox || "Configured inbox document"}</option>
-                                <option value="daily_note">{i18n?.settingMcpTargetDailyNote || "Today's daily note"}</option>
-                            </select>
-                        </div>
-
-                        {#if mcpDefaultCreateTarget === "inbox"}
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-mcp-inbox">{i18n?.settingMcpInboxDocument || "Inbox document"}</label>
-                                <div class="na-settings__mcp-target-row">
-                                    <input id="setting-mcp-inbox" class="na-input" bind:value={mcpInboxDocumentId} on:blur={() => resolveMcpInboxDocument(false)} placeholder="20260802120000-abcdefg / siyuan://blocks/..." disabled={!mcpAllowWrite} />
-                                    <button class="na-button na-button--sm" on:click={useCurrentDocumentForMcp} disabled={!mcpAllowWrite}>{i18n?.settingMcpUseCurrentDocument || "Use current"}</button>
-                                    <button class="na-button na-button--sm" on:click={() => resolveMcpInboxDocument()} disabled={!mcpAllowWrite || mcpResolvingDocument}>{mcpResolvingDocument ? "…" : (i18n?.settingMcpVerify || "Verify")}</button>
-                                </div>
-                                {#if mcpResolvedDocument}
-                                    <div class="na-settings__mcp-resolved">
-                                        <span class="na-settings__mcp-check">✓</span>
-                                        <span>{mcpResolvedDocument.title || i18n?.untitled || "Untitled"}</span>
-                                        <code>{mcpResolvedDocument.id}</code>
-                                    </div>
-                                {/if}
-                            </div>
-                        {:else}
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-mcp-notebook">{i18n?.settingMcpDailyNoteNotebook || "Daily note notebook"}</label>
-                                <select id="setting-mcp-notebook" class="na-select" bind:value={mcpDailyNoteNotebookId} disabled={!mcpAllowWrite}>
-                                    <option value="">{i18n?.settingMcpSelectNotebook || "Select a notebook"}</option>
-                                    {#each mcpNotebooks as notebook}
-                                        <option value={notebook.id}>{notebook.name}</option>
-                                    {/each}
-                                </select>
-                            </div>
-                        {/if}
-                    </div>
-
-                    {#if mcpStatus?.tools?.length}
-                        <div class="na-settings__mcp-tools">
-                            <div class="na-settings__mcp-tools-heading">
-                                <span class="na-settings__section-kicker">{i18n?.settingMcpToolInventory || "TOOL INVENTORY"}</span>
-                                <span>{mcpStatus.tools.length}</span>
-                            </div>
-                            {#each mcpStatus.tools as tool}
-                                <div class="na-settings__mcp-tool-row">
-                                    <span class="na-settings__mcp-tool-mode" class:na-settings__mcp-tool-mode--write={tool.write}>{tool.write ? "WRITE" : "READ"}</span>
-                                    <div>
-                                        <strong>{tool.title}</strong>
-                                        <code>{tool.fullName}</code>
-                                    </div>
-                                    <span class="na-settings__mcp-source">{tool.source}</span>
-                                </div>
-                            {/each}
-                        </div>
-                    {/if}
-                </div>
-
-            {:else if activeTab === "ai"}
-                <div class="na-settings__page na-settings__ai-page">
-                    <div class="na-settings__ai-intro">
-                        <div class="na-settings__ai-intro-mark">✦</div>
-                        <div>
-                            <strong>{i18n?.settingAiPromptTitle || "内置 AI 提示词"}</strong>
-                            <p>{i18n?.settingAiPromptDesc || "调整每项功能的工作方式。插件会继续附加固定的 JSON 格式约束，避免模型返回不可写入的结果。"}</p>
-                        </div>
-                    </div>
-
-                    <div class="na-settings__ai-variables">
-                        <div class="na-settings__ai-variables-title">{i18n?.settingAiVariablesTitle || "可用变量"}</div>
-                        <p>{i18n?.settingAiVariablesDesc || "在提示词中使用变量会由插件替换为本次请求的真实上下文；暂时无法提供的内容会标记为“未提供”，不会被模型当作事实。"}</p>
-                        {#each aiVariableGroups as group}
-                            <div class="na-settings__ai-variable-group">
-                                <span>{aiVariableGroupTitle(group.id)}</span>
-                                <div>
-                                    {#each group.names as name}
-                                        <code>{name}</code>
-                                    {/each}
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-
-                    {#each aiPromptFeatures as feature, index}
-                        <section class="na-settings__ai-prompt-card">
-                            <div class="na-settings__ai-prompt-heading">
-                                <div class="na-settings__ai-prompt-index">0{index + 1}</div>
-                                <div>
-                                    <h3>{feature.label}</h3>
-                                    <p>{feature.description}</p>
-                                </div>
-                            </div>
-                            <label class="na-settings__ai-prompt-label" for={`setting-ai-prompt-${feature.id}`}>
-                                {i18n?.settingAiPromptInstruction || "功能指令"}
-                            </label>
-                            <textarea
-                                id={`setting-ai-prompt-${feature.id}`}
-                                class="na-settings__ai-prompt-textarea"
-                                rows={4}
-                                maxlength="12000"
-                                bind:value={aiPrompts[feature.id]}
-                                placeholder={DEFAULT_AI_SETTINGS.prompts[feature.id]}
-                            ></textarea>
-                            <div class="na-settings__ai-prompt-footer">
-                                <span>{i18n?.settingAiPromptHint || "建议描述目标、判断标准和需要避免的内容。"}</span>
-                                <span class="na-settings__ai-prompt-count">{(aiPrompts[feature.id] || "").length}/12000</span>
-                                <button type="button" class="na-settings__ai-prompt-reset" on:click={() => handleResetAiPrompt(feature.id)}>
-                                    {i18n?.settingAiPromptReset || "恢复默认"}
-                                </button>
-                            </div>
-                            <details class="na-settings__ai-runtime-preview">
-                                <summary>{i18n?.settingAiRuntimePreview || "查看实际请求中的固定部分（只读）"}</summary>
-                                <p>{i18n?.settingAiRuntimePreviewDesc || "这些内容不会保存到功能指令中，而是在每次运行时由插件根据当前任务数据自动生成。"}</p>
-                                <div class="na-settings__ai-runtime-section">
-                                    <span>输入数据区块</span>
-                                    <pre>{getAiPromptRuntimePreview(feature.id).input}</pre>
-                                </div>
-                                <div class="na-settings__ai-runtime-section">
-                                    <span>严格输出协议</span>
-                                    <pre>{getAiPromptRuntimePreview(feature.id).schema}</pre>
-                                </div>
-                                <div class="na-settings__ai-runtime-section">
-                                    <span>完整 JSON 示例</span>
-                                    <pre>{getAiPromptRuntimePreview(feature.id).example}</pre>
-                                </div>
-                            </details>
-                        </section>
-                    {/each}
-                </div>
-
-            {:else if activeTab === "priority"}
-                <div class="na-settings__page">
-                    <!-- Weight distribution card -->
-                    <div class="na-settings__card">
-                        <div class="na-settings__card-header">
-                            <span class="na-settings__card-title">{i18n.settingWeightDistribution || "Weight Distribution"}</span>
-                            <span class="na-settings__card-desc">{i18n.settingWeightDistributionDesc || "Share of each factor in priority; must sum to 1.0"}</span>
-                        </div>
-                        <div class="na-settings__weight-rows">
-                            <div class="na-settings__weight-row">
-                                <span class="na-settings__weight-label">{i18n.settingDueWeight || "Due date"}</span>
-                                <div class="na-settings__weight-track na-settings__weight-track--due">
-                                    <div class="na-settings__weight-fill" style="width:{dueWeight * 100}%"></div>
-                                </div>
-                                <input type="number" class="na-input na-settings__input--weight" min={0} max={1} step={0.05} bind:value={dueWeight} />
-                            </div>
-                            <div class="na-settings__weight-row">
-                                <span class="na-settings__weight-label">{i18n.settingStartWeight || "Start date"}</span>
-                                <div class="na-settings__weight-track na-settings__weight-track--start">
-                                    <div class="na-settings__weight-fill" style="width:{startWeight * 100}%"></div>
-                                </div>
-                                <input type="number" class="na-input na-settings__input--weight" min={0} max={1} step={0.05} bind:value={startWeight} />
-                            </div>
-                            <div class="na-settings__weight-row">
-                                <span class="na-settings__weight-label">{i18n.settingImportanceWeight || "Importance"}</span>
-                                <div class="na-settings__weight-track na-settings__weight-track--importance">
-                                    <div class="na-settings__weight-fill" style="width:{importanceWeight * 100}%"></div>
-                                </div>
-                                <input type="number" class="na-input na-settings__input--weight" min={0} max={1} step={0.05} bind:value={importanceWeight} />
-                            </div>
-                            <div class="na-settings__weight-sum" class:na-settings__weight-sum--error={weightSum !== 1}>
-                                <span class="na-settings__weight-sum-label">{i18n.settingWeightSum || "Sum"}</span>
-                                <span class="na-settings__weight-sum-value">
-                                    {weightSum.toFixed(2)}
-                                    {#if weightSum === 1}
-                                        <svg viewBox="0 0 16 16" width="12" height="12"><polyline points="3,8 7,12 13,4" fill="none" stroke="var(--na-color-done)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    {:else}
-                                        <svg viewBox="0 0 16 16" width="12" height="12"><line x1="4" y1="4" x2="12" y2="12" fill="none" stroke="var(--na-color-error)" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="4" x2="4" y2="12" fill="none" stroke="var(--na-color-error)" stroke-width="2" stroke-linecap="round"/></svg>
-                                    {/if}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Parameters card -->
-                    <div class="na-settings__card">
-                        <div class="na-settings__card-header">
-                            <span class="na-settings__card-title">{i18n.settingPriorityParams || "Parameters"}</span>
-                        </div>
-                        <div class="na-settings__params">
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-due-decay-tau">
-                                    {i18n.settingDueDecayTau || "Urgency Decay"}
-                                    <span class="na-settings__field-hint">{i18n.settingDueDecayTauDesc || "days"}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-due-decay-tau" class="na-input na-settings__input--sm" min={1} max={30} step={1} bind:value={dueDecayTau} />
-                                    <span class="na-settings__unit">{i18n.settingDays || "days"}</span>
-                                </div>
-                            </div>
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-overdue-growth">
-                                    {i18n.settingOverdueGrowth || "Overdue Growth"}
-                                    <span class="na-settings__field-hint">{i18n.settingOverdueGrowthDesc || ""}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-overdue-growth" class="na-input na-settings__input--sm" min={0} max={5} step={0.1} bind:value={overdueGrowth} />
-                                    <span class="na-settings__unit">/{i18n.settingDays || "days"}</span>
-                                </div>
-                            </div>
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-overdue-cap">
-                                    {i18n.settingOverdueCap || "Overdue Cap"}
-                                    <span class="na-settings__field-hint">{i18n.settingOverdueCapDesc || ""}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-overdue-cap" class="na-input na-settings__input--sm" min={0} max={100} step={1} bind:value={overdueCap} />
-                                </div>
-                            </div>
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-start-horizon">
-                                    {i18n.settingStartHorizon || "Start Date Horizon"}
-                                    <span class="na-settings__field-hint">{i18n.settingStartHorizonDesc || ""}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-start-horizon" class="na-input na-settings__input--sm" min={1} max={60} step={1} bind:value={startHorizon} />
-                                    <span class="na-settings__unit">{i18n.settingDays || "days"}</span>
-                                </div>
-                            </div>
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-start-preview-days">
-                                    {i18n.settingStartPreviewDays || "Start Preview Days"}
-                                    <span class="na-settings__field-hint">{i18n.settingStartPreviewDaysDesc || "0-14"}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-start-preview-days" class="na-input na-settings__input--sm" min={0} max={14} step={1} bind:value={startPreviewDays} />
-                                    <span class="na-settings__unit">{i18n.settingDays || "days"}</span>
-                                </div>
-                            </div>
-                            <div class="na-settings__field">
-                                <label class="na-settings__field-label" for="setting-effort-scale">
-                                    {i18n.settingEffortScale || "Effort Penalty"}
-                                    <span class="na-settings__field-hint">{i18n.settingEffortScaleDesc || ""}</span>
-                                </label>
-                                <div class="na-settings__field-value">
-                                    <input type="number" id="setting-effort-scale" class="na-input na-settings__input--sm" min={0} max={0.5} step={0.01} bind:value={effortScale} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="na-settings-modern__body" bind:this={settingsBodyEl}>
+            {#if modernTab === "general"}
+                <GeneralSettingsPage
+                    {i18n}
+                    bind:defaultImportance
+                    bind:defaultEffort
+                    bind:myDayEnabled
+                    bind:myDayResetHour
+                    bind:myDayDefaultViewMode
+                    bind:myDayDefaultDuration
+                    bind:reminderEnabled
+                    bind:reminderDefaultOffsets
+                    bind:reminderDueSound
+                    bind:reminderReviewSound
+                    bind:reminderSoundEnabled
+                    bind:newOffsetValue
+                    bind:newOffsetUnit
+                    soundIds={REMINDER_SOUND_IDS}
+                    {getSoundLabel}
+                    {getUnitLabel}
+                    {minutesToDisplay}
+                    onAddOffset={handleAddOffset}
+                    onRemoveOffset={handleRemoveOffset}
+                    onPreviewSound={handlePreviewSound}
+                    onResetDefaults={handleResetDefaults}
+                    onResetMyDay={handleResetMyDay}
+                    onResetReminder={handleResetReminder}
+                />
+            {:else if modernTab === "customFields"}
+                <CustomFieldsSettingsPage {i18n} {bridge} bind:customFields {customFieldUsage} />
+            {:else if modernTab === "ai"}
+                <AiSettingsPage {i18n} bind:aiPrompts defaultPrompts={DEFAULT_AI_SETTINGS.prompts} getRuntimePreview={getAiPromptRuntimePreview} />
+            {:else if modernTab === "mcp"}
+                <McpSettingsPage
+                    {i18n}
+                    bind:mcpEnabled
+                    bind:mcpAllowWrite
+                    bind:mcpDefaultCreateTarget
+                    bind:mcpInboxDocumentId
+                    bind:mcpDailyNoteNotebookId
+                    {mcpStatus}
+                    {mcpNotebooks}
+                    {mcpResolvedDocument}
+                    {mcpResolvingDocument}
+                    {mcpCopied}
+                    {mcpEndpoint}
+                    onResolveDocument={() => resolveMcpInboxDocument()}
+                    onUseCurrentDocument={useCurrentDocumentForMcp}
+                    onCopyEndpoint={copyMcpEndpoint}
+                    onReset={handleResetMcp}
+                />
+            {:else}
+                <AdvancedSettingsPage
+                    {i18n}
+                    bind:dueWeight
+                    bind:startWeight
+                    bind:importanceWeight
+                    bind:dueDecayTau
+                    bind:overdueGrowth
+                    bind:overdueCap
+                    bind:startHorizon
+                    bind:effortScale
+                    bind:startPreviewDays
+                    {weightSum}
+                    {rebuilding}
+                    {rebuildingParents}
+                    onResetPriority={handleResetPriority}
+                    onRebuildCache={handleRebuildCache}
+                    onRebuildParents={handleRebuildParents}
+                />
             {/if}
         </div>
 
-        <!-- Error -->
-        {#if error}
-            <div class="na-settings__error">{error}</div>
-        {/if}
-
-        <!-- Footer -->
-        <div class="na-settings__footer">
-            <button class="na-settings__reset-btn" on:click={handleReset}>
-                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2 8a6 6 0 0110-4.5"/><path d="M14 8a6 6 0 01-10 4.5"/><polyline points="11 1 11 4 8 4"/><polyline points="5 15 5 12 8 12"/>
-                </svg>
-                {i18n.settingReset || "Reset to Defaults"}
-            </button>
-            <div style="flex:1"></div>
-            <button class="na-button na-button--sm" on:click={onClose}>{i18n.cancel || "Cancel"}</button>
-            <button class="na-button na-button--primary na-button--sm" on:click={handleSave} disabled={saving}>
-                {saving ? (i18n.loading || "...") : (i18n.confirm || "OK")}
-            </button>
-        </div>
-    </div>
+        {#if error}<div class="na-settings-modern__error" role="alert" aria-live="polite">{error}</div>{/if}
+        <footer class="na-settings-modern__footer">
+            <div class="na-settings-modern__dirty" class:visible={isDirty}><span></span>{i18n?.settingsUnsaved || "Unsaved changes"}</div>
+            <div class="na-settings-modern__footer-actions">
+                <button type="button" class="b3-button b3-button--text" on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
+                <button type="button" class="b3-button b3-button--primary" on:click={handleSave} disabled={saving || !settingsLoaded || !isDirty}>{saving ? (i18n?.loading || "…") : (i18n?.confirm || "Save")}</button>
+            </div>
+        </footer>
+    </main>
 </div>
 
+
 <style lang="scss">
-    :global(.b3-dialog__content:has(.na-settings)) {
+    // ===== Modern settings shell =====
+    :global(.b3-dialog__content:has(.na-settings-modern)) {
+        display: flex;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden !important;
         padding: 0 !important;
     }
 
-    .na-settings {
-        display: flex;
-        height: 480px;
-        background: var(--b3-theme-background);
-        border-radius: var(--na-radius-lg);
+    :global(#naSettingsPanel:has(.na-settings-modern)) {
+        flex: 1;
+        height: 100%;
+        min-height: 0;
         overflow: hidden;
     }
 
-    // ===== Left nav =====
-    .na-settings__nav {
-        flex: 0 0 140px;
-        background: var(--b3-theme-surface);
-        border-right: 1px solid var(--na-color-divider);
+    .na-settings-modern {
+        --na-settings-nav-width: 176px;
         display: flex;
-        flex-direction: column;
-        padding: 0;
-    }
-
-    .na-settings__nav-title {
-        font-size: var(--na-font-size-lg);
-        font-weight: 600;
-        color: var(--b3-theme-on-surface);
-        padding: 20px 16px 12px;
-        letter-spacing: -0.01em;
-    }
-
-    .na-settings__nav-item {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        cursor: pointer;
-        border: none;
-        background: none;
-        color: var(--b3-theme-on-surface-secondary);
-        position: relative;
-        transition: color 0.15s, background 0.15s;
         width: 100%;
-        font-size: var(--na-font-size-md);
-        text-align: left;
-
-        svg {
-            flex-shrink: 0;
-        }
-
-        &:hover {
-            color: var(--b3-theme-primary);
-            background: var(--na-color-hover-bg);
-        }
-
-        &.active {
-            color: var(--b3-theme-primary);
-            font-weight: 500;
-            background: var(--na-color-selected-bg);
-
-            &::before {
-                content: "";
-                position: absolute;
-                left: 0;
-                top: 6px;
-                bottom: 6px;
-                width: 3px;
-                background: var(--b3-theme-primary);
-                border-radius: 0 2px 2px 0;
-            }
-        }
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        color: var(--b3-theme-on-background);
+        background: var(--b3-theme-background);
+        font-family: var(--b3-font-family);
     }
 
-    // ===== Right content =====
-    .na-settings__content {
-        flex: 1;
+    .na-settings-modern__nav {
+        position: sticky;
+        top: 0;
         display: flex;
+        flex: 0 0 var(--na-settings-nav-width);
         flex-direction: column;
-        min-width: 0;
+        gap: 16px;
+        padding: 19px 10px 14px;
+        overflow: hidden;
+        border-right: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
     }
 
-    // ===== Page header =====
-    .na-settings__header {
-        padding: 20px 24px 0;
-        flex-shrink: 0;
-    }
-
-    .na-settings__header-text {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding-bottom: 14px;
-        border-bottom: 1px solid var(--na-color-divider);
-    }
-
-    .na-settings__header-title {
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--b3-theme-on-surface);
-        letter-spacing: -0.01em;
-    }
-
-    .na-settings__header-desc {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-light);
-    }
-
-    // ===== Scrollable body =====
-    .na-settings__body {
-        flex: 1;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 20px 24px;
-    }
-
-    .na-settings__page {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    // ===== Field layout (label over value) =====
-    .na-settings__field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--na-color-divider);
-
-        &:last-child {
-            border-bottom: none;
-        }
-
-        &--action {
-            margin-top: 8px;
-            padding-top: 16px;
-        }
-    }
-
-    .na-settings__field-label {
-        font-size: var(--na-font-size-md);
-        font-weight: 500;
-        color: var(--b3-theme-on-surface);
-        display: flex;
-        align-items: baseline;
-        gap: 6px;
-    }
-
-    .na-settings__field-hint {
-        font-size: var(--na-font-size-xs);
-        font-weight: 400;
-        color: var(--b3-theme-on-surface-light);
-    }
-
-    .na-settings__field-value {
+    .na-settings-modern__brand {
         display: flex;
         align-items: center;
-        gap: 6px;
-        min-height: 30px;
+        gap: 9px;
+        padding: 0 7px 8px;
+        border-bottom: 1px solid var(--b3-border-color);
+
+        > div { display: flex; flex-direction: column; min-width: 0; }
+        strong { color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 650; }
+        span { margin-top: 1px; color: var(--b3-theme-on-surface-light); font-size: 10px; }
     }
 
-    // ===== Unit suffix =====
-    .na-settings__unit {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-light);
-        flex-shrink: 0;
-    }
-
-    // ===== Input sizes =====
-    :global(.na-settings__input--sm) {
-        width: 80px !important;
-    }
-
-    :global(.na-settings__input--weight) {
-        width: 64px !important;
-    }
-
-    // ===== Card containers (priority page) =====
-    .na-settings__card {
-        background: var(--b3-theme-surface);
-        border-radius: var(--na-radius-lg);
-        border: 1px solid var(--na-color-divider);
-        padding: 16px;
-        margin-bottom: 14px;
-
-        &:last-child {
-            margin-bottom: 0;
-        }
-    }
-
-    .na-settings__card-header {
-        margin-bottom: 12px;
-    }
-
-    .na-settings__card-title {
-        font-size: var(--na-font-size-md);
-        font-weight: 600;
-        color: var(--b3-theme-on-surface);
-    }
-
-    .na-settings__card-desc {
-        display: block;
-        font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
-        margin-top: 2px;
-    }
-
-    .na-settings__card--muted {
-        opacity: 0.58;
-    }
-
-    .na-settings__mcp-page {
-        gap: 12px;
-    }
-
-    .na-settings__ai-page {
-        gap: 14px;
-    }
-
-    .na-settings__ai-intro {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 14px 16px;
-        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 22%, var(--na-color-divider));
-        border-radius: var(--na-radius-lg);
-        background: linear-gradient(135deg, color-mix(in srgb, var(--b3-theme-primary) 10%, var(--b3-theme-surface)), var(--b3-theme-surface));
-    }
-
-    .na-settings__ai-intro-mark {
+    .na-settings-modern__brand-mark {
         display: grid;
         place-items: center;
-        width: 28px;
-        height: 28px;
-        flex: 0 0 28px;
+        width: 30px;
+        height: 30px;
         border-radius: 9px;
-        color: var(--b3-theme-primary);
-        background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
-        font-size: 17px;
+        color: var(--b3-theme-on-primary);
+        background: var(--b3-theme-primary);
     }
 
-    .na-settings__ai-intro strong {
-        display: block;
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-md);
-    }
-
-    .na-settings__ai-intro p {
-        margin: 4px 0 0;
-        color: var(--b3-theme-on-surface-light);
-        font-size: var(--na-font-size-xs);
-        line-height: 1.55;
-    }
-
-    .na-settings__ai-variables {
-        padding: 12px 14px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-        background: color-mix(in srgb, var(--b3-theme-surface) 82%, var(--b3-theme-background));
-    }
-
-    .na-settings__ai-variables-title {
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-sm);
-        font-weight: 600;
-    }
-
-    .na-settings__ai-variables > p {
-        margin: 4px 0 10px;
-        color: var(--b3-theme-on-surface-light);
-        font-size: var(--na-font-size-xs);
-        line-height: 1.45;
-    }
-
-    .na-settings__ai-variable-group {
-        display: grid;
-        grid-template-columns: 92px minmax(0, 1fr);
-        gap: 8px;
-        align-items: start;
-        margin-top: 7px;
-        color: var(--b3-theme-on-surface-secondary);
-        font-size: 11px;
-
-        > div {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-        }
-
-        code {
-            padding: 2px 5px;
-            border-radius: 4px;
-            color: var(--b3-theme-primary);
-            background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
-            font-size: 10px;
-        }
-    }
-
-    .na-settings__ai-prompt-card {
-        padding: 15px 16px 12px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-        background: var(--b3-theme-surface);
-        box-shadow: 0 4px 14px color-mix(in srgb, var(--b3-theme-on-background) 4%, transparent);
-    }
-
-    .na-settings__ai-prompt-heading {
+    .na-settings-modern__group {
         display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-bottom: 13px;
-    }
+        flex-direction: column;
+        gap: 3px;
 
-    .na-settings__ai-prompt-index {
-        color: var(--b3-theme-primary);
-        font: 600 11px/1 var(--b3-font-family-code);
-        letter-spacing: 0.08em;
-        padding-top: 3px;
-    }
-
-    .na-settings__ai-prompt-heading h3 {
-        margin: 0;
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-md);
-        font-weight: 600;
-    }
-
-    .na-settings__ai-prompt-heading p {
-        margin: 3px 0 0;
-        color: var(--b3-theme-on-surface-light);
-        font-size: var(--na-font-size-xs);
-        line-height: 1.45;
-    }
-
-    .na-settings__ai-prompt-label {
-        display: block;
-        margin-bottom: 6px;
-        color: var(--b3-theme-on-surface-secondary);
-        font-size: var(--na-font-size-xs);
-        font-weight: 600;
-    }
-
-    .na-settings__ai-prompt-textarea {
-        display: block;
-        width: 100%;
-        min-height: 94px;
-        resize: vertical;
-        box-sizing: border-box;
-        padding: 10px 11px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-md);
-        outline: none;
-        color: var(--b3-theme-on-surface);
-        background: var(--b3-theme-background);
-        font: 13px/1.6 var(--b3-font-family);
-        transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-
-        &:hover {
-            border-color: color-mix(in srgb, var(--b3-theme-primary) 36%, var(--na-color-divider));
-        }
-
-        &:focus {
-            border-color: var(--b3-theme-primary);
-            background: var(--b3-theme-surface);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
-        }
-
-        &::placeholder {
+        > span {
+            padding: 0 9px 4px;
             color: var(--b3-theme-on-surface-light);
-            opacity: 0.65;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
         }
     }
 
-    .na-settings__ai-prompt-footer {
+    .na-settings-modern__nav-item {
         display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        margin-top: 6px;
-        color: var(--b3-theme-on-surface-light);
-        font-size: 10px;
-
-        .na-settings__ai-prompt-count {
-            flex: 0 0 auto;
-            font-family: var(--b3-font-family-code);
-        }
-    }
-
-    .na-settings__ai-prompt-reset {
-        flex: 0 0 auto;
-        padding: 2px 6px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-sm);
+        align-items: center;
+        gap: 9px;
+        min-height: 34px;
+        padding: 0 9px;
+        border: 0;
+        border-radius: var(--b3-border-radius);
         color: var(--b3-theme-on-surface-light);
         background: transparent;
         cursor: pointer;
-        font-size: 10px;
-        transition: color 0.15s, border-color 0.15s, background 0.15s;
+        text-align: left;
+        transition: background 130ms ease, color 130ms ease;
 
-        &:hover {
-            border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-color-divider));
-            color: var(--b3-theme-primary);
-            background: var(--na-color-hover-bg);
-        }
+        &:hover { color: var(--b3-theme-on-surface); background: var(--b3-list-hover); }
+        &.active { color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); font-weight: 600; }
     }
 
-    .na-settings__ai-runtime-preview {
-        margin-top: 12px;
-        border-top: 1px solid var(--na-color-divider);
-        padding-top: 10px;
-
-        summary {
-            cursor: pointer;
-            color: var(--b3-theme-primary);
-            font-size: var(--na-font-size-xs);
-            font-weight: 600;
-        }
-
-        > p {
-            margin: 8px 0 10px;
-            color: var(--b3-theme-on-surface-light);
-            font-size: 11px;
-            line-height: 1.45;
-        }
-    }
-
-    .na-settings__ai-runtime-section {
-        margin-top: 9px;
-
-        > span {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--b3-theme-on-surface-secondary);
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        pre {
-            max-height: 220px;
-            margin: 0;
-            overflow: auto;
-            padding: 9px 10px;
-            border: 1px solid var(--na-color-divider);
-            border-radius: var(--na-radius-md);
-            color: var(--b3-theme-on-surface);
-            background: var(--b3-theme-background);
-            font: 11px/1.5 var(--b3-font-family-code);
-            white-space: pre-wrap;
-            user-select: text;
-        }
-    }
-
-    .na-settings__mcp-status {
-        display: grid;
-        grid-template-columns: 34px 1fr auto;
-        align-items: center;
-        gap: 10px;
-        padding: 12px 14px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-        background: linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-surface-lighter));
-    }
-
-    .na-settings__mcp-status-orb {
-        width: 30px;
-        height: 30px;
-        display: grid;
-        place-items: center;
-        border-radius: 50%;
-        background: var(--b3-theme-surface-lighter);
-
-        span {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--b3-theme-on-surface-light);
-            box-shadow: 0 0 0 4px color-mix(in srgb, var(--b3-theme-on-surface-light) 12%, transparent);
-        }
-    }
-
-    .na-settings__mcp-status--active .na-settings__mcp-status-orb span {
-        background: var(--na-color-done);
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--na-color-done) 15%, transparent), 0 0 12px color-mix(in srgb, var(--na-color-done) 40%, transparent);
-    }
-
-    .na-settings__mcp-status-copy {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-
-        strong {
-            color: var(--b3-theme-on-surface);
-            font-size: var(--na-font-size-md);
-        }
-
-        span {
-            color: var(--b3-theme-on-surface-light);
-            font-size: var(--na-font-size-xs);
-        }
-    }
-
-    .na-settings__mcp-source {
-        color: var(--b3-theme-on-surface-light);
-        font: 10px/1.2 var(--b3-font-family-code);
-        white-space: nowrap;
-    }
-
-    .na-settings__mcp-warning {
-        color: var(--na-color-warning, var(--b3-card-warning-color));
-        font-size: var(--na-font-size-xs);
-    }
-
-    .na-settings__mcp-endpoint-card {
-        padding: 12px 14px;
-        border-left: 3px solid var(--b3-theme-primary);
-        background: var(--b3-theme-surface);
-        border-radius: 0 var(--na-radius-md) var(--na-radius-md) 0;
-    }
-
-    .na-settings__mcp-endpoint-row {
+    .na-settings-modern__reset-all {
         display: flex;
         align-items: center;
+        align-self: flex-start;
         gap: 8px;
-        margin: 5px 0 3px;
-
-        code {
-            flex: 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: var(--b3-theme-on-surface);
-            font-size: var(--na-font-size-sm);
-        }
-    }
-
-    .na-settings__mcp-copy {
-        border: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-background);
-        color: var(--b3-theme-primary);
-        border-radius: var(--na-radius-sm);
-        padding: 3px 9px;
-        cursor: pointer;
-        font-size: var(--na-font-size-xs);
-    }
-
-    .na-settings__mcp-endpoint-hint {
-        color: var(--b3-theme-on-surface-light);
-        font-size: var(--na-font-size-xs);
-    }
-
-    .na-settings__mcp-target-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        gap: 6px;
-        width: 100%;
-    }
-
-    .na-settings__mcp-resolved {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 6px;
-        color: var(--b3-theme-on-surface-secondary);
-        font-size: var(--na-font-size-xs);
-
-        code {
-            margin-left: auto;
-            color: var(--b3-theme-on-surface-light);
-        }
-    }
-
-    .na-settings__mcp-check {
-        color: var(--na-color-done);
-        font-weight: 700;
-    }
-
-    .na-settings__mcp-tools {
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-        overflow: hidden;
-    }
-
-    .na-settings__mcp-tools-heading {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 12px;
-        background: var(--b3-theme-surface);
-        border-bottom: 1px solid var(--na-color-divider);
-        color: var(--b3-theme-on-surface-light);
-        font-size: var(--na-font-size-xs);
-    }
-
-    .na-settings__mcp-tool-row {
-        display: grid;
-        grid-template-columns: 42px minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 10px;
-        padding: 9px 12px;
-        border-bottom: 1px solid var(--na-color-divider);
-
-        &:last-child {
-            border-bottom: 0;
-        }
-
-        > div {
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-
-        strong {
-            color: var(--b3-theme-on-surface);
-            font-size: var(--na-font-size-sm);
-            font-weight: 500;
-        }
-
-        code {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: var(--b3-theme-on-surface-light);
-            font-size: 10px;
-        }
-    }
-
-    .na-settings__mcp-tool-mode {
-        color: var(--b3-theme-primary);
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-    }
-
-    .na-settings__mcp-tool-mode--write {
-        color: var(--na-color-warning, var(--b3-card-warning-color));
-    }
-
-    // ===== Weight distribution rows =====
-    .na-settings__weight-rows {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .na-settings__weight-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .na-settings__weight-label {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-secondary);
-        width: 56px;
-        flex-shrink: 0;
-    }
-
-    .na-settings__weight-track {
-        flex: 1;
-        height: 6px;
-        background: var(--b3-theme-surface-lighter);
-        border-radius: 3px;
-        overflow: hidden;
-    }
-
-    .na-settings__weight-fill {
-        height: 100%;
-        border-radius: 3px;
-        transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .na-settings__weight-track--due .na-settings__weight-fill {
-        background: var(--na-priority-critical);
-    }
-
-    .na-settings__weight-track--start .na-settings__weight-fill {
-        background: var(--na-priority-medium);
-    }
-
-    .na-settings__weight-track--importance .na-settings__weight-fill {
-        background: var(--na-color-importance);
-    }
-
-    // ===== Weight sum =====
-    .na-settings__weight-sum {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 8px;
-        border-top: 1px solid var(--na-color-divider);
-        margin-top: 4px;
-    }
-
-    .na-settings__weight-sum-label {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-secondary);
-    }
-
-    .na-settings__weight-sum-value {
-        font-size: var(--na-font-size-md);
-        font-variant-numeric: tabular-nums;
-        color: var(--na-color-done);
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-weight: 500;
-    }
-
-    .na-settings__weight-sum--error .na-settings__weight-sum-value {
-        color: var(--na-color-error);
-    }
-
-    // ===== Params inside card =====
-    .na-settings__params {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-    }
-
-    .na-settings__params .na-settings__field {
-        padding: 10px 0;
-    }
-
-    // ===== Error =====
-    .na-settings__error {
-        font-size: var(--na-font-size-md);
-        color: var(--na-color-error);
-        padding: 8px 24px;
-        background: rgba(229, 57, 53, 0.04);
-        border-top: 1px solid rgba(229, 57, 53, 0.15);
-        flex-shrink: 0;
-    }
-
-    // ===== Footer =====
-    .na-settings__footer {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 24px;
-        border-top: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-surface);
-        flex-shrink: 0;
-    }
-
-    .na-settings__reset-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-light);
-        background: none;
-        border: none;
-        cursor: pointer;
-        border-radius: var(--na-radius-sm);
-        transition: color 0.15s, background 0.15s;
-
-        &:hover {
-            color: var(--b3-theme-primary);
-            background: var(--na-color-hover-bg);
-        }
-
-        &:active {
-            transform: scale(0.96);
-        }
-    }
-
-    // ===== Radio =====
-    .na-settings__radio {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        cursor: pointer;
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface);
-
-        input[type="radio"] {
-            margin: 0;
-            accent-color: var(--b3-theme-primary);
-        }
-    }
-
-    // ===== Disabled field =====
-    .na-settings__field--disabled {
-        opacity: 0.45;
-        pointer-events: none;
-    }
-
-    // ===== Custom fields =====
-    .na-settings__custom-fields-heading {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 12px;
-        margin: 26px 2px 10px;
-    }
-
-    .na-settings__section-kicker,
-    .na-settings__add-field-kicker {
-        display: block;
-        color: var(--b3-theme-primary);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        line-height: 1.2;
-        text-transform: uppercase;
-    }
-
-    .na-settings__custom-fields-title {
-        display: block;
-        margin-top: 3px;
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-md);
-        font-weight: 650;
-    }
-
-    .na-settings__custom-fields-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 28px;
-        height: 24px;
-        padding: 0 8px;
-        border-radius: var(--na-radius-pill);
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary);
-        font-size: var(--na-font-size-xs);
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .na-settings__custom-fields-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .na-settings__custom-field-item {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        min-height: 0;
-        padding: 30px 16px 12px 22px;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-primary) 4%), var(--b3-theme-background));
-        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 18%, var(--na-color-divider));
-        border-radius: 12px;
-        box-shadow: 0 7px 20px rgba(0, 0, 0, 0.1);
-        animation: na-field-reveal 0.28s ease-out both;
-        transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
-
-        &--archived { opacity: 0.62; border-style: dashed; }
-        &:hover {
-            border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-color-divider));
-            transform: translateY(-1px);
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
-        }
-    }
-
-    .na-settings__custom-field-item:nth-child(2) { animation-delay: 0.04s; }
-    .na-settings__custom-field-item:nth-child(3) { animation-delay: 0.08s; }
-    .na-settings__custom-field-item:nth-child(4) { animation-delay: 0.12s; }
-
-    @keyframes na-field-reveal {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .na-settings__custom-field-bookmark {
-        position: absolute;
-        top: -1px;
-        left: 14px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        max-width: min(240px, calc(100% - 28px));
-        padding: 5px 11px 6px;
-        color: var(--b3-theme-on-primary);
-        background: linear-gradient(135deg, var(--b3-theme-primary), color-mix(in srgb, var(--b3-theme-primary) 72%, #111 28%));
-        border-radius: 0 0 7px 7px;
-        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
-    }
-
-    .na-settings__custom-field-bookmark-notch { width: 6px; height: 6px; border: 1px solid color-mix(in srgb, var(--b3-theme-on-primary) 70%, transparent); border-radius: 50%; opacity: 0.9; }
-
-    .na-settings__custom-field-header { display: flex; align-items: flex-start; gap: 12px; min-width: 0; padding-top: 0; }
-    .na-settings__custom-field-identity { display: flex; flex: 0 1 320px; align-items: center; gap: 7px; min-width: 0; }
-    .na-settings__custom-field-inline-label { flex: 0 0 auto; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); white-space: nowrap; }
-
-    .na-settings__custom-field-body { display: grid; grid-template-columns: 190px 200px minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--na-color-divider) 72%, transparent); }
-    .na-settings__custom-field-control { display: flex; flex-direction: row; align-items: center; gap: 6px; min-width: 0; }
-    .na-settings__custom-field-dynamic { display: flex; align-items: center; gap: 8px; grid-column: 3; min-width: 0; }
-    .na-settings__custom-field-dynamic > .na-settings__custom-field-control { flex: 1 1 0; min-width: 0; }
-    .na-settings__custom-field-control-label { flex: 0 0 auto; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); line-height: 1; white-space: nowrap; }
-    .na-settings__custom-field-key { max-width: 100%; font-size: 10px; font-family: var(--na-font-mono, monospace); color: var(--b3-theme-on-primary); letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .na-settings__custom-field-type-select,
-    .na-settings__custom-field-scope-select { width: 132px !important; min-width: 132px; height: 30px !important; font-size: var(--na-font-size-xs); }
-    .na-settings__custom-field-label-input { width: 220px; min-width: 120px; max-width: 220px; height: 30px !important; font-size: var(--na-font-size-sm); }
-    .na-settings__custom-field-usage { color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); flex-shrink: 0; white-space: nowrap; }
-    .na-settings__custom-field-options-input { width: 100% !important; min-width: 0; height: 30px !important; font-size: var(--na-font-size-xs); }
-    .na-settings__custom-field-check { display: inline-flex; align-items: center; gap: 5px; align-self: center; margin-left: auto; color: var(--b3-theme-on-surface-secondary); font-size: var(--na-font-size-xs); white-space: nowrap; }
-    .na-settings__custom-field-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 0; align-self: flex-start; padding-top: 1px; }
-
-    .na-settings__custom-field-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        border: none;
-        background: none;
-        color: var(--b3-theme-on-surface-light);
-        cursor: pointer;
-        border-radius: var(--na-radius-sm);
-        transition: color 0.15s, background 0.15s;
-
-        &:hover:not(:disabled) {
-            color: var(--b3-theme-primary);
-            background: var(--na-color-hover-bg);
-        }
-
-        &:disabled {
-            opacity: 0.25;
-            cursor: default;
-        }
-
-        &--danger:hover:not(:disabled) {
-            color: var(--na-color-error);
-            background: rgba(229, 57, 53, 0.06);
-        }
-    }
-
-    // ===== Empty state =====
-    .na-settings__empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        padding: 28px 16px;
-        margin-bottom: 16px;
-        background: var(--b3-theme-surface);
-        border: 1px dashed var(--na-color-divider);
-        border-radius: var(--na-radius-lg);
-    }
-
-    .na-settings__empty-text {
-        font-size: var(--na-font-size-md);
-        font-weight: 500;
-        color: var(--b3-theme-on-surface-secondary);
-    }
-
-    .na-settings__empty-hint {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-light);
-        text-align: center;
-        max-width: 240px;
-    }
-
-    // ===== Add field card =====
-    .na-settings__add-field-card {
-        position: relative;
-        overflow: hidden;
-        box-sizing: border-box;
-        max-width: 100%;
-        background: radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--b3-theme-primary) 14%, transparent), transparent 42%), linear-gradient(135deg, var(--b3-theme-surface), var(--b3-theme-background));
-        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 24%, var(--na-color-divider));
-        border-radius: 14px;
-        padding: 18px 20px 18px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-
-        &::before {
-            content: "";
-            position: absolute;
-            inset: 0 auto 0 0;
-            width: 4px;
-            background: linear-gradient(180deg, var(--b3-theme-primary), color-mix(in srgb, var(--b3-theme-primary) 45%, transparent));
-            opacity: 0.9;
-        }
-    }
-
-    .na-settings__add-field-header {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 3px;
-        margin-bottom: 14px;
-    }
-
-    .na-settings__add-field-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--b3-theme-on-surface);
-    }
-
-    .na-settings__add-field-subtitle { color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); }
-
-    .na-settings__add-field-form {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        align-items: end;
-    }
-
-    .na-settings__add-field-control {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-
-        &--wide { grid-column: 1 / -1; }
-    }
-
-    .na-settings__add-field-control > .na-input,
-    .na-settings__add-field-control > .na-select { width: 0; min-width: 0; flex: 1 1 0; }
-
-    .na-settings__add-field-label {
-        flex: 0 0 auto;
-        font-size: var(--na-font-size-xs);
-        font-weight: 650;
-        color: var(--b3-theme-on-surface-secondary);
-        white-space: nowrap;
-    }
-
-    .na-settings__add-field-btn-cell {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        min-height: 32px;
-        grid-column: auto;
-        justify-self: end;
-    }
-
-    .na-settings__add-field-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 14px; border-radius: 8px; font-weight: 650; }
-    .na-settings__add-field-btn-icon { font-size: 18px; line-height: 0; font-weight: 400; }
-
-    .na-settings__add-field-card-check {
-        align-self: center;
+        width: auto;
         min-height: 30px;
-        grid-column: span 2;
-    }
-
-    @media (max-width: 680px) {
-        .na-settings {
-            height: min(640px, 88vh);
-        }
-
-        .na-settings__nav {
-            flex-basis: 116px;
-        }
-
-        .na-settings__nav-item {
-            padding-left: 12px;
-            padding-right: 10px;
-            font-size: var(--na-font-size-sm);
-        }
-
-        .na-settings__header,
-        .na-settings__body {
-            padding-left: 16px;
-            padding-right: 16px;
-        }
-
-        .na-settings__add-field-form {
-            grid-template-columns: 1fr;
-        }
-
-        .na-settings__add-field-control--wide {
-            grid-column: auto;
-        }
-
-        .na-settings__add-field-btn-cell {
-            grid-column: auto;
-            justify-content: flex-start;
-            justify-self: start;
-        }
-
-        .na-settings__custom-field-header { flex-wrap: wrap; }
-        .na-settings__custom-field-identity { flex: 1 1 100%; flex-wrap: wrap; }
-        .na-settings__custom-field-label-input { width: min(100%, 220px); flex: 1 1 160px; }
-
-        .na-settings__custom-field-body {
-            grid-template-columns: minmax(0, 1fr);
-            align-items: stretch;
-        }
-
-        .na-settings__custom-field-type-select {
-            width: auto !important;
-            min-width: 0;
-            flex: 1 1 auto;
-        }
-
-        .na-settings__custom-field-scope-select { width: auto !important; min-width: 0; flex: 1 1 auto; }
-
-        .na-settings__custom-field-options-input {
-            width: 100% !important;
-        }
-
-        .na-settings__custom-field-dynamic { grid-column: auto; flex-direction: column; align-items: stretch; gap: 8px; }
-        .na-settings__custom-field-check { grid-column: auto; }
-
-        .na-settings__add-field-card-check {
-            grid-column: auto;
-        }
-
-        .na-settings__custom-field-actions {
-            margin-left: 0;
-            justify-content: flex-start;
-        }
-
-        .na-settings__custom-field-bookmark { left: 12px; max-width: calc(100% - 24px); }
-    }
-
-    :global(.na-settings__custom-field-key-input) {
-        font-family: var(--na-font-mono, monospace);
-    }
-
-    .na-settings__field-error {
-        font-size: var(--na-font-size-xs);
-        color: var(--na-color-error);
-        margin-top: 6px;
+        margin-top: auto;
         padding: 4px 8px;
-        background: rgba(229, 57, 53, 0.06);
-        border-radius: var(--na-radius-sm);
-    }
-
-    // ===== Reminder offsets =====
-    .na-settings__offset-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 4px;
-        min-height: 28px;
-    }
-
-    .na-settings__offset-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        background: var(--b3-theme-surface);
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-pill);
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-secondary);
-    }
-
-    .na-settings__offset-value {
-        font-variant-numeric: tabular-nums;
-        font-weight: 500;
-        color: var(--b3-theme-on-surface);
-    }
-
-    .na-settings__offset-unit {
-        font-size: var(--na-font-size-xs);
         color: var(--b3-theme-on-surface-light);
-    }
+        font: 400 11px/1.4 var(--b3-font-family);
 
-    .na-settings__offset-remove {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
-        border: none;
-        background: none;
-        color: var(--b3-theme-on-surface-light);
-        cursor: pointer;
-        border-radius: 50%;
-        transition: color 0.15s, background 0.15s;
-        padding: 0;
-
-        &:hover:not(:disabled) {
-            color: var(--na-color-error);
-            background: rgba(229, 57, 53, 0.06);
-        }
-
-        &:disabled {
-            opacity: 0.25;
-            cursor: default;
+        &:hover {
+            color: var(--b3-theme-error);
+            background: color-mix(in srgb, var(--b3-theme-error) 7%, var(--b3-theme-surface));
         }
     }
 
-    .na-settings__offset-empty {
-        font-size: var(--na-font-size-sm);
-        color: var(--b3-theme-on-surface-light);
-        padding: 8px 0;
+    .na-settings-modern__content { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+    .na-settings-modern__header { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex: 0 0 auto; padding: 21px 24px 16px; border-bottom: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
+    .na-settings-modern__kicker { display: block; margin-bottom: 4px; color: var(--b3-theme-primary); font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    .na-settings-modern__header h1 { margin: 0; color: var(--b3-theme-on-background); font-size: 17px; font-weight: 650; line-height: 23px; }
+    .na-settings-modern__header p { margin: 3px 0 0; color: var(--b3-theme-on-surface-light); font-size: 11px; line-height: 17px; }
+    :global(.na-settings-modern__close) { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--b3-theme-on-surface-light); }
+    .na-settings-modern__body { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px 22px; scrollbar-gutter: stable; }
+    .na-settings-modern__error { flex: 0 0 auto; padding: 9px 24px; border-top: 1px solid color-mix(in srgb, var(--b3-theme-error) 25%, var(--b3-border-color)); color: var(--b3-theme-error); background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-background)); font-size: 11px; line-height: 16px; }
+    .na-settings-modern__footer { position: sticky; z-index: 2; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: 0 0 auto; min-height: 52px; padding: 9px 24px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); }
+    .na-settings-modern__footer-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .na-settings-modern__dirty { display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface-light); font-size: 10px; opacity: 0; transition: opacity 130ms ease; }
+    .na-settings-modern__dirty.visible { opacity: 1; }
+    .na-settings-modern__dirty span { width: 6px; height: 6px; border-radius: 50%; background: var(--b3-theme-primary); }
+
+    @media (max-width: 720px) {
+        .na-settings-modern { --na-settings-nav-width: 58px; }
+        .na-settings-modern__nav { align-items: center; padding: 13px 7px; }
+        .na-settings-modern__brand { padding: 0 0 9px; border-bottom: 0; }
+        .na-settings-modern__brand > div, .na-settings-modern__group > span, .na-settings-modern__nav-item > span, .na-settings-modern__reset-all > span { display: none; }
+        .na-settings-modern__group { width: 100%; gap: 5px; }
+        .na-settings-modern__nav-item, .na-settings-modern__reset-all { justify-content: center; width: 44px; padding: 0; }
     }
 
-    .na-settings__offset-add {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 8px;
+    @media (max-width: 520px) {
+        .na-settings-modern { flex-direction: column; }
+        .na-settings-modern__nav { position: sticky; flex: 0 0 auto; flex-direction: row; gap: 5px; width: 100%; padding: 7px 9px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--b3-border-color); }
+        .na-settings-modern__brand { flex: 0 0 auto; padding: 0 7px 0 0; }
+        .na-settings-modern__group { flex: 0 0 auto; flex-direction: row; width: auto; }
+        .na-settings-modern__nav-item { width: 38px; min-height: 34px; }
+        .na-settings-modern__reset-all { flex: 0 0 38px; width: 38px; min-height: 34px; margin-top: 0; margin-left: auto; }
+        .na-settings-modern__header { padding: 15px 16px 13px; }
+        .na-settings-modern__body { padding: 14px 16px 18px; }
+        .na-settings-modern__footer { padding: 8px 16px; }
+        .na-settings-modern__dirty { display: none; }
     }
 
-    .na-settings__offset-unit-select {
-        height: 28px;
-        padding: 0 6px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-sm);
-        background: var(--b3-theme-surface);
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-sm);
-        cursor: pointer;
-        outline: none;
-
-        &:disabled {
-            opacity: 0.45;
-            cursor: default;
-        }
-    }
-
-    // ===== Sound selector =====
-    .na-settings__sound-select {
-        height: 28px;
-        min-width: 100px;
-        padding: 0 8px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-sm);
-        background: var(--b3-theme-surface);
-        color: var(--b3-theme-on-surface);
-        font-size: var(--na-font-size-sm);
-        cursor: pointer;
-        outline: none;
-
-        &:disabled {
-            opacity: 0.45;
-            cursor: default;
-        }
+    @media (prefers-reduced-motion: reduce) {
+        .na-settings-modern__nav-item, .na-settings-modern__dirty { transition: none; }
     }
 </style>

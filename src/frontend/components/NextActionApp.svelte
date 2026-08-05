@@ -20,14 +20,17 @@
     import { notifyError, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
     import { get } from "svelte/store";
-    import ReminderPopup from "./ReminderPopup.svelte";
-    import { Dialog } from "siyuan";
+    import NaDrawerHost from "../ui/NaDrawerHost.svelte";
+    import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 
     export let bridge: KernelBridge;
     export let i18n: any;
 
     let activeView: string = VIEW_NEXT_ACTION;
     let selectedTask: TaskCacheEntry | null = null;
+    let detailComponent: TaskDetail | null = null;
+    let taskAfterClose: TaskCacheEntry | null | undefined = undefined;
+    let viewAfterClose: string | undefined = undefined;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
     $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
@@ -52,6 +55,16 @@
     });
 
     function switchView(view: string) {
+        if (selectedTask) {
+            viewAfterClose = view;
+            taskAfterClose = null;
+            requestDetailClose();
+            return;
+        }
+        applyView(view);
+    }
+
+    function applyView(view: string) {
         activeView = view;
         selectedTask = null;
         taskStore.setActiveView(view);
@@ -59,18 +72,45 @@
 
     function handleSelectTask(task: TaskCacheEntry) {
         if (selectedTask && selectedTask.blockId === task.blockId) {
-            selectedTask = null;
+            taskAfterClose = null;
+            requestDetailClose();
+        } else if (selectedTask) {
+            taskAfterClose = task;
+            requestDetailClose();
         } else {
             selectedTask = task;
         }
     }
 
     function handleEdit(task: TaskCacheEntry) {
-        selectedTask = task;
+        if (selectedTask && selectedTask.blockId !== task.blockId) {
+            taskAfterClose = task;
+            requestDetailClose();
+        } else {
+            selectedTask = task;
+        }
     }
 
-    function handleDetailClose() {
-        selectedTask = null;
+    function closeDetailNow() {
+        selectedTask = taskAfterClose === undefined ? null : taskAfterClose;
+        taskAfterClose = undefined;
+        if (viewAfterClose !== undefined) {
+            const nextView = viewAfterClose;
+            viewAfterClose = undefined;
+            applyView(nextView);
+        }
+    }
+
+    async function requestDetailClose() {
+        if (detailComponent) {
+            const closed = await detailComponent.requestClose();
+            if (!closed) {
+                taskAfterClose = undefined;
+                viewAfterClose = undefined;
+            }
+        } else {
+            closeDetailNow();
+        }
     }
 
     function handleDetailSave(updated: TaskCacheEntry) {
@@ -121,30 +161,12 @@
             const storeState = get(taskStore);
             const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);
             if (!taskEntry) return;
-            const dialog = new Dialog({
-                title: i18n?.reminderPopupTitle || "提醒设置",
-                content: `<div id="na-reminder-popup-ctx"></div>`,
-                width: "360px",
+            openReminderSettingsDialog(taskEntry, bridge, i18n, {
+                onSave: (updated: TaskCacheEntry) => {
+                    taskStore.applyUpdate(updated);
+                    if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+                },
             });
-            // Add .nextaction class so --na-* CSS variables are available
-            dialog.element.classList.add("nextaction");
-            const container = dialog.element.querySelector("#na-reminder-popup-ctx");
-            if (container) {
-                new ReminderPopup({
-                    target: container,
-                    props: {
-                        task: taskEntry,
-                        bridge,
-                        i18n,
-                        onSave: (updated: TaskCacheEntry) => {
-                            taskStore.applyUpdate(updated);
-                            if (selectedTask && selectedTask.blockId === updated.blockId) {
-                                selectedTask = updated;
-                            }
-                        },
-                    },
-                });
-            }
         };
         showTaskContextMenu(task, event, bridge, i18n, callbacks, activeView, inMyDay);
     }
@@ -167,16 +189,8 @@
         }
     }
 
-    function handleKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape" && selectedTask) {
-            selectedTask = null;
-        }
-    }
-
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
 </script>
-
-<svelte:window on:keydown={handleKeydown} />
 
 <div class="nextaction na-app">
     <NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />
@@ -268,29 +282,21 @@
         </div>
     </div>
 
-    {#if selectedTask}
-        <button
-            class="na-app__detail-backdrop"
-            class:open={selectedTask !== null}
-            on:click={handleDetailClose}
-            aria-label="Close"
-        ></button>
-    {/if}
-
-    <div class="na-app__detail-pane" class:open={selectedTask !== null}>
+    <NaDrawerHost open={selectedTask !== null} label={i18n?.close || "Close"} on:requestClose={requestDetailClose}>
         {#if selectedTask}
             <div class="na-app__detail-inner">
                 {#key selectedTask.blockId}
                     <TaskDetail
+                        bind:this={detailComponent}
                         task={selectedTask}
                         {bridge}
                         {i18n}
                         onSave={handleDetailSave}
                         onRemove={handleDetailRemove}
-                        onClose={handleDetailClose}
+                        onClose={closeDetailNow}
                     />
                 {/key}
             </div>
         {/if}
-    </div>
+    </NaDrawerHost>
 </div>

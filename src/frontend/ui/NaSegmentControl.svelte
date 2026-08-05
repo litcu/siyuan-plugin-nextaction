@@ -3,6 +3,7 @@
 
   export let options: { value: string; label: string }[] = [];
   export let value: string = '';
+  export let label: string = '';
 
   const dispatch = createEventDispatcher<{ change: string }>();
 
@@ -15,7 +16,7 @@
   $: activeIndex = options.findIndex(o => o.value === value);
 </script>
 
-<div class="na-segment-control" role="radiogroup">
+<div class="na-segment-control" role="radiogroup" aria-label={label || undefined}>
   {#if activeIndex >= 0}
     <div
       class="na-segment-control__slider"
@@ -76,5 +77,12 @@
 
   .na-segment-control__option--active {
     color: var(--b3-theme-on-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .na-segment-control__slider,
+    .na-segment-control__option {
+      transition: none;
+    }
   }
 </style>

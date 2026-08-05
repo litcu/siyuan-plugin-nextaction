@@ -11,3 +11,4 @@ vendor/
 .codegraph
 docs/superpowers/
 docs/ui-preview/
+*.bak
