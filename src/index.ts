@@ -11,6 +11,7 @@ import NotificationHost from "./frontend/components/NotificationHost.svelte";
 import { normalizePriority, PRIORITY_LIST } from "./frontend/constants";
 import { toI18nKey } from "./frontend/utils";
 import { initAiFeatureService, runAiDecomposeTask, runAiExtractTasks } from "./frontend/ai/ai-feature-service";
+import { openReminderSettingsDialog } from "./frontend/dialogs/task-property-dialogs";
 
 const TAB_TYPE = "nextaction_tab";
 const DOCK_TYPE = "nextaction_dock";
@@ -32,6 +33,11 @@ export default class NextActionPlugin extends Plugin {
     private blockIconHandler: (({detail}: any) => void) | null = null;
     private editorTitleIconHandler: (({detail}: any) => void) | null = null;
     private notificationHost?: NotificationHost;
+
+    private async loadTaskStoreState(): Promise<void> {
+        await taskStore.loadSettings();
+        await taskStore.loadTasks();
+    }
 
     private getEditor(): any {
         return getAllEditor()[0];
@@ -272,28 +278,8 @@ export default class NextActionPlugin extends Plugin {
         const task = storeState.allTasks.find(t => t.blockId === blockId);
         if (!task) return;
 
-        const dialog = new Dialog({
-            title: this.i18n.reminderPopupTitle || "提醒设置",
-            content: `<div id="na-editor-reminder-ctx"></div>`,
-            width: "360px",
-        });
-        dialog.element.classList.add("nextaction");
-
-        const container = dialog.element.querySelector("#na-editor-reminder-ctx");
-        if (!container) return;
-
-        import("./frontend/components/ReminderPopup.svelte").then(({ default: ReminderPopupComp }) => {
-            new ReminderPopupComp({
-                target: container as HTMLElement,
-                props: {
-                    task,
-                    bridge: this.bridge,
-                    i18n: this.i18n,
-                    onSave: (updated: any) => {
-                        taskStore.applyUpdate(updated);
-                    },
-                },
-            });
+        openReminderSettingsDialog(task, this.bridge, this.i18n, {
+            onSave: (updated) => taskStore.applyUpdate(updated),
         });
     }
 
@@ -305,7 +291,9 @@ export default class NextActionPlugin extends Plugin {
         const dialog = new Dialog({
             title: "",
             content: `<div class="nextaction na-task-dialog-content"></div>`,
-            width: "480px",
+            width: "min(520px, calc(100vw - 24px))",
+            height: "min(720px, calc(100vh - 24px))",
+            disableClose: true,
             hideCloseIcon: true,
             destroyCallback: () => {
                 const comp = (dialog as any)._naDetail;
@@ -322,9 +310,12 @@ export default class NextActionPlugin extends Plugin {
 
         // Constrain dialog max-height so body scrolls
         const dialogContainer = dialog.element.querySelector(".b3-dialog__container") as HTMLElement;
-        if (dialogContainer) {
-            dialogContainer.style.maxHeight = "80vh";
-        }
+        dialogContainer?.classList.add("na-task-dialog-container");
+
+        dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
+            const component = (dialog as any)._naDetail as TaskDetail | undefined;
+            component?.requestClose();
+        });
 
         import("./frontend/components/TaskDetail.svelte").then(({ default: TaskDetailComp }) => {
             this.bridge.getTask(blockId).then((task) => {
@@ -782,7 +773,7 @@ export default class NextActionPlugin extends Plugin {
         this.eventBus.on("kernel-plugin-state-change", async ({ detail }: any) => {
             if (detail.code === 2) {
                 showMessage(`[NextAction] ${this.i18n.pluginName} ready`);
-                taskStore.loadTasks();
+                await this.loadTaskStoreState();
             }
         });
 
@@ -796,8 +787,8 @@ export default class NextActionPlugin extends Plugin {
         };
         this.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);
 
-        // The kernel owns settings persistence and applies settings before cache loading.
-        taskStore.loadTasks();
+        // Settings contain custom-field definitions required by task detail views.
+        void this.loadTaskStoreState();
 
         // Editor status checkbox click listener
         document.addEventListener('click', this.handleEditorStatusClick, true);

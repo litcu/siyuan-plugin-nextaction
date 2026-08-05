@@ -1,6 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import { portal } from "../utils/portal";
+    import NaIcon from "./NaIcon.svelte";
 
     export let value: string = ""; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm" or ""
     export let placeholder: string = "";
@@ -36,6 +37,8 @@
     $: setTimeLabel = i18n?.dpSetTime || "Set Time";
     $: hourLabel = i18n?.dpHour || "H";
     $: minuteLabel = i18n?.dpMinute || "Min";
+    $: previousMonthLabel = i18n?.dpPreviousMonth || "Previous month";
+    $: nextMonthLabel = i18n?.dpNextMonth || "Next month";
     const HOURS = Array.from({ length: 24 }, (_, i) => i);
     const MINUTES = Array.from({ length: 60 }, (_, i) => i);
     const ITEM_H = 22;
@@ -316,7 +319,11 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") open = false;
+        if (e.key === "Escape" && open) {
+            open = false;
+            e.preventDefault();
+            e.stopPropagation();
+        }
     }
 
     function handleViewportChange() {
@@ -333,7 +340,7 @@
     });
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} on:resize={handleViewportChange} />
+<svelte:window on:click={handleClickOutside} on:keydown|capture={handleKeydown} on:resize={handleViewportChange} />
 
 <div class="na-date-picker" bind:this={containerEl}>
     <div
@@ -355,15 +362,7 @@
             <span class="na-date-picker__placeholder">{placeholder}</span>
         {/if}
         <span class="na-date-picker__icon">
-            {#if value && value.includes("T")}
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="8" cy="8" r="6" /><polyline points="8,4 8,8 11,8" />
-                </svg>
-            {:else}
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="3" width="12" height="11" rx="1.5" /><line x1="2" y1="7" x2="14" y2="7" /><line x1="5" y1="1" x2="5" y2="4.5" /><line x1="11" y1="1" x2="11" y2="4.5" />
-                </svg>
-            {/if}
+            <NaIcon symbol={value && value.includes("T") ? "iconClock" : "iconCalendar"} size={14} />
         </span>
     </div>
 
@@ -371,12 +370,12 @@
         <div use:portal={fixedDropdown} bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
             <!-- Calendar -->
             <div class="na-date-picker__header">
-                <button class="na-date-picker__nav" on:click={prevMonth} aria-label="Previous month">
-                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,3 5,8 10,13" /></svg>
+                <button class="na-date-picker__nav na-date-picker__nav--previous" on:click={prevMonth} aria-label={previousMonthLabel} title={previousMonthLabel}>
+                    <NaIcon symbol="iconRight" size={12} />
                 </button>
                 <span class="na-date-picker__month-year">{i18n?.dpYearMonth ? i18n.dpYearMonth.replace("{y}", String(viewYear)).replace("{m}", String(viewMonth + 1)) : `${viewYear}/${viewMonth + 1}`}</span>
-                <button class="na-date-picker__nav" on:click={nextMonth} aria-label="Next month">
-                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,3 11,8 6,13" /></svg>
+                <button class="na-date-picker__nav" on:click={nextMonth} aria-label={nextMonthLabel} title={nextMonthLabel}>
+                    <NaIcon symbol="iconRight" size={12} />
                 </button>
             </div>
 
@@ -439,9 +438,7 @@
             <!-- Footer -->
             <div class="na-date-picker__footer">
                 <button class="na-date-picker__time-toggle" on:click={toggleTimeMode} disabled={requireTime}>
-                    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="8" cy="8" r="6" /><polyline points="8,4 8,8 11,8" />
-                    </svg>
+                    <NaIcon symbol="iconClock" size={11} />
                     <span>{timeMode ? dateOnlyLabel : setTimeLabel}</span>
                 </button>
                 <div class="na-date-picker__footer-actions">
@@ -527,6 +524,7 @@
         transition: background 0.15s, color 0.15s;
     }
     .na-date-picker__nav:hover { background: var(--b3-theme-surface-light); color: var(--b3-theme-on-background); }
+    .na-date-picker__nav--previous :global(.na-icon) { transform: rotate(180deg); }
 
     .na-date-picker__month-year {
         font-size: var(--na-font-size-md);

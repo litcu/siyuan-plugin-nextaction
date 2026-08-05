@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
 
@@ -97,6 +97,32 @@ const checks = [
       return readdirSync("src/frontend/ui")
         .filter((name) => name.endsWith(".svelte"))
         .every((name) => name.startsWith("Na"));
+    },
+  },
+  {
+    name: "task property panel and dialog hosts use theme-derived colors only",
+    run() {
+      const files = [
+        "src/frontend/components/TaskDetail.svelte",
+        "src/frontend/components/NextActionApp.svelte",
+        "src/frontend/components/DockSidebar.svelte",
+        "src/frontend/dialogs/task-property-dialogs.ts",
+      ];
+      return files.every((path) => {
+        const source = read(path);
+        return !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\(|hsla?\s*\()/i.test(source);
+      });
+    },
+  },
+  {
+    name: "legacy task detail and popup visual layers were removed",
+    run() {
+      const styles = read("src/index.scss");
+      return !styles.includes(".na-detail__")
+        && !styles.includes(".na-reminder-popup")
+        && !styles.includes(".na-app__detail-pane")
+        && !existsSync("src/frontend/components/ReminderPopup.svelte")
+        && !existsSync("src/frontend/components/RepeatRuleDialog.svelte");
     },
   },
 ];

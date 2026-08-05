@@ -3,6 +3,7 @@
 
   export let checked: boolean = false;
   export let disabled: boolean = false;
+  export let label: string = "";
 
   const dispatch = createEventDispatcher<{ change: { checked: boolean } }>();
 
@@ -30,6 +31,7 @@
   role="switch"
   aria-checked={checked}
   aria-disabled={disabled}
+  aria-label={label || undefined}
   tabindex={disabled ? -1 : 0}
   on:click={toggle}
   on:keydown={handleKeydown}

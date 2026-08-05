@@ -1,0 +1,149 @@
+import { confirm, Dialog } from "siyuan";
+import type { TaskCacheEntry } from "../../shared/types";
+import type { KernelBridge } from "../kernel-bridge";
+import { taskStore } from "../stores/task-store";
+import { formatRpcError } from "../notify";
+import { parseReminderItems, serializeReminderItems } from "../utils/reminder-utils";
+import NaReminderEditor from "../ui/NaReminderEditor.svelte";
+import NaRepeatRuleEditor from "../ui/NaRepeatRuleEditor.svelte";
+
+type DialogCallbacks = {
+    onSave?: (updated: TaskCacheEntry) => void;
+};
+
+function configureDialog(dialog: Dialog, className: string): HTMLElement | null {
+    dialog.element.classList.add("nextaction");
+    const container = dialog.element.querySelector(".b3-dialog__container");
+    container?.classList.add(className);
+    return dialog.element.querySelector("[data-na-dialog-target]");
+}
+
+function bindManagedClose(dialog: Dialog, requestClose: () => void): () => void {
+    const scrim = dialog.element.querySelector(".b3-dialog__scrim");
+    scrim?.addEventListener("click", requestClose);
+    const handleKeydown = (event: KeyboardEvent) => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        const dialogs = (window as any).siyuan?.dialogs;
+        if (Array.isArray(dialogs) && dialogs[dialogs.length - 1] !== dialog) return;
+        event.preventDefault();
+        event.stopPropagation();
+        requestClose();
+    };
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+}
+
+export function openReminderSettingsDialog(
+    task: TaskCacheEntry,
+    bridge: KernelBridge,
+    i18n: any,
+    callbacks: DialogCallbacks = {},
+): void {
+    let component: NaReminderEditor | null = null;
+    let unbindClose = () => {};
+    let currentItems = parseReminderItems(task.reminder);
+    const dialog = new Dialog({
+        title: "",
+        content: '<div class="nextaction na-property-dialog-target" data-na-dialog-target></div>',
+        width: "min(380px, calc(100vw - 24px))",
+        height: "min(560px, calc(100vh - 24px))",
+        disableClose: true,
+        hideCloseIcon: true,
+        destroyCallback: () => {
+            unbindClose();
+            component?.$destroy();
+        },
+    });
+    const target = configureDialog(dialog, "na-reminder-dialog-container");
+    if (!target) {
+        dialog.destroy();
+        return;
+    }
+
+    const close = () => dialog.destroy();
+    unbindClose = bindManagedClose(dialog, close);
+    component = new NaReminderEditor({
+        target,
+        props: {
+            items: currentItems,
+            due: task.due,
+            defaultOffsets: taskStoreSnapshot().settings?.reminderSettings?.defaultOffsets ?? [],
+            i18n,
+        },
+    });
+    component.$on("close", close);
+    component.$on("change", async (event: CustomEvent<{ items: typeof currentItems }>) => {
+        const previousItems = currentItems;
+        currentItems = event.detail.items;
+        component?.$set({ saving: true, error: "" });
+        try {
+            const updated = await bridge.updateTask(task.blockId, { "na-reminder": serializeReminderItems(currentItems) });
+            currentItems = parseReminderItems(updated.reminder);
+            component?.$set({ items: currentItems, due: updated.due });
+            callbacks.onSave?.(updated);
+        } catch (error: any) {
+            currentItems = previousItems;
+            component?.$set({ items: previousItems, error: formatRpcError(error, i18n) });
+        } finally {
+            component?.$set({ saving: false });
+        }
+    });
+}
+
+export function openRepeatRuleDialog(
+    task: TaskCacheEntry,
+    bridge: KernelBridge,
+    i18n: any,
+    callbacks: DialogCallbacks = {},
+): void {
+    let component: NaRepeatRuleEditor | null = null;
+    let unbindClose = () => {};
+    const dialog = new Dialog({
+        title: "",
+        content: '<div class="nextaction na-property-dialog-target na-repeat-rule-editor" data-na-dialog-target></div>',
+        width: "min(620px, calc(100vw - 24px))",
+        height: "min(680px, calc(100vh - 24px))",
+        disableClose: true,
+        hideCloseIcon: true,
+        destroyCallback: () => {
+            unbindClose();
+            component?.$destroy();
+        },
+    });
+    const target = configureDialog(dialog, "na-repeat-dialog-container");
+    if (!target) {
+        dialog.destroy();
+        return;
+    }
+
+    const requestClose = () => {
+        if (!component?.hasUnsavedChanges()) {
+            dialog.destroy();
+            return;
+        }
+        confirm(
+            i18n?.unsavedChangesTitle || "Unsaved changes",
+            i18n?.unsavedChangesMessage || "Discard unsaved changes?",
+            () => dialog.destroy(),
+        );
+    };
+    unbindClose = bindManagedClose(dialog, requestClose);
+    component = new NaRepeatRuleEditor({ target, props: { task, i18n } });
+    component.$on("requestClose", requestClose);
+    component.$on("apply", async (event: CustomEvent<{ rule: any }>) => {
+        component?.$set({ saving: true, error: "" });
+        try {
+            const updated = await bridge.setRepeatRule(task.blockId, event.detail.rule);
+            callbacks.onSave?.(updated);
+            dialog.destroy();
+        } catch (error: any) {
+            component?.$set({ saving: false, error: formatRpcError(error, i18n) });
+        }
+    });
+}
+
+function taskStoreSnapshot(): any {
+    let snapshot: any;
+    taskStore.subscribe(value => { snapshot = value; })();
+    return snapshot;
+}

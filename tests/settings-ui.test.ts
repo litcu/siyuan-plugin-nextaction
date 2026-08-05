@@ -28,6 +28,8 @@ test("设置页使用五个现代页面并保留外部组件契约", () => {
 test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(panel, /savedSignature/);
     assert.match(panel, /draftSignature/);
+    assert.match(panel, /afterUpdate\(\(\) => \{[\s\S]*JSON\.stringify\(buildSettings\(\)\)[\s\S]*draftSignature = nextSignature/);
+    assert.doesNotMatch(panel, /\$:\s*draftSignature\s*=\s*settingsLoaded\s*\?\s*JSON\.stringify\(buildSettings\(\)\)/);
     assert.match(panel, /settingsUnsavedDesc/);
     assert.match(panel, /on:keydown\|capture=\{handleWindowKeydown\}/);
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);

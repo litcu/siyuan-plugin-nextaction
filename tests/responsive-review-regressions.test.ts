@@ -18,13 +18,14 @@ const kernelSource = source("../src/kernel.ts");
 const typesSource = source("../src/shared/types.ts");
 const settingsSource = source("../src/shared/settings.ts");
 const stylesheetSource = source("../src/index.scss");
+const iconButtonSource = source("../src/frontend/ui/NaIconButton.svelte");
 const zhI18nSource = source("../src/i18n/zh-CN.json");
 const enI18nSource = source("../src/i18n/en.json");
 
 test("任务属性面板的跳转操作使用统一的图标按钮", () => {
-    assert.match(taskDetailSource, /class="na-button na-button--sm na-detail__jump-button"/);
-    assert.match(taskDetailSource, /na-detail__jump-button[\s\S]*#iconOpenWindow/);
-    assert.match(stylesheetSource, /\.na-detail__jump-button svg\s*\{[\s\S]*width:\s*13px[\s\S]*height:\s*13px/);
+    assert.match(taskDetailSource, /<NaIconButton symbol="iconOpenWindow"/);
+    assert.match(iconButtonSource, /aria-label=\{label\}/);
+    assert.match(iconButtonSource, /title=\{label\}/);
 });
 
 test("完整任务面板极窄时侧栏收缩为带 tooltip 的图标栏", () => {

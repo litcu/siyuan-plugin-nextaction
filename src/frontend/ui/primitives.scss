@@ -19,6 +19,41 @@
   line-height: 20px;
 }
 
+.nextaction textarea.b3-text-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  padding: var(--na-space-md);
+  resize: vertical;
+  font-family: var(--b3-font-family);
+  font-size: var(--na-font-size-md);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.nextaction .b3-button {
+  min-height: var(--na-control-height);
+  font-family: var(--b3-font-family);
+  font-size: var(--na-font-size-md);
+  letter-spacing: 0;
+}
+
+.nextaction :is(input, select, textarea, button):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 42%, transparent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nextaction *,
+  .nextaction *::before,
+  .nextaction *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 .nextaction select.b3-select {
   height: var(--na-control-height);
   padding-top: 5px;

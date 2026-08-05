@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, tick } from "svelte";
+    import { afterUpdate, onMount, tick } from "svelte";
     import { confirm } from "siyuan";
     import type { PluginSettings, MyDayViewMode, CustomFieldDef, McpCreateTarget } from "../../shared/settings";
     import type { AiFeatureId } from "../../shared/ai";
@@ -34,6 +34,7 @@
     let settingsBodyEl: HTMLDivElement;
     let settingsLoaded = false;
     let savedSignature = "";
+    let draftSignature = "";
 
     $: modernTabs = [
         { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
@@ -85,8 +86,15 @@
     let customFieldUsage: Record<string, number> = {};
 
     $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
-    $: draftSignature = settingsLoaded ? JSON.stringify(buildSettings()) : "";
     $: isDirty = settingsLoaded && draftSignature !== savedSignature;
+
+    // Child component bindings are not visible inside a legacy reactive function call.
+    // Recompute after updates so custom-field edits and every other setting enable Save.
+    afterUpdate(() => {
+        if (!settingsLoaded) return;
+        const nextSignature = JSON.stringify(buildSettings());
+        if (draftSignature !== nextSignature) draftSignature = nextSignature;
+    });
 
     onMount(async () => {
         try {
