@@ -693,5 +693,5 @@
     .na-date-picker__action--primary:hover { background: var(--b3-theme-primary-light); color: var(--b3-theme-on-primary); }
 
     .na-date-picker__action--danger { color: var(--b3-theme-error); }
-    .na-date-picker__action--danger:hover { background: rgba(231, 76, 60, 0.08); }
+    .na-date-picker__action--danger:hover { background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-surface)); }
 </style>

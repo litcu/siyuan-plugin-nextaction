@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
 
@@ -78,6 +78,25 @@ const checks = [
           && !/#(?:fff(?:fff)?|000(?:000)?)\b/i.test(source)
           && !/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\.1\s*\)/i.test(source);
       });
+    },
+  },
+  {
+    name: "public Na UI layer uses SiYuan colors only",
+    run() {
+      const files = readdirSync("src/frontend/ui")
+        .filter((name) => name.endsWith(".svelte") || name.endsWith(".scss"));
+      return files.every((name) => {
+        const source = read(`src/frontend/ui/${name}`);
+        return !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\()/i.test(source);
+      });
+    },
+  },
+  {
+    name: "public Svelte components use the Na prefix",
+    run() {
+      return readdirSync("src/frontend/ui")
+        .filter((name) => name.endsWith(".svelte"))
+        .every((name) => name.startsWith("Na"));
     },
   },
 ];

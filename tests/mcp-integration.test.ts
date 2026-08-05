@@ -6,7 +6,14 @@ const managerSource = readFileSync(new URL("../src/kernel/mcp-tool-manager.ts", 
 const taskServiceSource = readFileSync(new URL("../src/kernel/task-service.ts", import.meta.url), "utf8");
 const rpcSource = readFileSync(new URL("../src/kernel/rpc-server.ts", import.meta.url), "utf8");
 const kernelSource = readFileSync(new URL("../src/kernel.ts", import.meta.url), "utf8");
-const settingsSource = readFileSync(new URL("../src/frontend/components/SettingsPanel.svelte", import.meta.url), "utf8");
+const mcpSettingsPageSource = readFileSync(
+    new URL("../src/frontend/components/settings/McpSettingsPage.svelte", import.meta.url),
+    "utf8",
+);
+const aiSettingsPageSource = readFileSync(
+    new URL("../src/frontend/components/settings/AiSettingsPage.svelte", import.meta.url),
+    "utf8",
+);
 
 test("MCP 工具通过思源注册并保留插件来源和完整名称", () => {
     assert.match(managerSource, /mcpApi\.registerTool/);
@@ -25,10 +32,10 @@ test("设置由内核存储并触发 MCP 动态重配置", () => {
 });
 
 test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
-    assert.match(settingsSource, /source: plugin/);
-    assert.match(settingsSource, /tool\.fullName/);
-    assert.match(settingsSource, /mcpAllowWrite/);
-    assert.match(settingsSource, /settingMcpWriteWarning/);
+    assert.match(mcpSettingsPageSource, />plugin<\/code>/);
+    assert.match(mcpSettingsPageSource, /tool\.fullName/);
+    assert.match(mcpSettingsPageSource, /mcpAllowWrite/);
+    assert.match(mcpSettingsPageSource, /settingMcpWriteWarning/);
 });
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
@@ -56,9 +63,11 @@ test("列表项父块会复用已有的子列表", () => {
 });
 
 test("设置页提供四个内置 AI 功能的提示词编辑器", () => {
-    assert.match(settingsSource, /type TabId = .*"ai"/);
-    assert.match(settingsSource, /activeTab === "ai"/);
-    assert.match(settingsSource, /aiPrompts\[feature\.id\]/);
-    assert.match(settingsSource, /maxlength="12000"/);
-    assert.match(settingsSource, /handleResetAi/);
+    assert.match(aiSettingsPageSource, /extractTasks/);
+    assert.match(aiSettingsPageSource, /decomposeTask/);
+    assert.match(aiSettingsPageSource, /planMyDay/);
+    assert.match(aiSettingsPageSource, /review/);
+    assert.match(aiSettingsPageSource, /aiPrompts\[feature\.id\]/);
+    assert.match(aiSettingsPageSource, /maxlength="12000"/);
+    assert.match(aiSettingsPageSource, /resetPrompt/);
 });

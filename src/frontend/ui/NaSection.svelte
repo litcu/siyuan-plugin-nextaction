@@ -1,5 +1,5 @@
 <script lang="ts">
-    import SettingsIcon from "./SettingsIcon.svelte";
+    import NaIcon from "./NaIcon.svelte";
 
     export let title: string;
     export let description = "";
@@ -9,11 +9,11 @@
     export let tone: "default" | "warning" = "default";
 </script>
 
-<section class="na-setting-section" class:na-setting-section--warning={tone === "warning"}>
-    <header class="na-setting-section__header">
-        <div class="na-setting-section__heading">
+<section class="na-section" class:na-section--warning={tone === "warning"}>
+    <header class="na-section__header">
+        <div class="na-section__heading">
             {#if icon}
-                <span class="na-setting-section__icon"><SettingsIcon symbol={icon} size={16} /></span>
+                <span class="na-section__icon"><NaIcon symbol={icon} size={16} /></span>
             {/if}
             <div>
                 <h2>{title}</h2>
@@ -21,28 +21,28 @@
             </div>
         </div>
         {#if actionLabel && onAction}
-            <button type="button" class="b3-button b3-button--text na-setting-section__action" on:click={onAction}>
-                <SettingsIcon symbol="iconRefresh" size={13} />
+            <button type="button" class="b3-button b3-button--text na-section__action" on:click={onAction}>
+                <NaIcon symbol="iconRefresh" size={13} />
                 <span>{actionLabel}</span>
             </button>
         {/if}
     </header>
-    <div class="na-setting-section__body"><slot /></div>
+    <div class="na-section__body"><slot /></div>
 </section>
 
 <style lang="scss">
-    .na-setting-section {
+    .na-section {
         overflow: hidden;
         border: 1px solid var(--b3-border-color);
         border-radius: var(--b3-border-radius-b, 8px);
         background: var(--b3-theme-surface);
     }
 
-    .na-setting-section--warning {
+    .na-section--warning {
         border-color: color-mix(in srgb, var(--b3-card-warning-color) 34%, var(--b3-border-color));
     }
 
-    .na-setting-section__header {
+    .na-section__header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
@@ -52,7 +52,7 @@
         background: color-mix(in srgb, var(--b3-theme-surface) 88%, var(--b3-theme-background));
     }
 
-    .na-setting-section__heading {
+    .na-section__heading {
         display: flex;
         align-items: flex-start;
         gap: 10px;
@@ -75,7 +75,7 @@
         }
     }
 
-    .na-setting-section__icon {
+    .na-section__icon {
         display: grid;
         place-items: center;
         width: 28px;
@@ -86,7 +86,7 @@
         background: var(--b3-theme-primary-lightest);
     }
 
-    :global(.na-setting-section__action) {
+    :global(.na-section__action) {
         display: inline-flex;
         align-items: center;
         gap: 5px;
@@ -96,17 +96,12 @@
         font-size: 11px;
     }
 
-    .na-setting-section__body {
+    .na-section__body {
         padding: 0 18px;
     }
 
     @media (max-width: 520px) {
-        .na-setting-section__header {
-            padding: 13px 14px 11px;
-        }
-
-        .na-setting-section__body {
-            padding: 0 14px;
-        }
+        .na-section__header { padding: 13px 14px 11px; }
+        .na-section__body { padding: 0 14px; }
     }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
-    import SettingsIcon from "./SettingsIcon.svelte";
-    import SettingsRow from "./SettingsRow.svelte";
-    import SettingsSection from "./SettingsSection.svelte";
+    import NaIcon from "../../ui/NaIcon.svelte";
+    import NaSettingRow from "../../ui/NaSettingRow.svelte";
+    import NaSection from "../../ui/NaSection.svelte";
 
     export let i18n: any;
     export let dueWeight: number;
@@ -21,8 +21,8 @@
     export let onRebuildParents: () => void;
 </script>
 
-<div class="na-settings-page na-settings-advanced">
-    <SettingsSection
+<div class="na-page-stack na-settings-advanced">
+    <NaSection
         icon="iconSort"
         title={i18n?.settingWeightDistribution || "Weight distribution"}
         description={i18n?.settingWeightDistributionDesc || "Share of each factor in priority; the sum must be 1.0"}
@@ -33,29 +33,28 @@
             <div><span>{i18n?.settingDueWeight || "Due date"}</span><div class="na-settings-advanced__track"><i class="due" style={`width:${Math.max(0, Math.min(1, dueWeight)) * 100}%`}></i></div><input class="b3-text-field" type="number" min={0} max={1} step={0.05} bind:value={dueWeight} /></div>
             <div><span>{i18n?.settingStartWeight || "Start date"}</span><div class="na-settings-advanced__track"><i class="start" style={`width:${Math.max(0, Math.min(1, startWeight)) * 100}%`}></i></div><input class="b3-text-field" type="number" min={0} max={1} step={0.05} bind:value={startWeight} /></div>
             <div><span>{i18n?.settingImportanceWeight || "Importance"}</span><div class="na-settings-advanced__track"><i class="importance" style={`width:${Math.max(0, Math.min(1, importanceWeight)) * 100}%`}></i></div><input class="b3-text-field" type="number" min={0} max={1} step={0.05} bind:value={importanceWeight} /></div>
-            <div class="na-settings-advanced__sum" class:error={weightSum !== 1}><span>{i18n?.settingWeightSum || "Weight sum"}</span><strong>{weightSum.toFixed(2)} <SettingsIcon symbol={weightSum === 1 ? "iconCheck" : "iconClose"} size={13} /></strong></div>
+            <div class="na-settings-advanced__sum" class:error={weightSum !== 1}><span>{i18n?.settingWeightSum || "Weight sum"}</span><strong>{weightSum.toFixed(2)} <NaIcon symbol={weightSum === 1 ? "iconCheck" : "iconClose"} size={13} /></strong></div>
         </div>
-    </SettingsSection>
+    </NaSection>
 
-    <SettingsSection icon="iconSort" title={i18n?.settingPriorityParams || "Priority parameters"} description={i18n?.settingPriorityEngineDesc || "Automatic priority calculation parameters — adjust only if you understand their effect."}>
-        <SettingsRow forId="setting-due-decay-tau" title={i18n?.settingDueDecayTau || "Urgency decay"} description={i18n?.settingDueDecayTauDesc || "How quickly urgency drops as due date recedes"}><div class="na-settings-advanced__input"><input id="setting-due-decay-tau" class="b3-text-field" type="number" min={1} max={30} step={1} bind:value={dueDecayTau} /><span>{i18n?.settingDays || "days"}</span></div></SettingsRow>
-        <SettingsRow forId="setting-overdue-growth" title={i18n?.settingOverdueGrowth || "Overdue growth"} description={i18n?.settingOverdueGrowthDesc || "Priority increase per day past due"}><div class="na-settings-advanced__input"><input id="setting-overdue-growth" class="b3-text-field" type="number" min={0} max={5} step={0.1} bind:value={overdueGrowth} /><span>/{i18n?.settingDays || "days"}</span></div></SettingsRow>
-        <SettingsRow forId="setting-overdue-cap" title={i18n?.settingOverdueCap || "Overdue cap"} description={i18n?.settingOverdueCapDesc || "Maximum extra priority from being overdue"}><input id="setting-overdue-cap" class="b3-text-field na-settings-advanced__number" type="number" min={0} max={100} step={1} bind:value={overdueCap} /></SettingsRow>
-        <SettingsRow forId="setting-start-horizon" title={i18n?.settingStartHorizon || "Start date horizon"} description={i18n?.settingStartHorizonDesc || "Future tasks beyond this are deprioritized"}><div class="na-settings-advanced__input"><input id="setting-start-horizon" class="b3-text-field" type="number" min={1} max={60} step={1} bind:value={startHorizon} /><span>{i18n?.settingDays || "days"}</span></div></SettingsRow>
-        <SettingsRow forId="setting-start-preview-days" title={i18n?.settingStartPreviewDays || "Start preview days"} description={i18n?.settingStartPreviewDaysDesc || "How many days ahead to show upcoming tasks"}><div class="na-settings-advanced__input"><input id="setting-start-preview-days" class="b3-text-field" type="number" min={0} max={14} step={1} bind:value={startPreviewDays} /><span>{i18n?.settingDays || "days"}</span></div></SettingsRow>
-        <SettingsRow forId="setting-effort-scale" title={i18n?.settingEffortScale || "Effort penalty"} description={i18n?.settingEffortScaleDesc || "Higher effort reduces priority"}><input id="setting-effort-scale" class="b3-text-field na-settings-advanced__number" type="number" min={0} max={0.5} step={0.01} bind:value={effortScale} /></SettingsRow>
-    </SettingsSection>
+    <NaSection icon="iconSort" title={i18n?.settingPriorityParams || "Priority parameters"} description={i18n?.settingPriorityEngineDesc || "Automatic priority calculation parameters — adjust only if you understand their effect."}>
+        <NaSettingRow forId="setting-due-decay-tau" title={i18n?.settingDueDecayTau || "Urgency decay"} description={i18n?.settingDueDecayTauDesc || "How quickly urgency drops as due date recedes"}><div class="na-settings-advanced__input"><input id="setting-due-decay-tau" class="b3-text-field" type="number" min={1} max={30} step={1} bind:value={dueDecayTau} /><span>{i18n?.settingDays || "days"}</span></div></NaSettingRow>
+        <NaSettingRow forId="setting-overdue-growth" title={i18n?.settingOverdueGrowth || "Overdue growth"} description={i18n?.settingOverdueGrowthDesc || "Priority increase per day past due"}><div class="na-settings-advanced__input"><input id="setting-overdue-growth" class="b3-text-field" type="number" min={0} max={5} step={0.1} bind:value={overdueGrowth} /><span>/{i18n?.settingDays || "days"}</span></div></NaSettingRow>
+        <NaSettingRow forId="setting-overdue-cap" title={i18n?.settingOverdueCap || "Overdue cap"} description={i18n?.settingOverdueCapDesc || "Maximum extra priority from being overdue"}><input id="setting-overdue-cap" class="b3-text-field na-settings-advanced__number" type="number" min={0} max={100} step={1} bind:value={overdueCap} /></NaSettingRow>
+        <NaSettingRow forId="setting-start-horizon" title={i18n?.settingStartHorizon || "Start date horizon"} description={i18n?.settingStartHorizonDesc || "Future tasks beyond this are deprioritized"}><div class="na-settings-advanced__input"><input id="setting-start-horizon" class="b3-text-field" type="number" min={1} max={60} step={1} bind:value={startHorizon} /><span>{i18n?.settingDays || "days"}</span></div></NaSettingRow>
+        <NaSettingRow forId="setting-start-preview-days" title={i18n?.settingStartPreviewDays || "Start preview days"} description={i18n?.settingStartPreviewDaysDesc || "How many days ahead to show upcoming tasks"}><div class="na-settings-advanced__input"><input id="setting-start-preview-days" class="b3-text-field" type="number" min={0} max={14} step={1} bind:value={startPreviewDays} /><span>{i18n?.settingDays || "days"}</span></div></NaSettingRow>
+        <NaSettingRow forId="setting-effort-scale" title={i18n?.settingEffortScale || "Effort penalty"} description={i18n?.settingEffortScaleDesc || "Higher effort reduces priority"}><input id="setting-effort-scale" class="b3-text-field na-settings-advanced__number" type="number" min={0} max={0.5} step={0.01} bind:value={effortScale} /></NaSettingRow>
+    </NaSection>
 
-    <SettingsSection icon="iconRefresh" title={i18n?.settingMaintenance || "Maintenance"} description={i18n?.settingMaintenanceDesc || "These actions execute immediately and are not part of the Save operation."}>
+    <NaSection icon="iconRefresh" title={i18n?.settingMaintenance || "Maintenance"} description={i18n?.settingMaintenanceDesc || "These actions execute immediately and are not part of the Save operation."}>
         <div class="na-settings-advanced__maintenance">
             <div><div><strong>{i18n?.rebuildCache || "Rebuild cache"}</strong><span>{i18n?.rebuildCacheDesc || "Reload all task data from the database"}</span></div><button type="button" class="b3-button" on:click={onRebuildCache} disabled={rebuilding}>{rebuilding ? "…" : (i18n?.run || "Run")}</button></div>
             <div><div><strong>{i18n?.rebuildParents || "Repair parent relationships"}</strong><span>{i18n?.rebuildParentsDesc || "Check and fix task hierarchy relationships"}</span></div><button type="button" class="b3-button" on:click={onRebuildParents} disabled={rebuildingParents}>{rebuildingParents ? "…" : (i18n?.run || "Run")}</button></div>
         </div>
-    </SettingsSection>
+    </NaSection>
 </div>
 
 <style lang="scss">
-    .na-settings-page { display: flex; flex-direction: column; gap: 14px; }
     .na-settings-advanced__weights { display: flex; flex-direction: column; gap: 13px; padding: 8px 0 14px; }
     .na-settings-advanced__weights > div:not(.na-settings-advanced__sum) { display: grid; grid-template-columns: 72px minmax(0, 1fr) 72px; align-items: center; gap: 10px; }
     .na-settings-advanced__weights > div > span { color: var(--b3-theme-on-surface-light); font-size: 11px; }

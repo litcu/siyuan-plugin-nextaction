@@ -1,7 +1,7 @@
 <script lang="ts">
     import { confirm } from "siyuan";
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, normalizeCustomFieldKey, type CustomFieldDef, type CustomFieldOption, type CustomFieldType } from "../../../shared/custom-fields";
-    import SettingsIcon from "./SettingsIcon.svelte";
+    import NaIcon from "../../ui/NaIcon.svelte";
 
     export let i18n: any;
     export let bridge: any;
@@ -152,7 +152,7 @@
     }
 </script>
 
-<div class="na-settings-page na-settings-custom-fields">
+<div class="na-page-stack na-settings-custom-fields">
     <div class="na-settings-custom-fields__toolbar">
         <div>
             <span class="na-settings-custom-fields__eyebrow">{i18n?.customFieldCollectionKicker || "YOUR SCHEMA"}</span>
@@ -160,7 +160,7 @@
             <span>{customFields.length} {i18n?.customFieldCount || "fields"}</span>
         </div>
         <button type="button" class="b3-button b3-button--primary" on:click={() => { builderOpen = !builderOpen; if (!builderOpen) resetBuilder(); }}>
-            <SettingsIcon symbol={builderOpen ? "iconClose" : "iconAdd"} size={14} />
+            <NaIcon symbol={builderOpen ? "iconClose" : "iconAdd"} size={14} />
             {builderOpen ? (i18n?.cancel || "Cancel") : (i18n?.addCustomFieldBtn || "Add field")}
         </button>
     </div>
@@ -194,7 +194,7 @@
             <div class="na-settings-custom-fields__builder-footer">
                 <label class="na-settings-custom-fields__check"><input class="b3-switch" type="checkbox" bind:checked={newFieldShowOnCard} />{i18n?.customFieldShowOnCard || "Show on card"}</label>
                 {#if error}<span class="na-settings-custom-fields__error">{error}</span>{/if}
-                <button type="button" class="b3-button b3-button--primary" on:click={addField}><SettingsIcon symbol="iconAdd" size={14} />{i18n?.addCustomFieldBtn || "Add field"}</button>
+                <button type="button" class="b3-button b3-button--primary" on:click={addField}><NaIcon symbol="iconAdd" size={14} />{i18n?.addCustomFieldBtn || "Add field"}</button>
             </div>
         </section>
     {/if}
@@ -217,8 +217,8 @@
                                 <input class="b3-switch" type="checkbox" checked={field.showOnCard && field.status === "active"} on:change={(event) => updateField(index, { showOnCard: event.currentTarget.checked })} disabled={field.status !== "active"} />
                                 <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
                             </label>
-                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, -1)} disabled={index === 0} title={i18n?.moveUp || "Move up"} aria-label={i18n?.moveUp || "Move up"}><SettingsIcon symbol="iconUp" size={14} /></button>
-                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, 1)} disabled={index === customFields.length - 1} title={i18n?.moveDown || "Move down"} aria-label={i18n?.moveDown || "Move down"}><SettingsIcon symbol="iconDown" size={14} /></button>
+                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, -1)} disabled={index === 0} title={i18n?.moveUp || "Move up"} aria-label={i18n?.moveUp || "Move up"}><NaIcon symbol="iconUp" size={14} /></button>
+                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, 1)} disabled={index === customFields.length - 1} title={i18n?.moveDown || "Move down"} aria-label={i18n?.moveDown || "Move down"}><NaIcon symbol="iconDown" size={14} /></button>
                             <button type="button" class="b3-button b3-button--text" on:click={() => toggleStatus(index)}>{field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")}</button>
                             {#if field.status === "archived"}<button type="button" class="b3-button b3-button--text na-settings-custom-field__danger" on:click={() => purgeField(field, index)}>{i18n?.purgeCustomField || "Purge"}</button>{/if}
                         </div>
@@ -240,7 +240,7 @@
         </div>
     {:else}
         <div class="na-settings-custom-fields__empty">
-            <SettingsIcon symbol="iconDatabase" size={28} />
+            <NaIcon symbol="iconDatabase" size={28} />
             <strong>{i18n?.customFieldEmpty || "No custom fields yet"}</strong>
             <span>{i18n?.customFieldEmptyHint || "Add fields to extend task attributes."}</span>
         </div>
@@ -248,7 +248,6 @@
 </div>
 
 <style lang="scss">
-    .na-settings-page { display: flex; flex-direction: column; gap: 14px; }
     .na-settings-custom-fields__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 2px 2px; }
     .na-settings-custom-fields__toolbar > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 10px; }
     .na-settings-custom-fields__toolbar strong { color: var(--b3-theme-on-surface); font-size: 14px; }

@@ -416,7 +416,7 @@
         border-radius: 8px;
         max-height: 200px;
         overflow-y: auto;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        box-shadow: var(--b3-dialog-shadow);
         margin-top: 4px;
         padding: 4px 0;
     }

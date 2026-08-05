@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { McpCreateTarget } from "../../../shared/settings";
-    import SettingsIcon from "./SettingsIcon.svelte";
-    import SettingsRow from "./SettingsRow.svelte";
-    import SettingsSection from "./SettingsSection.svelte";
+    import NaIcon from "../../ui/NaIcon.svelte";
+    import NaSettingRow from "../../ui/NaSettingRow.svelte";
+    import NaSection from "../../ui/NaSection.svelte";
 
     export let i18n: any;
     export let mcpEnabled: boolean;
@@ -22,7 +22,7 @@
     export let onReset: () => void;
 </script>
 
-<div class="na-settings-page na-settings-mcp">
+<div class="na-page-stack na-settings-mcp">
     <div class="na-settings-mcp__status" class:na-settings-mcp__status--active={mcpStatus?.supported && mcpEnabled}>
         <span class="na-settings-mcp__orb"><span></span></span>
         <div>
@@ -32,54 +32,54 @@
         <code>plugin</code>
     </div>
 
-    <SettingsSection
+    <NaSection
         icon="iconCloud"
         title={i18n?.settingMcpAccess || i18n?.settingMcp || "MCP access"}
         description={i18n?.settingMcpAccessDesc || "Control how AI clients can discover and update NextAction tasks."}
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onReset}
     >
-        <SettingsRow forId="setting-mcp-enabled" title={i18n?.settingMcpEnabled || "Enable MCP tools"} description={i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}>
+        <NaSettingRow forId="setting-mcp-enabled" title={i18n?.settingMcpEnabled || "Enable MCP tools"} description={i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}>
             <input id="setting-mcp-enabled" class="b3-switch" type="checkbox" bind:checked={mcpEnabled} disabled={!mcpStatus?.supported} />
-        </SettingsRow>
-        <SettingsRow disabled={!mcpEnabled} forId="setting-mcp-write" title={i18n?.settingMcpAllowWrite || "Allow write operations"} description={i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}>
+        </NaSettingRow>
+        <NaSettingRow disabled={!mcpEnabled} forId="setting-mcp-write" title={i18n?.settingMcpAllowWrite || "Allow write operations"} description={i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}>
             <input id="setting-mcp-write" class="b3-switch" type="checkbox" bind:checked={mcpAllowWrite} disabled={!mcpEnabled} />
-        </SettingsRow>
-        {#if mcpAllowWrite && mcpEnabled}<div class="na-settings-mcp__warning"><SettingsIcon symbol="iconTriangleAlert" size={14} />{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data."}</div>{/if}
-    </SettingsSection>
+        </NaSettingRow>
+        {#if mcpAllowWrite && mcpEnabled}<div class="na-settings-mcp__warning"><NaIcon symbol="iconTriangleAlert" size={14} />{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data."}</div>{/if}
+    </NaSection>
 
-    <SettingsSection icon="iconLink" title={i18n?.settingMcpEndpoint || "Endpoint"} description={i18n?.settingMcpEndpointHint || "Uses SiYuan authentication. Enabled tools may also be used by SiYuan's built-in AI Agent."}>
+    <NaSection icon="iconLink" title={i18n?.settingMcpEndpoint || "Endpoint"} description={i18n?.settingMcpEndpointHint || "Uses SiYuan authentication. Enabled tools may also be used by SiYuan's built-in AI Agent."}>
         <div class="na-settings-mcp__endpoint">
             <code>{mcpEndpoint}</code>
-            <button type="button" class="b3-button" on:click={onCopyEndpoint}><SettingsIcon symbol={mcpCopied ? "iconCheck" : "iconCopy"} size={14} />{mcpCopied ? (i18n?.settingMcpCopied || "Copied") : (i18n?.settingMcpCopy || "Copy")}</button>
+            <button type="button" class="b3-button" on:click={onCopyEndpoint}><NaIcon symbol={mcpCopied ? "iconCheck" : "iconCopy"} size={14} />{mcpCopied ? (i18n?.settingMcpCopied || "Copied") : (i18n?.settingMcpCopy || "Copy")}</button>
         </div>
-    </SettingsSection>
+    </NaSection>
 
-    <SettingsSection icon="iconInbox" title={i18n?.settingMcpCreateTarget || "Task creation target"} description={i18n?.settingMcpCreateTargetDesc || "Default location used when create_task does not specify a destination"}>
-        <SettingsRow forId="setting-mcp-target" title={i18n?.settingMcpDefaultTarget || "Default target"}>
+    <NaSection icon="iconInbox" title={i18n?.settingMcpCreateTarget || "Task creation target"} description={i18n?.settingMcpCreateTargetDesc || "Default location used when create_task does not specify a destination"}>
+        <NaSettingRow forId="setting-mcp-target" title={i18n?.settingMcpDefaultTarget || "Default target"}>
             <select id="setting-mcp-target" class="b3-select" bind:value={mcpDefaultCreateTarget} disabled={!mcpAllowWrite}>
                 <option value="inbox">{i18n?.settingMcpTargetInbox || "Configured inbox document"}</option>
                 <option value="daily_note">{i18n?.settingMcpTargetDailyNote || "Today's daily note"}</option>
             </select>
-        </SettingsRow>
+        </NaSettingRow>
         {#if mcpDefaultCreateTarget === "inbox"}
-            <SettingsRow stacked={true} forId="setting-mcp-inbox" title={i18n?.settingMcpInboxDocument || "Inbox document"}>
+            <NaSettingRow stacked={true} forId="setting-mcp-inbox" title={i18n?.settingMcpInboxDocument || "Inbox document"}>
                 <div class="na-settings-mcp__target-row">
                     <input id="setting-mcp-inbox" class="b3-text-field" bind:value={mcpInboxDocumentId} placeholder="20260802120000-abcdefg / siyuan://blocks/..." disabled={!mcpAllowWrite} />
                     <button type="button" class="b3-button" on:click={onUseCurrentDocument} disabled={!mcpAllowWrite}>{i18n?.settingMcpUseCurrentDocument || "Use current"}</button>
                     <button type="button" class="b3-button" on:click={onResolveDocument} disabled={!mcpAllowWrite || mcpResolvingDocument}>{mcpResolvingDocument ? "…" : (i18n?.settingMcpVerify || "Verify")}</button>
                 </div>
-                {#if mcpResolvedDocument}<div class="na-settings-mcp__resolved"><SettingsIcon symbol="iconCheck" size={14} /><span>{mcpResolvedDocument.title || i18n?.untitled || "Untitled"}</span><code>{mcpResolvedDocument.id}</code></div>{/if}
-            </SettingsRow>
+                {#if mcpResolvedDocument}<div class="na-settings-mcp__resolved"><NaIcon symbol="iconCheck" size={14} /><span>{mcpResolvedDocument.title || i18n?.untitled || "Untitled"}</span><code>{mcpResolvedDocument.id}</code></div>{/if}
+            </NaSettingRow>
         {:else}
-            <SettingsRow forId="setting-mcp-notebook" title={i18n?.settingMcpDailyNoteNotebook || "Daily note notebook"}>
+            <NaSettingRow forId="setting-mcp-notebook" title={i18n?.settingMcpDailyNoteNotebook || "Daily note notebook"}>
                 <select id="setting-mcp-notebook" class="b3-select" bind:value={mcpDailyNoteNotebookId} disabled={!mcpAllowWrite}>
                     <option value="">{i18n?.settingMcpSelectNotebook || "Select a notebook"}</option>
                     {#each mcpNotebooks as notebook}<option value={notebook.id}>{notebook.name}</option>{/each}
                 </select>
-            </SettingsRow>
+            </NaSettingRow>
         {/if}
-    </SettingsSection>
+    </NaSection>
 
     {#if mcpStatus?.tools?.length}
         <details class="na-settings-mcp__tools">
@@ -98,7 +98,6 @@
 </div>
 
 <style lang="scss">
-    .na-settings-page { display: flex; flex-direction: column; gap: 14px; }
     .na-settings-mcp__status { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 13px 15px; border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius-b, 8px); background: var(--b3-theme-surface); }
     .na-settings-mcp__status strong, .na-settings-mcp__status span { display: block; }
     .na-settings-mcp__status strong { color: var(--b3-theme-on-surface); font-size: 13px; }

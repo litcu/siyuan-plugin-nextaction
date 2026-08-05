@@ -77,8 +77,8 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    background: var(--b3-theme-on-primary);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--b3-theme-on-background) 18%, transparent);
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 

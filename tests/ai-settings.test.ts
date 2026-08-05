@@ -4,6 +4,10 @@ import { readFileSync } from "node:fs";
 
 const settingsSource = readFileSync(new URL("../src/shared/settings.ts", import.meta.url), "utf8");
 const aiServiceSource = readFileSync(new URL("../src/frontend/ai/ai-feature-service.ts", import.meta.url), "utf8");
+const aiSettingsPageSource = readFileSync(
+    new URL("../src/frontend/components/settings/AiSettingsPage.svelte", import.meta.url),
+    "utf8",
+);
 
 test("AI 设置为四个内置功能提供独立默认提示词", () => {
     assert.match(settingsSource, /export interface AiSettings/);
@@ -15,10 +19,9 @@ test("AI 设置为四个内置功能提供独立默认提示词", () => {
 });
 
 test("AI 设置支持单项提示词恢复默认", () => {
-    const panelSource = readFileSync(new URL("../src/frontend/components/SettingsPanel.svelte", import.meta.url), "utf8");
-    assert.match(panelSource, /handleResetAiPrompt/);
-    assert.match(panelSource, /settingAiPromptReset/);
-    assert.match(panelSource, /DEFAULT_AI_SETTINGS\.prompts\[feature\]/);
+    assert.match(aiSettingsPageSource, /function resetPrompt/);
+    assert.match(aiSettingsPageSource, /settingAiPromptReset/);
+    assert.match(aiSettingsPageSource, /defaultPrompts\[id\]/);
 });
 
 test("AI 提示词支持局部合并并限制长度", () => {

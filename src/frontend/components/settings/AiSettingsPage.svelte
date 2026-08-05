@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { AiFeatureId } from "../../../shared/ai";
-    import SettingsAccordion from "./SettingsAccordion.svelte";
-    import SettingsIcon from "./SettingsIcon.svelte";
+    import NaAccordion from "../../ui/NaAccordion.svelte";
+    import NaIcon from "../../ui/NaIcon.svelte";
 
     export let i18n: any;
     export let aiPrompts: Record<AiFeatureId, string>;
@@ -64,9 +64,9 @@
     }
 </script>
 
-<div class="na-settings-page na-settings-ai">
+<div class="na-page-stack na-settings-ai">
     <div class="na-settings-ai__intro">
-        <span class="na-settings-ai__intro-icon"><SettingsIcon symbol="iconSparkles" size={18} /></span>
+        <span class="na-settings-ai__intro-icon"><NaIcon symbol="iconSparkles" size={18} /></span>
         <div>
             <strong>{i18n?.settingAiPromptTitle || "Built-in AI prompts"}</strong>
             <p>{i18n?.settingAiPromptDesc || "Tune how each feature works. Runtime data and strict output contracts are added automatically."}</p>
@@ -75,7 +75,7 @@
 
     <details class="na-settings-ai__variables">
         <summary>
-            <SettingsIcon symbol="iconCode" size={15} />
+            <NaIcon symbol="iconCode" size={15} />
             <span>{i18n?.settingAiVariablesTitle || "Available variables"}</span>
         </summary>
         <p>{i18n?.settingAiVariablesDesc || "Variables are replaced with real context for each request."}</p>
@@ -89,7 +89,7 @@
 
     <div class="na-settings-ai__editors">
         {#each features as feature}
-            <SettingsAccordion
+            <NaAccordion
                 title={feature.label}
                 description={feature.description}
                 open={isOpen(feature.id)}
@@ -121,13 +121,12 @@
                         <div><span>{i18n?.settingAiRuntimeExample || "Complete JSON example"}</span><pre>{getRuntimePreview(feature.id).example}</pre></div>
                     </details>
                 </svelte:fragment>
-            </SettingsAccordion>
+            </NaAccordion>
         {/each}
     </div>
 </div>
 
 <style lang="scss">
-    .na-settings-page,
     .na-settings-ai__editors {
         display: flex;
         flex-direction: column;
