@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onDestroy, onMount, createEventDispatcher } from "svelte";
     import { portal } from "../utils/portal";
+    import NaIcon from "./NaIcon.svelte";
 
     export let placeholder = "";
     export let multi = false;
@@ -13,6 +14,8 @@
     export let emptyText: string = "No options";
     export let noMatchText: string = "No matches";
     export let loadingText: string = "Loading...";
+    export let clearLabel: string = "Clear selection";
+    export let removeLabel: string = "Remove selection";
     export let fixedDropdown: boolean = false;
 
     const dispatch = createEventDispatcher<{ change: { selected: string | string[] } }>();
@@ -187,7 +190,11 @@
         } else if (e.key === "Backspace" && !input && multi && selectedArray.length > 0) {
             removeItem(selectedArray[selectedArray.length - 1]);
         } else if (e.key === "Escape") {
-            dropdownOpen = false;
+            if (dropdownOpen) {
+                dropdownOpen = false;
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
     }
 
@@ -217,11 +224,8 @@
     <div class="na-search-select__box" on:mousedown={handleBoxMousedown} on:click={handleBoxClick}>
         {#if !multi && selected}
             <span class="na-search-select__selected">{selectedLabel || String(selected)}</span>
-            <button class="na-search-select__clear" on:click|stopPropagation={clearAndReopen} aria-label="Clear">
-                <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <line x1="4" y1="4" x2="12" y2="12" />
-                    <line x1="12" y1="4" x2="4" y2="12" />
-                </svg>
+            <button class="na-search-select__clear" on:click|stopPropagation={clearAndReopen} aria-label={clearLabel} title={clearLabel}>
+                <NaIcon symbol="iconCloseRound" size={10} />
             </button>
         {:else}
             {#if multi && selectedArray.length > 0}
@@ -229,11 +233,8 @@
                     {#each selectedArray as item}
                         <span class="na-search-select__chip">
                             {labelMap.get(item) || item}
-                            <button class="na-search-select__chip-remove" on:click|stopPropagation={() => removeItem(item)}>
-                                <svg viewBox="0 0 16 16" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                                    <line x1="4" y1="4" x2="12" y2="12" />
-                                    <line x1="12" y1="4" x2="4" y2="12" />
-                                </svg>
+                            <button class="na-search-select__chip-remove" on:click|stopPropagation={() => removeItem(item)} aria-label={`${removeLabel}: ${labelMap.get(item) || item}`} title={removeLabel}>
+                                <NaIcon symbol="iconCloseRound" size={8} />
                             </button>
                         </span>
                     {/each}
@@ -416,7 +417,7 @@
         border-radius: 8px;
         max-height: 200px;
         overflow-y: auto;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        box-shadow: var(--b3-dialog-shadow);
         margin-top: 4px;
         padding: 4px 0;
     }

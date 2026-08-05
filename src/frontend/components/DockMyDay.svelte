@@ -107,6 +107,8 @@
                 emptyText={i18n?.dockSearchHint || "输入关键词搜索任务"}
                 noMatchText={i18n?.noMatches || "无匹配结果"}
                 loadingText={i18n?.loadingMore || "加载中…"}
+                clearLabel={i18n?.clearSelection || "清除选择"}
+                removeLabel={i18n?.removeSelection || "移除选择"}
                 searchFn={searchTasksForAdd}
                 bind:selected={selectedTaskId}
                 on:change={handleSearchChange}

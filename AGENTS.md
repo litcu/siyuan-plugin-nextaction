@@ -24,6 +24,10 @@
 
 TypeScript 开启 `strict`。沿用现有格式：4 空格缩进、双引号、分号和尾随逗号；仓库未配置独立 formatter/linter，请保持相邻代码风格。Svelte 组件、类和类型使用 `PascalCase`，函数与变量使用 `camelCase`，工具文件使用 `kebab-case.ts`。CSS 采用 `.na-` 前缀的 BEM 命名，并优先使用 `--b3-*`、`--na-*` 主题变量。共享契约放入 `src/shared/`，避免前端直接依赖内核实现。
 
+## 前端组件复用
+
+实现或调整界面前，必须先检查 `src/frontend/ui/` 中的 `Na*` 公共组件，以及 `tokens.scss`、`primitives.scss` 中的设计令牌和基础样式。已有组件能满足需求时直接复用，不得在业务组件中重复实现同类控件或样式。没有合适组件时，优先扩展现有组件的通用能力；无法合理扩展时，在 `src/frontend/ui/` 新建 `Na*.svelte` 公共组件，再由业务组件使用。公共组件应提供清晰的 props/events，覆盖 disabled、loading、empty、键盘操作等适用状态，并保持主题、响应式和无障碍行为一致。修改公共组件后检查现有调用方，避免引入跨视图回归。
+
 ## 国际化
 
 界面文案通过插件的 `this.i18n` 或组件注入的 `i18n` 获取。新增或修改 key 时，必须同时更新 `src/i18n/en.json` 与 `src/i18n/zh-CN.json`，并保持键集合一致；不要新增仅支持一种语言的可见文案。Vite 会将两份资源复制到构建目录，发布包也要求二者同时存在。
