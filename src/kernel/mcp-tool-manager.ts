@@ -5,6 +5,7 @@ import {
     RPC_ERROR_INVALID_PARAMS,
     RPC_ERROR_NOT_READY,
     RPC_ERROR_TASK_NOT_FOUND,
+    RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
 } from "../shared/constants";
 import type { PluginSettings } from "../shared/settings";
 import type { MyDayState, TaskCacheEntry } from "../shared/types";
@@ -268,6 +269,7 @@ export class McpToolManager {
         if (code === RPC_ERROR_NOT_READY) return new McpToolError("NOT_READY", String(error.message || "Kernel is not ready"));
         if (code === RPC_ERROR_TASK_NOT_FOUND) return new McpToolError("TASK_NOT_FOUND", String(error.message || "Task not found"));
         if (code === RPC_ERROR_INVALID_PARAMS) return new McpToolError("INVALID_INPUT", String(error.message || "Invalid input"));
+        if (code === RPC_ERROR_PROJECT_REQUIRES_DOCUMENT) return new McpToolError("INVALID_INPUT", String(error.message || "Only document blocks can be converted to projects"));
         const message = String(error?.message || error || "Unknown error");
         if (message.startsWith("NEXTACTION_")) return new Error(message);
         return new McpToolError("SIYUAN_API_ERROR", message);

@@ -1,4 +1,4 @@
-import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK } from "../shared/constants";
+import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../shared/constants";
 import { SiyuanApiResponse } from "./types";
 
 let siyuanRef: any = null;
@@ -48,7 +48,7 @@ export function numberToAttr(val: number): string {
 
 /**
  * Strip slash command remnants from a title string.
- * Catches patterns like /zrw, /xjrw, /转..., /新..., or any /word at the start.
+ * Catches patterns like /ntask, /nproject, /转..., /新..., or any /word at the start.
  */
 export function cleanSlashFromTitle(title: string): string {
     return title
@@ -118,6 +118,7 @@ const KNOWN_ERROR_CODES = new Set([
     RPC_ERROR_TIMEOUT,
     RPC_ERROR_DEP_CYCLE,
     RPC_ERROR_NOT_TEXT_BLOCK,
+    RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
 ]);
 
 interface RpcResult {

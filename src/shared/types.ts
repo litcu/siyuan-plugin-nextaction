@@ -30,6 +30,30 @@ export interface TaskCacheEntry {
     customFields: Record<string, string>;  // 自定义字段值 {key: value}
 }
 
+export type ProjectHealth = "onTrack" | "attention" | "blocked" | "complete";
+
+export type ProjectRiskKind = "overdue" | "dueSoon" | "blocked" | "noNextAction" | "empty" | "waiting";
+
+export interface ProjectRisk {
+    kind: ProjectRiskKind;
+    taskId: string;
+    severity: "high" | "medium" | "low";
+}
+
+export interface ProjectSummary {
+    project: TaskCacheEntry;
+    descendants: TaskCacheEntry[];
+    openCount: number;
+    doneCount: number;
+    progress: number;
+    nextActions: TaskCacheEntry[];
+    overdueTasks: TaskCacheEntry[];
+    blockedTasks: TaskCacheEntry[];
+    waitingTasks: TaskCacheEntry[];
+    risks: ProjectRisk[];
+    health: ProjectHealth;
+}
+
 export interface ReminderRelative {
     type: "relative";
     minutes: number;

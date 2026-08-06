@@ -78,6 +78,7 @@ export const RPC_ERROR_NOT_READY = -32005;
 export const RPC_ERROR_TIMEOUT = -32006;
 export const RPC_ERROR_DEP_CYCLE = -32007;
 export const RPC_ERROR_NOT_TEXT_BLOCK = -32008;
+export const RPC_ERROR_PROJECT_REQUIRES_DOCUMENT = -32009;
 export const RPC_ERROR_INTERNAL = -32000;
 
 export const BROADCAST_DEBOUNCE_MS = 100;

@@ -320,7 +320,7 @@ The timeline view uses a pixel-per-minute layout (1.2 px/min) with 30-minute sna
 ## Plugin Integration Points
 
 - **Dock panel** — Registered as `nextaction_dock`, hosts `TaskPanel.svelte`
-- **Slash menu** — `/zrw` converts a block to task; `/zrwz` batch-converts with children. Slash text must be manually deleted from the DOM before SiYuan re-renders.
+- **Slash menu** — `/ntask` and `/zrw` convert a block to task; `/nproject` and `/zxm` convert a block to project; `/ntaskchildren` and `/zrwz` batch-convert with children. Slash text must be manually deleted from the DOM before SiYuan re-renders.
 - **Block icon menu** — Right-click context menu adds "Convert to Task" with sub-items
 - **Command palette** — `convertToTask`, `recalcOrders` available via `[NextAction]` prefixed commands
 - **Event bus** — Listens to `click-blockicon` and `kernel-plugin-state-change`

@@ -12,6 +12,7 @@ import { normalizePriority, PRIORITY_LIST } from "./frontend/constants";
 import { toI18nKey } from "./frontend/utils";
 import { initAiFeatureService, runAiDecomposeTask, runAiExtractTasks } from "./frontend/ai/ai-feature-service";
 import { openReminderSettingsDialog } from "./frontend/dialogs/task-property-dialogs";
+import { RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "./shared/constants";
 
 const TAB_TYPE = "nextaction_tab";
 const DOCK_TYPE = "nextaction_dock";
@@ -104,6 +105,70 @@ export default class NextActionPlugin extends Plugin {
         } catch (e: any) {
             showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
         }
+    }
+
+    private async waitForSlashCommandPersistence(blockId: string, slashCommand: string): Promise<void> {
+        const command = slashCommand.trim();
+        if (!blockId || !command) return;
+
+        // protyle.transaction queues /api/transactions without exposing a completion
+        // promise. Poll the authoritative kramdown endpoint before a follow-up AI
+        // request so it cannot observe the pre-cleanup block content.
+        for (let attempt = 0; attempt < 12; attempt++) {
+            try {
+                const response = await fetch("/api/block/getBlockKramdown", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: blockId, mode: "md" }),
+                });
+                if (response.ok) {
+                    const payload = await response.json();
+                    if (payload?.code === 0 && typeof payload?.data?.kramdown === "string"
+                        && !payload.data.kramdown.includes(command)) return;
+                }
+            } catch (_e) {
+                // The transaction may still be in flight; retry below.
+            }
+            await new Promise(resolve => setTimeout(resolve, 25 + attempt * 25));
+        }
+    }
+
+    /**
+     * Remove the slash query and persist the edit through SiYuan's transaction API.
+     * Plugin slash callbacks do not receive the built-in menu cleanup automatically.
+     */
+    private async clearSlashCommand(protyle: any, nodeElement: HTMLElement): Promise<string> {
+        const oldHTML = nodeElement.outerHTML;
+        const savedRange = protyle?.toolbar?.range;
+        const selection = window.getSelection();
+        const range = savedRange || (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null);
+        const slashCommand = range?.toString() || "";
+        if (range) {
+            try { range.deleteContents(); } catch (_e) { /* ignore */ }
+        }
+
+        const cleanTitle = (nodeElement.querySelector('[contenteditable="true"]')?.textContent || "").trim();
+        const blockId = nodeElement.dataset.nodeId;
+        const newHTML = nodeElement.outerHTML;
+        if (blockId && newHTML !== oldHTML && typeof protyle?.transaction === "function") {
+            nodeElement.setAttribute("data-editing", "true");
+            protyle.transaction([{
+                id: blockId,
+                data: newHTML,
+                action: "update",
+            }], [{
+                id: blockId,
+                data: oldHTML,
+                action: "update",
+            }]);
+        } else if (newHTML !== oldHTML) {
+            // Keep the fallback for older editor instances without the public transaction method.
+            nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        if (blockId && newHTML !== oldHTML) {
+            await this.waitForSlashCommandPersistence(blockId, slashCommand);
+        }
+        return cleanTitle;
     }
 
     private async runRefreshCommand(): Promise<void> {
@@ -371,16 +436,32 @@ export default class NextActionPlugin extends Plugin {
             console.warn("[NextAction] doConvertToTask RPC failed (no error code), trying direct API:", rpcError.message);
             // Fallback: directly call SiYuan's attribute API from the frontend (kernel not running)
             try {
+                if (taskType === "2") {
+                    const typeResp = await fetch("/api/query/sql", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ stmt: `SELECT type FROM blocks WHERE id = '${blockId}' LIMIT 1` }),
+                    });
+                    const typeResult = await typeResp.json();
+                    const blockType = typeResult?.data?.[0]?.type || "";
+                    if (blockType !== "d") {
+                        const error: any = new Error("errProjectRequiresDocument");
+                        error.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
+                        throw error;
+                    }
+                }
                 const resp = await fetch("/api/attr/getBlockAttrs", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: blockId }),
                 });
                 const existing = await resp.json();
-                if (existing.code === 0 && existing.data?.["custom-na-task"]) {
+                if (existing.code === 0 && existing.data?.["custom-na-task"] === taskType) {
                     return existing.data;
                 }
-                const attrs = { ...DEFAULT_TASK_ATTRS, "custom-na-task": taskType };
+                const attrs = existing.code === 0 && existing.data
+                    ? { ...existing.data, "custom-na-task": taskType }
+                    : { ...DEFAULT_TASK_ATTRS, "custom-na-task": taskType };
                 const setResp = await fetch("/api/attr/setBlockAttrs", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -482,26 +563,11 @@ export default class NextActionPlugin extends Plugin {
         // Slash menu items
         this.protyleSlash = [
             {
-                filter: [this.i18n.convertToTask, "convert to task", "zrw"],
+                filter: [this.i18n.convertToTask, "convert to task", "ntask", "zrw"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.i18n.convertToTask}</span></div>`,
                 id: "convertToTask",
                 callback: async (protyle: any, nodeElement: HTMLElement) => {
-                    // SiYuan does not auto-clear slash text for plugin callbacks (unlike
-                    // built-in slash items which call range.deleteContents() before dispatch).
-                    // We replicate the same behavior here.
-                    const savedRange = protyle?.toolbar?.range;
-                    const sel = window.getSelection();
-                    if (savedRange) {
-                        try { savedRange.deleteContents(); } catch (_e) { /* ignore */ }
-                    } else if (sel && sel.rangeCount > 0) {
-                        try { sel.getRangeAt(0).deleteContents(); } catch (_e) { /* ignore */ }
-                    }
-                    // Read the clean title from DOM right after deletion, before SiYuan
-                    // re-renders and before the database has a chance to lag.
-                    const editable = nodeElement.querySelector('[contenteditable="true"]');
-                    const cleanTitle = (editable?.textContent || "").trim();
-                    // Trigger SiYuan's content sync so the database updates
-                    nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
                     if (!blockId) {
@@ -519,20 +585,11 @@ export default class NextActionPlugin extends Plugin {
                 },
             },
             {
-                filter: [this.i18n.convertToProject, "convert to project", "zrxm"],
+                filter: [this.i18n.convertToProject, "convert to project", "nproject", "zxm"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.i18n.convertToProject}</span></div>`,
                 id: "convertToProject",
                 callback: async (protyle: any, nodeElement: HTMLElement) => {
-                    const savedRange = protyle?.toolbar?.range;
-                    const sel = window.getSelection();
-                    if (savedRange) {
-                        try { savedRange.deleteContents(); } catch (_e) { /* ignore */ }
-                    } else if (sel && sel.rangeCount > 0) {
-                        try { sel.getRangeAt(0).deleteContents(); } catch (_e) { /* ignore */ }
-                    }
-                    const editable = nodeElement.querySelector('[contenteditable="true"]');
-                    const cleanTitle = (editable?.textContent || "").trim();
-                    nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
                     if (!blockId) {
@@ -550,20 +607,11 @@ export default class NextActionPlugin extends Plugin {
                 },
             },
             {
-                filter: [this.i18n.convertToTaskWithChildren, "convert to task with children", "zrwz"],
+                filter: [this.i18n.convertToTaskWithChildren, "convert to task with children", "ntaskchildren", "zrwz"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.i18n.convertToTaskWithChildren}</span></div>`,
                 id: "convertToTaskWithChildren",
                 callback: async (protyle: any, nodeElement: HTMLElement) => {
-                    const savedRange = protyle?.toolbar?.range;
-                    const sel = window.getSelection();
-                    if (savedRange) {
-                        try { savedRange.deleteContents(); } catch (_e) { /* ignore */ }
-                    } else if (sel && sel.rangeCount > 0) {
-                        try { sel.getRangeAt(0).deleteContents(); } catch (_e) { /* ignore */ }
-                    }
-                    const editable = nodeElement.querySelector('[contenteditable="true"]');
-                    const cleanTitle = (editable?.textContent || "").trim();
-                    nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
                     if (!blockId) {
@@ -588,14 +636,7 @@ export default class NextActionPlugin extends Plugin {
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.i18n.aiExtractTasks || "AI 提取任务"}</span></div>`,
                 id: "aiExtractTasks",
                 callback: async (protyle: any, nodeElement: HTMLElement) => {
-                    const savedRange = protyle?.toolbar?.range;
-                    const sel = window.getSelection();
-                    if (savedRange) {
-                        try { savedRange.deleteContents(); } catch (_e) { /* ignore */ }
-                    } else if (sel && sel.rangeCount > 0) {
-                        try { sel.getRangeAt(0).deleteContents(); } catch (_e) { /* ignore */ }
-                    }
-                    nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    await this.clearSlashCommand(protyle, nodeElement);
                     const blockId = nodeElement.dataset.nodeId;
                     if (!blockId) {
                         showMessage(`[NextAction] ${this.i18n.errorCannotDetermineBlockId || "Cannot determine block ID"}`);
