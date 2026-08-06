@@ -444,6 +444,7 @@
     "removeSelection": "移除选择",
     "errInvalidParams": "参数无效",
     "errNotTextBlock": "只能将文本块转为任务",
+    "errProjectRequiresDocument": "只有文档块才能转换为项目",
     "errTaskNotFound": "任务未找到",
     "errCircularRef": "检测到循环引用",
     "errDepCycle": "检测到依赖环路",

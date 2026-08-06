@@ -27,6 +27,7 @@ import {
     RPC_ERROR_CIRCULAR_REF,
     RPC_ERROR_DEP_CYCLE,
     RPC_ERROR_NOT_TEXT_BLOCK,
+    RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
     RPC_ERROR_NOT_READY,
     RPC_ERROR_TIMEOUT,
     WRITE_LOCK_TIMEOUT_MS,
@@ -143,6 +144,21 @@ export class TaskService {
         }
     }
 
+    private async getBlockType(blockId: string): Promise<string> {
+        const rows: Array<{ type?: string }> = await siyuanFetch("/api/query/sql", {
+            stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "' LIMIT 1",
+        });
+        return rows?.[0]?.type || "";
+    }
+
+    private assertProjectBlockType(taskType: string, blockType: string): void {
+        if (taskType === "2" && blockType !== "d") {
+            const err: any = new Error("errProjectRequiresDocument");
+            err.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
+            throw err;
+        }
+    }
+
     // ---- Write operations ----
 
     async convertToTask(
@@ -158,14 +174,22 @@ export class TaskService {
         }
         this.checkReady();
 
+        if (taskType !== "1" && taskType !== "2") {
+            const err: any = new Error("Invalid task type: " + taskType);
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+
         // Newly inserted blocks are already present in SiYuan's block tree when
         // appendBlock returns. Their SQL index may lag behind, so trusted callers
-        // can skip this eventual-consistency check.
+        // can skip this eventual-consistency check. Projects are the exception:
+        // they always require a document type, even for trusted callers.
+        let blockType = "";
+        if (taskType === "2" || !options.knownTextBlock) {
+            blockType = await this.getBlockType(blockId);
+            this.assertProjectBlockType(taskType, blockType);
+        }
         if (!options.knownTextBlock) {
-            const typeRows: Array<{ type: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "'",
-            });
-            const blockType = (typeRows && typeRows.length > 0) ? typeRows[0].type : "";
             if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
                 const err: any = new Error("errNotTextBlock");
                 err.code = RPC_ERROR_NOT_TEXT_BLOCK;
@@ -349,6 +373,21 @@ export class TaskService {
             throw err;
         }
         this.checkReady();
+
+        if (taskType !== "1" && taskType !== "2") {
+            const err: any = new Error("Invalid task type: " + taskType);
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+
+        // This endpoint converts a subtree into ordinary tasks. Projects have
+        // a separate single-document conversion path and must not be created
+        // implicitly on descendant paragraph blocks.
+        if (taskType === "2") {
+            const err: any = new Error("errProjectRequiresDocument");
+            err.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
+            throw err;
+        }
 
         // Determine the root container for subtree collection.
         // If blockId itself is a list item, use it directly.
@@ -621,6 +660,18 @@ export class TaskService {
             const err: any = new Error(validationError);
             err.code = RPC_ERROR_INVALID_PARAMS;
             throw err;
+        }
+
+        if (attrs[ATTR_TASK] !== undefined && attrs[ATTR_TASK] !== "" && attrs[ATTR_TASK] !== "1" && attrs[ATTR_TASK] !== "2") {
+            const err: any = new Error("Invalid task type: " + attrs[ATTR_TASK]);
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+
+        if (attrs[ATTR_TASK] === "2") {
+            this.checkReady();
+            const blockType = await this.getBlockType(blockId);
+            this.assertProjectBlockType("2", blockType);
         }
 
         // Validate status if provided

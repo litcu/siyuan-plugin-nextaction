@@ -12,6 +12,7 @@ import { normalizePriority, PRIORITY_LIST } from "./frontend/constants";
 import { toI18nKey } from "./frontend/utils";
 import { initAiFeatureService, runAiDecomposeTask, runAiExtractTasks } from "./frontend/ai/ai-feature-service";
 import { openReminderSettingsDialog } from "./frontend/dialogs/task-property-dialogs";
+import { RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "./shared/constants";
 
 const TAB_TYPE = "nextaction_tab";
 const DOCK_TYPE = "nextaction_dock";
@@ -371,16 +372,32 @@ export default class NextActionPlugin extends Plugin {
             console.warn("[NextAction] doConvertToTask RPC failed (no error code), trying direct API:", rpcError.message);
             // Fallback: directly call SiYuan's attribute API from the frontend (kernel not running)
             try {
+                if (taskType === "2") {
+                    const typeResp = await fetch("/api/query/sql", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ stmt: `SELECT type FROM blocks WHERE id = '${blockId}' LIMIT 1` }),
+                    });
+                    const typeResult = await typeResp.json();
+                    const blockType = typeResult?.data?.[0]?.type || "";
+                    if (blockType !== "d") {
+                        const error: any = new Error("errProjectRequiresDocument");
+                        error.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
+                        throw error;
+                    }
+                }
                 const resp = await fetch("/api/attr/getBlockAttrs", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: blockId }),
                 });
                 const existing = await resp.json();
-                if (existing.code === 0 && existing.data?.["custom-na-task"]) {
+                if (existing.code === 0 && existing.data?.["custom-na-task"] === taskType) {
                     return existing.data;
                 }
-                const attrs = { ...DEFAULT_TASK_ATTRS, "custom-na-task": taskType };
+                const attrs = existing.code === 0 && existing.data
+                    ? { ...existing.data, "custom-na-task": taskType }
+                    : { ...DEFAULT_TASK_ATTRS, "custom-na-task": taskType };
                 const setResp = await fetch("/api/attr/setBlockAttrs", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

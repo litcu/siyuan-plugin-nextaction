@@ -1,5 +1,5 @@
 import { showMessage } from "siyuan";
-import { RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_INTERNAL } from "../shared/constants";
+import { RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT, RPC_ERROR_INTERNAL } from "../shared/constants";
 
 /**
  * Map from kernel error message patterns to i18n keys.
@@ -23,6 +23,7 @@ const ERROR_MESSAGE_MAP: [RegExp, string][] = [
     [/task .* not found in my day/i, "errMyDayTaskNotFound"],
     [/project cannot be child/i, "errProjectAsChild"],
     [/errNotTextBlock/i, "errNotTextBlock"],
+    [/errProjectRequiresDocument/i, "errProjectRequiresDocument"],
     [/circular reference/i, "errCircularRef"],
     [/kernel not ready/i, "errNotReady"],
     [/task not found/i, "errTaskNotFound"],
@@ -38,6 +39,7 @@ const ERROR_CODE_MAP: Record<number, string> = {
     [RPC_ERROR_CIRCULAR_REF]: "errCircularRef",
     [RPC_ERROR_DEP_CYCLE]: "errDepCycle",
     [RPC_ERROR_NOT_TEXT_BLOCK]: "errNotTextBlock",
+    [RPC_ERROR_PROJECT_REQUIRES_DOCUMENT]: "errProjectRequiresDocument",
     [RPC_ERROR_NOT_READY]: "errNotReady",
     [RPC_ERROR_TIMEOUT]: "errWriteTimeout",
     [RPC_ERROR_INTERNAL]: "errInvalidParams",
