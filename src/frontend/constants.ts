@@ -7,16 +7,6 @@ export const PRIORITY_COLORS: Record<string, string> = {
     none: "var(--na-priority-very-low)",
 };
 
-// Fallback hex colors for inline style computations (NaBadge bg, priority dot)
-export const PRIORITY_HEX_COLORS: Record<string, string> = {
-    critical: "#e74c3c",
-    high: "#f39c12",
-    medium: "#5dade2",
-    low: "#95a5a6",
-    veryLow: "#c9ced6",
-    none: "#c9ced6",
-};
-
 export function normalizePriority(priority: string | null | undefined): string {
     if (!priority) return "medium";
     if (priority === "none") return "veryLow";

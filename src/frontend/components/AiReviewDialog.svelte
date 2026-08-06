@@ -77,7 +77,7 @@
 <style lang="scss">
     .na-ai-review {
         --na-ai-ink: var(--b3-theme-on-background);
-        --na-ai-muted: var(--b3-theme-on-surface-secondary);
+        --na-ai-muted: var(--na-text-secondary);
         --na-ai-line: var(--na-color-divider, var(--b3-border-color));
         display: flex;
         flex-direction: column;

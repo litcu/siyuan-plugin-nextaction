@@ -1,8 +1,11 @@
 <script lang="ts">
     import { notificationQueue, dismissReminder, dismissAllReminders, buildDedupKey } from "../stores/reminder-store";
     import { jumpToBlock } from "../utils";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
+    import NaBadge from "../ui/NaBadge.svelte";
+    import NaButton from "../ui/NaButton.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
+    import NaToolbar from "../ui/NaToolbar.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
 
     export let i18n: any;
 
@@ -41,16 +44,16 @@
         const diffMs = entry.dueTime - Date.now();
         if (diffMs <= 0) {
             const overdueMin = Math.round(Math.abs(diffMs) / 60000);
-            if (overdueMin < 60) return `逾期${overdueMin}分钟`;
+            if (overdueMin < 60) return (i18n?.reminderOverdueMinutes || "{n}min overdue").replace("{n}", String(overdueMin));
             const h = Math.round(overdueMin / 60);
-            if (h < 24) return `逾期${h}小时`;
-            return `逾期${Math.round(h / 24)}天`;
+            if (h < 24) return (i18n?.reminderOverdueHours || "{n}h overdue").replace("{n}", String(h));
+            return (i18n?.reminderOverdueDays || "{n}d overdue").replace("{n}", String(Math.round(h / 24)));
         }
         const remainMin = Math.round(diffMs / 60000);
-        if (remainMin < 60) return `${remainMin}分钟后到期`;
+        if (remainMin < 60) return (i18n?.reminderDueInMinutes || "Due in {n}min").replace("{n}", String(remainMin));
         const h = Math.round(remainMin / 60);
-        if (h < 24) return `${h}小时后到期`;
-        return `${Math.round(h / 24)}天后到期`;
+        if (h < 24) return (i18n?.reminderDueIn || "Due in {n}h").replace("{n}", String(h));
+        return (i18n?.reminderDueInDays || "Due in {n}d").replace("{n}", String(Math.round(h / 24)));
     }
 
     function formatTriggerTime(ts: number): string {
@@ -74,80 +77,25 @@
     }
 </script>
 
-<div class="na-reminder">
-    <div class="na-reminder__header">
-        <h2 class="na-reminder__title">{i18n?.reminder || "Reminders"}</h2>
-        {#if pending.length > 0}
-            <button class="na-reminder__dismiss-all" on:click={handleDismissAll}>
-                {i18n?.reminderDismissAll || "一键已读"}
-            </button>
-        {/if}
-    </div>
-
-    {#if pending.length === 0}
-        <NaEmpty text={i18n?.reminderNoPending || "暂无待处理提醒"} />
-    {:else}
+<NaViewShell empty={pending.length === 0} emptyText={i18n?.reminderNoPending || "暂无待处理提醒"} hint={i18n?.viewHintReminder}>
+    <svelte:fragment slot="toolbar"><NaToolbar compact><span class="na-reminder__summary">{pending.length} {i18n?.reminder || "Reminders"}</span>{#if pending.length > 0}<div class="na-toolbar__actions-content"><NaButton size="sm" variant="text" on:click={handleDismissAll}>{i18n?.reminderDismissAll || "一键已读"}</NaButton></div>{/if}</NaToolbar></svelte:fragment>
         <div class="na-reminder__list">
             {#each pending as entry (buildDedupKey(entry.blockId, entry.baseDateStr, entry.minutesBefore, entry.type))}
                 <div class="na-reminder__item na-reminder__item--{entry.type}">
                     <div class="na-reminder__item-main">
-                        <span class="na-reminder__type-badge na-reminder__type-badge--{entry.type}">
-                            {getTypeLabel(entry.type)}
-                        </span>
-                        <button class="na-reminder__title" on:click={() => handleJump(entry.blockId)}>
-                            {entry.title}
-                        </button>
+                        <NaBadge text={getTypeLabel(entry.type)} tone={entry.type === "due" ? "danger" : entry.type === "review" ? "info" : entry.type === "absolute" ? "warning" : "primary"} />
+                        <NaButton variant="text" size="sm" on:click={() => handleJump(entry.blockId)}>{entry.title}</NaButton>
                         <span class="na-reminder__desc">{getDescription(entry)}</span>
                         <span class="na-reminder__time">{formatTriggerTime(entry.triggerTime)}</span>
                     </div>
-                    <button class="na-reminder__dismiss" on:click={() => handleDismiss(entry)} title={i18n?.dismiss || "Dismiss"}>
-                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                            <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
-                        </svg>
-                    </button>
+                    <NaIconButton symbol="iconClose" label={i18n?.dismiss || "Dismiss"} compact on:click={() => handleDismiss(entry)} />
                 </div>
             {/each}
         </div>
-    {/if}
-    <NaViewHint text={i18n?.viewHintReminder} />
-</div>
+</NaViewShell>
 
 <style lang="scss">
-    .na-reminder {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .na-reminder__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: var(--na-space-md) var(--na-space-lg);
-        border-bottom: 1px solid var(--b3-theme-surface-lighter);
-    }
-
-    .na-reminder__title {
-        font-size: var(--na-font-size-xl);
-        font-weight: 600;
-        color: var(--b3-theme-on-surface);
-        margin: 0;
-    }
-
-    .na-reminder__dismiss-all {
-        font-size: var(--na-font-size-sm);
-        color: var(--na-color-error, #e74c3c);
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: var(--na-space-xs) var(--na-space-sm);
-        border-radius: var(--na-radius-sm, 4px);
-        transition: background 0.15s;
-
-        &:hover {
-            background: var(--b3-theme-surface-lighter);
-        }
-    }
+    .na-reminder__summary { color: var(--na-text-secondary); font-size: var(--na-font-size-sm); font-weight: 600; }
 
     .na-reminder__list {
         flex: 1;
@@ -173,19 +121,19 @@
     }
 
     .na-reminder__item--due {
-        border-left: 3px solid var(--na-color-error, #e74c3c);
+        border-left: 3px solid var(--na-color-error);
     }
 
     .na-reminder__item--review {
-        border-left: 3px solid var(--na-color-info, #5dade2);
+        border-left: 3px solid var(--na-color-info);
     }
 
     .na-reminder__item--absolute {
-        border-left: 3px solid var(--na-color-warning, #f0ad4e);
+        border-left: 3px solid var(--na-color-warning);
     }
 
     .na-reminder__item--summary {
-        border-left: 3px solid var(--na-accent, #4fc3f7);
+        border-left: 3px solid var(--na-accent);
     }
 
     .na-reminder__item-main {
@@ -196,38 +144,8 @@
         min-width: 0;
     }
 
-    .na-reminder__type-badge {
-        flex-shrink: 0;
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        padding: 2px 6px;
-        border-radius: var(--na-radius-sm, 4px);
-        color: var(--b3-theme-on-primary);
-    }
-
-    .na-reminder__type-badge--due {
-        background: var(--na-color-error, #e74c3c);
-        opacity: 0.85;
-    }
-
-    .na-reminder__type-badge--review {
-        background: var(--na-color-info, #5dade2);
-        opacity: 0.85;
-    }
-
-    .na-reminder__type-badge--absolute {
-        background: var(--na-color-warning, #f0ad4e);
-        opacity: 0.85;
-    }
-
-    .na-reminder__type-badge--summary {
-        background: var(--na-accent, #4fc3f7);
-        opacity: 0.85;
-    }
-
-    .na-reminder__title {
+    .na-reminder__title,
+    :global(.na-reminder__item-main > .na-button) {
         background: none;
         border: none;
         cursor: pointer;
@@ -248,7 +166,7 @@
     .na-reminder__desc {
         flex-shrink: 0;
         font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
     }
 
     .na-reminder__time {

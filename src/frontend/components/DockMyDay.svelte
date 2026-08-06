@@ -4,9 +4,12 @@
     import { KernelBridge } from "../kernel-bridge";
     import { DEFAULT_MY_DAY_RESET_HOUR, DEFAULT_MY_DAY_DURATION, MY_DAY_DRAG_TYPE } from "../../shared/constants";
     import TaskCard from "./TaskCard.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
     import NaSearchSelect from "../ui/NaSearchSelect.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaToolbar from "../ui/NaToolbar.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import TimelineColumn from "./timeline/TimelineColumn.svelte";
     import { normalizePriority } from "../constants";
     import type { TaskCacheEntry, MyDayTaskEntry, MyDayState } from "../../shared/types";
@@ -102,12 +105,11 @@
 </script>
 
 <div class="na-dock-myday">
-    <div class="na-dock-myday__toolbar">
-        <button class="na-button na-button--sm na-ai-trigger na-ai-trigger--icon na-dock-myday__ai-btn" on:click={runAiPlanMyDay} title={i18n?.aiPlanMyDay || "自动规划"}>
-            <svg><use xlink:href="#iconSparkles"></use></svg>
-        </button>
-        <div class="na-dock-myday__add">
-            <NaSearchSelect
+    <NaViewShell loading={viewMode === "list" && $taskStore.loading} empty={viewMode === "list" && myDayTasks.length === 0} emptyText={i18n?.noMyDayTasks || "No tasks planned for today."} emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }} scrollMode="none">
+        <svelte:fragment slot="toolbar">
+            <NaToolbar compact>
+                <NaIconButton symbol="iconSparkles" label={i18n?.aiPlanMyDay || "自动规划"} on:click={runAiPlanMyDay} />
+                <div class="na-dock-myday__add"><NaSearchSelect
                 placeholder={i18n?.dockSearchAddTask || "搜索添加任务…"}
                 emptyText={i18n?.dockSearchHint || "输入关键词搜索任务"}
                 noMatchText={i18n?.noMatches || "无匹配结果"}
@@ -117,9 +119,8 @@
                 searchFn={searchTasksForAdd}
                 bind:selected={selectedTaskId}
                 on:change={handleSearchChange}
-            />
-        </div>
-        <NaSegmentControl
+                /></div>
+                <svelte:fragment slot="actions"><NaSegmentControl
             size="sm"
             options={[
                 { value: "timeline", label: i18n?.timelineMode || "时间线" },
@@ -127,9 +128,10 @@
             ]}
             value={viewMode}
             label={i18n?.myDayDefaultViewMode || "View mode"}
-            on:change={handleViewModeChange}
-        />
-    </div>
+                    on:change={handleViewModeChange}
+                /></svelte:fragment>
+            </NaToolbar>
+        </svelte:fragment>
 
     {#if viewMode === "timeline"}
         <div class="na-dock-myday__timeline">
@@ -157,15 +159,7 @@
                             >
                                 <span class="na-dock-myday__unscheduled-accent"></span>
                                 <span class="na-dock-myday__unscheduled-name">{task.title || (i18n?.untitled || "(untitled)")}</span>
-                                <button
-                                    class="na-dock-myday__unscheduled-remove"
-                                    on:click|stopPropagation={() => handleRemoveFromMyDay(entry.blockId)}
-                                    title={i18n?.removeFromMyDay || "Remove from My Day"}
-                                >
-                                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                                        <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
-                                    </svg>
-                                </button>
+                                <span on:click|stopPropagation><NaIconButton compact symbol="iconClose" label={i18n?.removeFromMyDay || "Remove from My Day"} tone="danger" on:click={() => handleRemoveFromMyDay(entry.blockId)} /></span>
                             </div>
                         {/if}
                     {/each}
@@ -184,15 +178,7 @@
             </div>
         </div>
     {:else}
-        {#if $taskStore.loading}
-            <NaEmpty loading={true} />
-        {:else if myDayTasks.length === 0}
-            <NaEmpty
-                text={i18n?.noMyDayTasks || "No tasks planned for today."}
-                action={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
-            />
-        {:else}
-            <div class="na-dock-myday__list">
+            <NaTaskList density="compact">
                 {#each myDayTasks as task (task.blockId)}
                     <TaskCard
                         {task}
@@ -203,9 +189,9 @@
                         {i18n}
                     />
                 {/each}
-            </div>
-        {/if}
+            </NaTaskList>
     {/if}
+    </NaViewShell>
 </div>
 
 <style lang="scss">
@@ -222,24 +208,13 @@
         background: var(--b3-theme-background);
     }
 
-    .na-dock-myday__toolbar {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 10px;
-        border-bottom: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-surface);
-        flex-shrink: 0;
-    }
-
     .na-dock-myday__add {
         position: relative;
         flex: 1;
         min-width: 0;
     }
 
-    :global(.na-dock-myday__toolbar .na-segment-control) { flex: 0 0 auto; }
+    :global(.na-toolbar .na-segment-control) { flex: 0 0 auto; }
 
     .na-dock-myday__timeline {
         position: relative;
@@ -281,7 +256,7 @@
         height: 18px;
         padding: 0 6px;
         border-radius: var(--na-radius-pill);
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         background: var(--na-task-card-meta-bg);
         border: 1px solid var(--na-task-card-meta-border);
         font-size: 10px;
@@ -348,33 +323,6 @@
         min-width: 0;
     }
 
-    .na-dock-myday__unscheduled-remove {
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
-        padding: 0;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--b3-theme-on-surface-light);
-        border-radius: var(--na-radius-pill);
-        cursor: pointer;
-        opacity: 0.42;
-        transition: opacity 0.15s, color 0.15s, background 0.15s;
-
-        .na-dock-myday__unscheduled-item:hover & {
-            opacity: 1;
-        }
-
-        &:hover {
-            color: var(--na-color-error);
-            background: var(--na-color-error-bg);
-            border-color: var(--na-color-error-border);
-        }
-    }
-
     .na-dock-myday__timeline-col {
         flex: 1;
         min-height: 0;
@@ -386,33 +334,13 @@
         background: var(--na-dock-myday-panel-bg);
     }
 
-    .na-dock-myday__list {
-        flex: 1;
-        overflow-y: auto;
-        padding: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-
-        :global(.na-task-card) {
-            border-radius: 6px;
-            padding: 6px 8px 6px 9px;
-        }
-
-        :global(.na-task-card__meta) {
-            flex-wrap: nowrap;
-            overflow: hidden;
-        }
-
-        :global(.na-task-card__actions) {
-            opacity: 1;
-        }
-    }
+    :global(.na-task-list--compact .na-task-card__stats) { display: none; }
+    :global(.na-task-list--compact .na-task-card__actions) { opacity: 1; }
 
     @container na-dock (max-width: 260px) {
-        .na-dock-myday__toolbar { flex-wrap: wrap; padding: 7px 8px; }
+        :global(.na-toolbar) { flex-wrap: wrap; padding: 7px 8px; }
         .na-dock-myday__add { order: 3; flex: 1 0 100%; }
-        :global(.na-dock-myday__toolbar .na-segment-control) { margin-left: auto; }
+        :global(.na-toolbar .na-segment-control) { margin-left: auto; }
         .na-dock-myday__timeline { padding: 6px; gap: 6px; }
         .na-dock-myday__unscheduled { padding: 6px; }
     }

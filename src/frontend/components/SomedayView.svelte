@@ -4,9 +4,9 @@
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
-    import SearchFilterBar from "./SearchFilterBar.svelte";
+    import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
 
@@ -41,23 +41,19 @@
     }
 </script>
 
-<div class="na-view na-view--someday">
-    <SearchFilterBar
+<NaViewShell loading={$taskStore.loading} empty={filteredTasks.length === 0} emptyText={$taskStore.error || i18n?.noSomedayTasks || "No Someday/Maybe tasks"} hint={i18n?.viewHintSomeday}>
+    <svelte:fragment slot="toolbar"><NaTaskFilterBar
         contexts={$taskStore.contexts}
         tags={$taskStore.tags}
+        customFields={$taskStore.settings.customFields}
         filterState={filterState}
         showStatus={false}
         showPriority={false}
         sortOptions={somedaySortOptions}
         {i18n}
-        onFilterChange={handleFilterChange}
-    />
-    {#if $taskStore.loading}
-        <NaEmpty loading={true} />
-    {:else if filteredTasks.length === 0}
-        <NaEmpty text={$taskStore.error || i18n?.noSomedayTasks || "No Someday/Maybe tasks"} />
-    {:else}
-        <div class="na-view__list">
+        on:change={(event) => handleFilterChange(event.detail)}
+    /></svelte:fragment>
+        <NaTaskList>
             {#each filteredTasks as task (task.blockId)}
                 <TaskCard
                     {task}
@@ -70,7 +66,5 @@
                     {i18n}
                 />
             {/each}
-        </div>
-    {/if}
-    <NaViewHint text={i18n?.viewHintSomeday} />
-</div>
+        </NaTaskList>
+</NaViewShell>

@@ -176,10 +176,7 @@
         overflow-y: auto;
         overflow-x: hidden;
         position: relative;
-        background:
-            linear-gradient(90deg, var(--b3-theme-surface) 0 48px, transparent 48px),
-            linear-gradient(180deg, rgba(93, 173, 226, 0.035), transparent 180px),
-            var(--b3-theme-background);
+        background: var(--b3-theme-background);
     }
 
     .na-timeline-column__body {
@@ -205,7 +202,7 @@
         width: 40px;
         text-align: right;
         font-size: 11px;
-        color: var(--b3-theme-on-surface-secondary, #888);
+        color: var(--na-text-secondary);
         pointer-events: none;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
@@ -215,7 +212,7 @@
         position: absolute;
         left: 52px;
         right: 4px;
-        background: rgba(93, 173, 226, 0.11);
+        background: var(--na-color-info-bg);
         border: 1px dashed var(--b3-theme-primary);
         border-radius: 8px;
         z-index: 15;

@@ -4,9 +4,10 @@
     import { applyFilters, DEFAULT_FILTER_STATE, isNextActionCandidate } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
-    import SearchFilterBar from "./SearchFilterBar.svelte";
+    import NaAccordion from "../ui/NaAccordion.svelte";
+    import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
 
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -25,21 +26,17 @@
     }
 </script>
 
-<div class="na-view na-view--next-action">
-    <SearchFilterBar
+<NaViewShell loading={$taskStore.loading} empty={filteredTasks.length === 0 && (!$taskStore.projectReminders || $taskStore.projectReminders.length === 0)} emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"} hint={i18n?.viewHintNextAction}>
+    <svelte:fragment slot="toolbar"><NaTaskFilterBar
         contexts={$taskStore.contexts}
         tags={$taskStore.tags}
+        customFields={$taskStore.settings.customFields}
         filterState={filterState}
         showStatus={false}
         {i18n}
-        onFilterChange={handleFilterChange}
-    />
-    {#if $taskStore.loading}
-        <NaEmpty loading={true} />
-    {:else if filteredTasks.length === 0}
-        <NaEmpty text={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"} />
-    {:else}
-        <div class="na-view__list">
+        on:change={(event) => handleFilterChange(event.detail)}
+    /></svelte:fragment>
+        <NaTaskList>
             {#each filteredTasks as task (task.blockId)}
                 <TaskCard
                     {task}
@@ -53,8 +50,7 @@
             {/each}
 
             {#if $taskStore.projectReminders && $taskStore.projectReminders.length > 0}
-                <div class="na-project-reminders">
-                    <div class="na-project-reminders__header">{i18n?.projectReminders || "Projects to Close"}</div>
+                <NaAccordion title={i18n?.projectReminders || "Projects to Close"} count={$taskStore.projectReminders.length} open={true} variant="plain">
                     {#each $taskStore.projectReminders as project (project.blockId)}
                         <TaskCard
                             task={project}
@@ -64,9 +60,7 @@
                             {i18n}
                         />
                     {/each}
-                </div>
+                </NaAccordion>
             {/if}
-        </div>
-    {/if}
-    <NaViewHint text={i18n?.viewHintNextAction} />
-</div>
+        </NaTaskList>
+</NaViewShell>

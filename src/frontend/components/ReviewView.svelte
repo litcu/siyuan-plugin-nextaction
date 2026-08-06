@@ -5,8 +5,9 @@
     import type { TaskCacheEntry, ReviewData } from "../../shared/types";
     import ReviewGuide from "./ReviewGuide.svelte";
     import ReviewDueList from "./ReviewDueList.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
+    import NaButton from "../ui/NaButton.svelte";
+    import NaToolbar from "../ui/NaToolbar.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
 
     export let bridge: KernelBridge;
     export let selectedTaskId: string;
@@ -66,26 +67,15 @@
     });
 </script>
 
-<div class="na-view na-review">
-    <div class="na-review__toolbar">
+<NaViewShell loading={loading && !reviewData} empty={!reviewData && !loading} emptyText={i18n?.noData || "No data"} hint={i18n?.viewHintReview}>
+    <svelte:fragment slot="toolbar"><NaToolbar compact>
         <div class="na-review__last-review" aria-live="polite">
             <span class="na-review__last-review-label">{i18n?.reviewChecklistStatus || "Checklist status"}</span>
             <span class="na-review__last-review-time">{formatLastReview(reviewData?.lastReviewAt || "")}</span>
         </div>
-        <div class="na-review__actions">
-            <button class="na-button na-button--sm na-ai-trigger na-review__ai-btn" on:click={runAiReview}>
-                <svg><use xlink:href="#iconSparkles"></use></svg>
-                {i18n?.aiReview || "智能回顾"}
-            </button>
-            <button class="na-button na-button--sm na-review__complete-btn" on:click={handleCompleteReview} disabled={completing}>
-                <svg aria-hidden="true"><use xlink:href="#iconSelect"></use></svg>
-                {completing ? (i18n?.reviewCompleting || "Recording...") : (i18n?.reviewCompleteChecklist || "Complete review")}
-            </button>
-        </div>
-    </div>
-    {#if loading && !reviewData}
-        <NaEmpty loading={true} />
-    {:else if reviewData}
+        <div class="na-toolbar__actions-content"><NaButton size="sm" icon="iconSparkles" on:click={runAiReview}>{i18n?.aiReview || "智能回顾"}</NaButton><NaButton size="sm" variant="primary" icon="iconSelect" loading={completing} disabled={completing} on:click={handleCompleteReview}>{i18n?.reviewCompleteChecklist || "Complete review"}</NaButton></div>
+    </NaToolbar></svelte:fragment>
+    {#if reviewData}
         <div class="na-review__scroll">
             <section class="na-review__section">
                 <h3 class="na-review__section-title">{i18n?.reviewGuideTitle || "Review Checklist"}</h3>
@@ -113,31 +103,10 @@
                 />
             </section>
         </div>
-    {:else}
-        <NaEmpty text={i18n?.noData || "No data"} />
     {/if}
-    <NaViewHint text={i18n?.viewHintReview} />
-</div>
+</NaViewShell>
 
 <style lang="scss">
-    .na-review {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .na-review__toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px 12px;
-        flex-wrap: wrap;
-        min-height: 38px;
-        padding: 7px 12px;
-        border-bottom: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-surface);
-    }
-
     .na-review__last-review {
         display: flex;
         flex-direction: column;
@@ -155,24 +124,6 @@
         color: var(--b3-theme-on-background);
         font-size: 11px;
         font-variant-numeric: tabular-nums;
-    }
-
-    .na-review__actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-left: auto;
-    }
-
-    .na-review__complete-btn {
-        color: var(--na-color-success, #3d8b5f);
-        border-color: color-mix(in srgb, var(--na-color-success, #3d8b5f) 38%, var(--na-color-divider));
-    }
-
-    .na-review__complete-btn svg {
-        width: 13px;
-        height: 13px;
-        flex: 0 0 13px;
     }
 
     .na-review__scroll {

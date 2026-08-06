@@ -68,7 +68,7 @@
         color: var(--b3-theme-primary);
         font-size: 9px;
         font-weight: 700;
-        letter-spacing: .12em;
+        letter-spacing: 0;
         line-height: 12px;
         text-transform: uppercase;
     }

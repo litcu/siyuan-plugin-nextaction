@@ -51,6 +51,9 @@
   // ===== 表面与文字 =====
   --na-card-text-primary: var(--b3-theme-on-surface);
   --na-card-text-secondary: var(--b3-theme-on-surface-light);
+  --na-text-primary: var(--b3-theme-on-surface);
+  --na-text-secondary: var(--b3-theme-on-surface-light);
+  --na-text-inverse: var(--b3-theme-on-primary);
   --na-color-project: var(--b3-card-info-color);
   --na-color-project-bg: color-mix(in srgb, var(--b3-card-info-color) 7%, var(--b3-theme-surface));
   --na-color-project-bg-hover: color-mix(in srgb, var(--b3-card-info-color) 13%, var(--b3-theme-surface));
@@ -91,6 +94,7 @@
   --na-font-size-sm: 11px;
   --na-font-size-md: 12px;
   --na-font-size-lg: 13px;
+  --na-font-size-xl: 14px;
   --na-space-xxs: 2px;
   --na-space-xs: 4px;
   --na-space-sm: 6px;

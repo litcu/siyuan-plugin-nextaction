@@ -1,4 +1,6 @@
 <script lang="ts">
+  import NaButton from "./NaButton.svelte";
+
   export let text: string | undefined = undefined;
   export let loading: boolean = false;
   export let action: { label: string; onClick: () => void } | undefined = undefined;
@@ -25,9 +27,7 @@
     <span class="na-empty__text">{text}</span>
   {/if}
   {#if !loading && action}
-    <button class="na-button na-button--sm" on:click={action.onClick}>
-      {action.label}
-    </button>
+    <NaButton size="sm" on:click={action.onClick}>{action.label}</NaButton>
   {/if}
 </div>
 
@@ -66,10 +66,10 @@
 
   .na-empty__text {
     max-width: 240px;
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
     font-size: var(--na-font-size-lg);
     font-weight: 500;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     line-height: 1.5;
   }
 
@@ -77,5 +77,9 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .na-empty__spinner-ring { animation: none; }
   }
 </style>

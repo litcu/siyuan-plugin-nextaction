@@ -2,6 +2,41 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
 
+const TASK_THEME_FILES = [
+  "src/index.scss",
+  "src/frontend/components/NavRail.svelte",
+  "src/frontend/components/AllTasksView.svelte",
+  "src/frontend/components/InboxView.svelte",
+  "src/frontend/components/NextActionView.svelte",
+  "src/frontend/components/MyDayView.svelte",
+  "src/frontend/components/ProjectView.svelte",
+  "src/frontend/components/SomedayView.svelte",
+  "src/frontend/components/WaitingView.svelte",
+  "src/frontend/components/ReviewView.svelte",
+  "src/frontend/components/ReviewGuide.svelte",
+  "src/frontend/components/ReviewDueList.svelte",
+  "src/frontend/components/StatisticsView.svelte",
+  "src/frontend/components/ReminderView.svelte",
+  "src/frontend/components/DockSidebar.svelte",
+  "src/frontend/components/DockNextAction.svelte",
+  "src/frontend/components/DockInbox.svelte",
+  "src/frontend/components/DockMyDay.svelte",
+  "src/frontend/components/TaskCard.svelte",
+  "src/frontend/components/timeline/TimelineView.svelte",
+  "src/frontend/components/timeline/TimelineColumn.svelte",
+  "src/frontend/components/timeline/TimelineCard.svelte",
+  "src/frontend/components/timeline/TimelineNeedle.svelte",
+  "src/frontend/components/timeline/UnscheduledPanel.svelte",
+];
+
+function listStyleSources(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${root}/${entry.name}`;
+    if (entry.isDirectory()) return listStyleSources(path);
+    return /\.(?:svelte|scss|css)$/.test(entry.name) ? [path] : [];
+  });
+}
+
 const checks = [
   {
     name: "theme tokens expose accent and danger colors",
@@ -112,6 +147,25 @@ const checks = [
         const source = read(path);
         return !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\(|hsla?\s*\()/i.test(source);
       });
+    },
+  },
+  {
+    name: "task views, dock and timeline use theme-derived colors only",
+    run() {
+      return TASK_THEME_FILES.every((path) => !/(?:#[0-9a-f]{3,8}\b|rgba?\s*\(|hsla?\s*\()/i.test(read(path)));
+    },
+  },
+  {
+    name: "Na theme token references are defined",
+    run() {
+      const sources = [...listStyleSources("src/frontend"), "src/index.scss"];
+      const definitions = new Set();
+      for (const path of sources) {
+        for (const match of read(path).matchAll(/(--na-[\w-]+)\s*:/g)) definitions.add(match[1]);
+      }
+      return [...new Set([...TASK_THEME_FILES, ...sources.filter((path) => path.startsWith("src/frontend/ui/"))])]
+        .every((path) => [...read(path).matchAll(/var\(\s*(--na-[\w-]+)/g)]
+          .every((match) => definitions.has(match[1])));
     },
   },
   {

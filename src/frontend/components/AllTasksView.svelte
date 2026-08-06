@@ -4,9 +4,10 @@
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
-    import SearchFilterBar from "./SearchFilterBar.svelte";
+    import NaAccordion from "../ui/NaAccordion.svelte";
+    import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import { createDragHandler } from "./drag-handler";
     import type { TaskCacheEntry } from "../../shared/types";
 
@@ -168,22 +169,18 @@
     $: doneCount = $taskStore.doneCount;
 </script>
 
-<div class="na-view na-view--all-tasks">
-    <SearchFilterBar
+<NaViewShell loading={$taskStore.loading && filteredTasks.length === 0} empty={filteredTasks.length === 0 && doneCount === 0} emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"} hint={i18n?.viewHintAllTasks}>
+    <svelte:fragment slot="toolbar"><NaTaskFilterBar
         contexts={$taskStore.contexts}
         tags={$taskStore.tags}
+        customFields={$taskStore.settings.customFields}
         filterState={allTaskFilterState}
         showStatus={true}
         statusValues={ALL_TASK_STATUS_FILTERS}
         {i18n}
-        onFilterChange={handleFilterChange}
-    />
-    {#if $taskStore.loading && filteredTasks.length === 0}
-        <NaEmpty loading={true} />
-    {:else if filteredTasks.length === 0 && doneCount === 0}
-        <NaEmpty text={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"} />
-    {:else}
-        <div class="na-view__list" bind:this={listEl}>
+        on:change={(event) => handleFilterChange(event.detail)}
+    /></svelte:fragment>
+        <NaTaskList bind:element={listEl}>
             {#each groupedTasks as task (task.blockId)}
                 {#if !viewData.hiddenSet.has(task.blockId)}
                     {@const indent = getIndentLevel(task, activeIds, taskMap)}
@@ -212,12 +209,7 @@
 
             <!-- Completed section -->
             {#if doneCount > 0}
-                <div class="na-all-tasks__divider"></div>
-                <span class="na-all-tasks__completed-toggle" on:click={handleToggleCompleted}>
-                    {$taskStore.showCompleted ? "▾" : "▸"} {i18n?.completedTasks || "Completed tasks"}
-                    <span class="na-all-tasks__completed-count">({doneCount})</span>
-                </span>
-                {#if $taskStore.showCompleted}
+                <NaAccordion title={i18n?.completedTasks || "Completed tasks"} count={doneCount} open={$taskStore.showCompleted} variant="plain" on:openChange={handleToggleCompleted}>
                     {#each $taskStore.completedTasks as task (task.blockId)}
                         {@const hasChildren = false}
                         {@const childCount = 0}
@@ -238,9 +230,7 @@
                             />
                         </div>
                     {/each}
-                {/if}
+                </NaAccordion>
             {/if}
-        </div>
-    {/if}
-    <NaViewHint text={i18n?.viewHintAllTasks} />
-</div>
+        </NaTaskList>
+</NaViewShell>

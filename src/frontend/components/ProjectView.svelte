@@ -5,9 +5,12 @@
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
     import NaProgressBar from "../ui/NaProgressBar.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
-    import SearchFilterBar from "./SearchFilterBar.svelte";
+    import NaButton from "../ui/NaButton.svelte";
+    import NaMetricStrip from "../ui/NaMetricStrip.svelte";
+    import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaToolbar from "../ui/NaToolbar.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
 
@@ -24,6 +27,7 @@
     $: filteredTasks = applyFilters($taskStore.allTasks.filter(t => t.status !== "done"), filterState, $taskStore.settings.customFields);
     $: projects = filteredTasks.filter(t => t.taskType === "2");
     $: childrenByParent = buildChildrenMap(filteredTasks);
+    $: selectedProject = projects.find(project => project.blockId === selectedTaskId);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
@@ -51,8 +55,9 @@
     }
 
     function getProjectProgress(project: TaskCacheEntry): { done: number; total: number; percent: number } {
+        const allTaskMap = new Map($taskStore.allTasks.map(task => [task.blockId, task]));
         const children = project.childIds
-            .map(id => filteredTasks.find(t => t.blockId === id))
+            .map(id => allTaskMap.get(id))
             .filter(Boolean) as TaskCacheEntry[];
         const done = children.filter(c => c.status === "done").length;
         const total = children.length;
@@ -60,32 +65,23 @@
     }
 </script>
 
-<div class="na-view na-view--project">
-    {#if selectedTaskId}
-        {@const selectedProject = projects.find(project => project.blockId === selectedTaskId)}
-        {#if selectedProject}
-            <div class="na-project-ai-toolbar">
-                <button class="na-button na-button--sm na-ai-trigger" on:click={() => runAiDecomposeTask(selectedProject)}>
-                    <svg><use xlink:href="#iconSparkles"></use></svg>
-                    {i18n?.aiDecomposeTask || "AI 拆解任务"}
-                </button>
-            </div>
-        {/if}
-    {/if}
-    <SearchFilterBar
+<NaViewShell loading={$taskStore.loading && projects.length === 0} empty={projects.length === 0} emptyText={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"} hint={i18n?.viewHintProject}>
+    <svelte:fragment slot="toolbar">
+        <NaToolbar compact>
+            <NaMetricStrip items={[{ value: projects.length, label: i18n?.projects || i18n?.byProject || "Projects", tone: "info" }]} />
+            <div class="na-toolbar__actions-content"><NaButton size="sm" icon="iconSparkles" disabled={!selectedProject} on:click={() => selectedProject && runAiDecomposeTask(selectedProject)}>{i18n?.aiDecomposeTask || "AI 拆解任务"}</NaButton></div>
+        </NaToolbar>
+        <NaTaskFilterBar
         contexts={$taskStore.contexts}
         tags={$taskStore.tags}
+        customFields={$taskStore.settings.customFields}
         filterState={filterState}
         showStatus={true}
         {i18n}
-        onFilterChange={handleFilterChange}
-    />
-    {#if $taskStore.loading && projects.length === 0}
-        <NaEmpty loading={true} />
-    {:else if projects.length === 0}
-        <NaEmpty text={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"} />
-    {:else}
-        <div class="na-view__list">
+        on:change={(event) => handleFilterChange(event.detail)}
+        />
+    </svelte:fragment>
+        <NaTaskList>
             {#each projects as project (project.blockId)}
                 {@const children = (childrenByParent.get(project.blockId) || []).sort((a, b) => a.sort - b.sort)}
                 {@const progress = getProjectProgress(project)}
@@ -122,18 +118,5 @@
                     {/if}
                 </div>
             {/each}
-        </div>
-    {/if}
-    <NaViewHint text={i18n?.viewHintProject} />
-</div>
-
-<style lang="scss">
-    .na-project-ai-toolbar {
-        display: flex;
-        align-items: center;
-        min-height: 38px;
-        padding: 5px 12px;
-        border-bottom: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-surface);
-    }
-</style>
+        </NaTaskList>
+</NaViewShell>

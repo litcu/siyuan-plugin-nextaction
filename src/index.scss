@@ -49,7 +49,7 @@
 }
 
 .nextaction .na-button--ghost {
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
     background: transparent;
     border-color: transparent;
 }
@@ -248,12 +248,6 @@
     line-height: 1.4;
 }
 
-// Shorthand aliases for SiYuan built-in variables
-.nextaction {
-    --b3-theme-on-surface-secondary: var(--b3-theme-on-surface);
-    --b3-theme-on-surface-tertiary: var(--b3-theme-on-surface-light);
-}
-
 // App layout
 .na-app {
     width: 100%;
@@ -277,7 +271,7 @@
 
 .na-app__list {
     flex: 1;
-    overflow-y: auto;
+    overflow: hidden;
     overflow-x: hidden;
 }
 
@@ -304,7 +298,10 @@
     padding: 12px 10px;
 }
 
-.na-nav-rail > .na-nav-item { width: 100%; }
+.na-nav-rail__group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.na-nav-rail__group + .na-nav-rail__group { margin-top: 7px; padding-top: 8px; border-top: 1px solid var(--na-color-divider); }
+.na-nav-rail__group-label { padding: 0 12px 3px; color: var(--b3-theme-on-surface-light); font-size: 10px; font-weight: 600; line-height: 16px; }
+.na-nav-rail__group > .na-nav-item { width: 100%; }
 
 .na-nav-rail__spacer {
     flex: 1;
@@ -327,7 +324,7 @@
     padding: 5px 10px;
     font-size: 11px;
     font-weight: 500;
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
     background: var(--b3-theme-surface-light);
     border: 1px solid var(--na-color-divider);
     border-radius: 6px;
@@ -372,6 +369,10 @@
         min-height: 38px;
         padding: 7px 0;
     }
+
+    .na-nav-rail__group { width: 100%; align-items: center; }
+    .na-nav-rail__group + .na-nav-rail__group { margin-top: 5px; padding-top: 6px; }
+    .na-nav-rail__group-label { display: none; }
 
     .na-nav-rail .na-nav-item__label,
     .na-nav-rail__label,
@@ -423,40 +424,6 @@
     }
 }
 
-@container nextaction-app (max-width: 520px) {
-    .na-app { flex-direction: column; }
-
-    .na-nav-rail {
-        flex: 0 0 48px;
-        width: 100%;
-        height: 48px;
-        flex-direction: row;
-        justify-content: flex-start;
-        gap: 4px;
-        padding: 6px 8px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        border-right: 0;
-        border-bottom: 1px solid var(--na-color-divider);
-    }
-
-    .na-nav-rail .na-nav-item {
-        flex: 0 0 38px;
-        width: 38px;
-        min-height: 34px;
-    }
-
-    .na-nav-rail__spacer { display: none; }
-    .na-nav-rail__footer { flex: 0 0 auto; padding: 0 0 0 4px; }
-    .na-nav-rail__action-btn { width: 34px; height: 30px; padding: 0; }
-    .na-nav-rail .na-nav-item::after,
-    .na-nav-rail__action-btn::after { display: none; }
-}
-
-// ResizeObserver-backed fallback: the actual tab/dock width is more reliable
-// than viewport or container-query support when SiYuan splits the workspace.
-.na-app:has(.na-nav-rail--compact) { flex-direction: row; }
-
 .na-nav-rail--compact {
     flex: 0 0 44px !important;
     width: 44px !important;
@@ -483,6 +450,9 @@
 .na-nav-rail--compact .na-nav-item__label,
 .na-nav-rail--compact .na-nav-rail__label,
 .na-nav-rail--compact .na-nav-rail__action-label { display: none !important; }
+.na-nav-rail--compact .na-nav-rail__group { width: 100%; align-items: center; }
+.na-nav-rail--compact .na-nav-rail__group + .na-nav-rail__group { margin-top: 5px; padding-top: 6px; }
+.na-nav-rail--compact .na-nav-rail__group-label { display: none; }
 .na-nav-rail--compact .na-nav-rail__spacer { display: block !important; min-height: 10px; }
 .na-nav-rail--compact .na-nav-rail__footer { flex: 0 0 auto; padding: 8px 0 12px; }
 .na-nav-rail--compact .na-nav-rail__action-btn { width: 32px; height: 28px; padding: 0; }
@@ -494,69 +464,6 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-}
-
-.na-view__list {
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-// Search filter bar
-.na-search-filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--na-color-divider);
-    background: var(--b3-theme-surface);
-    flex-wrap: wrap;
-}
-
-.na-search-filter-bar__search {
-    flex: 1 1 180px;
-    min-width: 120px;
-}
-
-.na-search-filter-bar__search :global(.na-search-input) {
-    width: 100%;
-}
-
-.na-search-filter-bar__filters {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    margin-left: auto;
-}
-
-.na-search-filter-bar__custom-field-filter {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-
-    .na-select,
-    .na-input {
-        height: 26px;
-        min-width: 74px;
-        font-size: 11px;
-    }
-
-    .na-input { width: 92px; }
-}
-
-.na-chip--filter {
-    height: 24px;
-    border: 1px solid var(--na-color-divider);
-    background: var(--na-color-selected-bg);
-    color: var(--b3-theme-on-surface-secondary);
-    cursor: pointer;
-    white-space: nowrap;
 }
 
 // Task card
@@ -727,7 +634,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--b3-theme-on-surface-tertiary);
+    color: var(--na-text-secondary);
     font-size: 12px;
     font-weight: 400;
     line-height: 18px;
@@ -756,7 +663,7 @@
 
 .na-task-card__meta {
     font-size: 11px;
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
     margin-top: 3px;
     display: flex;
     align-items: center;
@@ -800,7 +707,7 @@
     border: 1px solid transparent;
     border-radius: 4px;
     background: var(--na-task-card-meta-bg);
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
     font-weight: 600;
     line-height: 14px;
     white-space: nowrap;
@@ -820,7 +727,7 @@
 }
 
 .na-task-card__context {
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
 }
 
 .na-task-card__tags {
@@ -828,7 +735,7 @@
 }
 
 .na-task-card__custom-field {
-    color: var(--b3-theme-on-surface-secondary);
+    color: var(--na-text-secondary);
 }
 
 .na-task-card__custom-field--more {
@@ -837,7 +744,7 @@
 }
 
 .na-task-card__child-count {
-    color: var(--b3-theme-on-surface-tertiary);
+    color: var(--na-text-secondary);
 }
 
 .na-task-card__stats {
@@ -845,7 +752,7 @@
     align-items: center;
     gap: 6px;
     min-height: 15px;
-    color: var(--b3-theme-on-surface-tertiary);
+    color: var(--na-text-secondary);
     font-variant-numeric: tabular-nums;
     font-size: 11px;
     line-height: 1;
@@ -880,7 +787,7 @@
     height: 20px;
     border: none;
     background: none;
-    color: var(--b3-theme-on-surface-tertiary);
+    color: var(--na-text-secondary);
     cursor: pointer;
     border-radius: 6px;
     padding: 0;
@@ -951,7 +858,7 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    border: 2px solid var(--b3-theme-on-surface-secondary);
+    border: 2px solid var(--na-text-secondary);
     cursor: pointer;
     flex-shrink: 0;
     vertical-align: middle;
@@ -1010,7 +917,7 @@
             color: var(--na-color-someday);
             font-size: 12px;
             font-weight: 700;
-            letter-spacing: -1px;
+            letter-spacing: 0;
             line-height: 1;
         }
     }
@@ -1046,57 +953,6 @@
     .na-task-card {
         flex: 1;
         min-width: 0;
-    }
-}
-
-.na-all-tasks__divider {
-    border-top: 1px solid var(--na-color-divider);
-    margin: 12px 0 6px;
-}
-
-.na-all-tasks__completed-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 8px 12px;
-    font-size: 12px;
-    color: var(--b3-theme-on-surface-secondary);
-    background: none;
-    border: none;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background 0.15s;
-
-    &:hover {
-        background: var(--b3-theme-surface-light);
-    }
-}
-
-.na-all-tasks__completed-count {
-    color: var(--b3-theme-on-surface-tertiary);
-}
-
-.na-all-tasks__load-more {
-    display: block;
-    width: 100%;
-    padding: 8px 12px;
-    font-size: 12px;
-    color: var(--b3-theme-primary);
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: center;
-    border-radius: 6px;
-    transition: background 0.15s;
-
-    &:hover {
-        background: var(--b3-theme-surface-light);
-    }
-
-    &:disabled {
-        opacity: 0.5;
-        cursor: default;
     }
 }
 
@@ -1136,7 +992,7 @@
         width: 16px;
         height: 16px;
         border-radius: 50%;
-        border: 2px solid var(--b3-theme-on-surface-secondary);
+        border: 2px solid var(--na-text-secondary);
         cursor: pointer;
         transition: border-color 0.15s, background 0.15s;
         box-sizing: border-box;
@@ -1177,7 +1033,7 @@
         color: var(--na-color-someday);
         font-size: 10px;
         font-weight: 700;
-        letter-spacing: -1px;
+        letter-spacing: 0;
         line-height: 1;
         display: flex;
         align-items: center;
@@ -1259,7 +1115,7 @@
 
     &--repeat-paused {
         opacity: 0.55;
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
     }
 
     &--repeat-ended {
@@ -1300,7 +1156,7 @@
     color: var(--na-color-blocked);
     background: var(--na-color-error-bg);
     border: 1px solid var(--na-color-error-border);
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     white-space: nowrap;
 
     svg {
@@ -1329,20 +1185,6 @@
         color: var(--na-color-effort);
         opacity: 0.72;
     }
-}
-
-// 项目待收尾区域
-.na-project-reminders {
-    margin-top: 16px;
-    padding-top: 8px;
-    border-top: 1px dashed var(--na-color-divider);
-}
-
-.na-project-reminders__header {
-    font-size: 11px;
-    color: var(--b3-theme-on-surface-secondary);
-    padding: 4px 8px;
-    margin-bottom: 4px;
 }
 
 // 拖拽
@@ -1582,8 +1424,6 @@
 }
 
 @container nextaction-app (max-width: 520px) {
-    .na-view__list { padding: 6px; gap: 4px; }
-
     .na-task-card {
         height: 48px;
         min-height: 48px;

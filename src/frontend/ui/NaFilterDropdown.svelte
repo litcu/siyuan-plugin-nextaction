@@ -101,7 +101,7 @@
         padding: 0 8px;
         font-size: 11px;
         font-weight: 500;
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         background: var(--b3-theme-surface);
         border: 1px solid var(--na-color-divider);
         border-radius: 6px;
@@ -228,7 +228,7 @@
         border: 1.5px solid var(--na-color-divider);
         border-radius: 3px;
         flex-shrink: 0;
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         transition: background 0.15s, border-color 0.15s, color 0.15s;
 
         svg {

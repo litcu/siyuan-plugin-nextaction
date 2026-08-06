@@ -1,6 +1,9 @@
 {
     "pluginName": "今天干点啥",
     "topBarTip": "今天干点啥 任务管理",
+    "navFocus": "聚焦",
+    "navOrganize": "整理",
+    "navReflect": "回顾",
     "nextAction": "下一步行动",
     "allTasks": "全部任务",
     "byProject": "项目视图",

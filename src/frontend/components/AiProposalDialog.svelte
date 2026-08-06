@@ -162,7 +162,7 @@
 <style lang="scss">
     .na-ai-proposal {
         --na-ai-ink: var(--b3-theme-on-background);
-        --na-ai-muted: var(--b3-theme-on-surface-secondary);
+        --na-ai-muted: var(--na-text-secondary);
         --na-ai-line: var(--na-color-divider, var(--b3-border-color));
         padding: 18px 20px 16px;
         color: var(--na-ai-ink);

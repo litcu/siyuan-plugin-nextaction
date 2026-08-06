@@ -7,7 +7,7 @@
     } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
-    import { normalizePriority, PRIORITY_HEX_COLORS } from "../../constants";
+    import { normalizePriority, PRIORITY_COLORS } from "../../constants";
     import { minuteToTimeLabel, minuteToPixel, snapMinute } from "./timeline-utils";
     import { showTaskQuickMenu } from "./TaskQuickMenu";
     import { notifyError, formatRpcError } from "../../notify";
@@ -47,7 +47,7 @@
     $: timeLabel = minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour);
     $: endTimeLabel = minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour);
     $: displayPriority = normalizePriority(task.priority);
-    $: priorityHex = PRIORITY_HEX_COLORS[displayPriority] || "#5dade2";
+    $: priorityColor = PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)";
     $: priorityClass = `na-timeline-card--priority-${displayPriority}`;
     $: parentTitle = task.parentId ? taskMap.get(task.parentId)?.title ?? "" : "";
     $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
@@ -163,7 +163,7 @@
     class:na-timeline-card--compact={isCompact}
     class:na-timeline-card--minimal={isMinimal}
     class:na-timeline-card--done={isDone}
-    style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityHex};"
+    style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityColor};"
     on:pointerdown={(e) => handlePointerDown(e, "move")}
     on:pointermove={handlePointerMove}
     on:pointerup={handlePointerUp}
@@ -212,7 +212,7 @@
     .na-timeline-card {
         position: absolute;
         border-radius: 8px;
-        border: 1px solid var(--na-task-card-border, rgba(255, 255, 255, 0.08));
+        border: 1px solid var(--na-task-card-border, var(--b3-border-color));
         background-color: var(--na-timeline-card-bg, var(--b3-theme-surface));
         box-shadow: inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)), var(--na-shadow-sm);
         cursor: grab;
@@ -231,19 +231,19 @@
 
     // ===== 优先级背景 =====
     .na-timeline-card--priority-critical {
-        --na-timeline-card-bg: color-mix(in srgb, #e74c3c 8%, var(--b3-theme-surface));
+        --na-timeline-card-bg: var(--na-priority-bg-critical);
     }
 
     .na-timeline-card--priority-high {
-        --na-timeline-card-bg: color-mix(in srgb, #f39c12 8%, var(--b3-theme-surface));
+        --na-timeline-card-bg: var(--na-priority-bg-high);
     }
 
     .na-timeline-card--priority-medium {
-        --na-timeline-card-bg: color-mix(in srgb, #5dade2 8%, var(--b3-theme-surface));
+        --na-timeline-card-bg: var(--na-priority-bg-medium);
     }
 
     .na-timeline-card--priority-low {
-        --na-timeline-card-bg: color-mix(in srgb, #95a5a6 6%, var(--b3-theme-surface));
+        --na-timeline-card-bg: var(--na-priority-bg-low);
     }
 
     .na-timeline-card--priority-veryLow,
@@ -303,7 +303,7 @@
         &--bottom { bottom: 0; }
 
         &:hover {
-            background: rgba(93, 173, 226, 0.14);
+            background: var(--na-color-info-bg);
         }
     }
 
@@ -349,11 +349,11 @@
         min-height: 15px;
         padding: 0 5px;
         border-radius: var(--na-radius-pill);
-        background: var(--na-task-card-meta-bg, rgba(255, 255, 255, 0.045));
-        border: 1px solid var(--na-task-card-meta-border, rgba(255, 255, 255, 0.06));
+        background: var(--na-task-card-meta-bg, var(--b3-theme-surface-light));
+        border: 1px solid var(--na-task-card-meta-border, var(--b3-border-color));
         font-size: 10px;
         font-weight: 650;
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         font-variant-numeric: tabular-nums;
         flex-shrink: 0;
     }
@@ -386,24 +386,24 @@
 
     .na-timeline-card__chip {
         font-size: 9px;
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         white-space: nowrap;
         padding: 0 5px;
         border-radius: var(--na-radius-pill);
-        background: var(--na-task-card-meta-bg, rgba(255, 255, 255, 0.045));
-        border: 1px solid var(--na-task-card-meta-border, rgba(255, 255, 255, 0.06));
+        background: var(--na-task-card-meta-bg, var(--b3-theme-surface-light));
+        border: 1px solid var(--na-task-card-meta-border, var(--b3-border-color));
         line-height: 1.5;
 
         &--context {
             color: var(--na-priority-medium);
-            background: rgba(93, 173, 226, 0.12);
-            border-color: rgba(93, 173, 226, 0.16);
+            background: var(--na-color-info-bg);
+            border-color: var(--na-color-info-border);
         }
 
         &--due {
             color: var(--na-priority-high);
-            background: rgba(243, 156, 18, 0.12);
-            border-color: rgba(243, 156, 18, 0.16);
+            background: var(--na-color-warning-bg);
+            border-color: var(--na-color-warning-border);
         }
     }
 </style>

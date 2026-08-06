@@ -29,8 +29,9 @@ test("任务属性面板的跳转操作使用统一的图标按钮", () => {
 });
 
 test("完整任务面板极窄时侧栏收缩为带 tooltip 的图标栏", () => {
-    assert.match(navRailSource, /data-tooltip=\{item\.label\}/);
-    assert.match(navRailSource, /aria-label=\{item\.label\}/);
+    assert.match(navRailSource, /navGroups/);
+    assert.match(navRailSource, /class="na-nav-rail__group"/);
+    assert.match(navRailSource, /collapsed=\{compact\}/);
     assert.match(navRailSource, /na-nav-rail__action-label/);
     assert.match(stylesheetSource, /container-type:\s*inline-size/);
     assert.match(stylesheetSource, /@container nextaction-app \(max-width:\s*520px\)/);
@@ -51,10 +52,11 @@ test("我的一天窄模式纵向排列并保留可用的未排期卡片宽度",
 test("我的一天顶部按插件面板宽度重排而不是按主窗口宽度", () => {
     assert.match(myDaySource, /container-name:\s*myday-view/);
     assert.match(myDaySource, /container-type:\s*inline-size/);
-    assert.match(myDaySource, /@container myday-view \(max-width:\s*520px\)/);
-    assert.match(myDaySource, /grid-template-areas:\s*"title mode"\s*"summary summary"/);
-    assert.match(myDaySource, /@container myday-view \(max-width:\s*380px\)/);
-    assert.match(myDaySource, /grid-template-areas:\s*"title"\s*"mode"\s*"summary"/);
+    assert.match(myDaySource, /NaViewShell/);
+    assert.match(myDaySource, /NaMetricStrip/);
+    assert.match(myDaySource, /NaSegmentControl/);
+    assert.match(myDaySource, /NaToolbar/);
+    assert.doesNotMatch(myDaySource, /linear-gradient|rgba\(/);
     assert.doesNotMatch(myDaySource, /@media \(max-width:\s*760px\)/);
 });
 

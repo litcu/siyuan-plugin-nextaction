@@ -1,0 +1,108 @@
+<script lang="ts">
+    import { createEventDispatcher, onDestroy } from "svelte";
+    import NaButton from "./NaButton.svelte";
+    import NaChip from "./NaChip.svelte";
+    import NaFilterDropdown from "./NaFilterDropdown.svelte";
+    import NaSearchInput from "./NaSearchInput.svelte";
+    import NaSortSelect from "./NaSortSelect.svelte";
+    import { PRIORITY_LIST, STATUS_LIST, PRIORITY_COLORS } from "../constants";
+    import { toI18nKey } from "../utils";
+    import type { CustomFieldDef } from "../../shared/custom-fields";
+    import type { FilterState, CustomFieldFilter } from "../utils/filter";
+
+    export let contexts: string[] = [];
+    export let tags: string[] = [];
+    export let customFields: CustomFieldDef[] = [];
+    export let filterState: FilterState;
+    export let showStatus = false;
+    export let showPriority = true;
+    export let statusValues: readonly string[] = STATUS_LIST;
+    export let sortOptions: { value: string; label: string }[] | undefined = undefined;
+    export let i18n: any;
+
+    const dispatch = createEventDispatcher<{ change: FilterState }>();
+    let searchText = filterState.searchText;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let customFieldKey = "";
+    let customFieldOperator: CustomFieldFilter["operator"] = "contains";
+    let customFieldValue = "";
+
+    $: if (filterState.searchText !== searchText && !debounceTimer) searchText = filterState.searchText;
+    $: contextOptions = contexts.map(value => ({ value, label: value }));
+    $: tagOptions = tags.map(value => ({ value, label: value }));
+    $: priorityOptions = PRIORITY_LIST.map(value => ({ value, label: i18n?.[toI18nKey("priority", value)] || value, color: PRIORITY_COLORS[value] }));
+    $: statusOptions = statusValues.map(value => ({ value, label: i18n?.[toI18nKey("status", value)] || value }));
+    $: activeFields = customFields.filter(field => field.status === "active");
+    $: computedSortOptions = sortOptions || [
+        { value: "order", label: i18n?.sortByOrder || "Priority score" },
+        { value: "due", label: i18n?.sortByDue || "Due date" },
+        { value: "importance", label: i18n?.sortByImportance || "Importance" },
+        { value: "priority", label: i18n?.sortByPriority || "Manual priority" },
+        ...activeFields.map(field => ({ value: `custom:${field.key}`, label: `${field.label} ↕` })),
+    ];
+
+    function change(next: FilterState) { dispatch("change", next); }
+    function onSearchInput() {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            debounceTimer = null;
+            change({ ...filterState, searchText });
+        }, 300);
+    }
+    function addCustomFieldFilter() {
+        if (!customFieldKey) return;
+        const next = [...(filterState.customFieldFilters || []), {
+            key: customFieldKey,
+            operator: customFieldOperator,
+            ...(customFieldOperator === "empty" || customFieldOperator === "notEmpty" ? {} : { value: customFieldValue }),
+        }];
+        change({ ...filterState, customFieldFilters: next });
+        customFieldValue = "";
+    }
+    function removeCustomFieldFilter(index: number) {
+        change({ ...filterState, customFieldFilters: (filterState.customFieldFilters || []).filter((_, itemIndex) => itemIndex !== index) });
+    }
+
+    onDestroy(() => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+    });
+</script>
+
+<div class="na-task-filter-bar">
+    <div class="na-task-filter-bar__search">
+        <NaSearchInput bind:value={searchText} compact placeholder={i18n?.searchPlaceholder || "Search..."} ariaLabel={i18n?.searchPlaceholder || "Search..."} on:input={onSearchInput} />
+    </div>
+    <div class="na-task-filter-bar__filters">
+        <div style="--na-filter-active-color: var(--na-filter-context)"><NaFilterDropdown label={i18n?.context || "Context"} options={contextOptions} selected={filterState.contexts} {i18n} onChange={(selected) => change({ ...filterState, contexts: selected })} /></div>
+        <div style="--na-filter-active-color: var(--na-filter-tag)"><NaFilterDropdown label={i18n?.tag || "Tag"} options={tagOptions} selected={filterState.tags} {i18n} onChange={(selected) => change({ ...filterState, tags: selected })} /></div>
+        {#if showPriority}<div style="--na-filter-active-color: var(--na-filter-priority)"><NaFilterDropdown label={i18n?.priority || "Priority"} options={priorityOptions} selected={filterState.priorities} {i18n} onChange={(selected) => change({ ...filterState, priorities: selected })} /></div>{/if}
+        {#if showStatus}<div style="--na-filter-active-color: var(--na-filter-status)"><NaFilterDropdown label={i18n?.status || "Status"} options={statusOptions} selected={filterState.statuses} {i18n} onChange={(selected) => change({ ...filterState, statuses: selected })} /></div>{/if}
+        {#if activeFields.length > 0}
+            <div class="na-task-filter-bar__custom">
+                <select class="na-select na-select--sm" bind:value={customFieldKey} aria-label={i18n?.customFieldFilter || "Custom field"}><option value="">{i18n?.customFieldFilter || "Custom field"}</option>{#each activeFields as field}<option value={field.key}>{field.label}</option>{/each}</select>
+                <select class="na-select na-select--sm" bind:value={customFieldOperator} aria-label={i18n?.customFieldOperator || "Operator"}><option value="contains">{i18n?.contains || "contains"}</option><option value="equals">{i18n?.equals || "equals"}</option><option value="notEmpty">{i18n?.notEmpty || "has value"}</option><option value="empty">{i18n?.empty || "is empty"}</option></select>
+                {#if customFieldOperator !== "empty" && customFieldOperator !== "notEmpty"}<input class="na-input" value={customFieldValue} on:input={(event) => customFieldValue = event.currentTarget.value} placeholder={i18n?.customFieldFilterValue || "Value"} on:keydown={(event) => event.key === "Enter" && addCustomFieldFilter()} />{/if}
+                <NaButton size="sm" on:click={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
+            </div>
+            {#each filterState.customFieldFilters || [] as filter, index}
+                <NaChip label={`${activeFields.find(field => field.key === filter.key)?.label || filter.key} ${filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`}`} onClose={() => removeCustomFieldFilter(index)} />
+            {/each}
+        {/if}
+        <NaSortSelect options={computedSortOptions} selected={filterState.sortBy} ascending={filterState.sortAsc} {i18n} onChange={(value, ascending) => change({ ...filterState, sortBy: value, sortAsc: ascending })} />
+    </div>
+</div>
+
+<style lang="scss">
+    .na-task-filter-bar { display: flex; align-items: center; gap: var(--na-space-sm); padding: var(--na-space-md) var(--na-space-lg); border-bottom: 1px solid var(--na-color-divider); background: var(--b3-theme-surface); flex-wrap: wrap; }
+    .na-task-filter-bar__search { flex: 1 1 180px; min-width: 120px; }
+    .na-task-filter-bar__search :global(.na-search-input) { width: 100%; }
+    .na-task-filter-bar__filters { display: flex; align-items: center; justify-content: flex-end; gap: var(--na-space-sm); min-width: 0; margin-left: auto; flex-wrap: wrap; }
+    .na-task-filter-bar__custom { display: inline-flex; align-items: center; gap: var(--na-space-xs); }
+    .na-task-filter-bar__custom .na-select { width: auto; max-width: 130px; }
+    .na-task-filter-bar__custom .na-input { width: 96px; height: var(--na-control-height-sm); }
+    @container nextaction-app (max-width: 520px) {
+        .na-task-filter-bar { padding-inline: var(--na-space-md); }
+        .na-task-filter-bar__search, .na-task-filter-bar__filters { flex-basis: 100%; margin-left: 0; justify-content: flex-start; }
+        .na-task-filter-bar__filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 1px; }
+    }
+</style>

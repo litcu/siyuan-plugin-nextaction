@@ -1,6 +1,9 @@
 {
     "pluginName": "NextAction",
     "topBarTip": "NextAction Task Manager",
+    "navFocus": "Focus",
+    "navOrganize": "Organize",
+    "navReflect": "Reflect",
     "nextAction": "Next Actions",
     "allTasks": "All Tasks",
     "byProject": "Project View",

@@ -13,24 +13,28 @@
     $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
     $: reminderEnabled = $taskStore.settings?.reminderSettings?.enabled !== false;
 
-    const allNavItems = [
-        { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
-        { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
-        { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day", requiresMyDay: true },
-        { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
-        { view: VIEW_BY_PROJECT, icon: "iconFolder", label: i18n?.byProject || "Project" },
-        { view: VIEW_SOMEDAY, icon: "iconLight", label: i18n?.someday || "Someday" },
-        { view: VIEW_WAITING, icon: "iconClock", label: i18n?.waiting || "Waiting" },
-        { view: VIEW_REVIEW, icon: "iconCheck", label: i18n?.review || "Review" },
-        { view: VIEW_STATISTICS, icon: "iconGraph", label: i18n?.statistics || "Statistics" },
-        { view: VIEW_REMINDER, icon: "iconClock", label: i18n?.reminder || "Reminders", requiresReminder: true },
-    ];
-
-    $: navItems = allNavItems.filter(item => {
+    $: navGroups = [
+        { label: i18n?.navFocus || "Focus", items: [
+            { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
+            { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
+            { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day", requiresMyDay: true },
+        ] },
+        { label: i18n?.navOrganize || "Organize", items: [
+            { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
+            { view: VIEW_BY_PROJECT, icon: "iconFolder", label: i18n?.byProject || "Project" },
+            { view: VIEW_WAITING, icon: "iconClock", label: i18n?.waiting || "Waiting" },
+            { view: VIEW_SOMEDAY, icon: "iconLight", label: i18n?.someday || "Someday" },
+        ] },
+        { label: i18n?.navReflect || "Reflect", items: [
+            { view: VIEW_REVIEW, icon: "iconCheck", label: i18n?.review || "Review" },
+            { view: VIEW_STATISTICS, icon: "iconGraph", label: i18n?.statistics || "Statistics" },
+            { view: VIEW_REMINDER, icon: "iconClock", label: i18n?.reminder || "Reminders", requiresReminder: true },
+        ] },
+    ].map(group => ({ ...group, items: group.items.filter(item => {
         if (item.requiresMyDay && !myDayEnabled) return false;
         if (item.requiresReminder && !reminderEnabled) return false;
         return true;
-    });
+    }) }));
 
     let refreshDone = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -66,16 +70,21 @@
 </script>
 
 <nav class="na-nav-rail" class:na-nav-rail--compact={compact} class:na-nav-rail--very-narrow={veryNarrow} bind:this={railEl}>
-    {#each navItems as item}
-        <NaNavItem
-            label={item.label}
-            icon={item.icon}
-            active={activeView === item.view}
-            tooltip={item.label}
-            badge={item.view === VIEW_REVIEW ? $taskStore.reviewDueCount : item.view === VIEW_REMINDER ? $pendingReminderCount : ""}
-            on:click={() => onSwitchView(item.view)}
-        />
-        <!-- data-tooltip={item.label} aria-label={item.label} keep the narrow rail contract explicit. -->
+    {#each navGroups as group}
+        <div class="na-nav-rail__group" aria-label={group.label}>
+            <div class="na-nav-rail__group-label">{group.label}</div>
+            {#each group.items as item}
+                <NaNavItem
+                    label={item.label}
+                    icon={item.icon}
+                    collapsed={compact}
+                    active={activeView === item.view}
+                    tooltip={item.label}
+                    badge={item.view === VIEW_REVIEW ? $taskStore.reviewDueCount : item.view === VIEW_REMINDER ? $pendingReminderCount : ""}
+                    on:click={() => onSwitchView(item.view)}
+                />
+            {/each}
+        </div>
     {/each}
     <div class="na-nav-rail__spacer"></div>
     <div class="na-nav-rail__footer">

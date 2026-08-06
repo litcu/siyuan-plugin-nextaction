@@ -6,9 +6,13 @@
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
-    import NaEmpty from "../ui/NaEmpty.svelte";
-    import NaViewHint from "../ui/NaViewHint.svelte";
-    import SearchFilterBar from "./SearchFilterBar.svelte";
+    import NaButton from "../ui/NaButton.svelte";
+    import NaMetricStrip from "../ui/NaMetricStrip.svelte";
+    import NaSegmentControl from "../ui/NaSegmentControl.svelte";
+    import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
+    import NaTaskList from "../ui/NaTaskList.svelte";
+    import NaToolbar from "../ui/NaToolbar.svelte";
+    import NaViewShell from "../ui/NaViewShell.svelte";
     import TimelineView from "./timeline/TimelineView.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
@@ -65,6 +69,10 @@
         taskStore.setFilterState(VIEW_MY_DAY, state);
     }
 
+    function handleViewModeChange(event: CustomEvent<string>) {
+        viewMode = event.detail as ViewMode;
+    }
+
     function formatMinutes(minutes: number): string {
         if (minutes <= 0) return "0m";
         const hours = Math.floor(minutes / 60);
@@ -77,76 +85,41 @@
     onMount(() => {
         taskStore.loadMyDay();
     });
+
+    $: summaryItems = [
+        { value: myDayEntries.length, label: i18n?.myDayTotalShort || "Total" },
+        { value: scheduledCount, label: i18n?.myDayScheduledShort || "Scheduled", tone: "success" as const },
+        { value: unscheduledCount, label: i18n?.myDayUnscheduledShort || "Unscheduled", tone: "warning" as const },
+        { value: formatMinutes(plannedMinutes), label: i18n?.myDayPlannedTime || "Planned", tone: "primary" as const },
+    ];
 </script>
 
 <div class="na-view na-view--myday">
-    <div class="na-view__header na-myday-header">
-        <div class="na-myday-title-group">
-            <div class="na-myday-title">{i18n?.myDay || "My Day"}</div>
-            <div class="na-myday-subtitle">{i18n?.myDaySubtitle || "Today plan and unscheduled tasks"}</div>
-        </div>
-        <div class="na-myday-summary">
-            <span class="na-myday-summary__item">
-                <strong>{myDayEntries.length}</strong>
-                <span>{i18n?.myDayTotalShort || "Total"}</span>
-            </span>
-            <span class="na-myday-summary__item">
-                <strong>{scheduledCount}</strong>
-                <span>{i18n?.myDayScheduledShort || "Scheduled"}</span>
-            </span>
-            <span class="na-myday-summary__item">
-                <strong>{unscheduledCount}</strong>
-                <span>{i18n?.myDayUnscheduledShort || "Unscheduled"}</span>
-            </span>
-            <span class="na-myday-summary__item na-myday-summary__item--time">
-                <strong>{formatMinutes(plannedMinutes)}</strong>
-                <span>{i18n?.myDayPlannedTime || "Planned"}</span>
-            </span>
-        </div>
-        <div class="na-myday-mode-toggle">
-            <button class="na-button na-button--sm na-ai-trigger na-myday-ai-btn" on:click={runAiPlanMyDay}>
-                <svg><use xlink:href="#iconSparkles"></use></svg>
-                {i18n?.aiPlanMyDay || "自动规划"}
-            </button>
-            <button
-                class="na-myday-mode-btn"
-                class:na-myday-mode-btn--active={viewMode === "timeline"}
-                on:click={() => viewMode = "timeline"}
-            >
-                {i18n?.timelineMode || "Timeline"}
-            </button>
-            <button
-                class="na-myday-mode-btn"
-                class:na-myday-mode-btn--active={viewMode === "list"}
-                on:click={() => viewMode = "list"}
-            >
-                {i18n?.listMode || "List"}
-            </button>
-        </div>
-    </div>
-
-    {#if viewMode === "timeline"}
-        <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
-    {:else}
-        <SearchFilterBar
+    <NaViewShell loading={viewMode === "list" && $taskStore.loading} empty={viewMode === "list" && filteredTasks.length === 0} emptyText={i18n?.noMyDayTasks || "No tasks planned for today."} emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }} hint={i18n?.viewHintMyDay} scrollMode="none">
+        <svelte:fragment slot="toolbar">
+            <NaToolbar>
+                <NaMetricStrip items={summaryItems} />
+                <div class="na-toolbar__actions-content">
+                    <NaButton size="sm" icon="iconSparkles" on:click={runAiPlanMyDay}>{i18n?.aiPlanMyDay || "自动规划"}</NaButton>
+                    <NaSegmentControl size="sm" options={[{ value: "timeline", label: i18n?.timelineMode || "Timeline" }, { value: "list", label: i18n?.listMode || "List" }]} value={viewMode} label={i18n?.myDayDefaultViewMode || "View mode"} on:change={handleViewModeChange} />
+                </div>
+            </NaToolbar>
+            {#if viewMode === "list"}<NaTaskFilterBar
             contexts={$taskStore.contexts}
             tags={$taskStore.tags}
+            customFields={$taskStore.settings.customFields}
             filterState={filterState}
             showStatus={true}
             showPriority={true}
             sortOptions={myDaySortOptions}
             {i18n}
-            onFilterChange={handleFilterChange}
-        />
-        {#if $taskStore.loading}
-            <NaEmpty loading={true} />
-        {:else if filteredTasks.length === 0}
-            <NaEmpty
-                text={i18n?.noMyDayTasks || "No tasks planned for today."}
-                action={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
-            />
+            on:change={(event) => handleFilterChange(event.detail)}
+            />{/if}
+        </svelte:fragment>
+        {#if viewMode === "timeline"}
+            <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
         {:else}
-            <div class="na-view__list">
+            <NaTaskList>
                 {#each filteredTasks as task (task.blockId)}
                     <TaskCard
                         {task}
@@ -159,10 +132,9 @@
                         {i18n}
                     />
                 {/each}
-            </div>
+            </NaTaskList>
         {/if}
-    {/if}
-    <NaViewHint text={i18n?.viewHintMyDay} />
+    </NaViewShell>
 </div>
 
 <style lang="scss">
@@ -172,156 +144,6 @@
         --na-myday-panel-soft-bg: var(--na-task-card-child-bg, var(--b3-theme-surface-light));
         container-name: myday-view;
         container-type: inline-size;
-        background:
-            linear-gradient(180deg, rgba(93, 173, 226, 0.035), transparent 160px),
-            var(--b3-theme-background);
-    }
-
-    .na-myday-header {
-        display: flex;
-        align-items: center;
-        gap: var(--na-space-lg, 12px);
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--na-color-divider);
         background: var(--b3-theme-surface);
-    }
-
-    .na-myday-title-group {
-        grid-area: title;
-        min-width: 0;
-        margin-right: auto;
-        overflow: hidden;
-    }
-
-    .na-myday-title {
-        color: var(--b3-theme-on-background);
-        font-size: 13px;
-        font-weight: 700;
-        line-height: 1.25;
-        white-space: nowrap;
-    }
-
-    .na-myday-subtitle {
-        margin-top: 2px;
-        color: var(--b3-theme-on-surface-secondary);
-        font-size: var(--na-font-size-xs, 10px);
-        line-height: 1.3;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .na-myday-summary {
-        grid-area: summary;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-    }
-
-    .na-myday-summary__item {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        min-height: 24px;
-        padding: 2px 8px;
-        border-radius: var(--na-radius-pill);
-        border: 1px solid var(--na-task-card-meta-border);
-        background: var(--na-task-card-meta-bg);
-        color: var(--b3-theme-on-surface-secondary);
-        font-size: var(--na-font-size-xs, 10px);
-        line-height: 1;
-        white-space: nowrap;
-
-        strong {
-            color: var(--b3-theme-on-background);
-            font-size: 12px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            line-height: 1;
-        }
-
-        span {
-            line-height: 1;
-        }
-
-        &--time {
-            border-color: rgba(93, 173, 226, 0.18);
-            background: rgba(93, 173, 226, 0.08);
-        }
-    }
-
-    .na-myday-mode-toggle {
-        grid-area: mode;
-        display: flex;
-        gap: 2px;
-        padding: 2px;
-        margin-left: 0;
-        border: 1px solid var(--na-task-card-meta-border);
-        border-radius: var(--na-radius-pill);
-        background: var(--b3-theme-background);
-        flex-shrink: 0;
-    }
-
-    .na-myday-mode-btn {
-        min-width: 46px;
-        padding: 3px 10px;
-        font-size: 11px;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--b3-theme-on-surface-secondary, #888);
-        cursor: pointer;
-        border-radius: var(--na-radius-pill);
-        transition: all 0.15s;
-
-        &--active {
-            background: var(--b3-theme-primary);
-            color: var(--b3-theme-on-primary, #fff);
-            border-color: var(--b3-theme-primary);
-        }
-    }
-
-    @container myday-view (max-width: 520px) {
-        .na-myday-header {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            grid-template-areas:
-                "title mode"
-                "summary summary";
-            align-items: center;
-            gap: 8px 12px;
-        }
-
-        .na-myday-summary {
-            justify-content: flex-start;
-            flex-wrap: nowrap;
-            min-width: 0;
-            overflow-x: auto;
-            padding-bottom: 1px;
-        }
-    }
-
-    @container myday-view (max-width: 380px) {
-        .na-myday-header {
-            grid-template-columns: minmax(0, 1fr);
-            grid-template-areas:
-                "title"
-                "mode"
-                "summary";
-        }
-
-        .na-myday-mode-toggle {
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .na-myday-ai-btn,
-        .na-myday-mode-btn {
-            flex: 1 1 0;
-            min-width: 0;
-            padding-right: 6px;
-            padding-left: 6px;
-        }
     }
 </style>

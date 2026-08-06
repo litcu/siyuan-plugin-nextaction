@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../shared/types";
     import StatusCheckbox from "./StatusCheckbox.svelte";
-    import { normalizePriority, PRIORITY_HEX_COLORS } from "../constants";
+    import { normalizePriority, PRIORITY_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
     import NaTooltip from "../ui/NaTooltip.svelte";
     import { taskStore } from "../stores/task-store";
@@ -57,10 +57,10 @@
     $: compositeTitle = parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle;
 
     $: priorityBorderColor = task.taskType !== "2" && displayPriority
-        ? PRIORITY_HEX_COLORS[displayPriority] || ""
+        ? PRIORITY_COLORS[displayPriority] || ""
         : "";
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : (priorityBorderColor || "transparent");
-    $: priorityTextColor = PRIORITY_HEX_COLORS[displayPriority] || "currentColor";
+    $: priorityTextColor = PRIORITY_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
     $: repeatState = parseRepeatState(task.repeatState);
     $: repeatStatus = repeatState?.status || (task.repeat ? "active" : "");

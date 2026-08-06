@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { normalizePriority, PRIORITY_HEX_COLORS } from "../../constants";
+    import { normalizePriority, PRIORITY_COLORS } from "../../constants";
     import { MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
@@ -101,12 +101,12 @@
                 {@const task = taskMap.get(entry.blockId)}
                 {#if task}
                     {@const displayPriority = normalizePriority(task.priority)}
-                    {@const hexColor = PRIORITY_HEX_COLORS[displayPriority] || "#5dade2"}
+                    {@const priorityColor = PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)"}
                     {@const priorityClass = `na-unscheduled-card--priority-${displayPriority}`}
                     <div
                         class="na-unscheduled-card {priorityClass}"
                         class:na-unscheduled-card--done={isMyDayEntryDone(entry, task.status)}
-                        style="--na-unscheduled-card-accent: {hexColor};"
+                        style="--na-unscheduled-card-accent: {priorityColor};"
                         draggable="true"
                         on:dragstart={(e) => handleDragStart(e, entry.blockId)}
                         on:click={(e) => handleClick(e, task, entry)}
@@ -141,7 +141,7 @@
     }
 
     .na-unscheduled--drop-target {
-        background: rgba(93, 173, 226, 0.08);
+        background: var(--na-color-info-bg);
     }
 
     .na-unscheduled__header {
@@ -164,7 +164,7 @@
         height: 18px;
         padding: 0 6px;
         border-radius: var(--na-radius-pill);
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
         background: var(--na-task-card-meta-bg, var(--b3-theme-surface-light));
         border: 1px solid var(--na-task-card-meta-border, var(--b3-border-color));
         font-size: 10px;
@@ -175,7 +175,7 @@
     .na-unscheduled__empty {
         padding: 12px 10px;
         font-size: 11px;
-        color: var(--b3-theme-on-surface-dim, #888);
+        color: var(--na-text-secondary);
         text-align: center;
     }
 
@@ -229,13 +229,13 @@
     }
 
     .na-unscheduled-card--priority-critical {
-        background-color: rgba(231, 76, 60, 0.08);
+        background-color: var(--na-priority-bg-critical);
     }
     .na-unscheduled-card--priority-high {
-        background-color: rgba(243, 156, 18, 0.08);
+        background-color: var(--na-priority-bg-high);
     }
     .na-unscheduled-card--priority-medium {
-        background-color: rgba(93, 173, 226, 0.08);
+        background-color: var(--na-priority-bg-medium);
     }
     .na-unscheduled-card--priority-low {
         background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
@@ -302,12 +302,12 @@
     }
 
     .na-unscheduled-card__due {
-        color: var(--b3-theme-on-surface-secondary);
+        color: var(--na-text-secondary);
 
         &--overdue {
-            color: var(--na-danger, #e74c3c);
-            background: rgba(231, 76, 60, 0.1);
-            border-color: rgba(231, 76, 60, 0.16);
+            color: var(--na-danger);
+            background: var(--na-color-error-bg);
+            border-color: var(--na-color-error-border);
         }
     }
 </style>

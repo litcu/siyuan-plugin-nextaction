@@ -47,12 +47,12 @@
         top: -4px;
         width: 8px;
         height: 8px;
-        background: var(--na-danger, #e74c3c);
+        background: var(--na-danger);
         border-radius: 50%;
     }
 
     .na-timeline-needle__line {
         height: 2px;
-        background: var(--na-danger, #e74c3c);
+        background: var(--na-danger);
     }
 </style>
