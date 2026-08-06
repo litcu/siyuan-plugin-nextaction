@@ -1,5 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { parseNaturalDate } from "../../shared/natural-date";
     import { portal } from "../utils/portal";
     import NaIcon from "./NaIcon.svelte";
 
@@ -28,6 +29,11 @@
     let minuteSnapTimer: ReturnType<typeof setTimeout> | null = null;
     let isSnappingHour = false;
     let isSnappingMinute = false;
+    let inputEl: HTMLInputElement;
+    let inputText = "";
+    let inputError = "";
+    let inputFocused = false;
+    let syncedValue: string | null = null;
 
     $: weekdays = i18n?.dpWeekdays ? i18n.dpWeekdays.split(",") : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     $: todayLabel = i18n?.dpToday || "Today";
@@ -45,7 +51,7 @@
     const SNAP_DELAY = 80;
 
     $: today = getToday();
-    $: displayText = value ? formatDateTimeDisplay(value) : "";
+    $: if (!inputFocused && value !== syncedValue) syncInputFromValue();
     $: calendarDays = buildCalendarDays(viewYear, viewMonth);
     $: datePart = value ? value.split("T")[0] : "";
 
@@ -70,6 +76,55 @@
         const parts = iso.split("-");
         if (parts.length !== 3) return iso;
         return `${parts[0]}/${parts[1]}/${parts[2]}`;
+    }
+
+    function syncInputFromValue() {
+        syncedValue = value;
+        inputText = value ? formatDateTimeDisplay(value) : "";
+        inputError = "";
+    }
+
+    function applyValue(nextValue: string, emitChange: boolean) {
+        value = nextValue;
+        syncInputFromValue();
+        if (emitChange) dispatch("change", { value: nextValue });
+    }
+
+    function handleTextInput(event: Event) {
+        inputText = (event.currentTarget as HTMLInputElement).value;
+        inputError = "";
+    }
+
+    function commitNaturalInput() {
+        const raw = inputText.trim();
+        const currentDisplay = value ? formatDateTimeDisplay(value) : "";
+        if (raw === currentDisplay) {
+            inputError = "";
+            return;
+        }
+        if (!raw) {
+            applyValue("", true);
+            return;
+        }
+        const parsed = parseNaturalDate(raw, { requireTime, defaultTime });
+        if (!parsed) {
+            inputError = i18n?.dpNaturalDateInvalid || "Could not recognize this date.";
+            return;
+        }
+        applyValue(parsed.value, true);
+        initViewModel();
+        initTimeFromValue();
+    }
+
+    function handleInputBlur() {
+        inputFocused = false;
+        commitNaturalInput();
+    }
+
+    function handleInputKeydown(event: KeyboardEvent) {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        commitNaturalInput();
     }
 
     function parseDate(iso: string): { year: number; month: number; day: number } | null {
@@ -190,14 +245,14 @@
 
     function selectDay(date: string) {
         if (timeMode || requireTime) {
-            value = `${date}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(`${date}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
             const parsed = parseDate(date);
             if (parsed) {
                 viewYear = parsed.year;
                 viewMonth = parsed.month - 1;
             }
         } else {
-            value = date;
+            applyValue(date, false);
             open = false;
             dispatch("change", { value });
         }
@@ -205,10 +260,10 @@
 
     function selectToday() {
         if (timeMode) {
-            value = `${today}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(`${today}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
             initViewModel();
         } else {
-            value = today;
+            applyValue(today, false);
             initViewModel();
             open = false;
             dispatch("change", { value });
@@ -228,7 +283,7 @@
             scrollToSelected();
         } else {
             if (value && value.includes("T")) {
-                value = value.split("T")[0];
+                applyValue(value.split("T")[0], false);
             }
             open = false;
             dispatch("change", { value });
@@ -238,14 +293,14 @@
     function confirmDateTime() {
         if (timeMode || requireTime) {
             const d = value ? value.split("T")[0] : today;
-            value = `${d}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(`${d}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
         }
         open = false;
         dispatch("change", { value });
     }
 
     function clearValue() {
-        value = "";
+        applyValue("", false);
         timeMode = false;
         open = false;
         dispatch("change", { value: "" });
@@ -323,6 +378,10 @@
             open = false;
             e.preventDefault();
             e.stopPropagation();
+        } else if (e.key === "Escape" && e.target === inputEl) {
+            syncInputFromValue();
+            e.preventDefault();
+            e.stopPropagation();
         }
     }
 
@@ -344,27 +403,40 @@
 
 <div class="na-date-picker" bind:this={containerEl}>
     <div
-        class="na-date-picker__input"
-        class:na-date-picker__input--open={open}
-        class:na-date-picker__input--disabled={disabled}
-        on:click={toggleOpen}
-        role="combobox"
-        aria-expanded={open}
-        aria-controls="na-date-picker-calendar"
-        aria-haspopup="grid"
-        aria-disabled={disabled}
-        tabindex={disabled ? -1 : 0}
-        on:keydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleOpen(); } }}
+        class="na-date-picker__control"
+        class:na-date-picker__control--open={open}
+        class:na-date-picker__control--invalid={!!inputError}
+        class:na-date-picker__control--disabled={disabled}
     >
-        {#if displayText}
-            <span class="na-date-picker__value">{displayText}</span>
-        {:else}
-            <span class="na-date-picker__placeholder">{placeholder}</span>
-        {/if}
-        <span class="na-date-picker__icon">
+        <input
+            bind:this={inputEl}
+            class="na-date-picker__input"
+            type="text"
+            value={inputText}
+            placeholder={placeholder || i18n?.dpNaturalDatePlaceholder || "Date or natural language"}
+            {disabled}
+            aria-invalid={inputError ? "true" : "false"}
+            on:input={handleTextInput}
+            on:focus={() => inputFocused = true}
+            on:blur={handleInputBlur}
+            on:keydown={handleInputKeydown}
+        />
+        <button
+            type="button"
+            class="na-date-picker__calendar-button"
+            on:mousedown|preventDefault
+            on:click={() => { commitNaturalInput(); toggleOpen(); }}
+            aria-expanded={open}
+            aria-controls="na-date-picker-calendar"
+            aria-haspopup="grid"
+            aria-label={i18n?.dpOpenCalendar || "Open calendar"}
+            title={i18n?.dpOpenCalendar || "Open calendar"}
+            {disabled}
+        >
             <NaIcon symbol={value && value.includes("T") ? "iconClock" : "iconCalendar"} size={14} />
-        </span>
+        </button>
     </div>
+    {#if inputError}<div class="na-date-picker__error" role="alert">{inputError}</div>{/if}
 
     {#if open}
         <div use:portal={fixedDropdown} bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
@@ -460,27 +532,59 @@
     }
 
     /* ── Input trigger ── */
-    .na-date-picker__input {
+    .na-date-picker__control {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         height: var(--na-control-height);
-        padding: 0 var(--na-space-md);
         background: var(--b3-theme-background);
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-md);
-        cursor: pointer;
+        overflow: hidden;
         transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        user-select: none;
     }
-    .na-date-picker__input:hover { border-color: var(--b3-theme-primary-light); }
-    .na-date-picker__input:focus-visible { border-color: var(--b3-theme-primary); outline: none; }
-    .na-date-picker__input--open { border-color: var(--b3-theme-primary); }
-    .na-date-picker__input--disabled { opacity: 0.35; cursor: not-allowed; }
+    .na-date-picker__control:hover { border-color: var(--b3-theme-primary-light); }
+    .na-date-picker__control:focus-within,
+    .na-date-picker__control--open { border-color: var(--b3-theme-primary); }
+    .na-date-picker__control:focus-within {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--b3-theme-primary) 28%, transparent);
+    }
+    .na-date-picker__control--invalid { border-color: var(--b3-theme-error); }
+    .na-date-picker__control--disabled { opacity: 0.35; cursor: not-allowed; }
 
-    .na-date-picker__value { font-size: var(--na-font-size-md); color: var(--b3-theme-on-background); flex: 1; }
-    .na-date-picker__placeholder { font-size: var(--na-font-size-md); color: var(--b3-theme-on-surface-light); flex: 1; }
-    .na-date-picker__icon { display: flex; align-items: center; color: var(--b3-theme-on-surface-light); flex-shrink: 0; margin-left: var(--na-space-xs); }
+    .na-date-picker__input {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 0 0 0 var(--na-space-md);
+        border: 0;
+        outline: 0;
+        color: var(--b3-theme-on-background);
+        background: transparent;
+        font: inherit;
+        font-size: var(--na-font-size-md);
+    }
+    .na-date-picker__input::placeholder { color: var(--b3-theme-on-surface-light); }
+    .na-date-picker__control .na-date-picker__input:focus-visible,
+    .na-date-picker__control .na-date-picker__calendar-button:focus-visible { outline: none; }
+    .na-date-picker__calendar-button {
+        display: grid;
+        place-items: center;
+        align-self: stretch;
+        flex: 0 0 calc(var(--na-control-height) - 2px);
+        padding: 0;
+        border: 0;
+        color: var(--b3-theme-on-surface-light);
+        background: transparent;
+        cursor: pointer;
+    }
+    .na-date-picker__calendar-button:hover { color: var(--b3-theme-primary); }
+    .na-date-picker__calendar-button:disabled { cursor: not-allowed; }
+    .na-date-picker__error {
+        margin-top: 4px;
+        color: var(--b3-theme-error);
+        font-size: var(--na-font-size-xs);
+        line-height: 1.4;
+    }
 
     /* ── Dropdown ── */
     .na-date-picker__dropdown {

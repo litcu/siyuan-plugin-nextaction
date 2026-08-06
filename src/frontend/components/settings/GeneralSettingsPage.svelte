@@ -9,6 +9,7 @@
     export let i18n: any;
     export let defaultImportance: number;
     export let defaultEffort: number;
+    export let semanticDateParsingEnabled: boolean;
     export let myDayEnabled: boolean;
     export let myDayResetHour: number;
     export let myDayDefaultViewMode: MyDayViewMode;
@@ -45,6 +46,9 @@
         </NaSettingRow>
         <NaSettingRow title={i18n?.settingDefaultEffort || "Default effort"} description={i18n?.settingDefaultEffortDesc || "Effort value for new tasks (1-7)"}>
             <NaDotRating count={7} bind:value={defaultEffort} color="var(--na-color-effort)" />
+        </NaSettingRow>
+        <NaSettingRow forId="setting-semantic-date-parsing" title={i18n?.settingSemanticDateParsing || "Parse dates from task titles"} description={i18n?.settingSemanticDateParsingDesc || "Fill empty start and due dates when a block is first converted"}>
+            <input id="setting-semantic-date-parsing" class="b3-switch" type="checkbox" bind:checked={semanticDateParsingEnabled} />
         </NaSettingRow>
     </NaSection>
 

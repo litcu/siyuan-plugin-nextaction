@@ -47,6 +47,7 @@
 
     let defaultImportance = DEFAULT_SETTINGS.defaultImportance;
     let defaultEffort = DEFAULT_SETTINGS.defaultEffort;
+    let semanticDateParsingEnabled = DEFAULT_SETTINGS.semanticDateParsingEnabled;
     let myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
     let myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
     let myDayDefaultViewMode: MyDayViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
@@ -130,6 +131,7 @@
             current = settings;
             defaultImportance = settings.defaultImportance;
             defaultEffort = settings.defaultEffort;
+            semanticDateParsingEnabled = settings.semanticDateParsingEnabled ?? DEFAULT_SETTINGS.semanticDateParsingEnabled;
             myDayEnabled = settings.myDayEnabled ?? DEFAULT_SETTINGS.myDayEnabled;
             myDayResetHour = settings.myDayResetHour ?? DEFAULT_SETTINGS.myDayResetHour;
             myDayDefaultViewMode = settings.myDayDefaultViewMode ?? DEFAULT_SETTINGS.myDayDefaultViewMode;
@@ -224,6 +226,7 @@
             customFieldSchemaVersion: 2,
             defaultImportance,
             defaultEffort,
+            semanticDateParsingEnabled,
             priorityEngine: {
                 dueWeight,
                 startWeight,
@@ -342,6 +345,7 @@
     function handleResetDefaults() {
         defaultImportance = DEFAULT_SETTINGS.defaultImportance;
         defaultEffort = DEFAULT_SETTINGS.defaultEffort;
+        semanticDateParsingEnabled = DEFAULT_SETTINGS.semanticDateParsingEnabled;
     }
 
     function handleResetMyDay() {
@@ -513,6 +517,7 @@
                     {i18n}
                     bind:defaultImportance
                     bind:defaultEffort
+                    bind:semanticDateParsingEnabled
                     bind:myDayEnabled
                     bind:myDayResetHour
                     bind:myDayDefaultViewMode
