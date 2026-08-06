@@ -10,6 +10,8 @@
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
     import type { TaskCacheEntry } from "../../shared/types";
     import { get } from "svelte/store";
+    import NaPanelHeader from "../ui/NaPanelHeader.svelte";
+    import NaSegmentControl from "../ui/NaSegmentControl.svelte";
 
     export let bridge: KernelBridge;
     export let i18n: any;
@@ -132,23 +134,23 @@
         activeTab = tab;
     }
 
+    function handleTabChange(event: CustomEvent<string>) {
+        switchTab(event.detail as DockTab);
+    }
+
     $: visibleTabs = tabs.filter(t => {
         if (t.id === "myDay") return myDayEnabled;
         return true;
     });
+
+    $: tabOptions = visibleTabs.map(tab => ({ value: tab.id, label: tab.label }));
+    $: activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label || "";
 </script>
 
 <div class="na-dock">
+    <NaPanelHeader compact title={activeTabLabel} icon={activeTab === "inbox" ? "iconInbox" : activeTab === "myDay" ? "iconCalendar" : "iconListItem"} />
     <div class="na-dock__tabs">
-        {#each visibleTabs as tab (tab.id)}
-            <button
-                class="na-dock__tab"
-                class:na-dock__tab--active={activeTab === tab.id}
-                on:click={() => switchTab(tab.id)}
-            >
-                {tab.label}
-            </button>
-        {/each}
+        <NaSegmentControl options={tabOptions} value={activeTab} size="sm" stretch label={i18n?.pluginName || "NextAction"} on:change={handleTabChange} />
     </div>
 
     <div class="na-dock__body">
@@ -184,42 +186,30 @@
         flex-direction: column;
         height: 100%;
         overflow: hidden;
+        container-name: na-dock;
+        container-type: inline-size;
+        background: var(--b3-theme-background);
     }
 
     .na-dock__tabs {
         display: flex;
+        justify-content: center;
+        padding: 7px 10px 8px;
         border-bottom: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
         flex-shrink: 0;
     }
 
-    .na-dock__tab {
-        flex: 1;
-        padding: 8px 4px 6px;
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--b3-theme-on-surface-light);
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-        transition: color 0.15s, border-color 0.15s;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        text-align: center;
-
-        &:hover {
-            color: var(--b3-theme-on-surface);
-        }
-
-        &--active {
-            color: var(--b3-theme-primary);
-            border-bottom-color: var(--b3-theme-primary);
-        }
-    }
+    :global(.na-dock__tabs .na-segment-control) { max-width: 100%; }
+    :global(.na-dock__tabs .na-segment-control__option) { overflow: hidden; text-overflow: ellipsis; }
 
     .na-dock__body {
         flex: 1;
         overflow: hidden;
+    }
+
+    @container na-dock (max-width: 260px) {
+        .na-dock__tabs { padding-inline: 6px; }
+        :global(.na-dock__tabs .na-segment-control__option) { padding-inline: 5px; }
     }
 </style>

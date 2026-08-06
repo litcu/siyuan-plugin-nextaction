@@ -1,6 +1,7 @@
 <script lang="ts">
     import NaFilterDropdown from "../ui/NaFilterDropdown.svelte";
     import NaSortSelect from "../ui/NaSortSelect.svelte";
+    import NaSearchInput from "../ui/NaSearchInput.svelte";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { PRIORITY_COLORS } from "../constants";
     import { toI18nKey } from "../utils";
@@ -88,18 +89,9 @@
 </script>
 
 <div class="na-search-filter-bar">
-    <label class="na-search-filter-bar__search">
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-            <circle cx="6.5" cy="6.5" r="4.5" />
-            <line x1="10" y1="10" x2="14" y2="14" />
-        </svg>
-        <input
-            type="text"
-            bind:value={searchText}
-            on:input={onSearchInput}
-            placeholder={i18n?.searchPlaceholder || "Search..."}
-        />
-    </label>
+    <div class="na-search-filter-bar__search">
+        <NaSearchInput bind:value={searchText} compact placeholder={i18n?.searchPlaceholder || "Search..."} ariaLabel={i18n?.searchPlaceholder || "Search..."} on:input={onSearchInput} />
+    </div>
     <div class="na-search-filter-bar__filters">
         <div style="--na-filter-active-color: var(--na-filter-context)">
             <NaFilterDropdown

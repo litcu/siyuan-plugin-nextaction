@@ -22,6 +22,7 @@
     import { get } from "svelte/store";
     import NaDrawerHost from "../ui/NaDrawerHost.svelte";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
+    import NaPanelHeader from "../ui/NaPanelHeader.svelte";
 
     export let bridge: KernelBridge;
     export let i18n: any;
@@ -190,12 +191,28 @@
     }
 
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
+    $: activeViewMeta = (() => {
+        const labels: Record<string, { title: string; icon: string }> = {
+            [VIEW_INBOX]: { title: i18n?.inbox || "Inbox", icon: "iconInbox" },
+            [VIEW_NEXT_ACTION]: { title: i18n?.nextAction || "Next", icon: "iconListItem" },
+            [VIEW_MY_DAY]: { title: i18n?.myDay || "My Day", icon: "iconCalendar" },
+            [VIEW_ALL_TASKS]: { title: i18n?.allTasks || "All", icon: "iconList" },
+            [VIEW_BY_PROJECT]: { title: i18n?.byProject || "Project", icon: "iconFolder" },
+            [VIEW_SOMEDAY]: { title: i18n?.someday || "Someday", icon: "iconLight" },
+            [VIEW_WAITING]: { title: i18n?.waiting || "Waiting", icon: "iconClock" },
+            [VIEW_STATISTICS]: { title: i18n?.statistics || "Statistics", icon: "iconGraph" },
+            [VIEW_REVIEW]: { title: i18n?.review || "Review", icon: "iconCheck" },
+            [VIEW_REMINDER]: { title: i18n?.reminder || "Reminders", icon: "iconClock" },
+        };
+        return labels[activeView] || labels[VIEW_NEXT_ACTION];
+    })();
 </script>
 
 <div class="nextaction na-app">
     <NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />
 
     <div class="na-app__center">
+        <NaPanelHeader compact title={activeViewMeta.title} icon={activeViewMeta.icon} />
         <div class="na-app__list">
             {#if activeView === VIEW_INBOX}
                 <InboxView
