@@ -10,6 +10,7 @@
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
     import NaIcon from "../ui/NaIcon.svelte";
+    import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import GeneralSettingsPage from "./settings/GeneralSettingsPage.svelte";
     import CustomFieldsSettingsPage from "./settings/CustomFieldsSettingsPage.svelte";
     import AiSettingsPage from "./settings/AiSettingsPage.svelte";
@@ -492,16 +493,19 @@
     </aside>
 
     <main class="na-settings-modern__content">
-        <header class="na-settings-modern__header">
-            <div>
-                <span class="na-settings-modern__kicker">{i18n?.settingsTitle || "Settings"}</span>
-                <h1>{modernTabs.find(tab => tab.id === modernTab)?.label}</h1>
-                <p>{modernTabs.find(tab => tab.id === modernTab)?.desc}</p>
-            </div>
-            <button type="button" class="b3-button b3-button--text na-settings-modern__close" on:click={requestClose} title={i18n?.cancel || "Close"} aria-label={i18n?.cancel || "Close"}>
-                <NaIcon symbol="iconCloseRound" size={18} />
-            </button>
-        </header>
+        <div class="na-settings-modern__header">
+            <NaPanelHeader
+                eyebrow={i18n?.settingsTitle || "Settings"}
+                title={modernTabs.find(tab => tab.id === modernTab)?.label || ""}
+                description={modernTabs.find(tab => tab.id === modernTab)?.desc || ""}
+            >
+                <svelte:fragment slot="actions">
+                    <button type="button" class="b3-button b3-button--text na-settings-modern__close" on:click={requestClose} title={i18n?.cancel || "Close"} aria-label={i18n?.cancel || "Close"}>
+                        <NaIcon symbol="iconCloseRound" size={18} />
+                    </button>
+                </svelte:fragment>
+            </NaPanelHeader>
+        </div>
 
         <div class="na-settings-modern__body" bind:this={settingsBodyEl}>
             {#if modernTab === "general"}
@@ -704,10 +708,7 @@
     }
 
     .na-settings-modern__content { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-    .na-settings-modern__header { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex: 0 0 auto; padding: 21px 24px 16px; border-bottom: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
-    .na-settings-modern__kicker { display: block; margin-bottom: 4px; color: var(--b3-theme-primary); font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
-    .na-settings-modern__header h1 { margin: 0; color: var(--b3-theme-on-background); font-size: 17px; font-weight: 650; line-height: 23px; }
-    .na-settings-modern__header p { margin: 3px 0 0; color: var(--b3-theme-on-surface-light); font-size: 11px; line-height: 17px; }
+    .na-settings-modern__header { position: sticky; top: 0; z-index: 2; display: contents; }
     :global(.na-settings-modern__close) { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--b3-theme-on-surface-light); }
     .na-settings-modern__body { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px 22px; scrollbar-gutter: stable; }
     .na-settings-modern__error { flex: 0 0 auto; padding: 9px 24px; border-top: 1px solid color-mix(in srgb, var(--b3-theme-error) 25%, var(--b3-border-color)); color: var(--b3-theme-error); background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-background)); font-size: 11px; line-height: 16px; }
@@ -733,7 +734,6 @@
         .na-settings-modern__group { flex: 0 0 auto; flex-direction: row; width: auto; }
         .na-settings-modern__nav-item { width: 38px; min-height: 34px; }
         .na-settings-modern__reset-all { flex: 0 0 38px; width: 38px; min-height: 34px; margin-top: 0; margin-left: auto; }
-        .na-settings-modern__header { padding: 15px 16px 13px; }
         .na-settings-modern__body { padding: 14px 16px 18px; }
         .na-settings-modern__footer { padding: 8px 16px; }
         .na-settings-modern__dirty { display: none; }

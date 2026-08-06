@@ -4,6 +4,8 @@
   export let options: { value: string; label: string }[] = [];
   export let value: string = '';
   export let label: string = '';
+  export let size: 'md' | 'sm' = 'md';
+  export let stretch = false;
 
   const dispatch = createEventDispatcher<{ change: string }>();
 
@@ -16,7 +18,7 @@
   $: activeIndex = options.findIndex(o => o.value === value);
 </script>
 
-<div class="na-segment-control" role="radiogroup" aria-label={label || undefined}>
+<div class="na-segment-control" class:na-segment-control--sm={size === 'sm'} class:na-segment-control--stretch={stretch} role="radiogroup" aria-label={label || undefined}>
   {#if activeIndex >= 0}
     <div
       class="na-segment-control__slider"
@@ -46,6 +48,8 @@
     background: var(--b3-theme-background);
   }
 
+  .na-segment-control--stretch { width: 100%; }
+
   .na-segment-control__slider {
     position: absolute;
     top: 2px;
@@ -70,6 +74,13 @@
     transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
   }
+
+  .na-segment-control--sm .na-segment-control__option {
+    padding: 3px 9px;
+    font-size: var(--na-font-size-xs);
+  }
+
+  .na-segment-control--stretch .na-segment-control__option { flex: 1; }
 
   .na-segment-control__option:not(.na-segment-control__option--active):hover {
     color: var(--b3-theme-primary);

@@ -8,11 +8,13 @@
     export let active = false;
     export let tone: "default" | "danger" = "default";
     export let type: "button" | "submit" = "button";
+    export let compact = false;
 </script>
 
 <button
     {type}
     class="na-icon-button"
+    class:na-icon-button--compact={compact}
     class:na-icon-button--active={active}
     class:na-icon-button--danger={tone === "danger"}
     aria-label={label}
@@ -52,6 +54,12 @@
     .na-icon-button--active {
         color: var(--b3-theme-primary);
         background: var(--b3-theme-primary-lightest);
+    }
+
+    .na-icon-button--compact {
+        width: 24px;
+        height: 24px;
+        flex-basis: 24px;
     }
 
     .na-icon-button--danger:hover:not(:disabled) {

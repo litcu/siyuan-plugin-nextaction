@@ -6,8 +6,9 @@
     import TaskCard from "./TaskCard.svelte";
     import NaEmpty from "../ui/NaEmpty.svelte";
     import NaSearchSelect from "../ui/NaSearchSelect.svelte";
+    import NaSegmentControl from "../ui/NaSegmentControl.svelte";
     import TimelineColumn from "./timeline/TimelineColumn.svelte";
-    import { PRIORITY_HEX_COLORS } from "../constants";
+    import { normalizePriority } from "../constants";
     import type { TaskCacheEntry, MyDayTaskEntry, MyDayState } from "../../shared/types";
     import { isMyDayEntryDone } from "../../shared/my-day";
     import { runAiPlanMyDay } from "../ai/ai-feature-service";
@@ -76,6 +77,10 @@
         }
     }
 
+    function handleViewModeChange(event: CustomEvent<string>) {
+        viewMode = event.detail as ViewMode;
+    }
+
     function handleDragStart(e: DragEvent, blockId: string) {
         if (!e.dataTransfer) return;
         e.dataTransfer.setData(MY_DAY_DRAG_TYPE, blockId);
@@ -114,22 +119,16 @@
                 on:change={handleSearchChange}
             />
         </div>
-        <div class="na-dock-myday__mode-toggle">
-            <button
-                class="na-dock-myday__mode-btn"
-                class:na-dock-myday__mode-btn--active={viewMode === "timeline"}
-                on:click={() => viewMode = "timeline"}
-            >
-                {i18n?.timelineMode || "时间线"}
-            </button>
-            <button
-                class="na-dock-myday__mode-btn"
-                class:na-dock-myday__mode-btn--active={viewMode === "list"}
-                on:click={() => viewMode = "list"}
-            >
-                {i18n?.listMode || "列表"}
-            </button>
-        </div>
+        <NaSegmentControl
+            size="sm"
+            options={[
+                { value: "timeline", label: i18n?.timelineMode || "时间线" },
+                { value: "list", label: i18n?.listMode || "列表" },
+            ]}
+            value={viewMode}
+            label={i18n?.myDayDefaultViewMode || "View mode"}
+            on:change={handleViewModeChange}
+        />
     </div>
 
     {#if viewMode === "timeline"}
@@ -143,11 +142,14 @@
                     {#each unscheduledEntries as entry (entry.blockId)}
                         {@const task = taskMap.get(entry.blockId)}
                         {#if task}
-                            {@const hexColor = PRIORITY_HEX_COLORS[task.priority] || "#5dade2"}
                             <div
                                 class="na-dock-myday__unscheduled-item"
                                 class:na-dock-myday__unscheduled-item--done={isMyDayEntryDone(entry, task.status)}
-                                style="--na-dock-myday-unscheduled-accent: {hexColor};"
+                                class:na-dock-myday__unscheduled-item--critical={normalizePriority(task.priority) === "critical"}
+                                class:na-dock-myday__unscheduled-item--high={normalizePriority(task.priority) === "high"}
+                                class:na-dock-myday__unscheduled-item--medium={normalizePriority(task.priority) === "medium"}
+                                class:na-dock-myday__unscheduled-item--low={normalizePriority(task.priority) === "low"}
+                                class:na-dock-myday__unscheduled-item--none={normalizePriority(task.priority) === "none"}
                                 draggable="true"
                                 on:dragstart={(e) => handleDragStart(e, entry.blockId)}
                                 on:click={() => onEdit(task)}
@@ -217,9 +219,7 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        background:
-            linear-gradient(180deg, rgba(93, 173, 226, 0.035), transparent 140px),
-            var(--b3-theme-background);
+        background: var(--b3-theme-background);
     }
 
     .na-dock-myday__toolbar {
@@ -239,39 +239,7 @@
         min-width: 0;
     }
 
-    .na-dock-myday__mode-toggle {
-        display: flex;
-        gap: 2px;
-        padding: 2px;
-        border: 1px solid var(--na-task-card-meta-border);
-        border-radius: var(--na-radius-pill);
-        background: var(--b3-theme-background);
-        flex-shrink: 0;
-    }
-
-    .na-dock-myday__mode-btn {
-        min-width: 42px;
-        padding: 3px 8px;
-        font-size: 11px;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--b3-theme-on-surface-secondary, #888);
-        cursor: pointer;
-        border-radius: var(--na-radius-pill);
-        transition: all 0.15s;
-        white-space: nowrap;
-
-        &--active {
-            background: var(--b3-theme-primary);
-            color: var(--b3-theme-on-primary, #fff);
-            border-color: var(--b3-theme-primary);
-        }
-
-        &:hover:not(.na-dock-myday__mode-btn--active) {
-            color: var(--b3-theme-on-background);
-            background: var(--na-task-card-meta-bg);
-        }
-    }
+    :global(.na-dock-myday__toolbar .na-segment-control) { flex: 0 0 auto; }
 
     .na-dock-myday__timeline {
         position: relative;
@@ -364,6 +332,12 @@
         background: var(--na-dock-myday-unscheduled-accent, var(--b3-theme-primary));
     }
 
+    .na-dock-myday__unscheduled-item--critical { --na-dock-myday-unscheduled-accent: var(--na-priority-critical); }
+    .na-dock-myday__unscheduled-item--high { --na-dock-myday-unscheduled-accent: var(--na-priority-high); }
+    .na-dock-myday__unscheduled-item--medium { --na-dock-myday-unscheduled-accent: var(--na-priority-medium); }
+    .na-dock-myday__unscheduled-item--low,
+    .na-dock-myday__unscheduled-item--none { --na-dock-myday-unscheduled-accent: var(--na-priority-low); }
+
     .na-dock-myday__unscheduled-name {
         font-size: 12px;
         font-weight: 650;
@@ -384,7 +358,7 @@
         padding: 0;
         border: 1px solid transparent;
         background: transparent;
-        color: var(--b3-theme-on-surface-light, #999);
+        color: var(--b3-theme-on-surface-light);
         border-radius: var(--na-radius-pill);
         cursor: pointer;
         opacity: 0.42;
@@ -395,9 +369,9 @@
         }
 
         &:hover {
-            color: var(--na-color-error, #e74c3c);
-            background: rgba(231, 76, 60, 0.1);
-            border-color: rgba(231, 76, 60, 0.16);
+            color: var(--na-color-error);
+            background: var(--na-color-error-bg);
+            border-color: var(--na-color-error-border);
         }
     }
 
@@ -433,5 +407,13 @@
         :global(.na-task-card__actions) {
             opacity: 1;
         }
+    }
+
+    @container na-dock (max-width: 260px) {
+        .na-dock-myday__toolbar { flex-wrap: wrap; padding: 7px 8px; }
+        .na-dock-myday__add { order: 3; flex: 1 0 100%; }
+        :global(.na-dock-myday__toolbar .na-segment-control) { margin-left: auto; }
+        .na-dock-myday__timeline { padding: 6px; gap: 6px; }
+        .na-dock-myday__unscheduled { padding: 6px; }
     }
 </style>

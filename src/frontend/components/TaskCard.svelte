@@ -9,6 +9,7 @@
     import { getDuePresentation } from "../utils/time-boundary";
     import { parseRepeatState } from "../../shared/repeat";
     import { formatCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
+    import NaIconButton from "../ui/NaIconButton.svelte";
 
     export let task: TaskCacheEntry;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -77,6 +78,16 @@
 
     function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
         isOverdue = !isDone && event.detail.isOverdue;
+    }
+
+    function handleToggleCollapse(event: MouseEvent): void {
+        event.stopPropagation();
+        onToggleCollapse?.();
+    }
+
+    function handleJump(event: MouseEvent): void {
+        event.stopPropagation();
+        jumpToBlock(task.blockId);
     }
 </script>
 
@@ -220,21 +231,19 @@
                 </span>
             {/if}
             {#if hasChildren}
-                <button
-                    class="na-task-card__action-btn"
-                    on:click|stopPropagation={onToggleCollapse}
-                    title={isCollapsed ? (i18n?.expandChildren || "Expand") : (i18n?.collapseChildren || "Collapse")}
-                >
-                    <svg><use xlink:href={isCollapsed ? "#iconExpand" : "#iconContract"}></use></svg>
-                </button>
+                <NaIconButton
+                    compact
+                    symbol={isCollapsed ? "iconExpand" : "iconContract"}
+                    label={isCollapsed ? (i18n?.expandChildren || "Expand") : (i18n?.collapseChildren || "Collapse")}
+                    on:click={handleToggleCollapse}
+                />
             {/if}
-            <button
-                class="na-task-card__action-btn"
-                on:click|stopPropagation={() => jumpToBlock(task.blockId)}
-                title={i18n?.jumpToBlock || "Jump to Block"}
-            >
-                <svg><use xlink:href="#iconOpenWindow"></use></svg>
-            </button>
+            <NaIconButton
+                compact
+                symbol="iconOpenWindow"
+                label={i18n?.jumpToBlock || "Jump to Block"}
+                on:click={handleJump}
+            />
         </div>
     </div>
 </div>
