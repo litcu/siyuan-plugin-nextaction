@@ -321,7 +321,7 @@ effortPenalty = 1 + effortScale * (effort - 4)
 
 - **停靠面板** — 注册为 `nextaction_dock`，承载 `DockSidebar.svelte` 组件
 - **Tab 面板** — 注册为 `nextaction_tab`，承载 `NextActionApp.svelte` 组件
-- **斜杠菜单** — `/zrw` 将块转为任务；`/zrwz` 批量转换含子项。斜杠文字必须在思源重新渲染前手动从 DOM 中删除
+- **斜杠菜单** — `/ntask` 和 `/zrw` 将块转为任务；`/nproject` 和 `/zxm` 将块转为项目；`/ntaskchildren` 和 `/zrwz` 批量转换含子块。斜杠文字必须在思源重新渲染前手动从 DOM 中删除
 - **块图标菜单** — 右键菜单添加「转为任务」等子项
 - **命令面板** — `convertToTask`、`recalcOrders` 等命令，带 `[NextAction]` 前缀
 - **事件总线** — 监听 `click-blockicon`、`click-editortitleicon` 和 `kernel-plugin-state-change`

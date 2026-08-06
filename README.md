@@ -11,7 +11,7 @@ NextAction helps you decide what to do next. Turn any block into a task, add the
 ## Quick Start
 
 1. Install NextAction from the SiYuan marketplace, or download a release and place it under your workspace's `data/plugins/` directory.
-2. Type `/zrw` in any document to convert the current block into a task.
+2. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
 3. Click the status circle beside the block to set status, priority, or open task details.
 4. Open the dock panel to use **Next Actions**, **My Day**, and **Inbox**.
 
@@ -23,9 +23,9 @@ NextAction follows the basic GTD rhythm: capture first, clarify later, organize 
 
 ### Capture: Get It Out of Your Head
 
-- Type `/zrw` to convert the current block into a task. New tasks start in **Inbox**.
-- Type `/zrxm` to convert the current block into a project.
-- Type `/zrwz` to batch-convert a list or document subtree.
+- Type `/ntask` or `/zrw` to convert the current block into a task. New tasks start in **Inbox**.
+- Type `/nproject` or `/zxm` to convert the current block into a project.
+- Type `/ntaskchildren` or `/zrwz` to batch-convert a list or document subtree.
 - You can also right-click a block icon or document title icon and choose **Convert to Task**.
 
 Inbox items do not need to be perfect. Capture them first; decide what they mean later.

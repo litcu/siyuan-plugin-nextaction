@@ -48,7 +48,7 @@ export function numberToAttr(val: number): string {
 
 /**
  * Strip slash command remnants from a title string.
- * Catches patterns like /zrw, /xjrw, /转..., /新..., or any /word at the start.
+ * Catches patterns like /ntask, /nproject, /转..., /新..., or any /word at the start.
  */
 export function cleanSlashFromTitle(title: string): string {
     return title
