@@ -171,6 +171,7 @@
             />
         {:else if activeTab === "inbox"}
             <DockInbox
+                {bridge}
                 onEdit={handleEdit}
                 onStatusClick={handleStatusClick}
                 onContextMenu={handleContextMenu}

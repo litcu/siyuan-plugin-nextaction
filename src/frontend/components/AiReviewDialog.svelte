@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { openTab } from "siyuan";
     import type { AiProposal } from "../../shared/ai";
     import type { TaskCacheEntry } from "../../shared/types";
     import { taskStore } from "../stores/task-store";
+    import { jumpToBlock } from "../utils";
     export let proposal: AiProposal;
     export let i18n: any;
     export let dialog: any;
@@ -21,7 +21,7 @@
 
     function openBlock(blockId: string) {
         if (!blockId) return;
-        openTab({ app: (window as any).siYuanApp, doc: { id: blockId } });
+        jumpToBlock(blockId);
     }
 </script>
 

@@ -6,7 +6,9 @@
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
+    import type { KernelBridge } from "../kernel-bridge";
 
+    export let bridge: KernelBridge;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -24,6 +26,15 @@
             return false;
         })
         : inboxTasks;
+
+    async function handleClarify(task: TaskCacheEntry) {
+        try {
+            const updated = await bridge.updateTask(task.blockId, { "na-status": "todo" });
+            taskStore.applyUpdate(updated);
+        } catch (e: any) {
+            console.error("[NextAction] clarify task failed:", e);
+        }
+    }
 </script>
 
 <NaViewShell loading={$taskStore.loading} empty={filteredTasks.length === 0} emptyText={searchText ? (i18n?.noResults || "No matching tasks") : (i18n?.noInboxTasks || "No inbox tasks")} scrollMode="none">
@@ -35,6 +46,7 @@
                     {onEdit}
                     {onStatusClick}
                     {onContextMenu}
+                    onActivate={handleClarify}
                     {i18n}
                 />
             {/each}

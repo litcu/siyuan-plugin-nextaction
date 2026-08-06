@@ -196,7 +196,7 @@
             </div>
         </div>
         <div class="na-task-card__actions" on:pointerdown|stopPropagation>
-            {#if isInbox}
+            {#if isInbox && onActivate}
                 <button
                     class="na-task-card__activate-btn"
                     on:click|stopPropagation={() => {
@@ -207,7 +207,7 @@
                     {i18n?.clarify || "Clarify"}
                 </button>
             {/if}
-            {#if isSomeday}
+            {#if isSomeday && onActivate}
                 <button
                     class="na-task-card__activate-btn"
                     on:click|stopPropagation={() => {
