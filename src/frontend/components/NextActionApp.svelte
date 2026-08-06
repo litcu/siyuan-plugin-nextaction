@@ -180,6 +180,27 @@
         }
     }
 
+    async function handleProjectTaskUpdate(task: TaskCacheEntry, attrs: Record<string, string>): Promise<void> {
+        try {
+            const updated = await bridge.updateTask(task.blockId, attrs);
+            taskStore.applyUpdate(updated);
+            if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+        } catch (error: any) {
+            notifyError(formatRpcError(error, i18n));
+            throw error;
+        }
+    }
+
+    async function handleProjectTaskReorder(blockId: string, parentId: string, afterId?: string): Promise<void> {
+        try {
+            const updated = await bridge.reorderTask(blockId, parentId, afterId);
+            taskStore.applyUpdate(updated);
+        } catch (error: any) {
+            notifyError(formatRpcError(error, i18n));
+            throw error;
+        }
+    }
+
     async function handleRefresh() {
         try {
             await bridge.recalcAllOrders();
@@ -260,6 +281,8 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onTaskUpdate={handleProjectTaskUpdate}
+                    onTaskReorder={handleProjectTaskReorder}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}
