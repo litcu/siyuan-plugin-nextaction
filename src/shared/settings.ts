@@ -140,6 +140,7 @@ export interface PluginSettings {
     customFieldSchemaVersion: 2;
     defaultImportance: number;
     defaultEffort: number;
+    semanticDateParsingEnabled: boolean;
     priorityEngine: PriorityEngineSettings;
     myDayEnabled: boolean;
     myDayResetHour: number;
@@ -184,6 +185,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     customFieldSchemaVersion: 2,
     defaultImportance: 4,
     defaultEffort: 4,
+    semanticDateParsingEnabled: true,
     priorityEngine: { ...DEFAULT_PRIORITY_ENGINE },
     myDayEnabled: true,
     myDayResetHour: 5,
@@ -197,6 +199,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 export function validateSettings(settings: Partial<PluginSettings>): string | null {
+    if (settings.semanticDateParsingEnabled !== undefined && typeof settings.semanticDateParsingEnabled !== "boolean") {
+        return "semanticDateParsingEnabled must be boolean";
+    }
     if (settings.defaultImportance !== undefined) {
         if (!Number.isInteger(settings.defaultImportance) || settings.defaultImportance < 1 || settings.defaultImportance > 7) {
             return "defaultImportance must be integer 1-7";
@@ -312,6 +317,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
         customFieldSchemaVersion: 2,
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
         defaultEffort: override.defaultEffort ?? base.defaultEffort,
+        semanticDateParsingEnabled: override.semanticDateParsingEnabled ?? base.semanticDateParsingEnabled,
         priorityEngine: {
             ...base.priorityEngine,
             ...(override.priorityEngine ?? {}),

@@ -6,6 +6,15 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const isDev = process.env.NODE_ENV === "development";
 
 export default defineConfig({
+    // chrono-node publishes locale exports through wildcard subpaths. Vite 5's
+    // resolver does not expand those entries reliably on Windows, so keep the
+    // source-level locale imports while pointing them at the exact ESM entries.
+    resolve: {
+        alias: {
+            "chrono-node/en": resolve(__dirname, "node_modules/chrono-node/dist/esm/locales/en/index.js"),
+            "chrono-node/zh/hans": resolve(__dirname, "node_modules/chrono-node/dist/esm/locales/zh/hans/index.js"),
+        },
+    },
     css: {
         preprocessorOptions: {
             scss: {

@@ -52,6 +52,7 @@ import { encodeCustomFieldValue, isCustomFieldApplicable, validateCustomFieldDef
 import { MyDayManager } from "./my-day-manager";
 import type { MyDayState } from "../shared/types";
 import { ATTR_EXT_PREFIX } from "../shared/constants";
+import { parseTaskTitleDates } from "../shared/natural-date";
 
 /** Check if a due date is overdue. Supports both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm" formats. */
 function isDueOverdue(due: string, todayStr: string): boolean {
@@ -274,6 +275,11 @@ export class TaskService {
             defaultAttrs[ATTR_IMPORTANCE] = numberToAttr(this.settings.defaultImportance);
             defaultAttrs[ATTR_EFFORT] = numberToAttr(this.settings.defaultEffort);
             defaultAttrs[ATTR_CREATED] = new Date().toISOString().slice(0, 19);
+            if (this.settings.semanticDateParsingEnabled) {
+                const parsedDates = parseTaskTitleDates(title, new Date());
+                if (!existingAttrs[ATTR_START] && parsedDates.start) defaultAttrs[ATTR_START] = parsedDates.start.value;
+                if (!existingAttrs[ATTR_DUE] && parsedDates.due) defaultAttrs[ATTR_DUE] = parsedDates.due.value;
+            }
 
             await siyuanFetch("/api/attr/setBlockAttrs", {
                 id: blockId,
@@ -416,6 +422,7 @@ export class TaskService {
         const lock = await this.acquireWithTimeout();
         let converted = 0;
         let skipped = 0;
+        const semanticDateReference = new Date();
 
         try {
             for (const pid of paragraphIds) {
@@ -426,6 +433,7 @@ export class TaskService {
                 }
 
                 const title = await this.fetchBlockTitle(pid);
+                const effectiveTitle = (pid === blockId && cleanTitle) ? cleanTitle : title;
 
                 const defaultAttrs: Record<string, string> = {};
                 defaultAttrs[ATTR_TASK] = taskType;
@@ -434,6 +442,11 @@ export class TaskService {
                 defaultAttrs[ATTR_IMPORTANCE] = numberToAttr(this.settings.defaultImportance);
                 defaultAttrs[ATTR_EFFORT] = numberToAttr(this.settings.defaultEffort);
                 defaultAttrs[ATTR_CREATED] = new Date().toISOString().slice(0, 19);
+                if (this.settings.semanticDateParsingEnabled) {
+                    const parsedDates = parseTaskTitleDates(effectiveTitle, semanticDateReference);
+                    if (!attrs?.[ATTR_START] && parsedDates.start) defaultAttrs[ATTR_START] = parsedDates.start.value;
+                    if (!attrs?.[ATTR_DUE] && parsedDates.due) defaultAttrs[ATTR_DUE] = parsedDates.due.value;
+                }
 
                 let parentTaskId = "";
                 try {
@@ -460,7 +473,7 @@ export class TaskService {
                     id: pid,
                 });
                 const entry = this.buildEntryFromAttrs(pid, finalAttrs);
-                entry.title = (pid === blockId && cleanTitle) ? cleanTitle : title;
+                entry.title = effectiveTitle;
                 entry.order = calculateOrder(entry, this.cacheManager.getCache());
                 this.cacheManager.set(entry);
 
