@@ -627,6 +627,7 @@
     "aiTaskUnavailable": "任务未加载",
     "aiReviewNoItems": "当前没有需要处理的任务",
     "apply": "应用",
+    "save": "保存",
     "saving": "保存中…",
     "close": "关闭",
     "saveNow": "立即保存",

@@ -14,7 +14,6 @@
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
     import { openReminderSettingsDialog, openRepeatRuleDialog } from "../dialogs/task-property-dialogs";
     import {
-        canSaveTaskDetailNow,
         isTaskDateRangeValid,
         shouldConfirmTaskDetailClose,
         shouldContinueTaskDetailSave,
@@ -117,12 +116,6 @@
         customFieldValues,
     });
     $: dirty = !!savedDraftKey && draftKey !== savedDraftKey;
-    $: canSaveNow = canSaveTaskDetailNow({
-        dirty,
-        saving: saveState === "saving",
-        hasValidationError: !!dateError || !!customFieldError,
-        operationBusy,
-    });
     $: noticeMessage = dateError || depError || customFieldError || saveError || repeatDateError;
     $: noticeTone = dateError || depError || customFieldError || saveError
         ? "error"
@@ -602,11 +595,13 @@
     closeLabel={i18n?.close || "Close"}
     status={statusLabel}
     {statusTone}
+    showFooter={false}
     on:close={requestClose}
 >
     <div slot="headerActions" class="na-task-detail__header-actions">
         {#if showJumpToBlock}<NaIconButton symbol="iconOpenWindow" label={i18n?.jumpToBlock || "Jump to block"} size={14} on:click={() => jump(task.blockId)} />{/if}
         <NaIconButton symbol="iconSparkles" label={i18n?.aiDecomposeTask || "AI decompose task"} size={14} on:click={() => runAiDecomposeTask(task)} />
+        <NaIconButton symbol="iconTrashcan" label={i18n?.removeTask || "Remove task"} size={14} tone="danger" disabled={operationBusy || saveState === "saving"} on:click={handleRemove} />
     </div>
 
     {#if noticeMessage}<NaInlineNotice slot="notice" message={noticeMessage} tone={noticeTone} />{/if}
@@ -703,13 +698,6 @@
         </NaPropertySection>
     {/if}
 
-    <div slot="footerStart">
-        <button type="button" class="b3-button b3-button--cancel na-task-detail__delete" disabled={operationBusy || saveState === "saving"} on:click={handleRemove}>{i18n?.removeTask || "Remove task"}</button>
-    </div>
-    <div slot="footerEnd">
-        <button type="button" class="b3-button" disabled={operationBusy} on:click={requestClose}>{i18n?.close || "Close"}</button>
-        <button type="button" class="b3-button b3-button--text" disabled={!canSaveNow} on:click={flushPendingSave}>{i18n?.saveNow || "Save now"}</button>
-    </div>
 </NaDialogShell>
 
 <style lang="scss">
@@ -719,7 +707,6 @@
     .na-task-detail__review-control { display: flex; align-items: center; gap: 6px; width: 100%; }
     .na-task-detail__review-control .b3-select { min-width: 0; flex: 1; }
     .na-task-detail__review-control .b3-text-field { width: 72px; flex: 0 0 72px; }
-    .na-task-detail__delete { color: var(--b3-card-error-color); }
     :global(.na-task-dialog-container) { width: min(520px, calc(100vw - 24px)) !important; height: min(720px, calc(100vh - 24px)); max-height: calc(100vh - 24px); overflow: hidden; }
     :global(.na-task-dialog-container > .b3-dialog__body),
     :global(.na-task-dialog-content) { width: 100%; height: 100%; min-height: 0; overflow: hidden; }

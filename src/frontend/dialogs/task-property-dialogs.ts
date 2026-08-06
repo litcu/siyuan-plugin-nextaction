@@ -13,6 +13,20 @@ type DialogCallbacks = {
 
 function configureDialog(dialog: Dialog, className: string): HTMLElement | null {
     dialog.element.classList.add("nextaction");
+    const dialogRoot = dialog.element.querySelector<HTMLElement>(".b3-dialog");
+    const drawerZIndex = Array.from(document.querySelectorAll<HTMLElement>(
+        ".na-drawer-host--open, .na-drawer-host__backdrop",
+    )).reduce((highest, element) => {
+        const zIndex = Number.parseInt(window.getComputedStyle(element).zIndex, 10);
+        return Number.isFinite(zIndex) ? Math.max(highest, zIndex) : highest;
+    }, 0);
+    const currentDialogZIndex = Number.parseInt(dialogRoot?.style.zIndex || "", 10) || 0;
+    if (dialogRoot && drawerZIndex >= currentDialogZIndex) {
+        const siyuan = (window as any).siyuan;
+        const nextZIndex = Math.max(drawerZIndex, Number(siyuan?.zIndex) || 0) + 1;
+        dialogRoot.style.zIndex = String(nextZIndex);
+        if (siyuan) siyuan.zIndex = nextZIndex;
+    }
     const container = dialog.element.querySelector(".b3-dialog__container");
     container?.classList.add(className);
     return dialog.element.querySelector("[data-na-dialog-target]");

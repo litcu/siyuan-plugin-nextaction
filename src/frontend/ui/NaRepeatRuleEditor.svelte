@@ -144,6 +144,11 @@
         dispatch("requestClose", { dirty });
     }
 
+    function applyDraft() {
+        if (saving || validationError || !dirty || !draftRule) return;
+        dispatch("apply", { rule: draftRule });
+    }
+
     function applyPreset(preset: "daily" | "workdays" | "weekly" | "monthly" | "yearly") {
         interval = 1;
         if (preset === "daily") frequency = "day";
@@ -161,6 +166,15 @@
             monthDay = anchorDay;
         }
         if (preset === "yearly") frequency = "year";
+    }
+
+    function isPresetActive(preset: "daily" | "workdays" | "weekly" | "monthly" | "yearly"): boolean {
+        if (interval !== 1) return false;
+        if (preset === "daily") return frequency === "day";
+        if (preset === "workdays") return frequency === "week" && weekdays.join(",") === "1,2,3,4,5";
+        if (preset === "weekly") return frequency === "week" && weekdays.length === 1 && weekdays[0] === anchorWeekday;
+        if (preset === "monthly") return frequency === "month" && monthlyType === "dayOfMonth" && monthDay === anchorDay;
+        return frequency === "year";
     }
 
     function toggleWeekday(day: IsoWeekday) {
@@ -187,17 +201,17 @@
 
     <NaPropertySection title={i18n?.repeatPresets || "Presets"}>
         <div class="na-repeat-rule-editor__presets">
-            <button type="button" class:active={frequency === "day" && interval === 1} on:click={() => applyPreset("daily")}>{i18n?.repeatDaily || "Daily"}</button>
-            <button type="button" class:active={frequency === "week" && weekdays.join(",") === "1,2,3,4,5"} on:click={() => applyPreset("workdays")}>{i18n?.repeatWorkdays || "Workdays"}</button>
-            <button type="button" class:active={frequency === "week" && weekdays.length === 1} on:click={() => applyPreset("weekly")}>{i18n?.repeatWeekly || "Weekly"}</button>
-            <button type="button" class:active={frequency === "month"} on:click={() => applyPreset("monthly")}>{i18n?.repeatMonthly || "Monthly"}</button>
-            <button type="button" class:active={frequency === "year"} on:click={() => applyPreset("yearly")}>{i18n?.repeatYearly || "Yearly"}</button>
+            <button type="button" class:active={isPresetActive("daily")} aria-pressed={isPresetActive("daily")} on:click={() => applyPreset("daily")}>{i18n?.repeatDaily || "Daily"}</button>
+            <button type="button" class:active={isPresetActive("workdays")} aria-pressed={isPresetActive("workdays")} on:click={() => applyPreset("workdays")}>{i18n?.repeatWorkdays || "Workdays"}</button>
+            <button type="button" class:active={isPresetActive("weekly")} aria-pressed={isPresetActive("weekly")} on:click={() => applyPreset("weekly")}>{i18n?.repeatWeekly || "Weekly"}</button>
+            <button type="button" class:active={isPresetActive("monthly")} aria-pressed={isPresetActive("monthly")} on:click={() => applyPreset("monthly")}>{i18n?.repeatMonthly || "Monthly"}</button>
+            <button type="button" class:active={isPresetActive("yearly")} aria-pressed={isPresetActive("yearly")} on:click={() => applyPreset("yearly")}>{i18n?.repeatYearly || "Yearly"}</button>
         </div>
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.repeatFrequency || "Schedule"}>
         <NaPropertyRow label={i18n?.repeatFrequency || "Frequency"} stacked={true}>
-            <NaSegmentControl options={frequencyOptions} bind:value={frequency} label={i18n?.repeatFrequency || "Frequency"} />
+            <NaSegmentControl options={frequencyOptions} bind:value={frequency} stretch={true} label={i18n?.repeatFrequency || "Frequency"} />
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.repeatInterval || "Interval"}>
             <input class="b3-text-field" type="number" min="1" max="999" bind:value={interval} />
@@ -252,7 +266,7 @@
     {/if}
 
     <NaPropertySection title={i18n?.repeatEnd || "End condition"}>
-        <NaPropertyRow label={i18n?.repeatEnd || "End"} stacked={true}><NaSegmentControl options={endOptions} bind:value={endType} label={i18n?.repeatEnd || "End"} /></NaPropertyRow>
+        <NaPropertyRow label={i18n?.repeatEnd || "End"} stacked={true}><NaSegmentControl options={endOptions} bind:value={endType} stretch={true} label={i18n?.repeatEnd || "End"} /></NaPropertyRow>
         {#if endType === "count"}<NaPropertyRow label={i18n?.repeatEndCount || "Count"}><input class="b3-text-field" type="number" min="1" max="99999" bind:value={endCount} /></NaPropertyRow>{/if}
         {#if endType === "date"}<NaPropertyRow label={i18n?.repeatEndDate || "Date"}><NaDatePicker value={endDate} fixedDropdown={true} {i18n} on:change={(event) => endDate = event.detail?.value || ""} /></NaPropertyRow>{/if}
     </NaPropertySection>
@@ -270,12 +284,24 @@
     </NaPropertySection>
 
     <div slot="footerEnd">
-        <button type="button" class="b3-button" disabled={saving} on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
-        <button type="button" class="b3-button b3-button--text" disabled={saving || !!validationError || !dirty || !draftRule} on:click={() => draftRule && dispatch("apply", { rule: draftRule })}>{saving ? (i18n?.saving || "Saving...") : (i18n?.apply || "Apply")}</button>
+        <button type="button" class="b3-button b3-button--text" disabled={saving} on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
+        <button type="button" class="b3-button b3-button--primary" disabled={saving || !!validationError || !dirty || !draftRule} on:click={applyDraft}>{saving ? (i18n?.saving || "Saving...") : (i18n?.save || "Save")}</button>
     </div>
 </NaDialogShell>
 
 <style lang="scss">
+    :global(.na-repeat-dialog-container) { width: min(620px, calc(100vw - 24px)) !important; height: min(680px, calc(100vh - 24px)); max-height: calc(100vh - 24px); overflow: hidden; }
+    :global(.na-repeat-dialog-container > .b3-dialog__body) {
+        width: 100%;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+    :global(.na-repeat-rule-editor) { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+    :global(.na-repeat-rule-editor .na-property-row__control) { justify-content: flex-start; }
+    :global(.na-repeat-rule-editor .na-property-row__control > .b3-select),
+    :global(.na-repeat-rule-editor .na-property-row__control > .na-date-picker) { width: 100%; }
+    :global(.na-repeat-rule-editor .na-property-row__control > .b3-text-field) { width: min(100%, 180px); }
     .na-repeat-rule-editor__presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 10px 0; }
     .na-repeat-rule-editor__presets button,
     .na-repeat-rule-editor__weekdays button { min-width: 0; min-height: 30px; border: 1px solid var(--b3-border-color); border-radius: var(--b3-border-radius); color: var(--b3-theme-on-surface-light); background: var(--b3-theme-background); cursor: pointer; font-family: var(--b3-font-family); font-size: var(--na-font-size-sm); }

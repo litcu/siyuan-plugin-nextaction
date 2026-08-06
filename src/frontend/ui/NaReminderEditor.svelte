@@ -139,14 +139,12 @@
 </NaDialogShell>
 
 <style lang="scss">
-    :global(.na-reminder-dialog-container),
-    :global(.na-repeat-dialog-container) {
+    :global(.na-reminder-dialog-container) {
         max-width: calc(100vw - 24px);
         max-height: calc(100vh - 24px);
         overflow: hidden;
     }
     :global(.na-reminder-dialog-container > .b3-dialog__body),
-    :global(.na-repeat-dialog-container > .b3-dialog__body),
     :global(.na-property-dialog-target) { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
     .na-reminder-editor__empty { padding: 18px 0; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-md); text-align: center; }
     .na-reminder-editor__list { display: flex; flex-direction: column; }

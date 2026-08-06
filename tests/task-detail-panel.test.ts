@@ -13,10 +13,12 @@ const propertyRow = source("../src/frontend/ui/NaPropertyRow.svelte");
 const propertySection = source("../src/frontend/ui/NaPropertySection.svelte");
 const tokens = source("../src/frontend/ui/tokens.scss");
 
-test("面板头尾固定且正文独立滚动", () => {
+test("任务属性面板关闭底部操作栏并保持正文独立滚动", () => {
     assert.match(shell, /grid-template-rows:\s*auto auto minmax\(0, 1fr\) auto/);
     assert.match(shell, /na-dialog-shell__body[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
-    assert.match(detail, /<NaDialogShell[\s\S]*slot="footerStart"[\s\S]*slot="footerEnd"/);
+    assert.match(shell, /export let showFooter = true/);
+    assert.match(detail, /showFooter=\{false\}/);
+    assert.doesNotMatch(detail, /slot="footer(?:Start|End)"/);
     assert.match(stylesheet, /\.na-app__detail-inner\s*\{[\s\S]*position:\s*absolute;[\s\S]*inset:\s*0;[\s\S]*overflow:\s*hidden/);
     assert.match(shell, /max-height:\s*100%/);
 });
@@ -27,10 +29,9 @@ test("属性行不再逐行绘制分割线，仅保留分区边界", () => {
     assert.match(propertySection, /\.na-property-section:first-child\s*\{\s*border-top:\s*0/);
 });
 
-test("遮罩、关闭按钮、底部关闭和 Esc 统一请求关闭", () => {
+test("遮罩、关闭按钮和 Esc 统一请求关闭", () => {
     assert.match(detail, /export async function requestClose/);
     assert.match(detail, /on:close=\{requestClose\}/);
-    assert.match(detail, /on:click=\{requestClose\}/);
     assert.match(app, /on:requestClose=\{requestDetailClose\}/);
     assert.match(drawer, /dispatch\("requestClose", "backdrop"\)/);
     assert.match(drawer, /dispatch\("requestClose", "escape"\)/);
@@ -38,10 +39,18 @@ test("遮罩、关闭按钮、底部关闭和 Esc 统一请求关闭", () => {
     assert.match(tokens, /--na-color-overlay-bg:\s*var\(--b3-mask-background\)/);
 });
 
-test("未保存修改确认、立即保存禁用和错误状态保持可见", () => {
+test("属性子弹窗提升到打开的任务抽屉之上", () => {
+    assert.match(controller, /querySelectorAll<HTMLElement>\([\s\S]*na-drawer-host--open[\s\S]*na-drawer-host__backdrop/);
+    assert.match(controller, /window\.getComputedStyle\(element\)\.zIndex/);
+    assert.match(controller, /drawerZIndex >= currentDialogZIndex/);
+    assert.match(controller, /dialogRoot\.style\.zIndex = String\(nextZIndex\)/);
+    assert.match(controller, /siyuan\.zIndex = nextZIndex/);
+});
+
+test("自动保存、未保存修改确认和错误状态保持可见", () => {
     assert.match(detail, /if \(!dirty\)[\s\S]*onClose\?\.\(\)/);
     assert.match(detail, /unsavedChangesTitle/);
-    assert.match(detail, /disabled=\{!canSaveNow\}/);
+    assert.match(detail, /function scheduleSave\(\)[\s\S]*flushPendingSave\(\)/);
     assert.match(detail, /<NaInlineNotice slot="notice"/);
     assert.match(shell, /aria-live="polite"/);
 });
