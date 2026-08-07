@@ -39,15 +39,28 @@ test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
     assert.match(mcpSettingsPageSource, /settingMcpBatchOperations/);
 });
 
-test("MCP 批量写工具限制数量并逐项返回结果", () => {
-    assert.match(managerSource, /batch_create_tasks/);
-    assert.match(managerSource, /batch_update_tasks/);
-    assert.match(managerSource, /batch_set_task_status/);
+test("MCP 提供统一的批量 CRUD，并移除重复的单项和状态工具", () => {
+    assert.match(managerSource, /create_tasks/);
+    assert.match(managerSource, /get_tasks/);
+    assert.match(managerSource, /update_tasks/);
+    assert.match(managerSource, /delete_tasks/);
+    assert.doesNotMatch(managerSource, /batch_set_task_status/);
+    assert.doesNotMatch(managerSource, /set_task_status:/);
     assert.match(managerSource, /MAX_MCP_BATCH_SIZE = 100/);
     assert.match(managerSource, /private async runBatch/);
     assert.match(managerSource, /success: true, result: await operation/);
     assert.match(managerSource, /success: false,[\s\S]*error:/);
-    assert.match(managerSource, /succeeded,[\s\S]*failed:/);
+    assert.match(managerSource, /succeeded,[\s\S]*failed:[\s\S]*results/);
+    assert.match(managerSource, /taskService\.removeTask/);
+    assert.match(managerSource, /blockPreserved: true/);
+});
+
+test("通用任务更新支持状态、重复规则、类型和标题", () => {
+    assert.match(managerSource, /validateMcpTaskPatch/);
+    assert.match(managerSource, /taskService\.setRepeatRule/);
+    assert.match(managerSource, /taskService\.updateTaskTitle/);
+    assert.match(taskServiceSource, /\/api\/filetree\/renameDocByID/);
+    assert.match(taskServiceSource, /\/api\/block\/updateBlock/);
 });
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {

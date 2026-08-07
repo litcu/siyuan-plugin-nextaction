@@ -42,10 +42,10 @@
         <NaSettingRow forId="setting-mcp-enabled" title={i18n?.settingMcpEnabled || "Enable MCP tools"} description={i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}>
             <input id="setting-mcp-enabled" class="b3-switch" type="checkbox" bind:checked={mcpEnabled} disabled={!mcpStatus?.supported} />
         </NaSettingRow>
-        <NaSettingRow disabled={!mcpEnabled} forId="setting-mcp-write" title={i18n?.settingMcpAllowWrite || "Allow write operations"} description={i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}>
+        <NaSettingRow disabled={!mcpEnabled} forId="setting-mcp-write" title={i18n?.settingMcpAllowWrite || "Allow write operations"} description={i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create, update, convert, and remove tasks"}>
             <input id="setting-mcp-write" class="b3-switch" type="checkbox" bind:checked={mcpAllowWrite} disabled={!mcpEnabled} />
         </NaSettingRow>
-        <NaSettingRow disabled={!mcpEnabled || !mcpAllowWrite} title={i18n?.settingMcpBatchOperations || "Batch operations"} description={i18n?.settingMcpBatchOperationsDesc || "Create, update, or change status for up to 100 tasks per request; failures are reported per item."}>
+        <NaSettingRow disabled={!mcpEnabled || !mcpAllowWrite} title={i18n?.settingMcpBatchOperations || "Batch CRUD"} description={i18n?.settingMcpBatchOperationsDesc || "Create, read, update, remove, or convert up to 100 tasks per request; failures are reported per item."}>
             <NaIcon symbol="iconList" size={16} />
         </NaSettingRow>
         {#if mcpAllowWrite && mcpEnabled}<div class="na-settings-mcp__warning"><NaIcon symbol="iconTriangleAlert" size={14} />{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data."}</div>{/if}
@@ -58,7 +58,7 @@
         </div>
     </NaSection>
 
-    <NaSection icon="iconInbox" title={i18n?.settingMcpCreateTarget || "Task creation target"} description={i18n?.settingMcpCreateTargetDesc || "Default location used when create_task does not specify a destination"}>
+    <NaSection icon="iconInbox" title={i18n?.settingMcpCreateTarget || "Task creation target"} description={i18n?.settingMcpCreateTargetDesc || "Default location used when create_tasks does not specify a destination"}>
         <NaSettingRow forId="setting-mcp-target" title={i18n?.settingMcpDefaultTarget || "Default target"}>
             <select id="setting-mcp-target" class="b3-select" bind:value={mcpDefaultCreateTarget} disabled={!mcpAllowWrite}>
                 <option value="inbox">{i18n?.settingMcpTargetInbox || "Configured inbox document"}</option>

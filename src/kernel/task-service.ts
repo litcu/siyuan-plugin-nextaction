@@ -923,6 +923,49 @@ export class TaskService {
         }
     }
 
+    async updateTaskTitle(blockId: string, rawTitle: string): Promise<TaskCacheEntry> {
+        if (!blockId) {
+            const err: any = new Error("blockId is required");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        const title = typeof rawTitle === "string" ? rawTitle.replace(/[\r\n]+/g, " ").trim() : "";
+        if (!title || title.length > 512) {
+            const err: any = new Error("title must contain 1-512 characters");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+        this.checkReady();
+        const existing = this.cacheManager.get(blockId);
+        if (!existing) {
+            const err: any = new Error("Task not found: " + blockId);
+            err.code = RPC_ERROR_TASK_NOT_FOUND;
+            throw err;
+        }
+        const blockType = await this.getBlockType(blockId);
+        if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
+            const err: any = new Error("Only paragraph, heading, or document tasks can be renamed");
+            err.code = RPC_ERROR_INVALID_PARAMS;
+            throw err;
+        }
+
+        const lock = await this.acquireWithTimeout();
+        try {
+            if (blockType === "d") {
+                await siyuanFetch("/api/filetree/renameDocByID", { id: blockId, title });
+            } else {
+                const markdown = title.replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1");
+                await siyuanFetch("/api/block/updateBlock", { id: blockId, dataType: "markdown", data: markdown });
+            }
+            existing.title = title;
+            this.syncEngine.addPendingChange(blockId, "update");
+            this.syncEngine.broadcastChanges();
+            return existing;
+        } finally {
+            lock.release();
+        }
+    }
+
     async setRepeatRule(blockId: string, rawRule: unknown): Promise<TaskCacheEntry> {
         if (!blockId) {
             const err: any = new Error("blockId is required");

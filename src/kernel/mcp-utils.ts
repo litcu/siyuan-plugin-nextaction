@@ -10,11 +10,14 @@ import {
     ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_REMINDER,
+    ATTR_REPEAT,
     ATTR_REVIEW_DATE,
     ATTR_REVIEW_INTERVAL,
     ATTR_SEQUENTIAL,
     ATTR_START,
+    ATTR_STATUS,
     ATTR_TAGS,
+    ATTR_TASK,
     ALL_STATUSES,
 } from "../shared/constants.ts";
 import {
@@ -23,13 +26,13 @@ import {
     isCustomFieldApplicable,
     type CustomFieldDef,
 } from "../shared/custom-fields.ts";
-import { parseRepeatRule, parseRepeatState } from "../shared/repeat.ts";
+import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat.ts";
 import type { ReminderItem, TaskCacheEntry } from "../shared/types.ts";
 
 export const READ_MCP_TOOL_NAMES = [
     "get_task_metadata",
-    "list_tasks",
-    "get_task",
+    "search_tasks",
+    "get_tasks",
     "get_next_actions",
     "list_projects",
     "get_my_day",
@@ -38,14 +41,11 @@ export const READ_MCP_TOOL_NAMES = [
 ] as const;
 
 export const WRITE_MCP_TOOL_NAMES = [
-    "create_task",
-    "batch_create_tasks",
-    "convert_block_to_task",
-    "update_task",
-    "batch_update_tasks",
-    "set_task_status",
-    "batch_set_task_status",
-    "set_my_day",
+    "create_tasks",
+    "update_tasks",
+    "delete_tasks",
+    "convert_blocks_to_tasks",
+    "update_my_day",
     "mark_tasks_reviewed",
 ] as const;
 
@@ -90,7 +90,7 @@ export interface McpTaskDto {
     customFields: Record<string, unknown>;
 }
 
-export interface McpListTasksInput {
+export interface McpSearchTasksInput {
     query?: string;
     kind?: "task" | "project" | "all";
     statuses?: string[];
@@ -103,14 +103,15 @@ export interface McpListTasksInput {
     startTo?: string;
     dueFrom?: string;
     dueTo?: string;
-    nextActionOnly?: boolean;
-    includeCompleted?: boolean;
     sortBy?: "order" | "due" | "importance" | "priority" | "created";
     offset?: number;
     limit?: number;
 }
 
 export interface McpTaskPatch {
+    title?: string;
+    kind?: "task" | "project";
+    status?: string;
     priority?: string;
     importance?: number;
     effort?: number;
@@ -126,6 +127,7 @@ export interface McpTaskPatch {
     reviewInterval?: number;
     reviewDate?: string | null;
     reminders?: { mode: "default" | "disabled" | "custom"; items?: ReminderItem[] };
+    repeat?: RepeatRuleV2 | null;
     customFields?: Record<string, unknown>;
 }
 
@@ -133,10 +135,34 @@ const BLOCK_ID_RE = /^\d{14}-[a-z0-9]{7}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 const PRIORITIES = new Set(["critical", "high", "medium", "low", "veryLow", "none"]);
 const PATCH_KEYS = new Set([
-    "priority", "importance", "effort", "start", "due", "contexts", "tags", "note",
+    "title", "kind", "status", "priority", "importance", "effort", "start", "due", "contexts", "tags", "note",
     "parentId", "dependencyIds", "dependencyMode", "sequential", "reviewInterval",
-    "reviewDate", "reminders", "customFields",
+    "reviewDate", "reminders", "repeat", "customFields",
 ]);
+
+export function validateMcpTaskPatch(patch: unknown): asserts patch is McpTaskPatch {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+        throw new Error("patch must be an object");
+    }
+    const keys = Object.keys(patch);
+    if (keys.length === 0) throw new Error("patch must contain at least one supported field");
+    for (const key of keys) {
+        if (!PATCH_KEYS.has(key)) throw new Error(`${key} is not allowed in update_tasks`);
+    }
+    const value = patch as McpTaskPatch;
+    if (value.title !== undefined) {
+        if (typeof value.title !== "string") throw new Error("title must be a string");
+        const title = value.title.replace(/[\r\n]+/g, " ").trim();
+        if (!title || title.length > 512) throw new Error("title must contain 1-512 characters");
+    }
+    if (value.kind !== undefined && value.kind !== "task" && value.kind !== "project") {
+        throw new Error("kind must be task or project");
+    }
+    if (value.status !== undefined) validateMcpStatus(value.status);
+    if (value.repeat !== undefined && value.repeat !== null && !normalizeRepeatRule(value.repeat)) {
+        throw new Error("repeat is invalid");
+    }
+}
 
 function splitPipe(value: string): string[] {
     return value ? value.split("|").map(item => item.trim()).filter(Boolean) : [];
@@ -288,12 +314,9 @@ function priorityRank(priority: string): number {
     return ({ critical: 5, high: 4, medium: 3, low: 2, veryLow: 1, none: 1 } as Record<string, number>)[priority] || 0;
 }
 
-export function filterTasksForMcp(entries: TaskCacheEntry[], input: McpListTasksInput = {}, nextActionIds = new Set<string>()) {
+export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTasksInput = {}) {
     const map = new Map(entries.map(entry => [entry.blockId, entry]));
     let filtered = entries.slice();
-    if (!input.includeCompleted && !(input.statuses || []).includes("done")) {
-        filtered = filtered.filter(entry => entry.status !== "done");
-    }
     if (input.kind && input.kind !== "all") {
         filtered = filtered.filter(entry => input.kind === "project" ? entry.taskType === "2" : entry.taskType !== "2");
     }
@@ -306,7 +329,6 @@ export function filterTasksForMcp(entries: TaskCacheEntry[], input: McpListTasks
     if (input.tags?.length) filtered = filtered.filter(entry => splitPipe(entry.tags).some(value => input.tags!.includes(value)));
     if (input.parentId !== undefined) filtered = filtered.filter(entry => entry.parentId === input.parentId);
     if (input.projectId) filtered = filtered.filter(entry => belongsToProject(entry, input.projectId!, map));
-    if (input.nextActionOnly) filtered = filtered.filter(entry => nextActionIds.has(entry.blockId));
     if (input.startFrom) filtered = filtered.filter(entry => !!entry.start && entry.start >= input.startFrom!);
     if (input.startTo) filtered = filtered.filter(entry => !!entry.start && entry.start <= input.startTo!);
     if (input.dueFrom) filtered = filtered.filter(entry => !!entry.due && entry.due >= input.dueFrom!);
@@ -339,10 +361,10 @@ export function buildTaskAttrsFromMcpPatch(
     task: TaskCacheEntry,
     taskMap = new Map<string, TaskCacheEntry>([[task.blockId, task]]),
 ): Record<string, string> {
-    for (const key of Object.keys(patch)) {
-        if (!PATCH_KEYS.has(key)) throw new Error(`${key} is not allowed in update_task`);
-    }
+    validateMcpTaskPatch(patch);
     const attrs: Record<string, string> = {};
+    if (patch.kind !== undefined) attrs[ATTR_TASK] = patch.kind === "project" ? "2" : "1";
+    if (patch.status !== undefined) attrs[ATTR_STATUS] = validateMcpStatus(patch.status);
     if (patch.priority !== undefined) {
         if (!PRIORITIES.has(patch.priority)) throw new Error("priority is invalid");
         attrs[ATTR_PRIORITY] = patch.priority;
@@ -398,6 +420,10 @@ export function buildTaskAttrsFromMcpPatch(
         else if (patch.reminders.mode === "custom") attrs[ATTR_REMINDER] = JSON.stringify(validateReminderItems(patch.reminders.items));
         else throw new Error("reminders.mode must be default, disabled, or custom");
     }
+    if (patch.repeat !== undefined) {
+        if (patch.repeat === null) attrs[ATTR_REPEAT] = "";
+        else attrs[ATTR_REPEAT] = JSON.stringify(normalizeRepeatRule(patch.repeat));
+    }
     if (patch.customFields !== undefined) {
         for (const [key, value] of Object.entries(patch.customFields)) {
             const field = fields.find(item => item.key === key && item.status === "active");
@@ -406,7 +432,7 @@ export function buildTaskAttrsFromMcpPatch(
             attrs[ATTR_EXT_PREFIX + key] = value === null ? "" : encodeCustomFieldValue(field, value);
         }
     }
-    if (Object.keys(attrs).length === 0) throw new Error("update_task patch must contain at least one supported field");
+    if (Object.keys(attrs).length === 0) throw new Error("update_tasks patch must contain at least one attribute field");
     return attrs;
 }
 
