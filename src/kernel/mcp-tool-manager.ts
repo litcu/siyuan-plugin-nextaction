@@ -78,6 +78,7 @@ class McpToolError extends Error {
 const ID_SCHEMA = { type: "string", description: "SiYuan block ID or siyuan://blocks/<id> link" };
 const STATUS_SCHEMA = { type: "string", enum: [...ALL_STATUSES] };
 const PRIORITY_SCHEMA = { type: "string", enum: ["critical", "high", "medium", "low", "veryLow", "none"] };
+const MAX_MCP_BATCH_SIZE = 100;
 
 export class McpToolManager {
     private readonly siyuan: kernel.ISiyuan;
@@ -451,6 +452,16 @@ export class McpToolManager {
                 inputSchema: this.createTaskSchema(),
                 handler: (input) => this.createTask(input),
             },
+            batch_create_tasks: {
+                title: "NextAction · Batch create tasks",
+                description: description("Create 1-100 tasks or projects sequentially. Each item reports success or an error independently."),
+                inputSchema: {
+                    type: "object",
+                    properties: { items: { type: "array", minItems: 1, maxItems: MAX_MCP_BATCH_SIZE, items: this.createTaskSchema() } },
+                    required: ["items"],
+                },
+                handler: (input) => this.runBatch(input, item => this.createTask(item)),
+            },
             convert_block_to_task: {
                 title: "NextAction · Convert block",
                 description: description("Convert an existing paragraph, heading, or document block to a task or project."),
@@ -467,6 +478,23 @@ export class McpToolManager {
                 inputSchema: { type: "object", properties: { blockId: ID_SCHEMA, patch: { type: "object" } }, required: ["blockId", "patch"] },
                 handler: (input) => this.updateTask(input),
             },
+            batch_update_tasks: {
+                title: "NextAction · Batch update tasks",
+                description: description("Update allow-listed fields on 1-100 tasks sequentially. Each item reports success or an error independently."),
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        items: {
+                            type: "array",
+                            minItems: 1,
+                            maxItems: MAX_MCP_BATCH_SIZE,
+                            items: { type: "object", properties: { blockId: ID_SCHEMA, patch: { type: "object" } }, required: ["blockId", "patch"] },
+                        },
+                    },
+                    required: ["items"],
+                },
+                handler: (input) => this.runBatch(input, item => this.updateTask(item)),
+            },
             set_task_status: {
                 title: "NextAction · Set status",
                 description: description("Set task status while preserving completion history, repeat advancement, and My Day behavior."),
@@ -477,6 +505,28 @@ export class McpToolManager {
                     const updated = await this.taskService.updateTask(task.blockId, { [ATTR_STATUS]: requestedStatus });
                     return { requestedStatus, effectiveStatus: updated.status, repeatAdvanced: requestedStatus === "done" && updated.status !== "done", task: this.dto(updated) };
                 },
+            },
+            batch_set_task_status: {
+                title: "NextAction · Batch set status",
+                description: description("Set status on 1-100 tasks sequentially while preserving completion and repeat behavior."),
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        items: {
+                            type: "array",
+                            minItems: 1,
+                            maxItems: MAX_MCP_BATCH_SIZE,
+                            items: { type: "object", properties: { blockId: ID_SCHEMA, status: STATUS_SCHEMA }, required: ["blockId", "status"] },
+                        },
+                    },
+                    required: ["items"],
+                },
+                handler: (input) => this.runBatch(input, async (item) => {
+                    const task = this.requireTask(item.blockId);
+                    const requestedStatus = this.parseStatus(item.status);
+                    const updated = await this.taskService.updateTask(task.blockId, { [ATTR_STATUS]: requestedStatus });
+                    return { requestedStatus, effectiveStatus: updated.status, repeatAdvanced: requestedStatus === "done" && updated.status !== "done", task: this.dto(updated) };
+                }),
             },
             set_my_day: {
                 title: "NextAction · Set My Day",
@@ -552,6 +602,43 @@ export class McpToolManager {
                 schedule: { type: "object", properties: { start: { type: "number" }, end: { type: "number" } }, required: ["start", "end"] },
             },
             required: ["title"],
+        };
+    }
+
+    private async runBatch(
+        input: Record<string, any>,
+        operation: (item: Record<string, any>, index: number) => Promise<any>,
+    ) {
+        if (!Array.isArray(input.items) || input.items.length === 0 || input.items.length > MAX_MCP_BATCH_SIZE) {
+            throw new McpToolError("INVALID_INPUT", `items must contain 1-${MAX_MCP_BATCH_SIZE} operations`);
+        }
+        const results: Array<Record<string, any>> = [];
+        for (let index = 0; index < input.items.length; index++) {
+            const item = input.items[index];
+            if (!item || typeof item !== "object" || Array.isArray(item)) {
+                results.push({ index, success: false, error: { code: "INVALID_INPUT", message: "Batch item must be an object" } });
+                continue;
+            }
+            try {
+                results.push({ index, success: true, result: await operation(item, index) });
+            } catch (error: any) {
+                const normalized = this.normalizeError(error);
+                results.push({
+                    index,
+                    success: false,
+                    error: {
+                        code: normalized instanceof McpToolError ? normalized.mcpCode : "SIYUAN_API_ERROR",
+                        message: normalized.message,
+                    },
+                });
+            }
+        }
+        const succeeded = results.filter(item => item.success).length;
+        return {
+            total: results.length,
+            succeeded,
+            failed: results.length - succeeded,
+            items: results,
         };
     }
 

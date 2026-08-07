@@ -39,9 +39,12 @@ export const READ_MCP_TOOL_NAMES = [
 
 export const WRITE_MCP_TOOL_NAMES = [
     "create_task",
+    "batch_create_tasks",
     "convert_block_to_task",
     "update_task",
+    "batch_update_tasks",
     "set_task_status",
+    "batch_set_task_status",
     "set_my_day",
     "mark_tasks_reviewed",
 ] as const;

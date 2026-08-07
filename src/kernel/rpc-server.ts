@@ -148,6 +148,20 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         }
     });
 
+    siyuan.rpc.bind("getCompletedTasksPage", async (...params: any[]) => {
+        const p = params[0] || {};
+        try {
+            return taskService.getCompletedTasksPage({
+                page: p.page,
+                pageSize: p.pageSize,
+                sortBy: p.sortBy,
+                sortAsc: p.sortAsc,
+            });
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
     siyuan.rpc.bind("getTasksByParent", async (...params: any[]) => {
         const p = params[0] || {};
         if (!p.parentBlockId) {

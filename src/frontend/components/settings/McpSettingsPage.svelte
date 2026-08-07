@@ -45,6 +45,9 @@
         <NaSettingRow disabled={!mcpEnabled} forId="setting-mcp-write" title={i18n?.settingMcpAllowWrite || "Allow write operations"} description={i18n?.settingMcpAllowWriteDesc || "Allow AI clients to create and update tasks"}>
             <input id="setting-mcp-write" class="b3-switch" type="checkbox" bind:checked={mcpAllowWrite} disabled={!mcpEnabled} />
         </NaSettingRow>
+        <NaSettingRow disabled={!mcpEnabled || !mcpAllowWrite} title={i18n?.settingMcpBatchOperations || "Batch operations"} description={i18n?.settingMcpBatchOperationsDesc || "Create, update, or change status for up to 100 tasks per request; failures are reported per item."}>
+            <NaIcon symbol="iconList" size={16} />
+        </NaSettingRow>
         {#if mcpAllowWrite && mcpEnabled}<div class="na-settings-mcp__warning"><NaIcon symbol="iconTriangleAlert" size={14} />{i18n?.settingMcpWriteWarning || "Authenticated MCP clients can modify task data."}</div>{/if}
     </NaSection>
 

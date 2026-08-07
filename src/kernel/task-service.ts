@@ -1,4 +1,5 @@
-import { TaskCacheEntry, StatisticsResult, StatisticsSummary, StatisticsDistribution, StatisticsContextItem, StatisticsProjectStatus, ReviewData } from "../shared/types";
+import { TaskCacheEntry, StatisticsResult, StatisticsSummary, StatisticsDistribution, StatisticsContextItem, StatisticsProjectStatus, ReviewData, CompletedTasksPage } from "../shared/types";
+import { paginateCompletedTasks, type CompletedTasksPageOptions } from "../shared/task-pagination";
 import {
     ATTR_TASK,
     ATTR_STATUS,
@@ -1424,6 +1425,10 @@ export class TaskService {
         }
 
         return entries;
+    }
+
+    getCompletedTasksPage(options: CompletedTasksPageOptions = {}): CompletedTasksPage {
+        return paginateCompletedTasks(this.cacheManager.getAll(), options);
     }
 
     getTasksByParent(parentBlockId: string): TaskCacheEntry[] {

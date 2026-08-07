@@ -36,6 +36,18 @@ test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
     assert.match(mcpSettingsPageSource, /tool\.fullName/);
     assert.match(mcpSettingsPageSource, /mcpAllowWrite/);
     assert.match(mcpSettingsPageSource, /settingMcpWriteWarning/);
+    assert.match(mcpSettingsPageSource, /settingMcpBatchOperations/);
+});
+
+test("MCP 批量写工具限制数量并逐项返回结果", () => {
+    assert.match(managerSource, /batch_create_tasks/);
+    assert.match(managerSource, /batch_update_tasks/);
+    assert.match(managerSource, /batch_set_task_status/);
+    assert.match(managerSource, /MAX_MCP_BATCH_SIZE = 100/);
+    assert.match(managerSource, /private async runBatch/);
+    assert.match(managerSource, /success: true, result: await operation/);
+    assert.match(managerSource, /success: false,[\s\S]*error:/);
+    assert.match(managerSource, /succeeded,[\s\S]*failed:/);
 });
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
