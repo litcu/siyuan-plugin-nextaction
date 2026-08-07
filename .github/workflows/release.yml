@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -43,11 +45,21 @@ jobs:
       - name: Build package
         run: pnpm run release:package
 
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          node scripts/changelog.js extract "$GITHUB_REF_NAME" release-notes.md
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            printf '\n[查看完整变更](https://github.com/%s/compare/%s...%s)\n' \
+              "$GITHUB_REPOSITORY" "$PREVIOUS_TAG" "$GITHUB_REF_NAME" >> release-notes.md
+          fi
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" package.zip \
             --title "$GITHUB_REF_NAME" \
-            --notes "Automated release for $GITHUB_REF_NAME." \
+            --notes-file release-notes.md \
             --latest

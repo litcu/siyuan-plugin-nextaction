@@ -152,6 +152,8 @@ Architecture notes: [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 Releases are driven by Git tags. From a clean working tree, run:
 
+Before releasing, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), then commit that change. Empty categories are omitted from the GitHub Release notes.
+
 ```bash
 pnpm run release:patch
 pnpm run release:minor
@@ -160,7 +162,7 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-The command updates `package.json` and `plugin.json` when needed, commits the version bump, creates a `vX.Y.Z` tag, and pushes both commit and tag. If the current version is already correct for the first release, use `release:current`. GitHub Actions will build `package.zip` and create the GitHub Release after the tag is pushed.
+The command validates and finalizes the changelog, updates `package.json` and `plugin.json` when needed, commits the release files, creates a `vX.Y.Z` tag, and pushes both commit and tag. If the current version is already correct for the first release, use `release:current`. GitHub Actions will build `package.zip`, use that version's changelog section as the GitHub Release notes, and append a link to the complete diff from the previous tag.
 
 ## License
 

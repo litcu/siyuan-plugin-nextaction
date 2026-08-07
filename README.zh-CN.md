@@ -152,6 +152,8 @@ pnpm run release:package  # 构建市场发布用 package.zip
 
 发布由 Git tag 触发。确认工作区干净后运行：
 
+发布前，先在 [CHANGELOG.md](./CHANGELOG.md) 的 `[Unreleased]` 区域中选择合适分类，至少填写一条以 `- ` 开头的更新内容，并提交该改动。没有内容的分类不会出现在 GitHub Release 正文中。
+
 ```bash
 pnpm run release:patch
 pnpm run release:minor
@@ -160,7 +162,7 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-命令会在需要时同步 `package.json` 和 `plugin.json` 的版本号，提交版本变更，创建 `vX.Y.Z` tag，并推送 commit 和 tag。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。GitHub Actions 收到 tag 后会构建 `package.zip` 并创建 GitHub Release。
+命令会校验并封版更新日志，在需要时同步 `package.json` 和 `plugin.json` 的版本号，提交发布文件，创建 `vX.Y.Z` tag，并推送 commit 和 tag。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。GitHub Actions 收到 tag 后会构建 `package.zip`，使用该版本的更新日志作为 GitHub Release 正文，并附上相对前一版本的完整变更链接。
 
 ## 许可证
 

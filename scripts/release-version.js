@@ -2,6 +2,7 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { finalizeUnreleased } from "./changelog.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const releaseArg = process.argv[2];
 const packageJsonPath = path.join(projectRoot, "package.json");
 const pluginJsonPath = path.join(projectRoot, "plugin.json");
+const changelogPath = path.join(projectRoot, "CHANGELOG.md");
 
 function run(command, args, options = {}) {
     execFileSync(command, args, {
@@ -77,6 +79,15 @@ function replaceVersion(filePath, version) {
     fs.writeFileSync(filePath, updated);
 }
 
+function finalizeChangelog(version) {
+    const changelog = fs.readFileSync(changelogPath, "utf8");
+    const now = new Date();
+    const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+        .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, "0"))
+        .join("-");
+    return finalizeUnreleased(changelog, version, date);
+}
+
 function main() {
     if (!releaseArg) {
         throw new Error("Missing release version. Use patch, minor, major, or an explicit x.y.z version.");
@@ -92,19 +103,19 @@ function main() {
 
     const version = nextVersion(pkg.version, releaseArg);
     const tag = `v${version}`;
+    const finalizedChangelog = finalizeChangelog(version);
 
     const shouldCommitVersion = version !== pkg.version;
     if (shouldCommitVersion) {
         replaceVersion(packageJsonPath, version);
         replaceVersion(pluginJsonPath, version);
     }
+    fs.writeFileSync(changelogPath, finalizedChangelog);
 
     run("pnpm", ["run", "release:package"]);
 
-    if (shouldCommitVersion) {
-        run("git", ["add", "package.json", "plugin.json"]);
-        run("git", ["commit", "-m", `chore: release ${tag}`]);
-    }
+    run("git", ["add", "package.json", "plugin.json", "CHANGELOG.md"]);
+    run("git", ["commit", "-m", `chore: release ${tag}`]);
     run("git", ["tag", tag]);
     run("git", ["push", "origin", "HEAD"]);
     run("git", ["push", "origin", tag]);
