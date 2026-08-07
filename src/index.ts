@@ -352,7 +352,23 @@ export default class NextActionPlugin extends Plugin {
      * Open a dialog with the TaskDetail component for the given block.
      * Used from the editor status icon menu.
      */
-    private openTaskDetailDialog(blockId: string) {
+    private async openTaskDetailDialog(blockId: string) {
+        let task = await this.bridge.getTask(blockId);
+        if (!task) {
+            try {
+                await this.bridge.rebuildCache();
+                await taskStore.loadTasks();
+                task = await this.bridge.getTask(blockId);
+            } catch (error: any) {
+                notifyError(formatRpcError(error, this.i18n));
+                return;
+            }
+        }
+        if (!task) {
+            notifyError(this.i18n?.errTaskNotFound || "Task not found");
+            return;
+        }
+
         const dialog = new Dialog({
             title: "",
             content: `<div class="nextaction na-task-dialog-content"></div>`,
@@ -382,9 +398,8 @@ export default class NextActionPlugin extends Plugin {
             component?.requestClose();
         });
 
-        import("./frontend/components/TaskDetail.svelte").then(({ default: TaskDetailComp }) => {
-            this.bridge.getTask(blockId).then((task) => {
-                if (!task) return;
+        import("./frontend/components/TaskDetail.svelte")
+            .then(({ default: TaskDetailComp }) => {
                 const comp = new TaskDetailComp({
                     target: containerEl as HTMLElement,
                     props: {
@@ -405,8 +420,11 @@ export default class NextActionPlugin extends Plugin {
                     },
                 });
                 (dialog as any)._naDetail = comp;
+            })
+            .catch((error: any) => {
+                dialog.destroy();
+                notifyError(formatRpcError(error, this.i18n));
             });
-        });
     }
 
     /**

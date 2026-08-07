@@ -81,7 +81,9 @@
     let mcpResolvedDocument: { id: string; title: string; notebookId: string } | null = null;
     let mcpResolvingDocument = false;
     let mcpCopied = false;
-    $: mcpEndpoint = window.location.origin + "/mcp";
+    // SiYuan's desktop kernel listens on a random internal port and proxies
+    // the first workspace through the stable external service port 6806.
+    const mcpEndpoint = "http://127.0.0.1:6806/mcp";
 
     let aiPrompts: Record<AiFeatureId, string> = { ...DEFAULT_AI_SETTINGS.prompts };
     let customFields: CustomFieldDef[] = [];

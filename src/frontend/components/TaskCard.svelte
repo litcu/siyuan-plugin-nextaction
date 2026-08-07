@@ -4,7 +4,7 @@
     import { normalizePriority, PRIORITY_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
     import NaTooltip from "../ui/NaTooltip.svelte";
-    import { taskStore } from "../stores/task-store";
+    import { taskById, taskStore } from "../stores/task-store";
     import DueDateLabel from "./DueDateLabel.svelte";
     import { getDuePresentation } from "../utils/time-boundary";
     import { parseRepeatState } from "../../shared/repeat";
@@ -51,7 +51,7 @@
     $: isSomeday = task.status === "someday";
     $: displayPriority = normalizePriority(task.priority);
     $: parentTitle = task.parentId
-        ? ($taskStore.allTasks.find(t => t.blockId === task.parentId)?.title || i18n?.untitled || "(untitled)")
+        ? ($taskById.get(task.parentId)?.title || i18n?.untitled || "(untitled)")
         : "";
     $: taskTitle = task.title || (i18n?.untitled || "(untitled)");
     $: compositeTitle = parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle;
@@ -69,12 +69,10 @@
         : repeatStatus === "ended"
             ? (i18n?.repeatEnded || "Repeat ended")
             : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`;
-    $: customFieldMap = new Map($taskStore.allTasks.map(entry => [entry.blockId, entry]));
-    $: cardCustomFields = ($taskStore.settings.customFields || [])
-        .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, customFieldMap) && !!task.customFields?.[def.key])
-        .slice(0, 3);
-    $: hiddenCustomFieldCount = Math.max(0, ($taskStore.settings.customFields || [])
-        .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, customFieldMap) && !!task.customFields?.[def.key]).length - cardCustomFields.length);
+    $: applicableCardCustomFields = ($taskStore.settings.customFields || [])
+        .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, $taskById) && !!task.customFields?.[def.key]);
+    $: cardCustomFields = applicableCardCustomFields.slice(0, 3);
+    $: hiddenCustomFieldCount = Math.max(0, applicableCardCustomFields.length - cardCustomFields.length);
 
     function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
         isOverdue = !isDone && event.detail.isOverdue;

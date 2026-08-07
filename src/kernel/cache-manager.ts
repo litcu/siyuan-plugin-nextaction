@@ -21,12 +21,33 @@ export class CacheManager {
     }
 
     async loadAll(): Promise<void> {
-        // Step 1: Query all na-task block IDs via SQL. The attributes table
-        // is asynchronously flushed so we only trust it for block discovery,
-        // not for reading the actual attribute values.
-        const rows: SqlRow[] = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT b.id, b.parent_id, b.content, b.updated FROM blocks b INNER JOIN attributes a ON a.block_id = b.id AND a.name = 'custom-na-task' WHERE a.value IS NOT NULL AND a.value != ''",
-        });
+        // Step 1: Query na-task block IDs in stable cursor pages. There is no
+        // explicit LIMIT so SiYuan applies its current search-result limit to
+        // every request. Continue after the last ID until no rows remain.
+        const rows: SqlRow[] = [];
+        let lastBlockId = "";
+        for (;;) {
+            const escapedLastBlockId = lastBlockId.replace(/'/g, "''");
+            const cursorCondition = lastBlockId ? ` AND b.id > '${escapedLastBlockId}'` : "";
+            const page: SqlRow[] = await siyuanFetch("/api/query/sql", {
+                stmt: `SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
+                    FROM blocks b
+                    INNER JOIN attributes a
+                      ON a.block_id = b.id
+                     AND a.name = 'custom-na-task'
+                    WHERE a.value IS NOT NULL
+                      AND a.value != ''
+                      ${cursorCondition}
+                    ORDER BY b.id`,
+            });
+            if (!page || page.length === 0) break;
+            rows.push(...page);
+            const nextBlockId = page[page.length - 1].id;
+            if (!nextBlockId || nextBlockId <= lastBlockId) {
+                throw new Error("Task cache discovery cursor did not advance");
+            }
+            lastBlockId = nextBlockId;
+        }
 
         if (!rows || rows.length === 0) {
             this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
@@ -86,6 +107,7 @@ export class CacheManager {
                 completed: attrs[ATTR_COMPLETED] || "",
                 note: attrs[ATTR_NOTE] || "",
                 created: attrs[ATTR_CREATED] || "",
+                updated: row.updated || "",
                 tags: attrs[ATTR_TAGS] || "",
                 reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
                 reviewDate: attrs[ATTR_REVIEW_DATE] || "",
@@ -244,7 +266,7 @@ export class CacheManager {
     async verifyIntegrity(): Promise<number> {
         try {
             const rows: Array<{ count: number }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT COUNT(*) as count FROM attributes WHERE name = 'custom-na-task' AND value IS NOT NULL AND value != ''",
+                stmt: "SELECT COUNT(DISTINCT block_id) as count FROM attributes WHERE name = 'custom-na-task' AND value IS NOT NULL AND value != ''",
             });
             const dbCount = (rows && rows.length > 0) ? rows[0].count : 0;
             const cacheCount = Object.keys(this.cache).length;

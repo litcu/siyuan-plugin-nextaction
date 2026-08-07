@@ -98,6 +98,11 @@
         &::placeholder { color: var(--b3-theme-on-surface-light); }
     }
 
+    .na-link-input .na-link-input__control:focus-visible,
+    .na-link-input .na-link-input__open:focus-visible {
+        outline: none;
+    }
+
     .na-link-input__open {
         display: inline-flex;
         align-items: center;

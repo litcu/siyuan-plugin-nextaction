@@ -6,6 +6,7 @@ import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
 import { STATUS_LIST } from "../constants";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
+import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
 
 function deriveContexts(allTasks: TaskCacheEntry[]): string[] {
     const contextSet = new Set<string>();
@@ -90,6 +91,14 @@ interface TaskState {
     doneCount: number;
     projectReminders: TaskCacheEntry[];
     completedTasks: TaskCacheEntry[];
+    completedTotal: number;
+    completedPage: number;
+    completedPageSize: number;
+    completedSortBy: string;
+    completedSortAsc: boolean;
+    completedHasMore: boolean;
+    completedLoading: boolean;
+    completedError: string | null;
     showCompleted: boolean;
     myDayState: MyDayState | null;
     settings: PluginSettings;
@@ -120,6 +129,14 @@ function createTaskStore() {
         doneCount: 0,
         projectReminders: [],
         completedTasks: [],
+        completedTotal: 0,
+        completedPage: 1,
+        completedPageSize: DEFAULT_COMPLETED_PAGE_SIZE,
+        completedSortBy: "completed",
+        completedSortAsc: false,
+        completedHasMore: false,
+        completedLoading: false,
+        completedError: null,
         showCompleted: false,
         myDayState: null,
         settings: { ...DEFAULT_SETTINGS },
@@ -128,7 +145,85 @@ function createTaskStore() {
 
     let bridge: KernelBridge | null = null;
     let loadSeq = 0;
+    let completedLoadSeq = 0;
     let refreshAfterNotificationTimer: ReturnType<typeof setTimeout> | null = null;
+    let completedReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function getCurrentState(): TaskState {
+        let currentState!: TaskState;
+        subscribe((state) => { currentState = state; })();
+        return currentState;
+    }
+
+    async function loadCompletedPage(
+        requestedPage?: number,
+        requestedSortBy?: string,
+        requestedSortAsc?: boolean,
+    ): Promise<TaskCacheEntry[]> {
+        if (!bridge) return [];
+        const currentState = getCurrentState();
+        const page = requestedPage ?? currentState.completedPage;
+        const sortBy = requestedSortBy ?? currentState.completedSortBy;
+        const sortAsc = requestedSortAsc ?? currentState.completedSortAsc;
+        const seq = ++completedLoadSeq;
+
+        update((state) => ({
+            ...state,
+            completedLoading: true,
+            completedError: null,
+            completedSortBy: sortBy,
+            completedSortAsc: sortAsc,
+        }));
+
+        try {
+            const result = await bridge.getCompletedTasksPage({
+                page,
+                pageSize: currentState.completedPageSize,
+                sortBy,
+                sortAsc,
+            });
+            if (seq !== completedLoadSeq) return [];
+            update((state) => ({
+                ...state,
+                completedTasks: result.items,
+                completedTotal: result.total,
+                completedPage: result.page,
+                completedPageSize: result.pageSize,
+                completedHasMore: result.hasMore,
+                completedLoading: false,
+                completedError: null,
+            }));
+            return result.items;
+        } catch (error: any) {
+            console.error("[NextAction] loadCompletedTasks failed:", error);
+            if (seq !== completedLoadSeq) return [];
+            update((state) => ({
+                ...state,
+                completedLoading: false,
+                completedError: error?.message || String(error),
+            }));
+            return [];
+        }
+    }
+
+    function invalidateCompletedPage(reloadIfOpen: boolean): void {
+        completedLoadSeq++;
+        const currentState = getCurrentState();
+        update((state) => ({
+            ...state,
+            completedTasks: [],
+            completedTotal: state.doneCount,
+            completedHasMore: false,
+            completedLoading: false,
+            completedError: null,
+        }));
+        if (!reloadIfOpen || !currentState.showCompleted) return;
+        if (completedReloadTimer) clearTimeout(completedReloadTimer);
+        completedReloadTimer = setTimeout(() => {
+            completedReloadTimer = null;
+            void loadCompletedPage(currentState.completedPage);
+        }, 0);
+    }
 
     return {
         subscribe,
@@ -187,6 +282,7 @@ function createTaskStore() {
                 if (seq !== loadSeq) return;
 
                 update((s) => ({ ...s, allTasks, contexts, tags, loading: false, doneCount, projectReminders, reviewDueCount }));
+                if (getCurrentState().showCompleted) invalidateCompletedPage(true);
             } catch (e: any) {
                 console.error("[NextAction] loadTasks failed:", e);
                 if (seq !== loadSeq) return;
@@ -195,43 +291,38 @@ function createTaskStore() {
         },
 
         getFilteredTasks(viewId: string): TaskCacheEntry[] {
-            let result: TaskCacheEntry[] = [];
-            let currentState: TaskState | null = null;
-            const unsub = subscribe((s) => { currentState = s; });
-            unsub();
-
-            if (!currentState) return result;
-
+            const currentState = getCurrentState();
             const filter = currentState.filterByView[viewId] || DEFAULT_FILTER_STATE;
             const tasks = currentState.allTasks;
-
-            result = applyFilters(tasks, filter, currentState.settings.customFields);
-
-            return result;
+            return applyFilters(tasks, filter, currentState.settings.customFields);
         },
 
         async loadDoneTasks(): Promise<TaskCacheEntry[]> {
-            if (!bridge) return [];
-            try {
-                const tasks = await bridge.getAllTasks({ status: "done" });
-                update(s => ({ ...s, completedTasks: tasks }));
-                return tasks;
-            } catch (e: any) {
-                console.error("[NextAction] loadCompletedTasks failed:", e);
-                return [];
-            }
+            return loadCompletedPage(1);
         },
 
         async toggleCompleted() {
-            const currentState: TaskState = await new Promise((resolve) => {
-                subscribe((s) => resolve(s))();
-            });
-            if (!currentState.showCompleted && currentState.completedTasks.length === 0) {
-                // Derive completed tasks from allTasks instead of RPC
-                const completed = currentState.allTasks.filter(t => t.status === "done");
-                update(s => ({ ...s, completedTasks: completed }));
+            const currentState = getCurrentState();
+            const opening = !currentState.showCompleted;
+            update((state) => ({ ...state, showCompleted: opening }));
+            if (opening && currentState.completedTasks.length === 0) {
+                await loadCompletedPage(currentState.completedPage);
             }
-            update(s => ({ ...s, showCompleted: !s.showCompleted }));
+        },
+
+        async setCompletedPage(page: number): Promise<void> {
+            await loadCompletedPage(page);
+        },
+
+        async setCompletedSort(sortBy: string, sortAsc: boolean): Promise<void> {
+            update((state) => ({
+                ...state,
+                completedTasks: [],
+                completedPage: 1,
+                completedSortBy: sortBy,
+                completedSortAsc: sortAsc,
+            }));
+            if (getCurrentState().showCompleted) await loadCompletedPage(1, sortBy, sortAsc);
         },
 
         async loadProjectReminders() {
@@ -245,11 +336,13 @@ function createTaskStore() {
         },
 
         applyUpdate(entry: TaskCacheEntry) {
+            let completedEntryChanged = false;
             update((s) => {
                 const idx = s.allTasks.findIndex((t) => t.blockId === entry.blockId);
                 const allTasks = [...s.allTasks];
                 const wasDone = idx >= 0 && allTasks[idx].status === "done";
                 const isDone = entry.status === "done";
+                completedEntryChanged = wasDone || isDone;
 
                 if (idx >= 0) {
                     // Maintain childIds: if parentId changed, update old parent and new parent
@@ -275,15 +368,9 @@ function createTaskStore() {
                     allTasks.push(entry);
                 }
 
-                let completedTasks = s.completedTasks;
-                if (s.showCompleted && wasDone !== isDone) {
-                    completedTasks = allTasks.filter(t => t.status === "done");
-                }
-
                 return {
                     ...s,
                     allTasks,
-                    completedTasks,
                     doneCount: deriveDoneCount(allTasks),
                     contexts: deriveContexts(allTasks),
                     tags: deriveTags(allTasks),
@@ -291,10 +378,13 @@ function createTaskStore() {
                     reviewDueCount: deriveReviewDueCount(allTasks),
                 };
             });
+            if (completedEntryChanged) invalidateCompletedPage(true);
         },
 
         applyRemove(blockId: string) {
+            let removedCompletedTask = false;
             update((s) => {
+                removedCompletedTask = s.allTasks.some((task) => task.blockId === blockId && task.status === "done");
                 const allTasks = s.allTasks.filter((t) => t.blockId !== blockId);
                 return {
                     ...s,
@@ -306,6 +396,7 @@ function createTaskStore() {
                     reviewDueCount: deriveReviewDueCount(allTasks),
                 };
             });
+            if (removedCompletedTask) invalidateCompletedPage(true);
         },
 
         setActiveView(view: string) {
@@ -340,7 +431,9 @@ function createTaskStore() {
             for (const blockId of notification.changedBlockIds) {
                 const type = notification.changeTypes[blockId];
                 if (type === "delete") {
+                    let removedCompletedTask = false;
                     update((s) => {
+                        removedCompletedTask = s.allTasks.some((task) => task.blockId === blockId && task.status === "done");
                         let allTasks = s.allTasks.filter((t) => t.blockId !== blockId);
                         // Clean up dangling childIds references to the deleted blockId
                         allTasks = allTasks.map(t => {
@@ -359,14 +452,17 @@ function createTaskStore() {
                             reviewDueCount: deriveReviewDueCount(allTasks),
                         };
                     });
+                    if (removedCompletedTask) invalidateCompletedPage(true);
                 } else {
                     bridge.getTask(blockId).then((entry) => {
                         if (!entry) return;
+                        let completedEntryChanged = false;
                         update((s) => {
                             const idx = s.allTasks.findIndex((t) => t.blockId === blockId);
                             const allTasks = [...s.allTasks];
                             const wasDone = idx >= 0 && allTasks[idx].status === "done";
                             const isDone = entry.status === "done";
+                            completedEntryChanged = wasDone || isDone;
 
                             if (idx >= 0) {
                                 const oldEntry = allTasks[idx];
@@ -390,17 +486,9 @@ function createTaskStore() {
                                 allTasks.push(entry);
                             }
 
-                            const statusChanged = wasDone !== isDone;
-
-                            let completedTasks = s.completedTasks;
-                            if (s.showCompleted && statusChanged) {
-                                completedTasks = allTasks.filter(t => t.status === "done");
-                            }
-
                             return {
                                 ...s,
                                 allTasks,
-                                completedTasks,
                                 doneCount: deriveDoneCount(allTasks),
                                 contexts: deriveContexts(allTasks),
                                 tags: deriveTags(allTasks),
@@ -408,6 +496,7 @@ function createTaskStore() {
                                 reviewDueCount: deriveReviewDueCount(allTasks),
                             };
                         });
+                        if (completedEntryChanged) invalidateCompletedPage(true);
                     });
                 }
             }
@@ -427,6 +516,13 @@ function createTaskStore() {
 }
 
 export const taskStore = createTaskStore();
+
+/** Shared read-only index used by task cards and detail views. */
+export const taskById = derived(taskStore, ($state) => {
+    const index = new Map<string, TaskCacheEntry>();
+    for (const task of $state.allTasks) index.set(task.blockId, task);
+    return index;
+});
 
 /** Derived: tasks that have a due or reviewDate — used by reminder scanner to avoid full traversal */
 export const tasksWithDueOrReview = derived(taskStore, ($state) => {

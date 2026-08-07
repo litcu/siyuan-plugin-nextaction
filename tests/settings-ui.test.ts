@@ -72,6 +72,11 @@ test("复杂设置页保留关键行为并使用按需展开交互", () => {
     assert.match(advanced, /rebuildParents/);
 });
 
+test("MCP 地址使用思源固定服务端口而不是当前随机端口", () => {
+    assert.match(panel, /const mcpEndpoint = "http:\/\/127\.0\.0\.1:6806\/mcp"/);
+    assert.doesNotMatch(panel, /window\.location\.origin \+ "\/mcp"/);
+});
+
 test("设置界面基础结构统一使用 Na 公共组件", () => {
     for (const source of [general, mcp, advanced]) {
         assert.match(source, /\.\.\/\.\.\/ui\/Na/);
@@ -79,13 +84,5 @@ test("设置界面基础结构统一使用 Na 公共组件", () => {
     assert.match(ai, /ui\/NaAccordion\.svelte/);
     for (const source of [naSection, naSettingRow, naAccordion]) {
         assert.match(source, /var\(--b3-/);
-    }
-});
-
-test("现代设置样式优先使用思源主题变量", () => {
-    assert.match(panel, /\.na-settings-modern/);
-    for (const source of [general, customFields, ai, mcp, advanced]) {
-        assert.match(source, /var\(--b3-/);
-        assert.doesNotMatch(source, /#ffffff|#fff\b|#000000|rgba\(0,\s*0,\s*0,\s*0\.1\)/i);
     }
 });

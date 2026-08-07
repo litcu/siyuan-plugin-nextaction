@@ -12,7 +12,7 @@ import {
     extractBlockId,
     extractInsertedBlockMeta,
     extractInsertedBlockId,
-    filterTasksForMcp,
+    searchTasksForMcp,
     getDesiredMcpToolNames,
     taskToMcpDto,
 } from "../src/kernel/mcp-utils.ts";
@@ -55,8 +55,8 @@ function task(overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
 test("MCP 工具清单稳定区分只读和写入工具", () => {
     assert.deepEqual(READ_MCP_TOOL_NAMES, [
         "get_task_metadata",
-        "list_tasks",
-        "get_task",
+        "search_tasks",
+        "get_tasks",
         "get_next_actions",
         "list_projects",
         "get_my_day",
@@ -64,11 +64,11 @@ test("MCP 工具清单稳定区分只读和写入工具", () => {
         "get_statistics",
     ]);
     assert.deepEqual(WRITE_MCP_TOOL_NAMES, [
-        "create_task",
-        "convert_block_to_task",
-        "update_task",
-        "set_task_status",
-        "set_my_day",
+        "create_tasks",
+        "update_tasks",
+        "delete_tasks",
+        "convert_blocks_to_tasks",
+        "update_my_day",
         "mark_tasks_reviewed",
     ]);
     assert.deepEqual(getDesiredMcpToolNames(false, false), []);
@@ -98,24 +98,26 @@ test("任务 DTO 将内部字符串转换为 MCP 友好结构", () => {
     assert.equal((dto as any).repeatState, undefined);
 });
 
-test("任务查询支持关键词、项目后代、完成过滤和分页", () => {
+test("任务查询支持关键词、项目后代、状态过滤和分页", () => {
     const project = task({ blockId: "project", taskType: "2", title: "Launch", tags: "", order: 5 });
     const child = task({ blockId: "child", parentId: "project", title: "Call Alice", order: 9 });
     const grandchild = task({ blockId: "grandchild", parentId: "child", title: "Email contract", tags: "", order: 8 });
     const done = task({ blockId: "done", parentId: "project", title: "Call Bob", tags: "", status: "done", order: 100 });
 
-    const result = filterTasksForMcp([project, child, grandchild, done], {
+    const result = searchTasksForMcp([project, child, grandchild, done], {
         query: "call",
         projectId: "project",
+        statuses: ["todo"],
         limit: 1,
-    }, new Set(["child"]));
+    });
 
     assert.equal(result.total, 1);
     assert.equal(result.items[0].blockId, "child");
     assert.equal(result.hasMore, false);
 
-    const byContext = filterTasksForMcp([child], { contexts: ["office"] });
+    const byContext = searchTasksForMcp([child], { contexts: ["office"] });
     assert.equal(byContext.total, 1);
+    assert.equal(searchTasksForMcp([project, child, grandchild, done]).total, 4);
 });
 
 test("写入映射只接受白名单字段并正确处理清空", () => {
@@ -127,6 +129,9 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
         sequential: true,
         dependencyIds: ["20260802120001-bbbbbbb"],
         reminders: { mode: "disabled" },
+        kind: "project",
+        status: "done",
+        repeat: null,
     }, [], task());
 
     assert.deepEqual(attrs, {
@@ -137,10 +142,13 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
         "custom-na-sequential": "1",
         "custom-na-depends": "20260802120001-bbbbbbb",
         "custom-na-reminder": "[]",
+        "custom-na-task": "2",
+        "custom-na-status": "done",
+        "custom-na-repeat": "",
     });
 
     assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ status: "done" } as any, [], task()),
+        () => buildTaskAttrsFromMcpPatch({ rawAttribute: "done" } as any, [], task()),
         /not allowed/,
     );
     assert.throws(

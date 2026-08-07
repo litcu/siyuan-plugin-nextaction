@@ -21,6 +21,7 @@ export interface TaskCacheEntry {
     completed: string;      // na-completed 原始值
     note: string;           // na-note 原始值
     created: string;        // na-created 原始值 (YYYY-MM-DDTHH:mm:ss)
+    updated?: string;       // 思源块更新时间，用于稳定的完成任务排序回退
     tags: string;           // na-tags 原始值（管道符分隔）
     blocked: boolean;       // 由内核 isBlocked 计算
     blockedReason: string;  // "" | "dependency" | "sequential"
@@ -28,6 +29,14 @@ export interface TaskCacheEntry {
     reviewDate: string;          // 空字符串 = 无，YYYY-MM-DD
     reminder: string;            // na-reminder 原始值，空字符串 = 使用全局默认，"[]" = 禁用
     customFields: Record<string, string>;  // 自定义字段值 {key: value}
+}
+
+export interface CompletedTasksPage {
+    items: TaskCacheEntry[];
+    total: number;
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
 }
 
 export type ProjectHealth = "onTrack" | "attention" | "blocked" | "complete";

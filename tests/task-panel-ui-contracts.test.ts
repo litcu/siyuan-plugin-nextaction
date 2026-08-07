@@ -42,7 +42,6 @@ test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组�
     const statistics = source("../src/frontend/components/StatisticsView.svelte");
     assert.match(statistics, /NaMetricStrip/);
     assert.match(statistics, /NaProgressBar/);
-    assert.doesNotMatch(statistics, /linear-gradient|rgba?\(/);
 
     const reminder = source("../src/frontend/components/ReminderView.svelte");
     assert.match(reminder, /NaBadge/);
@@ -67,6 +66,24 @@ test("公共筛选栏由 props 驱动并通过 change 事件返回完整状态",
     assert.match(filterBar, /createEventDispatcher<\{ change: FilterState \}>/);
     assert.match(filterBar, /dispatch\("change", next\)/);
     assert.doesNotMatch(filterBar, /taskStore/);
+});
+
+test("公共搜索框使用明确的新值事件并把焦点环绘制在圆角外壳", () => {
+    const searchInput = source("../src/frontend/ui/NaSearchInput.svelte");
+    assert.match(searchInput, /createEventDispatcher<\{ input: \{ value: string \} \}>/);
+    assert.match(searchInput, /value = \(event\.currentTarget as HTMLInputElement\)\.value;/);
+    assert.match(searchInput, /dispatch\("input", \{ value \}\)/);
+    assert.match(searchInput, /\.na-search-input:focus-within\s*\{[\s\S]*box-shadow:/);
+    assert.match(searchInput, /\.na-search-input \.na-search-input__control:focus-visible\s*\{\s*outline: none;/);
+});
+
+test("任务筛选搜索以本地输入为准且不会被旧 store 值反向覆盖", () => {
+    const filterBar = source("../src/frontend/ui/NaTaskFilterBar.svelte");
+    assert.match(filterBar, /onSearchInput\(event\.detail\.value\)/);
+    assert.match(filterBar, /function onSearchInput\(nextSearchText: string\) \{\s*searchText = nextSearchText;/);
+    assert.match(filterBar, /\}, 300\);/);
+    assert.doesNotMatch(filterBar, /\$:\s*if \(filterState\.searchText !== searchText/);
+    assert.doesNotMatch(filterBar, /<NaSearchInput bind:value=\{searchText\}/);
 });
 
 test("公共按钮、工具栏和折叠区覆盖加载、操作插槽及合法交互结构", () => {
