@@ -27,7 +27,6 @@
     let customFieldOperator: CustomFieldFilter["operator"] = "contains";
     let customFieldValue = "";
 
-    $: if (filterState.searchText !== searchText && !debounceTimer) searchText = filterState.searchText;
     $: contextOptions = contexts.map(value => ({ value, label: value }));
     $: tagOptions = tags.map(value => ({ value, label: value }));
     $: priorityOptions = PRIORITY_LIST.map(value => ({ value, label: i18n?.[toI18nKey("priority", value)] || value, color: PRIORITY_COLORS[value] }));
@@ -42,7 +41,8 @@
     ];
 
     function change(next: FilterState) { dispatch("change", next); }
-    function onSearchInput() {
+    function onSearchInput(nextSearchText: string) {
+        searchText = nextSearchText;
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             debounceTimer = null;
@@ -70,7 +70,7 @@
 
 <div class="na-task-filter-bar">
     <div class="na-task-filter-bar__search">
-        <NaSearchInput bind:value={searchText} compact placeholder={i18n?.searchPlaceholder || "Search..."} ariaLabel={i18n?.searchPlaceholder || "Search..."} on:input={onSearchInput} />
+        <NaSearchInput value={searchText} compact placeholder={i18n?.searchPlaceholder || "Search..."} ariaLabel={i18n?.searchPlaceholder || "Search..."} on:input={(event) => onSearchInput(event.detail.value)} />
     </div>
     <div class="na-task-filter-bar__filters">
         <div style="--na-filter-active-color: var(--na-filter-context)"><NaFilterDropdown label={i18n?.context || "Context"} options={contextOptions} selected={filterState.contexts} {i18n} onChange={(selected) => change({ ...filterState, contexts: selected })} /></div>

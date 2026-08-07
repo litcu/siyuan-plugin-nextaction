@@ -14,5 +14,7 @@ test("editor task status markers match the panel circular checkbox", () => {
     assert.match(editorIconStyles, /border-radius:\s*50%/);
     assert.match(editorIconStyles, /border:\s*2px solid var\(--na-text-secondary\)/);
     assert.match(editorIconStyles, /border-style:\s*dashed/);
+    assert.match(editorIconStyles, /top:\s*calc\(0\.5lh - 8px\)/);
+    assert.doesNotMatch(editorIconStyles, /top:\s*50%/);
     assert.match(tokens, /:root\s*\{[\s\S]*--na-text-secondary:\s*var\(--b3-theme-on-surface-light\)/);
 });
