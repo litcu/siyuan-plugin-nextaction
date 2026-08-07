@@ -1,49 +1,107 @@
+<div align="center">
+
 # NextAction
 
-[中文](./README.zh-CN.md)
+### Tasks scatter across your notes — once they pile up, you can no longer tell which to do first.
 
-A GTD task manager for [SiYuan Note](https://b3log.org/siyuan/).
+![version](https://img.shields.io/badge/version-0.4.1-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
 
-NextAction helps you decide what to do next. Turn any block into a task, add the useful bits - due date, importance, effort, context - and the plugin will filter for tasks you can act on now and put them in a workable order. Tasks still live in SiYuan, which fits people who already keep project notes, meeting notes, and running lists there.
+[中文文档](./README.zh-CN.md)
+
+</div>
+
+---
+
+> [!IMPORTANT]
+> **What it touches:** Writes `custom-na-*` task attributes onto SiYuan blocks. The kernel bundle runs inside the SiYuan kernel process.
+> **Does it exfiltrate?** No telemetry to the plugin author. AI features (opt-in) send task snapshots to whatever AI provider you configured in SiYuan, through SiYuan's own `/api/ai` endpoint — the plugin never calls third-party servers directly.
+> **Reversibility:** Disable the plugin in **Settings → Marketplace → Downloaded**. Remove task attributes from any block via its status circle menu → **Remove Task**. Block content is preserved.
+
+**Install:** Settings → Marketplace → search "NextAction" → install
+
+---
+
+## The Problem
+
+Your SiYuan notebooks already hold the tasks — project notes, meeting actions, running lists. What they do not give you is the answer to "what do I do next?" Tasks scatter across documents, and once the list gets long enough, picking the next one becomes guesswork.
+
+NextAction turns any block into a task with a due date, importance, and effort, then filters for what you can act on now and sorts it for you. The tasks stay in SiYuan. There is no second system to sync.
+
+---
+
+## See It Work
+
+Type one slash command on any block:
+
+```
+/ntask
+```
+
+That block is now a task. A status circle appears beside it, and the task lands in **Inbox**. Open the dock panel and switch to **Next Actions** — you will see it alongside everything else you can do right now, sorted by computed priority.
 
 <!-- screenshot -->
 
-## Quick Start
+---
 
-1. Install NextAction from the SiYuan marketplace, or download a release and place it under your workspace's `data/plugins/` directory.
-2. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
-3. Click the status circle beside the block to set status, priority, or open task details.
-4. Open the dock panel to use **Next Actions**, **My Day**, and **Inbox**.
+## Install
+
+**Marketplace (recommended):** Settings → Marketplace → search "NextAction" → install.
+
+<details>
+<summary><b>Manual install</b> — for offline or pre-release builds</summary>
+
+Download the `siyuan-plugin-nextaction` folder from a [release](https://github.com/litcu/siyuan-plugin-nextaction/releases), place it under your workspace's `data/plugins/` directory, then enable it from **Settings → Marketplace → Downloaded**.
+
+</details>
+
+| Concern | Answer |
+|---------|--------|
+| What it touches | `custom-na-*` attributes on SiYuan blocks; runs a bundle in the SiYuan kernel process |
+| Network calls | Only when you use an AI feature — routed through SiYuan's own `/api/ai` to your configured provider. No telemetry to the plugin author. |
+| Disable | Settings → Marketplace → Downloaded → toggle off |
+| Uninstall | Same menu → uninstall. Block content is preserved; only task attributes are removed. |
+
+---
+
+## Getting Started
+
+1. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
+2. Click the status circle beside the block to set status, priority, or open task details.
+3. Open the dock panel — **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
 
 That is enough to start. Importance, review intervals, reminders, dependencies, and custom fields can wait until your task list needs them.
 
-## How It Fits GTD
+<details>
+<summary><b>Capture commands</b> — more ways to create tasks and projects</summary>
 
-NextAction follows the basic GTD rhythm: capture first, clarify later, organize into the right list, review regularly, and work from a short list of things you can actually do now.
+- `/ntask` or `/zrw` — convert the current block into a task (starts in **Inbox**).
+- `/nproject` or `/zxm` — convert the current block into a project.
+- `/ntaskchildren` or `/zrwz` — batch-convert a list or document subtree.
+- Right-click a block icon or document title icon → **Convert to Task**.
 
-### Capture: Get It Out of Your Head
+</details>
 
-- Type `/ntask` or `/zrw` to convert the current block into a task. New tasks start in **Inbox**.
-- Type `/nproject` or `/zxm` to convert the current block into a project.
-- Type `/ntaskchildren` or `/zrwz` to batch-convert a list or document subtree.
-- You can also right-click a block icon or document title icon and choose **Convert to Task**.
+---
 
-Inbox items do not need to be perfect. Capture them first; decide what they mean later.
+## How It Works
 
-### Clarify: Decide What Happens Next
+NextAction follows the GTD rhythm: capture first, clarify later, organize into the right list, review regularly, and work from a short list of what is available now. Tasks live as ordinary SiYuan blocks with `custom-na-*` attributes; the plugin reads them through the SiYuan API, computes a priority score, and filters the views.
 
-Open **Inbox** and process items one by one:
+<details>
+<summary><b>The GTD flow in NextAction</b></summary>
 
-- If it is actionable, move it to **To Do** or **In Progress**.
-- If it is not for now, move it to **Someday/Maybe**.
-- If it depends on someone or something else, mark it as **Waiting**.
-- If it no longer matters, remove the task attributes.
+**Capture** — Type `/ntask` to turn a block into a task. New tasks start in **Inbox**. Inbox items do not need to be perfect — capture first, decide what they mean later.
 
-When a task needs more context, open its details and add due date, start date, importance, effort, context, tags, notes, and other fields.
+**Clarify** — Process Inbox items one by one:
 
-### Organize: Put It in the Right List
+- Actionable → **To Do** or **In Progress**
+- Not for now → **Someday/Maybe**
+- Waiting on someone → **Waiting**
+- No longer matters → remove the task attributes
 
-Task statuses map to familiar GTD lists:
+When a task needs more context, open its details and add due date, start date, importance, effort, context, tags, and notes.
+
+**Organize** — Statuses map to GTD lists:
 
 | Status | Visual | Best for |
 |--------|--------|----------|
@@ -56,21 +114,26 @@ Task statuses map to familiar GTD lists:
 
 Priority has five levels: Critical (red) > High (orange) > Medium (blue) > Low (gray) > None.
 
-Tasks can be nested. A project can contain tasks, and a task can contain subtasks. If a parent still has unfinished children, it will not be pushed into **Next Actions** as if it were ready to do.
+Tasks nest. A project can contain tasks, and a task can contain subtasks. A parent with unfinished children will not appear in **Next Actions** as if it were ready to do.
 
-### Reflect: Keep the Lists Alive
+**Reflect** — **Review** shows a GTD-style checklist and tasks due for review. Any task can have a review interval so it comes back when it needs attention.
 
-- **Review** shows a GTD-style checklist and tasks that are due for review.
-- Any task can have a review interval, so it comes back when it needs attention.
-- During review, you can move **Waiting** items back to **To Do**, or reactivate **Someday/Maybe** items.
+**Engage** — **Next Actions** shows only tasks you can work on now. Completed, waiting, blocked parent, and pre-start-date tasks are filtered out. For daily planning, **My Day** lets you pick from Next Actions and drag them onto a timeline.
 
-### Engage: Work From What Is Available Now
+</details>
 
-**Next Actions** shows only tasks you can work on now. Completed tasks, waiting tasks, blocked parent tasks, and tasks before their start date are filtered out.
+<details>
+<summary><b>How priority is calculated</b></summary>
 
-For daily planning, use **My Day**: pick tasks from Next Actions and drag them onto a timeline. The dock panel keeps a compact version nearby while you write.
+NextAction computes a score from importance, effort, due-date urgency, and manual priority. Higher scores appear earlier in **Next Actions**.
 
-<!-- screenshot -->
+You do not have to sort every task by hand. Filling in importance, effort, and due date is usually enough to get a useful order. Tasks before their start date stay out of **Next Actions** so they do not distract too early.
+
+Priority parameters (due date weight, start date, importance, decay, growth, lookahead) are adjustable in **Settings → Priority Parameters**.
+
+</details>
+
+---
 
 ## Views
 
@@ -112,31 +175,33 @@ After a block becomes a task, a status circle appears on its left:
 - **Click the task title** to open the full detail editor.
 - **Drag task cards** in All Tasks to adjust order.
 
-## How Priority Is Calculated
+<details>
+<summary><b>Settings</b> — five sections</summary>
 
-NextAction computes a score from importance, effort, due-date urgency, and manual priority. Higher scores appear earlier.
+1. **General**: task defaults, My Day, reminders.
+2. **Custom fields**: extend task attributes.
+3. **Built-in AI**: customize built-in AI prompts.
+4. **MCP**: expose task tools to AI clients.
+5. **Advanced**: priority engine and maintenance.
 
-You do not have to sort every task by hand. In everyday use, filling in importance, effort, and due date is usually enough to get a useful order. Tasks before their start date stay out of **Next Actions**, so they do not distract too early.
+</details>
 
-Priority parameters can be adjusted in settings.
+---
 
-## Settings
+## FAQ
 
-The settings panel has five sections:
+**Does it sync with a separate task server?**
+No. Tasks are ordinary SiYuan blocks with `custom-na-*` attributes. Everything lives in your SiYuan workspace — there is no external account or sync layer.
 
-1. **Task Defaults**: default importance, default effort, rebuild cache, fix parent-child relationships.
-2. **My Day**: enable switch, daily reset time, default view mode, default scheduled duration.
-3. **Reminders**: enable switch, default advance offsets, sound selection.
-4. **Custom Fields**: add, remove, and reorder extension fields.
-5. **Priority Parameters**: due date, start date, importance, decay, growth, lookahead, and related tuning.
+**What happens to my blocks if I uninstall?**
+Block content is preserved. Only the task attributes are removed. You can also remove task attributes from a single block via its status circle menu without uninstalling.
 
-## Installation
+**Do AI features send my data somewhere?**
+Only when you explicitly trigger an AI feature (extract tasks, decompose, plan My Day, review). The plugin calls SiYuan's own `/api/ai` endpoint, which routes to whatever AI provider you configured in SiYuan. The plugin never contacts third-party servers directly and sends nothing to the plugin author.
 
-**Marketplace:** Settings -> Marketplace -> search for "NextAction" -> install.
+---
 
-**Manual:** Download the `siyuan-plugin-nextaction` folder from a release, place it under your workspace's `data/plugins/` directory, then enable it from **Settings -> Marketplace -> Downloaded**.
-
-## Development
+## Contributing
 
 ```bash
 pnpm install
@@ -146,13 +211,12 @@ pnpm run release          # Build and deploy to local plugin directory
 pnpm run release:package  # Build package.zip for marketplace/GitHub release
 ```
 
-Architecture notes: [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+Architecture notes: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
-## Publishing
+<details>
+<summary><b>Releasing a new version</b></summary>
 
-Releases are driven by Git tags. From a clean working tree, run:
-
-Before releasing, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), then commit that change. Empty categories are omitted from the GitHub Release notes.
+Releases are driven by Git tags. Before releasing, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), then commit that change. Empty categories are omitted from the GitHub Release notes.
 
 ```bash
 pnpm run release:patch
@@ -162,8 +226,10 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-The command validates and finalizes the changelog, updates `package.json` and `plugin.json` when needed, commits the release files, creates a `vX.Y.Z` tag, and pushes both commit and tag. If the current version is already correct for the first release, use `release:current`. GitHub Actions will build `package.zip`, use that version's changelog section as the GitHub Release notes, and append a link to the complete diff from the previous tag.
+The command validates and finalizes the changelog, updates `package.json` and `plugin.json` when needed, commits the release files, creates a `vX.Y.Z` tag, and pushes both commit and tag. GitHub Actions builds `package.zip`, uses that version's changelog section as the GitHub Release notes, and appends a link to the complete diff from the previous tag.
+
+</details>
 
 ## License
 
-This project uses the MIT License with the Commons Clause. You may use, modify, and share this plugin. Without permission, you may not sell it, package it as a paid product, publish it as a paid listing, or monetize this plugin or derivative versions. See [LICENSE](./LICENSE).
+PolyForm Noncommercial License 1.0.0. You may use, modify, and share this plugin for noncommercial purposes. You may not sell it, package it as a paid product, publish it as a paid listing, or monetize this plugin or derivative versions. See [LICENSE](./LICENSE).
