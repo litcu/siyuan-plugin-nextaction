@@ -106,7 +106,7 @@
                         <span class="na-settings-general__offset-chip">
                             <strong>{display.value}</strong>
                             <span>{getUnitLabel(display.unit)}</span>
-                            <button type="button" on:click={() => onRemoveOffset(offset)} disabled={!reminderEnabled} title={i18n?.reminderRemoveOffset || "Remove"} aria-label={i18n?.reminderRemoveOffset || "Remove"}>
+                            <button type="button" class="b3-tooltips b3-tooltips__n" on:click={() => onRemoveOffset(offset)} disabled={!reminderEnabled} aria-label={i18n?.reminderRemoveOffset || "Remove"}>
                                 <NaIcon symbol="iconCloseRound" size={13} />
                             </button>
                         </span>
@@ -133,7 +133,7 @@
                 <select id="setting-reminder-due-sound" class="b3-select" bind:value={reminderDueSound} disabled={!reminderEnabled}>
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
-                <button type="button" class="b3-button b3-button--text" on:click={() => onPreviewSound(reminderDueSound)} disabled={!reminderEnabled} title={i18n?.reminderPreviewSound || "Preview"}>
+                <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => onPreviewSound(reminderDueSound)} disabled={!reminderEnabled} aria-label={i18n?.reminderPreviewSound || "Preview"}>
                     <NaIcon symbol="iconPlay" size={14} />
                 </button>
             </div>
@@ -143,7 +143,7 @@
                 <select id="setting-reminder-review-sound" class="b3-select" bind:value={reminderReviewSound} disabled={!reminderEnabled}>
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
-                <button type="button" class="b3-button b3-button--text" on:click={() => onPreviewSound(reminderReviewSound)} disabled={!reminderEnabled} title={i18n?.reminderPreviewSound || "Preview"}>
+                <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => onPreviewSound(reminderReviewSound)} disabled={!reminderEnabled} aria-label={i18n?.reminderPreviewSound || "Preview"}>
                     <NaIcon symbol="iconPlay" size={14} />
                 </button>
             </div>

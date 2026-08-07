@@ -68,7 +68,7 @@
     <div class="na-settings-ai__intro">
         <span class="na-settings-ai__intro-icon"><NaIcon symbol="iconSparkles" size={18} /></span>
         <div>
-            <strong>{i18n?.settingAiPromptTitle || "Built-in AI prompts"}</strong>
+            <strong>{i18n?.settingAiPromptTitle || "AI feature prompts"}</strong>
             <p>{i18n?.settingAiPromptDesc || "Tune how each feature works. Runtime data and strict output contracts are added automatically."}</p>
         </div>
     </div>

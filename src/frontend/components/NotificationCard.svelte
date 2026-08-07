@@ -66,7 +66,7 @@
         <span class="na-notification-card__type na-notification-card__type--{type}">
             {typeLabel}
         </span>
-        <button class="na-notification-card__close" on:click={onDismiss} title={dismissTitle}>
+        <button class="na-notification-card__close b3-tooltips b3-tooltips__w" on:click={onDismiss} aria-label={dismissTitle}>
             <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
             </svg>

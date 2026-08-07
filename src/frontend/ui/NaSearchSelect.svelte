@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onDestroy, onMount, createEventDispatcher } from "svelte";
     import { portal } from "../utils/portal";
+    import { getCurrentUiZIndex } from "../utils/layer";
     import NaIcon from "./NaIcon.svelte";
 
     export let placeholder = "";
@@ -28,7 +29,7 @@
     let containerEl: HTMLElement;
     let dropdownEl: HTMLElement;
     let inputEl: HTMLInputElement | undefined;
-    let dropdownStyle = "position:fixed;z-index:9999;visibility:hidden;";
+    let dropdownStyle = `position:fixed;z-index:${getCurrentUiZIndex()};visibility:hidden;`;
     let _prevInitialLabels: Record<string, string> = initialLabels;
     let labelMap: Map<string, string> = new Map(Object.entries(initialLabels));
     $: if (initialLabels !== _prevInitialLabels) {
@@ -66,7 +67,7 @@
             ? `bottom:${Math.max(viewportGap, window.innerHeight - rect.top + dropdownGap)}px;`
             : `top:${Math.max(viewportGap, rect.bottom + dropdownGap)}px;`;
 
-        dropdownStyle = `position:fixed;z-index:9999;visibility:visible;left:${left}px;${verticalPosition}width:${width}px;max-height:${maxHeight}px;`;
+        dropdownStyle = `position:fixed;z-index:${getCurrentUiZIndex()};visibility:visible;left:${left}px;${verticalPosition}width:${width}px;max-height:${maxHeight}px;`;
     }
 
     function scheduleDropdownPosition() {
@@ -224,7 +225,7 @@
     <div class="na-search-select__box" on:mousedown={handleBoxMousedown} on:click={handleBoxClick}>
         {#if !multi && selected}
             <span class="na-search-select__selected">{selectedLabel || String(selected)}</span>
-            <button class="na-search-select__clear" on:click|stopPropagation={clearAndReopen} aria-label={clearLabel} title={clearLabel}>
+            <button class="na-search-select__clear b3-tooltips b3-tooltips__n" on:click|stopPropagation={clearAndReopen} aria-label={clearLabel}>
                 <NaIcon symbol="iconCloseRound" size={10} />
             </button>
         {:else}
@@ -233,7 +234,7 @@
                     {#each selectedArray as item}
                         <span class="na-search-select__chip">
                             {labelMap.get(item) || item}
-                            <button class="na-search-select__chip-remove" on:click|stopPropagation={() => removeItem(item)} aria-label={`${removeLabel}: ${labelMap.get(item) || item}`} title={removeLabel}>
+                            <button class="na-search-select__chip-remove b3-tooltips b3-tooltips__n" on:click|stopPropagation={() => removeItem(item)} aria-label={`${removeLabel}: ${labelMap.get(item) || item}`}>
                                 <NaIcon symbol="iconCloseRound" size={8} />
                             </button>
                         </span>
@@ -426,7 +427,7 @@
         position: fixed;
         right: auto;
         margin-top: 0;
-        z-index: 9999;
+        z-index: 10;
     }
 
     .na-search-select__option {

@@ -73,6 +73,16 @@
         .filter(def => def.showOnCard && isCustomFieldApplicable(def, task, $taskById) && !!task.customFields?.[def.key]);
     $: cardCustomFields = applicableCardCustomFields.slice(0, 3);
     $: hiddenCustomFieldCount = Math.max(0, applicableCardCustomFields.length - cardCustomFields.length);
+    $: hasCardMetadata = Boolean(
+        (task.due && !isDone)
+        || (isBlocked && task.taskType !== "2")
+        || task.repeat
+        || task.reviewInterval > 0
+        || task.context
+        || task.tags
+        || cardCustomFields.length > 0
+        || (isCollapsed && childCount > 0),
+    );
 
     function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
         isOverdue = !isDone && event.detail.isOverdue;
@@ -106,37 +116,45 @@
 >
     <div class="na-task-card__content">
         <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} />
-        <div class="na-task-card__body" on:click|stopPropagation={() => onEdit(task)}>
+        <div
+            class="na-task-card__body"
+            class:na-task-card__body--metadata-empty={!hasCardMetadata}
+            on:click|stopPropagation={() => onEdit(task)}
+        >
             <div class="na-task-card__title-row">
                 {#if task.taskType === "2"}
-                    <span class="na-task-card__project-icon" title={i18n?.project || "Project"}>
-                        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l1 1h5v9H2z"/></svg>
-                    </span>
-                {/if}
-                <span
-                    class="na-task-card__title-composite"
-                    class:na-task-card__title-composite--has-parent={Boolean(parentTitle && isRoot)}
-                    title={compositeTitle}
-                >
-                    <span class="na-task-card__title" class:untitled={!task.title}>
-                        {taskTitle}
-                    </span>
-                    {#if parentTitle && isRoot}
-                        <span class="na-task-card__parent-context">
-                            <span class="na-task-card__parent-separator" aria-hidden="true">—</span>
-                            <span class="na-task-card__parent-title">{parentTitle}</span>
+                    <NaTooltip text={i18n?.project || "Project"}>
+                        <span class="na-task-card__project-icon">
+                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h5l1 1h5v9H2z"/></svg>
                         </span>
-                    {/if}
-                </span>
-                {#if priorityLabel}
+                    </NaTooltip>
+                {/if}
+                <NaTooltip text={compositeTitle} fill>
                     <span
-                        class="na-task-card__priority"
-                        style="--na-task-priority-color: {priorityTextColor}"
-                        title={priorityLabel}
+                        class="na-task-card__title-composite"
+                        class:na-task-card__title-composite--has-parent={Boolean(parentTitle && isRoot)}
                     >
-                        <span class="na-task-card__priority-dot" aria-hidden="true"></span>
-                        <span>{priorityLabel}</span>
+                        <span class="na-task-card__title" class:untitled={!task.title}>
+                            {taskTitle}
+                        </span>
+                        {#if parentTitle && isRoot}
+                            <span class="na-task-card__parent-context">
+                                <span class="na-task-card__parent-separator" aria-hidden="true">—</span>
+                                <span class="na-task-card__parent-title">{parentTitle}</span>
+                            </span>
+                        {/if}
                     </span>
+                </NaTooltip>
+                {#if priorityLabel}
+                    <NaTooltip text={priorityLabel}>
+                        <span
+                            class="na-task-card__priority"
+                            style="--na-task-priority-color: {priorityTextColor}"
+                        >
+                            <span class="na-task-card__priority-dot" aria-hidden="true"></span>
+                            <span>{priorityLabel}</span>
+                        </span>
+                    </NaTooltip>
                 {/if}
             </div>
             <div class="na-task-card__meta">
@@ -145,27 +163,29 @@
                         <DueDateLabel due={task.due} {i18n} on:overduechange={handleOverdueChange} />
                     {/if}
                     {#if isBlocked && task.taskType !== "2"}
-                        <span class="na-task-card__blocked-badge" title={blockedText}>
-                            {blockedText}
-                        </span>
+                        <NaTooltip text={blockedText}><span class="na-task-card__blocked-badge">{blockedText}</span></NaTooltip>
                     {/if}
                     {#if task.repeat}
-                        <span class="na-task-card__icon na-task-card__icon--repeat na-task-card__icon--repeat-{repeatStatus}" title={repeatTooltip}>
-                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="miter">
-                                <path d="M2.5 8a5.5 5.5 0 0 1 9.3-3.9"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="5" x2="9" y2="5"/>
-                                <path d="M13.5 8a5.5 5.5 0 0 1-9.3 3.9"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="4" y1="11" x2="7" y2="11"/>
-                            </svg>
-                        </span>
+                        <NaTooltip text={repeatTooltip}>
+                            <span class="na-task-card__icon na-task-card__icon--repeat na-task-card__icon--repeat-{repeatStatus}">
+                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="miter">
+                                    <path d="M2.5 8a5.5 5.5 0 0 1 9.3-3.9"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="5" x2="9" y2="5"/>
+                                    <path d="M13.5 8a5.5 5.5 0 0 1-9.3 3.9"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="4" y1="11" x2="7" y2="11"/>
+                                </svg>
+                            </span>
+                        </NaTooltip>
                     {/if}
                     {#if task.reviewInterval > 0}
-                        <span class="na-task-card__icon na-task-card__icon--review" title="{i18n?.reviewIntervalTooltip || 'Review every'} {task.reviewInterval} {i18n?.days || 'days'}">
-                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="3" width="12" height="11" rx="1.5"/>
-                                <line x1="2" y1="6.5" x2="14" y2="6.5"/>
-                                <line x1="5.5" y1="1.5" x2="5.5" y2="4"/>
-                                <line x1="10.5" y1="1.5" x2="10.5" y2="4"/>
-                            </svg>
-                        </span>
+                        <NaTooltip text="{i18n?.reviewIntervalTooltip || 'Review every'} {task.reviewInterval} {i18n?.days || 'days'}">
+                            <span class="na-task-card__icon na-task-card__icon--review">
+                                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="3" width="12" height="11" rx="1.5"/>
+                                    <line x1="2" y1="6.5" x2="14" y2="6.5"/>
+                                    <line x1="5.5" y1="1.5" x2="5.5" y2="4"/>
+                                    <line x1="10.5" y1="1.5" x2="10.5" y2="4"/>
+                                </svg>
+                            </span>
+                        </NaTooltip>
                     {/if}
                     {#if task.context}
                         <span class="na-task-card__context">@{task.context.replace(/\|/g, ', ')}</span>
@@ -184,12 +204,16 @@
                     {/if}
                 </div>
                 <span class="na-task-card__stats">
-                    <span class="na-task-card__stat-item na-task-card__stat-item--importance" title={i18n?.importance || "Importance"}>
-                        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"><path d="M8 1l2.2 4.5 5 .7-3.6 3.5.8 5L8 12.4 3.6 14.7l.8-5L.8 6.2l5-.7z"/></svg>{task.importance ?? 4}
-                    </span>
-                    <span class="na-task-card__stat-item na-task-card__stat-item--effort" title={i18n?.effort || "Effort"}>
-                        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"><circle cx="8" cy="8" r="3.5"/><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>{task.effort ?? 4}
-                    </span>
+                    <NaTooltip text={i18n?.importance || "Importance"}>
+                        <span class="na-task-card__stat-item na-task-card__stat-item--importance">
+                            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"><path d="M8 1l2.2 4.5 5 .7-3.6 3.5.8 5L8 12.4 3.6 14.7l.8-5L.8 6.2l5-.7z"/></svg>{task.importance ?? 4}
+                        </span>
+                    </NaTooltip>
+                    <NaTooltip text={i18n?.effort || "Effort"}>
+                        <span class="na-task-card__stat-item na-task-card__stat-item--effort">
+                            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" stroke="none"><circle cx="8" cy="8" r="3.5"/><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>{task.effort ?? 4}
+                        </span>
+                    </NaTooltip>
                 </span>
             </div>
         </div>
@@ -200,7 +224,6 @@
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
-                    title={i18n?.clarify || "Clarify"}
                 >
                     {i18n?.clarify || "Clarify"}
                 </button>
@@ -211,13 +234,12 @@
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
-                    title={i18n?.activate || "Activate"}
                 >
                     {i18n?.activate || "Activate"}
                 </button>
             {/if}
             {#if task.note}
-                <span class="na-task-card__note-icon" title="">
+                <span class="na-task-card__note-icon">
                     <NaTooltip text={task.note}>
                         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3 1.5h7l3.5 3.5v9.5a1 1 0 0 1-1 1h-9.5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1z"/>

@@ -1,5 +1,6 @@
 import { taskStore } from "../stores/task-store";
 import type { TaskCacheEntry } from "../../shared/types";
+import { getCurrentUiZIndex } from "../utils/layer";
 
 interface DragConfig {
     container: HTMLElement;
@@ -70,7 +71,7 @@ export function createDragHandler(config: DragConfig) {
         ghost.style.width = `${cardEl.offsetWidth}px`;
         ghost.style.opacity = "0.7";
         ghost.style.pointerEvents = "none";
-        ghost.style.zIndex = "9999";
+        ghost.style.zIndex = String(getCurrentUiZIndex(9));
         ghost.style.left = `${e.clientX - 10}px`;
         ghost.style.top = `${e.clientY - 10}px`;
         document.body.appendChild(ghost);

@@ -25,7 +25,8 @@ const enI18nSource = source("../src/i18n/en.json");
 test("任务属性面板的跳转操作使用统一的图标按钮", () => {
     assert.match(taskDetailSource, /<NaIconButton symbol="iconOpenWindow"/);
     assert.match(iconButtonSource, /aria-label=\{label\}/);
-    assert.match(iconButtonSource, /title=\{label\}/);
+    assert.match(iconButtonSource, /b3-tooltips b3-tooltips__n/);
+    assert.doesNotMatch(iconButtonSource, /title=\{label\}/);
 });
 
 test("完整任务面板极窄时侧栏收缩为带 tooltip 的图标栏", () => {

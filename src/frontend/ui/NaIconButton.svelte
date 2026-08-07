@@ -13,12 +13,11 @@
 
 <button
     {type}
-    class="na-icon-button"
+    class="na-icon-button b3-tooltips b3-tooltips__n"
     class:na-icon-button--compact={compact}
     class:na-icon-button--active={active}
     class:na-icon-button--danger={tone === "danger"}
     aria-label={label}
-    title={label}
     aria-pressed={active || undefined}
     {disabled}
     on:click

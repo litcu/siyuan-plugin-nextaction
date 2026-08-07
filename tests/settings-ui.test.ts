@@ -63,7 +63,7 @@ test("复杂设置页保留关键行为并使用按需展开交互", () => {
     assert.match(customFields, /purgeCustomField/);
     assert.match(customFields, /customFieldTypeLocked/);
     assert.match(customFields, /na-settings-custom-field__show-card/);
-    assert.match(customFields, /title=\{field\.key\}/);
+    assert.match(customFields, /<code>\{field\.key\}<\/code>/);
     assert.match(ai, /maxlength="12000"/);
     assert.match(ai, /NaAccordion/);
     assert.match(mcp, /settingMcpWriteWarning/);

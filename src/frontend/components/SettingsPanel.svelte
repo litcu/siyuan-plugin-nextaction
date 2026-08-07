@@ -40,7 +40,7 @@
     $: modernTabs = [
         { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
         { id: "customFields" as const, label: i18n?.settingCustomFields || "Custom fields", desc: i18n?.settingCustomFieldsDesc || "Extend task attributes", icon: "iconDatabase", group: i18n?.settingNavGroupTask || "Workspace" },
-        { id: "ai" as const, label: i18n?.settingAi || "Built-in AI", desc: i18n?.settingAiDesc || "Customize built-in AI prompts", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
+        { id: "ai" as const, label: i18n?.settingAi || "AI features", desc: i18n?.settingAiDesc || "Customize prompts used by AI features", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
         { id: "mcp" as const, label: i18n?.settingMcp || "MCP", desc: i18n?.settingMcpDesc || "Expose task tools to AI clients", icon: "iconCloud", group: i18n?.settingNavGroupIntegration || "Integrations" },
         { id: "advanced" as const, label: i18n?.settingAdvanced || "Advanced", desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance", icon: "iconSort", group: i18n?.settingNavGroupSystem || "System" },
     ];
@@ -485,14 +485,14 @@
             <div class="na-settings-modern__group">
                 <span>{group}</span>
                 {#each modernTabs.filter(tab => tab.group === group) as tab}
-                    <button type="button" class:active={modernTab === tab.id} class="na-settings-modern__nav-item" on:click={() => selectModernTab(tab.id)} title={tab.label} aria-current={modernTab === tab.id ? "page" : undefined}>
+                    <button type="button" class:active={modernTab === tab.id} class="na-settings-modern__nav-item b3-tooltips b3-tooltips__e" on:click={() => selectModernTab(tab.id)} aria-label={tab.label} aria-current={modernTab === tab.id ? "page" : undefined}>
                         <NaIcon symbol={tab.icon} size={17} />
                         <span>{tab.label}</span>
                     </button>
                 {/each}
             </div>
         {/each}
-        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" on:click={handleResetAll} title={i18n?.settingResetAll || "Reset all settings"}>
+        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" on:click={handleResetAll}>
             <NaIcon symbol="iconRefresh" size={16} />
             <span>{i18n?.settingResetAll || "Reset all settings"}</span>
         </button>
@@ -506,7 +506,7 @@
                 description={modernTabs.find(tab => tab.id === modernTab)?.desc || ""}
             >
                 <svelte:fragment slot="actions">
-                    <button type="button" class="b3-button b3-button--text na-settings-modern__close" on:click={requestClose} title={i18n?.cancel || "Close"} aria-label={i18n?.cancel || "Close"}>
+                    <button type="button" class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n" on:click={requestClose} aria-label={i18n?.cancel || "Close"}>
                         <NaIcon symbol="iconCloseRound" size={18} />
                     </button>
                 </svelte:fragment>

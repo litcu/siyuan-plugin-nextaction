@@ -45,7 +45,11 @@
         <span class="na-sort-select__label">{currentLabel}</span>
     </button>
     {#if canToggleDirection}
-        <button class="na-sort-select__dir-btn" on:click={toggleDirection} title={ascending ? (i18n?.sortAsc || "Ascending") : (i18n?.sortDesc || "Descending")}>
+        <button
+            class="na-sort-select__dir-btn b3-tooltips b3-tooltips__n"
+            on:click={toggleDirection}
+            aria-label={ascending ? (i18n?.sortAsc || "Ascending") : (i18n?.sortDesc || "Descending")}
+        >
             {#if ascending}
                 <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M6 10V2" />

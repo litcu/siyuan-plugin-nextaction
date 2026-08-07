@@ -18,7 +18,6 @@
     {disabled}
     aria-label={label}
     aria-current={active ? "page" : undefined}
-    title={tooltip || label}
     data-tooltip={tooltip || label}
     on:click
 >

@@ -207,18 +207,18 @@
                 <article class="na-settings-custom-field" class:na-settings-custom-field--archived={field.status === "archived"}>
                     <header class="na-settings-custom-field__header">
                         <div class="na-settings-custom-field__identity">
-                            <code title={field.key}>{field.key}</code>
+                            <code>{field.key}</code>
                             <input class="b3-text-field" value={field.label} on:change={(event) => updateField(index, { label: event.currentTarget.value })} aria-label={i18n?.customFieldLabelPlaceholder || "Field label"} />
                             <span>{customFieldUsage[field.key] || 0} {i18n?.customFieldUsed || "used"}</span>
                             {#if field.status === "archived"}<em>{i18n?.archived || "Archived"}</em>{/if}
                         </div>
                         <div class="na-settings-custom-field__actions">
-                            <label class="na-settings-custom-field__show-card" title={i18n?.customFieldShowOnCard || "Show on card"}>
+                            <label class="na-settings-custom-field__show-card">
                                 <input class="b3-switch" type="checkbox" checked={field.showOnCard && field.status === "active"} on:change={(event) => updateField(index, { showOnCard: event.currentTarget.checked })} disabled={field.status !== "active"} />
                                 <span>{i18n?.customFieldShowOnCard || "Show on card"}</span>
                             </label>
-                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, -1)} disabled={index === 0} title={i18n?.moveUp || "Move up"} aria-label={i18n?.moveUp || "Move up"}><NaIcon symbol="iconUp" size={14} /></button>
-                            <button type="button" class="b3-button b3-button--text" on:click={() => moveField(index, 1)} disabled={index === customFields.length - 1} title={i18n?.moveDown || "Move down"} aria-label={i18n?.moveDown || "Move down"}><NaIcon symbol="iconDown" size={14} /></button>
+                            <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => moveField(index, -1)} disabled={index === 0} aria-label={i18n?.moveUp || "Move up"}><NaIcon symbol="iconUp" size={14} /></button>
+                            <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => moveField(index, 1)} disabled={index === customFields.length - 1} aria-label={i18n?.moveDown || "Move down"}><NaIcon symbol="iconDown" size={14} /></button>
                             <button type="button" class="b3-button b3-button--text" on:click={() => toggleStatus(index)}>{field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")}</button>
                             {#if field.status === "archived"}<button type="button" class="b3-button b3-button--text na-settings-custom-field__danger" on:click={() => purgeField(field, index)}>{i18n?.purgeCustomField || "Purge"}</button>{/if}
                         </div>

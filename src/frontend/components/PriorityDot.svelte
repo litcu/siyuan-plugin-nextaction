@@ -10,9 +10,9 @@
 </script>
 
 <span
-    class="na-priority-dot"
+    class="na-priority-dot b3-tooltips b3-tooltips__n"
     style="background-color: {color}; border-color: {borderColor}"
     on:click={onclick}
-    title={onclick ? (i18n?.markComplete || "Mark done") : (i18n?.[toI18nKey("priority", displayPriority)] || displayPriority)}
+    aria-label={onclick ? (i18n?.markComplete || "Mark done") : (i18n?.[toI18nKey("priority", displayPriority)] || displayPriority)}
 ></span>
 

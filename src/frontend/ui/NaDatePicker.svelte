@@ -2,6 +2,7 @@
     import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import { parseNaturalDate } from "../../shared/natural-date";
     import { portal } from "../utils/portal";
+    import { getCurrentUiZIndex } from "../utils/layer";
     import NaIcon from "./NaIcon.svelte";
 
     export let value: string = ""; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm" or ""
@@ -226,7 +227,7 @@
         const top = openAbove
             ? Math.max(viewportGap, rect.top - dropdownHeight - 4)
             : Math.min(rect.bottom + 4, window.innerHeight - dropdownHeight - viewportGap);
-        dropdownStyle = `position:fixed;z-index:9999;left:${left}px;top:${Math.max(viewportGap, top)}px;width:${dropdownWidth}px;max-height:${maxViewportHeight}px;overflow-y:auto;`;
+        dropdownStyle = `position:fixed;z-index:${getCurrentUiZIndex()};left:${left}px;top:${Math.max(viewportGap, top)}px;width:${dropdownWidth}px;max-height:${maxViewportHeight}px;overflow-y:auto;`;
     }
 
     function toggleOpen() {
@@ -423,14 +424,13 @@
         />
         <button
             type="button"
-            class="na-date-picker__calendar-button"
+            class="na-date-picker__calendar-button b3-tooltips b3-tooltips__n"
             on:mousedown|preventDefault
             on:click={() => { commitNaturalInput(); toggleOpen(); }}
             aria-expanded={open}
             aria-controls="na-date-picker-calendar"
             aria-haspopup="grid"
             aria-label={i18n?.dpOpenCalendar || "Open calendar"}
-            title={i18n?.dpOpenCalendar || "Open calendar"}
             {disabled}
         >
             <NaIcon symbol={value && value.includes("T") ? "iconClock" : "iconCalendar"} size={14} />
@@ -442,11 +442,11 @@
         <div use:portal={fixedDropdown} bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
             <!-- Calendar -->
             <div class="na-date-picker__header">
-                <button class="na-date-picker__nav na-date-picker__nav--previous" on:click={prevMonth} aria-label={previousMonthLabel} title={previousMonthLabel}>
+                <button class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n" on:click={prevMonth} aria-label={previousMonthLabel}>
                     <NaIcon symbol="iconRight" size={12} />
                 </button>
                 <span class="na-date-picker__month-year">{i18n?.dpYearMonth ? i18n.dpYearMonth.replace("{y}", String(viewYear)).replace("{m}", String(viewMonth + 1)) : `${viewYear}/${viewMonth + 1}`}</span>
-                <button class="na-date-picker__nav" on:click={nextMonth} aria-label={nextMonthLabel} title={nextMonthLabel}>
+                <button class="na-date-picker__nav b3-tooltips b3-tooltips__n" on:click={nextMonth} aria-label={nextMonthLabel}>
                     <NaIcon symbol="iconRight" size={12} />
                 </button>
             </div>

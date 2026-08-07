@@ -238,6 +238,17 @@
   white-space: nowrap;
 }
 
+// ===== Tooltip =====
+// Keep SiYuan's placement behavior while softening its default high-contrast bubble.
+:where(.nextaction, .na-notification-host) .b3-tooltips::after,
+.nextaction.b3-tooltips::after {
+  border: 1px solid color-mix(in srgb, var(--b3-border-color) 62%, transparent);
+  border-radius: var(--na-radius-sm);
+  background: color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-background));
+  color: var(--b3-theme-on-background);
+  box-shadow: var(--na-shadow-sm);
+}
+
 // ===== 列表项 =====
 .na-list-item {
   display: flex;

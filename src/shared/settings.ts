@@ -57,7 +57,7 @@ export interface ReminderSettings {
 }
 
 export interface AiSettings {
-    /** 每个内置 AI 功能的可编辑任务指令；JSON 协议和上下文由插件保留。 */
+    /** 每项 AI 功能的可编辑任务指令；JSON 协议和上下文由插件保留。 */
     prompts: Record<AiFeatureId, string>;
 }
 

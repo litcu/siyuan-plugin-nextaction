@@ -43,7 +43,7 @@
                     {#if group.blockIds.length}
                         <div class="na-ai-review__block-links">
                             {#each group.blockIds as blockId}
-                                <button class="na-ai-review__block-link" title={taskTitle(blockId)} on:click={() => openBlock(blockId)}>{taskLabel(blockId)}</button>
+                                <button class="na-ai-review__block-link b3-tooltips b3-tooltips__e" aria-label={taskTitle(blockId)} on:click={() => openBlock(blockId)}>{taskLabel(blockId)}</button>
                             {/each}
                         </div>
                     {:else}
@@ -61,7 +61,7 @@
                         <span class="na-ai-review__action-copy">
                             <strong>{action.action}</strong>
                             <span>{action.reason}</span>
-                            <small title={taskTitle(action.blockId)}>{taskLabel(action.blockId)}</small>
+                            <small class="b3-tooltips b3-tooltips__n" aria-label={taskTitle(action.blockId)}>{taskLabel(action.blockId)}</small>
                         </span>
                     </button>
                 {/each}
