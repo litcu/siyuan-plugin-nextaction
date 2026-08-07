@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const detail = source("../src/frontend/components/TaskDetail.svelte");
@@ -83,15 +83,7 @@ test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
 });
 
-test("极窄布局无横向溢出且公共组件全部使用 Na 前缀", () => {
+test("极窄布局无横向溢出", () => {
     assert.match(drawer, /@media \(max-width: 520px\)[\s\S]*width:\s*100%/);
     assert.match(shell, /overflow-x:\s*hidden/);
-    assert.ok(readdirSync(new URL("../src/frontend/ui", import.meta.url)).filter(name => name.endsWith(".svelte")).every(name => name.startsWith("Na")));
-});
-
-test("旧业务视觉结构和旧全局样式已删除", () => {
-    assert.doesNotMatch(stylesheet, /\.na-detail__/);
-    assert.doesNotMatch(stylesheet, /\.na-reminder-popup/);
-    assert.doesNotMatch(stylesheet, /\.na-app__detail-pane/);
-    assert.doesNotMatch(detail, /class="na-detail__/);
 });

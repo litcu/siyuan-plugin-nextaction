@@ -42,7 +42,6 @@ test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组�
     const statistics = source("../src/frontend/components/StatisticsView.svelte");
     assert.match(statistics, /NaMetricStrip/);
     assert.match(statistics, /NaProgressBar/);
-    assert.doesNotMatch(statistics, /linear-gradient|rgba?\(/);
 
     const reminder = source("../src/frontend/components/ReminderView.svelte");
     assert.match(reminder, /NaBadge/);

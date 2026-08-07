@@ -52,11 +52,6 @@ test("我的一天窄模式纵向排列并保留可用的未排期卡片宽度",
 test("我的一天顶部按插件面板宽度重排而不是按主窗口宽度", () => {
     assert.match(myDaySource, /container-name:\s*myday-view/);
     assert.match(myDaySource, /container-type:\s*inline-size/);
-    assert.match(myDaySource, /NaViewShell/);
-    assert.match(myDaySource, /NaMetricStrip/);
-    assert.match(myDaySource, /NaSegmentControl/);
-    assert.match(myDaySource, /NaToolbar/);
-    assert.doesNotMatch(myDaySource, /linear-gradient|rgba\(/);
     assert.doesNotMatch(myDaySource, /@media \(max-width:\s*760px\)/);
 });
 

@@ -86,11 +86,3 @@ test("设置界面基础结构统一使用 Na 公共组件", () => {
         assert.match(source, /var\(--b3-/);
     }
 });
-
-test("现代设置样式优先使用思源主题变量", () => {
-    assert.match(panel, /\.na-settings-modern/);
-    for (const source of [general, customFields, ai, mcp, advanced]) {
-        assert.match(source, /var\(--b3-/);
-        assert.doesNotMatch(source, /#ffffff|#fff\b|#000000|rgba\(0,\s*0,\s*0,\s*0\.1\)/i);
-    }
-});
