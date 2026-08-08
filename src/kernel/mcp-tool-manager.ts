@@ -881,6 +881,44 @@ export class McpToolManager {
         throw new McpToolError("TARGET_UNSUPPORTED", "This block has no container that can receive child tasks");
     }
 
+    /** Resolve an inserted list/list-item root to its paragraph text block. */
+    private async resolveInsertedTaskBlock(meta: InsertedBlockMeta): Promise<InsertedBlockMeta> {
+        if (meta.nodeType === "NodeParagraph") return meta;
+        if (meta.nodeType !== "NodeList" && meta.nodeType !== "NodeListItem") {
+            throw new McpToolError("SIYUAN_API_ERROR", `Expected NodeParagraph, got ${meta.nodeType || "unknown"}`);
+        }
+
+        const rootId = meta.rootId || meta.id;
+        const queue = [rootId];
+        const visited = new Set<string>();
+        while (queue.length) {
+            const currentId = queue.shift()!;
+            if (!currentId || visited.has(currentId)) continue;
+            visited.add(currentId);
+            let children: Array<{ id?: string; type?: string }> = [];
+            try {
+                const result = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", { id: currentId });
+                children = Array.isArray(result) ? result : [];
+            } catch {
+                children = [];
+            }
+            const paragraph = children.find(child => child?.id && child.type === "p");
+            if (paragraph?.id) {
+                return {
+                    id: paragraph.id,
+                    parentId: currentId,
+                    nodeType: "NodeParagraph",
+                    rootId,
+                };
+            }
+            for (const child of children) {
+                if (child?.id && (child.type === "i" || child.type === "l")) queue.push(child.id);
+            }
+        }
+
+        throw new McpToolError("SIYUAN_API_ERROR", "Inserted list does not contain a text block");
+    }
+
     async resolveChildTarget(value: unknown): Promise<{ available: boolean; parentBlockId: string; containerId?: string; containerType?: string; reason?: string }> {
         try {
             const target = await this.resolveChildContainer(value);
@@ -1003,6 +1041,9 @@ export class McpToolManager {
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
+                insertedMeta = await this.resolveInsertedTaskBlock(insertedMeta);
+                blockId = insertedMeta.id;
+                rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = {
                     type: "block",
                     format: "list",
@@ -1020,6 +1061,9 @@ export class McpToolManager {
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
+                insertedMeta = await this.resolveInsertedTaskBlock(insertedMeta);
+                blockId = insertedMeta.id;
+                rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = { type: "daily_note", format, notebookId };
             } else {
                 const rawDocumentId = destination.type === "document" ? destination.documentId : this.settings.mcpSettings.inboxDocumentId;
@@ -1028,6 +1072,9 @@ export class McpToolManager {
                 const markdown = format === "list" ? "- " + escapeMarkdownText(title) : escapeMarkdownText(title);
                 const inserted = await siyuanFetch<any[]>("/api/block/appendBlock", { parentID: document.id, dataType: "markdown", data: markdown });
                 insertedMeta = extractInsertedBlockMeta(inserted);
+                blockId = insertedMeta.id;
+                rollbackBlockId = insertedMeta.rootId || blockId;
+                insertedMeta = await this.resolveInsertedTaskBlock(insertedMeta);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = { type: destination.type === "document" ? "document" : "inbox", format, document };
@@ -1040,8 +1087,10 @@ export class McpToolManager {
 
             let task = await this.taskService.convertToTask(blockId, kind === "2" ? undefined : title, kind, {
                 knownTextBlock: kind !== "2",
+                knownTextBlockType: kind === "2" ? undefined : "p",
                 parentIdHint: insertedMeta.parentId,
             });
+            const taskBlockId = task.blockId;
             const patch = (input.properties || {}) as McpTaskPatch;
             if (Object.keys(patch).length) {
                 if (patch.title !== undefined || patch.kind !== undefined) {
@@ -1053,8 +1102,8 @@ export class McpToolManager {
             const warnings: string[] = [];
             if (input.addToMyDay || schedule) {
                 try {
-                    await this.taskService.addTaskToMyDay(blockId);
-                    if (schedule) await this.taskService.setMyDaySchedule(blockId, schedule.start, schedule.end);
+                    await this.taskService.addTaskToMyDay(taskBlockId);
+                    if (schedule) await this.taskService.setMyDaySchedule(taskBlockId, schedule.start, schedule.end);
                 } catch (error: any) {
                     warnings.push(`My Day update failed: ${String(error?.message || error)}`);
                 }

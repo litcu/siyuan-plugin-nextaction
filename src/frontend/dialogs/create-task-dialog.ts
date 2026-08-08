@@ -16,7 +16,7 @@ export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions)
             ? options.i18n?.createChildTask || "Create child task"
             : options.i18n?.createTask || "Create task",
         content: '<div class="nextaction na-create-task-host"></div>',
-        width: "560px",
+        width: "640px",
         destroyCallback: () => {
             const component = (dialog as any)._naCreateTaskComponent;
             component?.$destroy?.();

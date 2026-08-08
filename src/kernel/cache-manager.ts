@@ -37,6 +37,7 @@ export class CacheManager {
                      AND a.name = 'custom-na-task'
                     WHERE a.value IS NOT NULL
                       AND a.value != ''
+                      AND b.type IN ('p', 'h', 'd')
                       ${cursorCondition}
                     ORDER BY b.id`,
             });
@@ -266,7 +267,13 @@ export class CacheManager {
     async verifyIntegrity(): Promise<number> {
         try {
             const rows: Array<{ count: number }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT COUNT(DISTINCT block_id) as count FROM attributes WHERE name = 'custom-na-task' AND value IS NOT NULL AND value != ''",
+                stmt: `SELECT COUNT(DISTINCT a.block_id) as count
+                    FROM attributes a
+                    INNER JOIN blocks b ON b.id = a.block_id
+                    WHERE a.name = 'custom-na-task'
+                      AND a.value IS NOT NULL
+                      AND a.value != ''
+                      AND b.type IN ('p', 'h', 'd')`,
             });
             const dbCount = (rows && rows.length > 0) ? rows[0].count : 0;
             const cacheCount = Object.keys(this.cache).length;

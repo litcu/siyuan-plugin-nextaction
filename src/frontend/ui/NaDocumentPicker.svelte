@@ -1,6 +1,8 @@
 <script lang="ts">
-    import { createEventDispatcher, onDestroy } from "svelte";
+    import { createEventDispatcher, onDestroy, onMount } from "svelte";
     import type { KernelBridge } from "../kernel-bridge";
+    import { portal } from "../utils/portal";
+    import { getCurrentUiZIndex } from "../utils/layer";
     import NaIcon from "./NaIcon.svelte";
     import NaIconButton from "./NaIconButton.svelte";
     import NaSearchInput from "./NaSearchInput.svelte";
@@ -28,6 +30,7 @@
     export let i18n: any;
     export let value: DocumentSelection | null = null;
     export let disabled = false;
+    export let fixedDropdown = false;
 
     const dispatch = createEventDispatcher<{ change: DocumentSelection | null }>();
     let query = "";
@@ -37,10 +40,51 @@
     let error = "";
     let searchTimer: ReturnType<typeof setTimeout> | null = null;
     let searchVersion = 0;
+    let containerEl: HTMLDivElement;
+    let dropdownEl: HTMLDivElement;
+    let resizeObserver: ResizeObserver | null = null;
+    let dropdownStyle = `position:fixed;z-index:${getCurrentUiZIndex()};visibility:hidden;`;
+
+    function updateDropdownPosition() {
+        if (!fixedDropdown || !query.trim() || !containerEl || typeof window === "undefined") return;
+        const rect = containerEl.getBoundingClientRect();
+        const viewportGap = 8;
+        const dropdownGap = 4;
+        const desiredHeight = Math.min(dropdownEl?.scrollHeight || 190, 240);
+        const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - viewportGap - dropdownGap);
+        const spaceAbove = Math.max(0, rect.top - viewportGap - dropdownGap);
+        const openAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+        const availableHeight = openAbove ? spaceAbove : spaceBelow;
+        const maxHeight = Math.max(0, Math.min(240, availableHeight));
+        const width = Math.min(rect.width, window.innerWidth - viewportGap * 2);
+        const left = Math.max(viewportGap, Math.min(rect.left, window.innerWidth - width - viewportGap));
+        const verticalPosition = openAbove
+            ? `bottom:${Math.max(viewportGap, window.innerHeight - rect.top + dropdownGap)}px;`
+            : `top:${Math.max(viewportGap, rect.bottom + dropdownGap)}px;`;
+        dropdownStyle = `position:fixed;z-index:${getCurrentUiZIndex()};visibility:visible;left:${left}px;${verticalPosition}width:${width}px;max-height:${maxHeight}px;`;
+    }
+
+    function scheduleDropdownPosition() {
+        if (fixedDropdown && typeof requestAnimationFrame !== "undefined") requestAnimationFrame(updateDropdownPosition);
+    }
+
+    function handleViewportChange() {
+        if (query.trim()) scheduleDropdownPosition();
+    }
+
+    onMount(() => {
+        document.addEventListener("scroll", handleViewportChange, true);
+        if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(handleViewportChange);
+            resizeObserver.observe(containerEl);
+        }
+    });
 
     onDestroy(() => {
         if (searchTimer) clearTimeout(searchTimer);
         searchVersion++;
+        document.removeEventListener("scroll", handleViewportChange, true);
+        resizeObserver?.disconnect();
     });
 
     function scheduleSearch() {
@@ -56,6 +100,7 @@
         }
         loading = true;
         searched = false;
+        scheduleDropdownPosition();
         searchTimer = setTimeout(async () => {
             try {
                 const next = await bridge.searchMcpTargetDocuments(keyword);
@@ -68,7 +113,10 @@
                 searched = true;
                 error = cause?.message || String(cause);
             } finally {
-                if (version === searchVersion) loading = false;
+                if (version === searchVersion) {
+                    loading = false;
+                    scheduleDropdownPosition();
+                }
             }
         }, 220);
     }
@@ -108,7 +156,9 @@
     }
 </script>
 
-<div class="na-document-picker" class:na-document-picker--disabled={disabled}>
+<svelte:window on:resize={handleViewportChange} />
+
+<div bind:this={containerEl} class="na-document-picker" class:na-document-picker--disabled={disabled}>
     {#if value}
         <div class="na-document-picker__selected">
             <span class="na-document-picker__icon"><NaIcon symbol="iconFile" size={14} /></span>
@@ -129,7 +179,16 @@
     />
 
     {#if query.trim()}
-        <div class="na-document-picker__results" aria-busy={loading} aria-live="polite">
+        <div
+            use:portal={fixedDropdown}
+            bind:this={dropdownEl}
+            class="na-document-picker__results"
+            class:na-document-picker__results--fixed={fixedDropdown}
+            style={fixedDropdown ? dropdownStyle : ""}
+            aria-busy={loading}
+            aria-live="polite"
+            on:click|stopPropagation
+        >
             {#if loading}
                 <div class="na-document-picker__state">{i18n?.loading || "Loading..."}</div>
             {:else if error}
@@ -161,6 +220,7 @@
     .na-document-picker__selected small, .na-document-picker__result small { margin-top: 1px; color: var(--b3-theme-on-surface-light); font-size: var(--na-font-size-xs); }
     .na-document-picker__icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--na-radius-sm); color: var(--b3-theme-on-surface-light); background: var(--b3-theme-surface); }
     .na-document-picker__results { max-height: 190px; overflow-y: auto; border: 1px solid var(--na-color-divider); border-radius: var(--na-radius-sm); background: var(--b3-theme-background); }
+    .na-document-picker__results--fixed { box-sizing: border-box; box-shadow: var(--na-shadow-md); }
     .na-document-picker__result { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 7px; width: 100%; min-width: 0; min-height: 40px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--na-color-divider); color: inherit; background: transparent; text-align: left; cursor: pointer; }
     .na-document-picker__result:last-child { border-bottom: 0; }
     .na-document-picker__result:hover, .na-document-picker__result:focus-visible { outline: 0; background: var(--b3-list-hover); }

@@ -4,14 +4,17 @@ import { readFileSync } from "node:fs";
 
 const datePicker = readFileSync(new URL("../src/frontend/ui/NaDatePicker.svelte", import.meta.url), "utf8");
 const searchSelect = readFileSync(new URL("../src/frontend/ui/NaSearchSelect.svelte", import.meta.url), "utf8");
+const documentPicker = readFileSync(new URL("../src/frontend/ui/NaDocumentPicker.svelte", import.meta.url), "utf8");
 const taskDetail = readFileSync(new URL("../src/frontend/components/TaskDetail.svelte", import.meta.url), "utf8");
 const customFieldInput = readFileSync(new URL("../src/frontend/ui/NaCustomFieldInput.svelte", import.meta.url), "utf8");
 const portal = readFileSync(new URL("../src/frontend/utils/portal.ts", import.meta.url), "utf8");
 
-test("日期与搜索选择器的浮层通过 Portal 脱离弹窗裁剪容器", () => {
+test("日期、搜索选择器和文档搜索结果通过 Portal 脱离弹窗裁剪容器", () => {
     assert.match(datePicker, /use:portal=\{fixedDropdown\}/);
     assert.match(searchSelect, /use:portal=\{fixedDropdown\}/);
+    assert.match(documentPicker, /use:portal=\{fixedDropdown\}/);
     assert.match(searchSelect, /export let fixedDropdown: boolean = false/);
+    assert.match(documentPicker, /export let fixedDropdown = false/);
 });
 
 test("Portal 浮层保留 NextAction 主题变量作用域", () => {
@@ -45,4 +48,7 @@ test("浮层会在弹窗内部滚动和窗口缩放时重新定位", () => {
     assert.match(searchSelect, /document\.addEventListener\("scroll", handleViewportChange, true\)/);
     assert.match(datePicker, /on:resize=\{handleViewportChange\}/);
     assert.match(searchSelect, /on:resize=\{handleViewportChange\}/);
+    assert.match(documentPicker, /document\.addEventListener\("scroll", handleViewportChange, true\)/);
+    assert.match(documentPicker, /on:resize=\{handleViewportChange\}/);
+    assert.match(documentPicker, /new ResizeObserver\(handleViewportChange\)/);
 });

@@ -65,7 +65,9 @@ test("通用任务更新支持状态、重复规则、类型和标题", () => {
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
     assert.match(managerSource, /extractInsertedBlockMeta/);
+    assert.match(managerSource, /resolveInsertedTaskBlock/);
     assert.match(managerSource, /knownTextBlock:\s*kind !== "2"/);
+    assert.match(managerSource, /knownTextBlockType:\s*kind === "2" \? undefined : "p"/);
     assert.match(managerSource, /parentIdHint:\s*insertedMeta\.parentId/);
     assert.match(managerSource, /expectedNodeType = kind === "2" \? "NodeDocument" : "NodeParagraph"/);
     assert.match(managerSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
@@ -78,6 +80,8 @@ test("列表容器创建任务通过兄弟插入保持 NodeListItem 结构", () 
     assert.match(managerSource, /\/api\/block\/getChildBlocks/);
     assert.match(managerSource, /\/api\/block\/insertBlock/);
     assert.match(managerSource, /previousID: lastChild\.id/);
+    assert.match(managerSource, /Inserted list does not contain a text block/);
+    assert.match(managerSource, /await this\.taskService\.addTaskToMyDay\(taskBlockId\)/);
 });
 
 test("列表项父块会复用已有的子列表", () => {

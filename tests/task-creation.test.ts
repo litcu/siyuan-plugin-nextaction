@@ -56,11 +56,14 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
 
 test("MCP 创建目标向后兼容并支持段落与列表形式", () => {
     const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const cache = source("../src/kernel/cache-manager.ts");
 
     assert.match(manager, /format:\s*\{\s*type:\s*"string",\s*enum:\s*\[\.\.\.CREATE_TASK_FORMATS\]/);
     assert.match(manager, /destination\.format === undefined[\s\S]*\? "paragraph"/);
     assert.match(manager, /format === "list" \? "- " \+ escapeMarkdownText\(title\)/);
     assert.match(manager, /block destinations always use list format/);
+    assert.match(manager, /insertedMeta = await this\.resolveInsertedTaskBlock\(insertedMeta\)/);
+    assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
 });
 
 test("项目创建使用子文档并通过文档接口回滚", () => {
@@ -84,8 +87,22 @@ test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {
     assert.match(picker, /searchMcpTargetDocuments/);
     assert.doesNotMatch(picker, /listMcpTargetDocuments|createCurrentDocument|openChildren|breadcrumbs/);
     assert.match(dialog, /NaDocumentPicker/);
-    assert.doesNotMatch(dialog, /preset|recentTargets|NaAccordion|NaDotRating/);
+    assert.doesNotMatch(dialog, /preset|recentTargets|NaDotRating/);
     assert.doesNotMatch(dialog, /placeholder=.*202\d{11}|siyuan:\/\/blocks/);
+});
+
+test("创建面板突出标题和常用属性并折叠低频字段", () => {
+    const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
+    const dialogHost = source("../src/frontend/dialogs/create-task-dialog.ts");
+    const dialogStyles = source("../src/frontend/dialogs/create-task-dialog.scss");
+
+    assert.match(dialog, /class="na-create-task__composer"/);
+    assert.match(dialog, /<NaAccordion[\s\S]*createMoreProperties/);
+    assert.match(dialog, /bind:open=\{morePropertiesOpen\}/);
+    assert.match(dialog, /<NaDocumentPicker[\s\S]*fixedDropdown/);
+    assert.doesNotMatch(dialog, /addToMyDay|createSchedule|scheduleStart|scheduleEnd/);
+    assert.match(dialogHost, /width:\s*"640px"/);
+    assert.match(dialogStyles, /width:\s*min\(640px,/);
 });
 
 test("面板提供全局和上下文创建入口", () => {

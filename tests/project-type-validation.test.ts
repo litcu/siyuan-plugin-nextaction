@@ -7,7 +7,7 @@ const frontendSource = readFileSync(new URL("../src/index.ts", import.meta.url),
 const constantsSource = readFileSync(new URL("../src/shared/constants.ts", import.meta.url), "utf8");
 
 test("单块转换在 knownTextBlock 路径也校验项目必须是文档", () => {
-    assert.match(taskServiceSource, /if \(taskType === "2" \|\| !options\.knownTextBlock\)/);
+    assert.match(taskServiceSource, /if \(taskType === "2" && options\.knownTextBlock\)/);
     assert.match(taskServiceSource, /this\.assertProjectBlockType\(taskType, blockType\)/);
     assert.match(taskServiceSource, /blockType !== "d"/);
 });
@@ -16,6 +16,14 @@ test("属性更新和带子树入口都不能绕过项目类型校验", () => {
     assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2"\)/);
     assert.match(taskServiceSource, /async convertToTaskWithChildren/);
     assert.match(taskServiceSource, /if \(taskType === "2"\)[\s\S]*?errProjectRequiresDocument/);
+});
+
+test("任务属性目标只允许文本块和文档块", () => {
+    assert.match(taskServiceSource, /blockType !== "p" && blockType !== "h" && blockType !== "d"/);
+    assert.match(taskServiceSource, /private async resolveTaskAttributeBlock/);
+    assert.match(taskServiceSource, /blockType === "i"[\s\S]*getChildBlocks[\s\S]*child\.type === "p" \|\| child\.type === "h"/);
+    assert.match(taskServiceSource, /const cachedTask = this\.cacheManager\.get\(blockId\)/);
+    assert.match(taskServiceSource, /if \(!cachedTask \|\| attrs\[ATTR_TASK\] === "2"\)[\s\S]*this\.assertTaskAttributeBlockType\(blockType\);/);
 });
 
 test("内核错误码和前端直连回退路径均覆盖项目校验", () => {

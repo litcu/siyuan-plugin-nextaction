@@ -15,7 +15,9 @@ test("cache discovery reuses SiYuan's configured SQL row limit until all tasks a
     assert.match(cache, /rows\.push\(\.\.\.page\)/);
     assert.match(cache, /lastBlockId = nextBlockId/);
     assert.match(cache, /if \(!page \|\| page\.length === 0\) break/);
-    assert.match(cache, /COUNT\(DISTINCT block_id\)/);
+    assert.match(cache, /COUNT\(DISTINCT a\.block_id\)/);
+    assert.match(cache, /INNER JOIN blocks b ON b\.id = a\.block_id/);
+    assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
 });
 
 test("editor detail waits for a task and retries after rebuilding cache", () => {

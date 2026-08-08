@@ -74,6 +74,8 @@ function localActionDate(date: Date = new Date()): string {
 export interface ConvertToTaskOptions {
     /** The caller has just created the block and verified its text DOM. */
     knownTextBlock?: boolean;
+    /** Verified short block type for a newly inserted text block. */
+    knownTextBlockType?: "p" | "h" | "d";
     /** Direct parent returned by SiYuan's insert transaction. */
     parentIdHint?: string;
 }
@@ -160,6 +162,35 @@ export class TaskService {
         }
     }
 
+    private assertTaskAttributeBlockType(blockType: string): void {
+        if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
+            const err: any = new Error("errNotTextBlock");
+            err.code = RPC_ERROR_NOT_TEXT_BLOCK;
+            throw err;
+        }
+    }
+
+    /**
+     * Resolve a logical list item to the text block that may carry task attrs.
+     * Lists and other non-text blocks remain unsupported because they may contain
+     * multiple or no text blocks and therefore have no unambiguous task identity.
+     */
+    private async resolveTaskAttributeBlock(blockId: string): Promise<{ id: string; type: string }> {
+        const blockType = await this.getBlockType(blockId);
+        if (blockType === "p" || blockType === "h" || blockType === "d") {
+            return { id: blockId, type: blockType };
+        }
+        if (blockType === "i") {
+            const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", { id: blockId });
+            const textChild = Array.isArray(children)
+                ? children.find(child => child?.id && (child.type === "p" || child.type === "h"))
+                : undefined;
+            if (textChild?.id && textChild.type) return { id: textChild.id, type: textChild.type };
+        }
+        this.assertTaskAttributeBlockType(blockType);
+        return { id: blockId, type: blockType };
+    }
+
     // ---- Write operations ----
 
     async convertToTask(
@@ -183,20 +214,21 @@ export class TaskService {
 
         // Newly inserted blocks are already present in SiYuan's block tree when
         // appendBlock returns. Their SQL index may lag behind, so trusted callers
-        // can skip this eventual-consistency check. Projects are the exception:
-        // they always require a document type, even for trusted callers.
+        // provide the verified inserted type. Other callers resolve list items to
+        // their direct text child and reject all remaining non-text block types.
         let blockType = "";
-        if (taskType === "2" || !options.knownTextBlock) {
+        if (taskType === "2" && options.knownTextBlock) {
             blockType = await this.getBlockType(blockId);
-            this.assertProjectBlockType(taskType, blockType);
+            this.assertTaskAttributeBlockType(blockType);
+        } else if (options.knownTextBlock) {
+            blockType = options.knownTextBlockType || "p";
+            this.assertTaskAttributeBlockType(blockType);
+        } else {
+            const target = await this.resolveTaskAttributeBlock(blockId);
+            blockId = target.id;
+            blockType = target.type;
         }
-        if (!options.knownTextBlock) {
-            if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
-                const err: any = new Error("errNotTextBlock");
-                err.code = RPC_ERROR_NOT_TEXT_BLOCK;
-                throw err;
-            }
-        }
+        this.assertProjectBlockType(taskType, blockType);
 
         // A caller-provided title is authoritative and avoids an unnecessary SQL
         // read for blocks that were just inserted.
@@ -669,10 +701,16 @@ export class TaskService {
             throw err;
         }
 
-        if (attrs[ATTR_TASK] === "2") {
-            this.checkReady();
+        this.checkReady();
+        const cachedTask = this.cacheManager.get(blockId);
+        // Cache entries can only come from the filtered p/h/d discovery query or
+        // convertToTask's validated target. Reuse that invariant for immediate
+        // post-create patches because SiYuan's SQL block index may still lag.
+        // Uncached targets and project conversions still require a fresh type check.
+        if (!cachedTask || attrs[ATTR_TASK] === "2") {
             const blockType = await this.getBlockType(blockId);
-            this.assertProjectBlockType("2", blockType);
+            this.assertTaskAttributeBlockType(blockType);
+            if (attrs[ATTR_TASK] === "2") this.assertProjectBlockType("2", blockType);
         }
 
         // Validate status if provided
@@ -691,8 +729,6 @@ export class TaskService {
                 throw err;
             }
         }
-
-        this.checkReady();
 
         const customAttrError = this.validateCustomExtensionAttrs(blockId, attrs);
         if (customAttrError) {
