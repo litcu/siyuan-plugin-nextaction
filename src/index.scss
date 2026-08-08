@@ -675,7 +675,7 @@
     overflow: hidden;
 }
 
-.na-task-list--compact .na-task-card__body--metadata-empty .na-task-card__meta {
+.na-task-card__body--metadata-empty .na-task-card__meta {
     display: none;
 }
 
@@ -993,7 +993,8 @@
         content: "";
         position: absolute;
         left: 0;
-        top: calc(0.5lh - 8px);
+        top: 50%;
+        transform: translateY(-50%);
         width: 16px;
         height: 16px;
         border-radius: 50%;
@@ -1016,7 +1017,7 @@
         content: "";
         position: absolute;
         left: 8px;
-        top: 0.5lh;
+        top: 50%;
         width: 0;
         height: 0;
         border-left: 2.5px solid transparent;

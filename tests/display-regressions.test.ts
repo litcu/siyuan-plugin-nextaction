@@ -21,7 +21,7 @@ test("紧凑任务卡片没有可见元数据时移除空白第二行", () => {
     assert.match(taskCardSource, /class:na-task-card__body--metadata-empty=\{!hasCardMetadata\}/);
     assert.match(
         stylesheetSource,
-        /\.na-task-list--compact \.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
+        /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
     );
     assert.match(
         stylesheetSource,
