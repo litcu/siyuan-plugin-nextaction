@@ -23,6 +23,8 @@
     import NaDrawerHost from "../ui/NaDrawerHost.svelte";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
+    import NaButton from "../ui/NaButton.svelte";
+    import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
 
     export let bridge: KernelBridge;
     export let i18n: any;
@@ -211,6 +213,21 @@
         }
     }
 
+    function handleTaskCreated(task: TaskCacheEntry) {
+        taskStore.applyUpdate(task);
+        selectedTask = task;
+        taskStore.loadTasks();
+    }
+
+    function openCreate(parentTask: TaskCacheEntry | null = null) {
+        openCreateTaskDialog({
+            bridge,
+            i18n,
+            parentTask,
+            onCreated: handleTaskCreated,
+        }).catch(error => notifyError(formatRpcError(error, i18n)));
+    }
+
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
     $: activeViewMeta = (() => {
         const labels: Record<string, { title: string; icon: string }> = {
@@ -233,7 +250,9 @@
     <NavRail {activeView} onSwitchView={switchView} onRefresh={handleRefresh} {i18n} />
 
     <div class="na-app__center">
-        <NaPanelHeader compact title={activeViewMeta.title} icon={activeViewMeta.icon} />
+        <NaPanelHeader compact title={activeViewMeta.title} icon={activeViewMeta.icon}>
+            <svelte:fragment slot="actions"><NaButton size="sm" variant="primary" icon="iconAdd" on:click={() => openCreate()}>{i18n?.createTask || "Create task"}</NaButton></svelte:fragment>
+        </NaPanelHeader>
         <div class="na-app__list">
             {#if activeView === VIEW_INBOX}
                 <InboxView
@@ -283,6 +302,7 @@
                     onContextMenu={handleContextMenu}
                     onTaskUpdate={handleProjectTaskUpdate}
                     onTaskReorder={handleProjectTaskReorder}
+                    onCreateChild={(task) => openCreate(task)}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}
@@ -333,6 +353,7 @@
                         {i18n}
                         onSave={handleDetailSave}
                         onRemove={handleDetailRemove}
+                        onCreateChild={(task) => openCreate(task)}
                         onClose={closeDetailNow}
                     />
                 {/key}

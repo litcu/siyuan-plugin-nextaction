@@ -2,6 +2,7 @@ import type { TaskCacheEntry, TaskChangeNotification, StatisticsResult, PluginSe
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
+import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 
 interface RpcError {
     code: number;
@@ -150,7 +151,19 @@ export class KernelBridge {
         return this.call("listMcpTargetNotebooks", {});
     }
 
-    async resolveMcpDocumentTarget(value: string): Promise<{ id: string; title: string; notebookId: string }> {
+    async listMcpTargetDocuments(notebookId: string, path = "/"): Promise<{ notebookId: string; path: string; items: Array<{ id: string; title: string; notebookId: string; path: string; icon: string; hasChildren: boolean }> }> {
+        return this.call("listMcpTargetDocuments", { notebookId, path });
+    }
+
+    async searchMcpTargetDocuments(query: string): Promise<Array<{ id: string; title: string; notebookId: string; notebookName?: string; path: string; icon: string; hasChildren: boolean }>> {
+        return this.call("searchMcpTargetDocuments", { query });
+    }
+
+    async createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
+        return this.call("createTask", input as unknown as Record<string, any>);
+    }
+
+    async resolveMcpDocumentTarget(value: string): Promise<{ id: string; title: string; notebookId: string; path?: string; icon?: string }> {
         return this.call("resolveMcpDocumentTarget", { value });
     }
 

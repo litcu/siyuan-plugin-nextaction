@@ -12,6 +12,12 @@ import {
     type McpSettings,
 } from "./mcp-settings";
 import type { AiFeatureId } from "./ai";
+import {
+    DEFAULT_TASK_CREATION_SETTINGS,
+    mergeTaskCreationSettings,
+    validateTaskCreationSettings,
+    type TaskCreationSettings,
+} from "./task-creation";
 
 export { DEFAULT_MCP_SETTINGS } from "./mcp-settings";
 export type { McpSettings, McpCreateTarget } from "./mcp-settings";
@@ -150,6 +156,7 @@ export interface PluginSettings {
     customFields: CustomFieldDef[];
     reminderSettings: ReminderSettings;
     mcpSettings: McpSettings;
+    taskCreationSettings: TaskCreationSettings;
     aiSettings: AiSettings;
 }
 
@@ -195,6 +202,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     customFields: [],
     reminderSettings: { ...DEFAULT_REMINDER_SETTINGS },
     mcpSettings: { ...DEFAULT_MCP_SETTINGS },
+    taskCreationSettings: { ...DEFAULT_TASK_CREATION_SETTINGS },
     aiSettings: { prompts: { ...DEFAULT_AI_SETTINGS.prompts } },
 };
 
@@ -289,6 +297,8 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
     }
     const mcpError = validateMcpSettings(settings.mcpSettings);
     if (mcpError) return mcpError;
+    const taskCreationError = validateTaskCreationSettings(settings.taskCreationSettings);
+    if (taskCreationError) return taskCreationError;
     const ai = settings.aiSettings;
     if (ai !== undefined) {
         if (!ai.prompts || typeof ai.prompts !== "object" || Array.isArray(ai.prompts)) {
@@ -333,6 +343,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             ...(override.reminderSettings ?? {}),
         },
         mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
+        taskCreationSettings: mergeTaskCreationSettings(base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS, override.taskCreationSettings),
         aiSettings: {
             ...base.aiSettings,
             ...(override.aiSettings ?? {}),

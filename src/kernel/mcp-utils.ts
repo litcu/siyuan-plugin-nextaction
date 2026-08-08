@@ -444,6 +444,12 @@ export function extractBlockId(value: unknown): string {
     return match && BLOCK_ID_RE.test(match[1].toLowerCase()) ? match[1].toLowerCase() : "";
 }
 
+export function extractDocumentIdFromPath(value: unknown): string {
+    if (typeof value !== "string") return "";
+    const fileName = value.trim().replace(/\\/g, "/").split("/").filter(Boolean).pop() || "";
+    return extractBlockId(fileName.replace(/\.sy$/i, ""));
+}
+
 export function extractInsertedBlockId(data: unknown): string {
     return extractInsertedBlockMeta(data).id;
 }

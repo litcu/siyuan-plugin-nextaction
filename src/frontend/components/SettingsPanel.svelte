@@ -119,6 +119,12 @@
                     ...DEFAULT_MCP_SETTINGS,
                     ...(rawSettings?.mcpSettings || {}),
                 },
+                taskCreationSettings: {
+                    ...DEFAULT_SETTINGS.taskCreationSettings,
+                    ...(rawSettings?.taskCreationSettings || {}),
+                    recentTargets: [...(rawSettings?.taskCreationSettings?.recentTargets || [])],
+                    presets: [...(rawSettings?.taskCreationSettings?.presets || [])],
+                },
                 aiSettings: {
                     ...DEFAULT_AI_SETTINGS,
                     ...(rawSettings?.aiSettings || {}),
@@ -266,6 +272,10 @@
                 defaultCreateTarget: mcpDefaultCreateTarget,
                 inboxDocumentId: mcpInboxDocumentId.trim(),
                 dailyNoteNotebookId: mcpDailyNoteNotebookId,
+            },
+            taskCreationSettings: {
+                recentTargets: [...(current.taskCreationSettings?.recentTargets || [])],
+                presets: [...(current.taskCreationSettings?.presets || [])],
             },
             aiSettings: {
                 prompts: { ...aiPrompts },

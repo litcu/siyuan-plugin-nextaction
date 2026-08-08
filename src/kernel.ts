@@ -54,8 +54,11 @@ class NextActionKernelPlugin {
             completeReview: this.completeReview.bind(this),
             getMcpStatus: () => this.mcpToolManager.getStatus(),
             listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
+            listMcpTargetDocuments: (notebookId, path) => this.mcpToolManager.listTargetDocuments(notebookId, path),
+            searchMcpTargetDocuments: (query) => this.mcpToolManager.searchTargetDocuments(query),
             resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
             resolveChildTarget: (value) => this.mcpToolManager.resolveChildTarget(value),
+            createTask: (input) => this.mcpToolManager.createTaskForPlugin(input),
             aiProposalService,
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());

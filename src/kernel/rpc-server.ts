@@ -17,8 +17,11 @@ export interface RpcServerHooks {
     completeReview?: () => Promise<ReviewData | RpcResult>;
     getMcpStatus?: () => any;
     listMcpTargetNotebooks?: () => Promise<any>;
+    listMcpTargetDocuments?: (notebookId: string, path: string) => Promise<any>;
+    searchMcpTargetDocuments?: (query: string) => Promise<any>;
     resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
     resolveChildTarget?: (value: unknown) => Promise<any>;
+    createTask?: (input: Record<string, any>) => Promise<any>;
     aiProposalService?: AiProposalService;
 }
 
@@ -315,6 +318,30 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         }
     });
 
+    siyuan.rpc.bind("listMcpTargetDocuments", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.notebookId) return rpcError(RPC_ERROR_INVALID_PARAMS, "notebookId is required");
+        try {
+            return hooks.listMcpTargetDocuments
+                ? await hooks.listMcpTargetDocuments(p.notebookId, p.path || "/")
+                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("searchMcpTargetDocuments", async (...params: any[]) => {
+        const p = params[0] || {};
+        if (!p.query || typeof p.query !== "string") return [];
+        try {
+            return hooks.searchMcpTargetDocuments
+                ? await hooks.searchMcpTargetDocuments(p.query)
+                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
     siyuan.rpc.bind("resolveMcpDocumentTarget", async (...params: any[]) => {
         const p = params[0] || {};
         if (!p.value) return rpcError(RPC_ERROR_INVALID_PARAMS, "value is required");
@@ -333,6 +360,17 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         try {
             return hooks.resolveChildTarget
                 ? await hooks.resolveChildTarget(p.value)
+                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
+        } catch (e: any) {
+            return errorToRpcError(e);
+        }
+    });
+
+    siyuan.rpc.bind("createTask", async (...params: any[]) => {
+        const input = params[0] || {};
+        try {
+            return hooks.createTask
+                ? await hooks.createTask(input)
                 : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
         } catch (e: any) {
             return errorToRpcError(e);

@@ -38,6 +38,7 @@
     export let onSave: ((updatedEntry: TaskCacheEntry) => void) | undefined = undefined;
     export let onRemove: ((blockId: string) => void) | undefined = undefined;
     export let onClose: (() => void) | undefined = undefined;
+    export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let showJumpToBlock = true;
     export let dialogMode = false;
 
@@ -599,6 +600,7 @@
     on:close={requestClose}
 >
     <div slot="headerActions" class="na-task-detail__header-actions">
+        <NaIconButton symbol="iconAdd" label={i18n?.createChildTask || "Create child task"} size={14} on:click={() => onCreateChild?.(task)} />
         {#if showJumpToBlock}<NaIconButton symbol="iconOpenWindow" label={i18n?.jumpToBlock || "Jump to block"} size={14} on:click={() => jump(task.blockId)} />{/if}
         <NaIconButton symbol="iconSparkles" label={i18n?.aiDecomposeTask || "AI decompose task"} size={14} on:click={() => runAiDecomposeTask(task)} />
         <NaIconButton symbol="iconTrashcan" label={i18n?.removeTask || "Remove task"} size={14} tone="danger" disabled={operationBusy || saveState === "saving"} on:click={handleRemove} />

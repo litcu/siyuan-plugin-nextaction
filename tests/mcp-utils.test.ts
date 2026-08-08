@@ -10,6 +10,7 @@ import {
     createNodeId,
     escapeMarkdownText,
     extractBlockId,
+    extractDocumentIdFromPath,
     extractInsertedBlockMeta,
     extractInsertedBlockId,
     searchTasksForMcp,
@@ -176,6 +177,9 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
 test("块 ID、插入结果和 Markdown 标题解析安全", () => {
     assert.equal(extractBlockId("siyuan://blocks/20260802120000-abcdefg?focus=1"), "20260802120000-abcdefg");
     assert.equal(extractBlockId("bad-id"), "");
+    assert.equal(extractDocumentIdFromPath("/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
+    assert.equal(extractDocumentIdFromPath("/parent/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
+    assert.equal(extractDocumentIdFromPath("/parent/not-a-document.sy"), "");
     assert.equal(extractInsertedBlockId([{ doOperations: [{ action: "insert", id: "20260802120000-abcdefg" }] }]), "20260802120000-abcdefg");
     assert.deepEqual(
         extractInsertedBlockMeta([{

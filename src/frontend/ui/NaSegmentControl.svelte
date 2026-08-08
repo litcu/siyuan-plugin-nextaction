@@ -6,10 +6,12 @@
   export let label: string = '';
   export let size: 'md' | 'sm' = 'md';
   export let stretch = false;
+  export let disabled = false;
 
   const dispatch = createEventDispatcher<{ change: string }>();
 
   function select(optionValue: string) {
+    if (disabled) return;
     if (optionValue === value) return;
     value = optionValue;
     dispatch('change', optionValue);
@@ -20,11 +22,13 @@
 <div class="na-segment-control" class:na-segment-control--sm={size === 'sm'} class:na-segment-control--stretch={stretch} role="radiogroup" aria-label={label || undefined}>
   {#each options as option, i (option.value)}
     <button
+      type="button"
       class="na-segment-control__option"
       class:na-segment-control__option--active={option.value === value}
       role="radio"
       aria-checked={option.value === value}
       aria-label={option.label}
+      {disabled}
       on:click={() => select(option.value)}
     >
       {option.label}
@@ -73,6 +77,11 @@
   .na-segment-control__option--active {
     color: var(--b3-theme-on-primary);
     background: var(--b3-theme-primary);
+  }
+
+  .na-segment-control__option:disabled {
+    cursor: not-allowed;
+    opacity: .48;
   }
 
   @media (prefers-reduced-motion: reduce) {

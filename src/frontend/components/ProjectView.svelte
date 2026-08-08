@@ -26,6 +26,7 @@
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined = undefined;
+    export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
     type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan";
     type TreeRow = { task: TaskCacheEntry; depth: number };
@@ -241,6 +242,7 @@
                 { value: noActionCount, label: i18n?.projectMetricNoAction || "No next action", tone: noActionCount > 0 ? "warning" : "success" },
             ]} />
             <div class="na-toolbar__actions-content">
+                <NaButton size="sm" icon="iconAdd" disabled={!selectedSummary} on:click={() => selectedSummary && onCreateChild?.(selectedSummary.project)}>{i18n?.createChildTask || "Create child task"}</NaButton>
                 <NaButton size="sm" icon="iconSparkles" disabled={!selectedSummary} on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}>{i18n?.aiDecomposeTask || "AI 拆解任务"}</NaButton>
             </div>
         </NaToolbar>
