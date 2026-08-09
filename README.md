@@ -4,7 +4,7 @@
 
 ### Tasks scatter across your notes — once they pile up, you can no longer tell which to do first.
 
-![version](https://img.shields.io/badge/version-0.4.2-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
+![version](https://img.shields.io/badge/version-0.5.0-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
 
 [中文文档](./README.zh-CN.md)
 
