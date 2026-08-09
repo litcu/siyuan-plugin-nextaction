@@ -35,11 +35,11 @@
     let contextsText = "";
     let tagsText = "";
     let note = "";
-    let targetMode: TargetMode = parentTask ? "block" : initialSettings.mcpSettings.defaultCreateTarget;
-    let format: CreateTaskFormat = parentTask ? "list" : "paragraph";
+    let targetMode: TargetMode = parentTask ? "block" : initialSettings.taskCreationSettings.defaultCreateTarget;
+    let format: CreateTaskFormat = "paragraph";
     let selectedDocument: DocumentSelection | null = null;
     let notebooks: Array<{ id: string; name: string; icon: string }> = [];
-    let dailyNotebookId = initialSettings.mcpSettings.dailyNoteNotebookId;
+    let dailyNotebookId = initialSettings.taskCreationSettings.dailyNoteNotebookId;
     let busy = false;
     let error = "";
     let morePropertiesOpen = false;
@@ -50,19 +50,21 @@
         { value: "project", label: i18n?.project || "Project" },
     ];
     const formatOptions = [
-        { value: "paragraph", label: i18n?.createFormatParagraph || "Text" },
-        { value: "list", label: i18n?.createFormatList || "List" },
+        { value: "paragraph", label: i18n?.createFormatParagraph || "Text block" },
+        { value: "document", label: i18n?.createFormatDocument || "Document block" },
     ];
 
-    $: locationOptions = [
-        { value: "inbox", label: i18n?.createInbox || "Inbox" },
-        { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
-        { value: "document", label: i18n?.createDocument || "Document" },
-        ...(parentTask && kind === "task" ? [{ value: "block", label: i18n?.createChildTask || "Child task" }] : []),
-    ];
-    $: if (kind === "project" && targetMode === "block") targetMode = "document";
-    $: if (targetMode === "block") format = "list";
-    $: if (kind === "project") format = "paragraph";
+    $: locationOptions = kind === "project"
+        ? [{ value: "document", label: i18n?.createSpecificDocument || "Specific document" }]
+        : [
+            { value: "inbox", label: i18n?.createInbox || "Inbox" },
+            { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
+            { value: "document", label: i18n?.createSpecificDocument || "Specific document" },
+            ...(parentTask ? [{ value: "block", label: i18n?.createChildTask || "Child task" }] : []),
+        ];
+    $: if (kind === "project") targetMode = "document";
+    $: if (targetMode === "block") format = "paragraph";
+    $: if (kind === "project") format = "document";
     $: morePropertiesCount = [contextsText, tagsText, note].filter(value => value.trim()).length;
 
     onMount(async () => {
@@ -112,7 +114,7 @@
             : targetMode === "daily_note"
                 ? { type: "daily_note" as const, notebookId: dailyNotebookId, format }
                 : targetMode === "block"
-                    ? { type: "block" as const, parentBlockId: parentTask!.blockId, format: "list" as const }
+                    ? { type: "block" as const, parentBlockId: parentTask!.blockId, format: "paragraph" as const }
                     : { type: "inbox" as const, format };
         return {
             title: cleanTitle,
@@ -248,7 +250,7 @@
                 </label>
             {:else if targetMode === "document"}
                 <div class="na-create-task__field na-create-task__field--full">
-                    <span>{i18n?.createDocument || "Document"}</span>
+                    <span>{i18n?.createSpecificDocument || "Specific document"}</span>
                     <NaDocumentPicker {bridge} {i18n} bind:value={selectedDocument} disabled={busy} fixedDropdown />
                 </div>
             {:else if targetMode === "block" && parentTask}

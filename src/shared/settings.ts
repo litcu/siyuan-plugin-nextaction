@@ -323,6 +323,22 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             mergedPrompts[feature] = DEFAULT_AI_SETTINGS.prompts[feature];
         }
     }
+    const legacyMcp = override.mcpSettings || {};
+    const incomingTaskCreation = override.taskCreationSettings || {};
+    const migratedTaskCreation = {
+        ...incomingTaskCreation,
+        // Older versions stored these values under mcpSettings. Prefer the new
+        // general task-creation settings whenever they are present.
+        ...(incomingTaskCreation.defaultCreateTarget === undefined && legacyMcp.defaultCreateTarget !== undefined
+            ? { defaultCreateTarget: legacyMcp.defaultCreateTarget }
+            : {}),
+        ...(incomingTaskCreation.inboxDocumentId === undefined && legacyMcp.inboxDocumentId !== undefined
+            ? { inboxDocumentId: legacyMcp.inboxDocumentId }
+            : {}),
+        ...(incomingTaskCreation.dailyNoteNotebookId === undefined && legacyMcp.dailyNoteNotebookId !== undefined
+            ? { dailyNoteNotebookId: legacyMcp.dailyNoteNotebookId }
+            : {}),
+    };
     return {
         customFieldSchemaVersion: 2,
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
@@ -343,7 +359,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             ...(override.reminderSettings ?? {}),
         },
         mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
-        taskCreationSettings: mergeTaskCreationSettings(base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS, override.taskCreationSettings),
+        taskCreationSettings: mergeTaskCreationSettings(base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS, migratedTaskCreation),
         aiSettings: {
             ...base.aiSettings,
             ...(override.aiSettings ?? {}),

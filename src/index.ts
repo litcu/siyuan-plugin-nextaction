@@ -980,7 +980,6 @@ export default class NextActionPlugin extends Plugin {
                 props: {
                     bridge: plugin.bridge,
                     i18n: i18n,
-                    getCurrentDocumentId: () => plugin.getEditor()?.protyle?.block?.rootID || "",
                     onSave: async (settings: PluginSettings) => {
                         try {
                             await plugin.bridge.recalcAllOrders();

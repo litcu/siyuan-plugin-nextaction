@@ -30,10 +30,11 @@ test("任务创建设置限制最近目标并保留命名预设", () => {
 
 test("任务创建设置拒绝非法目标和重复预设 ID", () => {
     assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "nowhere", format: "paragraph" } as any] }), /invalid target/);
+    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "inbox", format: "list" } as any] }), /invalid target/);
     assert.match(validateTaskCreationSettings({
         presets: [
             { id: "same", name: "A", target: { type: "inbox", format: "paragraph" } },
-            { id: "same", name: "B", target: { type: "inbox", format: "list" } },
+            { id: "same", name: "B", target: { type: "inbox", format: "document" } },
         ],
     }), /unique/);
 });
@@ -54,32 +55,55 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     assert.match(dialogHost, /style\.textContent = createTaskDialogStyles/);
 });
 
-test("MCP 创建目标向后兼容并支持段落与列表形式", () => {
+test("任务创建支持文本块与文档块并移除列表形式", () => {
     const manager = source("../src/kernel/mcp-tool-manager.ts");
     const cache = source("../src/kernel/cache-manager.ts");
 
     assert.match(manager, /format:\s*\{\s*type:\s*"string",\s*enum:\s*\[\.\.\.CREATE_TASK_FORMATS\]/);
     assert.match(manager, /destination\.format === undefined[\s\S]*\? "paragraph"/);
-    assert.match(manager, /format === "list" \? "- " \+ escapeMarkdownText\(title\)/);
-    assert.match(manager, /block destinations always use list format/);
+    assert.match(manager, /kind === "2" \|\| format === "document"/);
+    assert.match(manager, /block destinations always use paragraph format/);
+    assert.doesNotMatch(manager, /format === "list"/);
     assert.match(manager, /insertedMeta = await this\.resolveInsertedTaskBlock\(insertedMeta\)/);
     assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
 });
 
-test("项目创建使用子文档并通过文档接口回滚", () => {
+test("项目仅允许指定文档位置并通过文档接口回滚", () => {
     const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
 
-    assert.match(manager, /createProjectDocument\(title, destination\)/);
+    assert.match(manager, /createChildDocument\(title, destination\)/);
     assert.match(manager, /\/api\/filetree\/createDocWithMd/);
     assert.match(manager, /parentID:\s*parent\.id/);
-    assert.match(manager, /projects require an inbox, daily_note, or document destination/);
+    assert.match(manager, /projects require a document destination/);
     assert.match(manager, /\/api\/filetree\/removeDocByID/);
+    assert.match(dialog, /kind === "project"[\s\S]*value: "document"/);
+    assert.match(dialog, /if \(kind === "project"\) targetMode = "document"/);
+});
+
+test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {
+    const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
+    const settings = source("../src/frontend/components/SettingsPanel.svelte");
+    const general = source("../src/frontend/components/settings/GeneralSettingsPage.svelte");
+    const mcp = source("../src/frontend/components/settings/McpSettingsPage.svelte");
+    const sharedSettings = source("../src/shared/settings.ts");
+
+    assert.match(manager, /this\.settings\.taskCreationSettings\.defaultCreateTarget/);
+    assert.match(dialog, /initialSettings\.taskCreationSettings\.defaultCreateTarget/);
+    assert.match(settings, /taskCreationSettings:\s*\{[\s\S]*defaultCreateTarget: taskCreationDefaultCreateTarget/);
+    assert.match(general, /settingTaskCreationDefaultTarget/);
+    assert.doesNotMatch(mcp, /settingMcpCreateTarget|mcpDefaultCreateTarget/);
+    assert.match(sharedSettings, /Older versions stored these values under mcpSettings/);
+    assert.match(sharedSettings, /incomingTaskCreation\.defaultCreateTarget === undefined/);
 });
 
 test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {
     const manager = source("../src/kernel/mcp-tool-manager.ts");
     const picker = source("../src/frontend/ui/NaDocumentPicker.svelte");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
+    const settings = source("../src/frontend/components/SettingsPanel.svelte");
+    const general = source("../src/frontend/components/settings/GeneralSettingsPage.svelte");
 
     assert.match(manager, /\/api\/filetree\/searchDocs/);
     assert.match(manager, /\/api\/filetree\/getIDsByHPath/);
@@ -87,6 +111,9 @@ test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {
     assert.match(picker, /searchMcpTargetDocuments/);
     assert.doesNotMatch(picker, /listMcpTargetDocuments|createCurrentDocument|openChildren|breadcrumbs/);
     assert.match(dialog, /NaDocumentPicker/);
+    assert.match(general, /NaDocumentPicker/);
+    assert.match(settings, /inboxDocumentId: taskCreationInboxDocumentId\.trim\(\)/);
+    assert.doesNotMatch(general, /placeholder=.*202\d{11}|siyuan:\/\/blocks\/|onUseCurrentDocument/);
     assert.doesNotMatch(dialog, /preset|recentTargets|NaDotRating/);
     assert.doesNotMatch(dialog, /placeholder=.*202\d{11}|siyuan:\/\/blocks/);
 });

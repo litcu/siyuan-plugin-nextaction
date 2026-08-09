@@ -50,12 +50,25 @@ test("设置页提供带确认的全部重置并统一原生表单字体", () =>
     assert.match(primitives, /select\.b3-select/);
 });
 
-test("常规页包含任务默认值、我的一天和提醒三个可独立恢复分区", () => {
+test("常规页包含任务创建、任务默认值、我的一天和提醒四个可独立恢复分区", () => {
+    assert.match(general, /onAction=\{onResetTaskCreation\}/);
     assert.match(general, /onAction=\{onResetDefaults\}/);
     assert.match(general, /onAction=\{onResetMyDay\}/);
     assert.match(general, /onAction=\{onResetReminder\}/);
     assert.match(general, /setting-myday-enabled/);
     assert.match(general, /setting-reminder-enabled/);
+    assert.match(general, /setting-task-creation-target/);
+});
+
+test("指定的收件箱文档通过搜索选择且不提供当前文档快捷方式", () => {
+    assert.match(general, /NaDocumentPicker/);
+    assert.match(general, /bind:value=\{taskCreationInboxDocument\}/);
+    assert.match(general, /fixedDropdown/);
+    assert.doesNotMatch(general, /taskCreationInboxDocumentId|onUseCurrentDocument|settingTaskCreationUseCurrentDocument|settingTaskCreationVerify/);
+    assert.match(panel, /inboxDocumentId: taskCreationInboxDocumentId\.trim\(\)/);
+    assert.match(panel, /taskCreationInboxDocumentId = document\?\.id \|\| ""/);
+    assert.doesNotMatch(panel, /getCurrentDocumentId|useCurrentDocumentForTaskCreation|onUseCurrentDocument/);
+    assert.doesNotMatch(indexSource, /new SettingsPanel\(\{[\s\S]*?getCurrentDocumentId/);
 });
 
 test("复杂设置页保留关键行为并使用按需展开交互", () => {

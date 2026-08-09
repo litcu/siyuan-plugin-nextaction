@@ -18,7 +18,6 @@ import { siyuanFetch } from "./utils";
 import {
     WRITE_MCP_TOOL_NAMES,
     buildTaskAttrsFromMcpPatch,
-    buildListItemBlockDom,
     escapeMarkdownText,
     extractBlockId,
     extractDocumentIdFromPath,
@@ -194,13 +193,13 @@ export class McpToolManager {
         return { id, title: rows[0].content || "", notebookId: rows[0].box || "", path: rows[0].hpath || "" };
     }
 
-    private async createProjectDocument(title: string, destination: Record<string, any>): Promise<{
+    private async createChildDocument(title: string, destination: Record<string, any>): Promise<{
         document: McpDocumentTarget;
         parent: McpDocumentTarget;
     }> {
         let parent: McpDocumentTarget;
         if (destination.type === "daily_note") {
-            const notebookId = destination.notebookId || this.settings.mcpSettings.dailyNoteNotebookId;
+            const notebookId = destination.notebookId || this.settings.taskCreationSettings.dailyNoteNotebookId;
             if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");
             const notebooks = await this.listTargetNotebooks();
             if (!notebooks.some(item => item.id === notebookId)) {
@@ -212,7 +211,7 @@ export class McpToolManager {
         } else {
             const rawDocumentId = destination.type === "document"
                 ? destination.documentId
-                : this.settings.mcpSettings.inboxDocumentId;
+                : this.settings.taskCreationSettings.inboxDocumentId;
             if (!rawDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Inbox document is not configured");
             parent = await this.resolveDocumentTarget(rawDocumentId);
         }
@@ -231,7 +230,7 @@ export class McpToolManager {
             if (!existing?.length) break;
             documentPath = "";
         }
-        if (!documentPath) throw new McpToolError("SIYUAN_API_ERROR", "Could not allocate a unique project document path");
+        if (!documentPath) throw new McpToolError("SIYUAN_API_ERROR", "Could not allocate a unique task document path");
 
         const id = await siyuanFetch<string>("/api/filetree/createDocWithMd", {
             notebook: parent.notebookId,
@@ -239,7 +238,7 @@ export class McpToolManager {
             parentID: parent.id,
             markdown: "",
         });
-        if (!id) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the created project document ID");
+        if (!id) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the created task document ID");
         return {
             document: { id, title: documentTitle, notebookId: parent.notebookId, path: documentPath },
             parent,
@@ -249,14 +248,15 @@ export class McpToolManager {
     async validateSettings(settings: PluginSettings): Promise<void> {
         const mcp = settings.mcpSettings;
         if (!mcp.enabled || !mcp.allowWrite) return;
-        if (mcp.defaultCreateTarget === "inbox") {
-            if (!mcp.inboxDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "MCP inbox document is required");
-            await this.resolveDocumentTarget(mcp.inboxDocumentId);
+        const creation = settings.taskCreationSettings;
+        if (creation.defaultCreateTarget === "inbox") {
+            if (!creation.inboxDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "MCP inbox document is required");
+            await this.resolveDocumentTarget(creation.inboxDocumentId);
         } else {
-            if (!mcp.dailyNoteNotebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is required");
+            if (!creation.dailyNoteNotebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is required");
             const notebooks = await this.listTargetNotebooks();
-            if (!notebooks.some(item => item.id === mcp.dailyNoteNotebookId)) {
-                throw new McpToolError("TARGET_NOT_FOUND", `Notebook is closed or unavailable: ${mcp.dailyNoteNotebookId}`);
+            if (!notebooks.some(item => item.id === creation.dailyNoteNotebookId)) {
+                throw new McpToolError("TARGET_NOT_FOUND", `Notebook is closed or unavailable: ${creation.dailyNoteNotebookId}`);
             }
         }
     }
@@ -696,7 +696,7 @@ export class McpToolManager {
                         notebookId: { type: "string" },
                         documentId: ID_SCHEMA,
                         parentBlockId: ID_SCHEMA,
-                        format: { type: "string", enum: [...CREATE_TASK_FORMATS], description: "Task content form; child block targets always use list. Ignored when kind is project" },
+                        format: { type: "string", enum: [...CREATE_TASK_FORMATS], description: "Task block form: paragraph or child document. Child block targets always use paragraph. Projects always create a document" },
                     },
                     required: ["type"],
                 },
@@ -840,7 +840,7 @@ export class McpToolManager {
     }
 
     /** Resolve a logical task block to a physical container for a nested list. */
-    private async resolveChildContainer(value: unknown): Promise<{ taskBlockId: string; containerId: string; containerType: string }> {
+    private async resolveChildContainer(value: unknown, reuseNestedList = true): Promise<{ taskBlockId: string; containerId: string; containerType: string }> {
         const taskBlockId = extractBlockId(value);
         if (!taskBlockId) throw new McpToolError("INVALID_INPUT", "parentBlockId is invalid");
         const rows = await siyuanFetch<Array<{ id: string; parent_id: string; type: string }>>("/api/query/sql", {
@@ -858,7 +858,7 @@ export class McpToolManager {
                 // 列表项的第一个子任务会创建 NodeList；后续子任务必须复用这
                 // 个列表，否则每次 appendBlock 都会在同一列表项下再创建一个
                 // 并列的 NodeList，最终表现为子任务之间出现空行。
-                if (current.type === "i") {
+                if (current.type === "i" && reuseNestedList) {
                     try {
                         const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
                             id: current.id,
@@ -936,7 +936,7 @@ export class McpToolManager {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
         const kind = input.kind === "project" ? "2" : "1";
-        const destination = input.destination || { type: this.settings.mcpSettings.defaultCreateTarget };
+        const destination = input.destination || { type: this.settings.taskCreationSettings.defaultCreateTarget };
         if (!destination || typeof destination !== "object" || Array.isArray(destination)) {
             throw new McpToolError("INVALID_INPUT", "destination must be an object");
         }
@@ -944,18 +944,18 @@ export class McpToolManager {
             throw new McpToolError("INVALID_INPUT", "destination.type must be inbox, daily_note, document, or block");
         }
         const format: CreateTaskFormat = destination.type === "block"
-            ? "list"
+            ? "paragraph"
             : destination.format === undefined
                 ? "paragraph"
                 : destination.format;
         if (!(CREATE_TASK_FORMATS as readonly string[]).includes(format)) {
-            throw new McpToolError("INVALID_INPUT", "destination.format must be paragraph or list");
+            throw new McpToolError("INVALID_INPUT", "destination.format must be paragraph or document");
         }
-        if (destination.type === "block" && destination.format !== undefined && destination.format !== "list") {
-            throw new McpToolError("INVALID_INPUT", "block destinations always use list format");
+        if (destination.type === "block" && destination.format !== undefined && destination.format !== "paragraph") {
+            throw new McpToolError("INVALID_INPUT", "block destinations always use paragraph format");
         }
-        if (kind === "2" && destination.type === "block") {
-            throw new McpToolError("INVALID_INPUT", "projects require an inbox, daily_note, or document destination");
+        if (kind === "2" && destination.type !== "document") {
+            throw new McpToolError("INVALID_INPUT", "projects require a document destination");
         }
         if (input.properties !== undefined && (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))) {
             throw new McpToolError("INVALID_INPUT", "properties must be an object");
@@ -970,8 +970,8 @@ export class McpToolManager {
         let insertedMeta: InsertedBlockMeta = { id: "", parentId: "", nodeType: "" };
         let createdDocument = false;
         try {
-            if (kind === "2") {
-                const created = await this.createProjectDocument(title, destination);
+            if (kind === "2" || format === "document") {
+                const created = await this.createChildDocument(title, destination);
                 blockId = created.document.id;
                 rollbackBlockId = blockId;
                 createdDocument = true;
@@ -985,59 +985,12 @@ export class McpToolManager {
                     createdDocument: true,
                 };
             } else if (destination.type === "block") {
-                const childTarget = await this.resolveChildContainer(destination.parentBlockId);
-                let dataType: "markdown" | "dom" = "markdown";
-                let data = "- " + escapeMarkdownText(title);
-                let insertPath = "/api/block/appendBlock";
-                let insertBody: Record<string, any> = {
+                const childTarget = await this.resolveChildContainer(destination.parentBlockId, false);
+                const inserted = await siyuanFetch<any[]>("/api/block/appendBlock", {
                     parentID: childTarget.containerId,
-                    dataType,
-                    data,
-                };
-                if (childTarget.containerType === "l") {
-                    // NodeList 只能直接包含 NodeListItem。将列表项 DOM 直接追加到
-                    // 现有列表，避免把每个任务解析成一个新的嵌套 NodeList。
-                    let subtype: "u" | "o" | "t" = "u";
-                    try {
-                        const blockDom = await siyuanFetch<{ dom?: string }>("/api/block/getBlockDOM", {
-                            id: childTarget.containerId,
-                        });
-                        const listElement = String(blockDom?.dom || "").match(/<div\b[^>]*data-type=["']NodeList["'][^>]*>/i)?.[0] || "";
-                        const subtypeValue = listElement.match(/data-subtype=["']([uot])["']/i)?.[1]?.toLowerCase();
-                        if (subtypeValue === "o" || subtypeValue === "t") subtype = subtypeValue;
-                    } catch {
-                        // 列表 DOM 仅用于保留有序/任务列表样式，读取失败时使用普通无序列表。
-                    }
-                    dataType = "dom";
-                    data = buildListItemBlockDom(title, subtype);
-                    // 使用最后一个列表项作为 previousID，走 insertBlock 的兄弟插入
-                    // 分支，避免 appendInsert 在不同思源版本中把 NodeListItem 再包
-                    // 一层。正常列表都会有至少一个直接子列表项。
-                    try {
-                        const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
-                            id: childTarget.containerId,
-                        });
-                        const lastChild = Array.isArray(children)
-                            ? [...children].reverse().find(item => item?.id && item.type === "i")
-                            : undefined;
-                        if (lastChild?.id) {
-                            insertPath = "/api/block/insertBlock";
-                            insertBody = {
-                                parentID: childTarget.containerId,
-                                previousID: lastChild.id,
-                                dataType,
-                                data,
-                            };
-                        } else {
-                            insertPath = "/api/block/insertBlock";
-                            insertBody = { parentID: childTarget.containerId, dataType, data };
-                        }
-                    } catch {
-                        insertPath = "/api/block/insertBlock";
-                        insertBody = { parentID: childTarget.containerId, dataType, data };
-                    }
-                }
-                const inserted = await siyuanFetch<any[]>(insertPath, insertBody);
+                    dataType: "markdown",
+                    data: escapeMarkdownText(title),
+                });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
@@ -1046,17 +999,17 @@ export class McpToolManager {
                 rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = {
                     type: "block",
-                    format: "list",
+                    format: "paragraph",
                     parentBlockId: childTarget.taskBlockId,
                     containerId: childTarget.containerId,
                     containerType: childTarget.containerType,
                 };
             } else if (destination.type === "daily_note") {
-                const notebookId = destination.notebookId || this.settings.mcpSettings.dailyNoteNotebookId;
+                const notebookId = destination.notebookId || this.settings.taskCreationSettings.dailyNoteNotebookId;
                 if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");
                 const notebooks = await this.listTargetNotebooks();
                 if (!notebooks.some(item => item.id === notebookId)) throw new McpToolError("TARGET_NOT_FOUND", `Notebook unavailable: ${notebookId}`);
-                const markdown = format === "list" ? "- " + escapeMarkdownText(title) : escapeMarkdownText(title);
+                const markdown = escapeMarkdownText(title);
                 const inserted = await siyuanFetch<any[]>("/api/block/appendDailyNoteBlock", { notebook: notebookId, dataType: "markdown", data: markdown });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -1066,10 +1019,10 @@ export class McpToolManager {
                 rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = { type: "daily_note", format, notebookId };
             } else {
-                const rawDocumentId = destination.type === "document" ? destination.documentId : this.settings.mcpSettings.inboxDocumentId;
+                const rawDocumentId = destination.type === "document" ? destination.documentId : this.settings.taskCreationSettings.inboxDocumentId;
                 if (!rawDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Inbox document is not configured");
                 const document = await this.resolveDocumentTarget(rawDocumentId);
-                const markdown = format === "list" ? "- " + escapeMarkdownText(title) : escapeMarkdownText(title);
+                const markdown = escapeMarkdownText(title);
                 const inserted = await siyuanFetch<any[]>("/api/block/appendBlock", { parentID: document.id, dataType: "markdown", data: markdown });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -1080,14 +1033,14 @@ export class McpToolManager {
                 destinationResult = { type: destination.type === "document" ? "document" : "inbox", format, document };
             }
             if (!blockId) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the inserted block ID");
-            const expectedNodeType = kind === "2" ? "NodeDocument" : "NodeParagraph";
+            const expectedNodeType = kind === "2" || format === "document" ? "NodeDocument" : "NodeParagraph";
             if (insertedMeta.nodeType !== expectedNodeType) {
                 throw new McpToolError("SIYUAN_API_ERROR", `Expected ${expectedNodeType}, got ${insertedMeta.nodeType || "unknown"}`);
             }
 
             let task = await this.taskService.convertToTask(blockId, kind === "2" ? undefined : title, kind, {
-                knownTextBlock: kind !== "2",
-                knownTextBlockType: kind === "2" ? undefined : "p",
+                knownTextBlock: true,
+                knownTextBlockType: kind === "2" || format === "document" ? "d" : "p",
                 parentIdHint: insertedMeta.parentId,
             });
             const taskBlockId = task.blockId;

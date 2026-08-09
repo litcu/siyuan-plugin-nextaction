@@ -66,20 +66,20 @@ test("通用任务更新支持状态、重复规则、类型和标题", () => {
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
     assert.match(managerSource, /extractInsertedBlockMeta/);
     assert.match(managerSource, /resolveInsertedTaskBlock/);
-    assert.match(managerSource, /knownTextBlock:\s*kind !== "2"/);
-    assert.match(managerSource, /knownTextBlockType:\s*kind === "2" \? undefined : "p"/);
+    assert.match(managerSource, /knownTextBlock:\s*true/);
+    assert.match(managerSource, /knownTextBlockType:\s*kind === "2" \|\| format === "document" \? "d" : "p"/);
     assert.match(managerSource, /parentIdHint:\s*insertedMeta\.parentId/);
-    assert.match(managerSource, /expectedNodeType = kind === "2" \? "NodeDocument" : "NodeParagraph"/);
+    assert.match(managerSource, /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/);
     assert.match(managerSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
     assert.match(taskServiceSource, /cleanTitle \|\| await this\.fetchBlockTitle/);
 });
 
-test("列表容器创建任务通过兄弟插入保持 NodeListItem 结构", () => {
-    assert.match(managerSource, /containerType === "l"/);
-    assert.match(managerSource, /buildListItemBlockDom/);
-    assert.match(managerSource, /\/api\/block\/getChildBlocks/);
-    assert.match(managerSource, /\/api\/block\/insertBlock/);
-    assert.match(managerSource, /previousID: lastChild\.id/);
+test("子任务创建直接写入文本块并停止生成列表项", () => {
+    assert.match(managerSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
+    assert.match(managerSource, /dataType: "markdown"/);
+    assert.match(managerSource, /data: escapeMarkdownText\(title\)/);
+    assert.doesNotMatch(managerSource, /buildListItemBlockDom/);
+    assert.match(managerSource, /format: "paragraph"/);
     assert.match(managerSource, /Inserted list does not contain a text block/);
     assert.match(managerSource, /await this\.taskService\.addTaskToMyDay\(taskBlockId\)/);
 });

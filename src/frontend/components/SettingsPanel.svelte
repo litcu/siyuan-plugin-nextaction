@@ -1,7 +1,8 @@
 <script lang="ts">
     import { afterUpdate, onMount, tick } from "svelte";
     import { confirm } from "siyuan";
-    import type { PluginSettings, MyDayViewMode, CustomFieldDef, McpCreateTarget } from "../../shared/settings";
+    import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
+    import type { CreateTaskDefaultTarget } from "../../shared/task-creation";
     import type { AiFeatureId } from "../../shared/ai";
     import { migrateCustomFieldDefs } from "../../shared/custom-fields";
     import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS, validateSettings } from "../../shared/settings";
@@ -21,9 +22,9 @@
     export let i18n: any;
     export let onSave: (settings: PluginSettings) => void;
     export let onClose: () => void;
-    export let getCurrentDocumentId: () => string = () => "";
 
     type ModernTabId = "general" | "customFields" | "ai" | "mcp" | "advanced";
+    type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
 
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
     let saving = false;
@@ -38,7 +39,7 @@
     let draftSignature = "";
 
     $: modernTabs = [
-        { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
+        { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
         { id: "customFields" as const, label: i18n?.settingCustomFields || "Custom fields", desc: i18n?.settingCustomFieldsDesc || "Extend task attributes", icon: "iconDatabase", group: i18n?.settingNavGroupTask || "Workspace" },
         { id: "ai" as const, label: i18n?.settingAi || "AI features", desc: i18n?.settingAiDesc || "Customize prompts used by AI features", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
         { id: "mcp" as const, label: i18n?.settingMcp || "MCP", desc: i18n?.settingMcpDesc || "Expose task tools to AI clients", icon: "iconCloud", group: i18n?.settingNavGroupIntegration || "Integrations" },
@@ -73,13 +74,12 @@
 
     let mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
     let mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
-    let mcpDefaultCreateTarget: McpCreateTarget = DEFAULT_MCP_SETTINGS.defaultCreateTarget;
-    let mcpInboxDocumentId = DEFAULT_MCP_SETTINGS.inboxDocumentId;
-    let mcpDailyNoteNotebookId = DEFAULT_MCP_SETTINGS.dailyNoteNotebookId;
+    let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget = DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
+    let taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
+    let taskCreationInboxDocument: DocumentSelection | null = null;
+    let taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
     let mcpStatus: any = null;
     let mcpNotebooks: Array<{ id: string; name: string; icon: string }> = [];
-    let mcpResolvedDocument: { id: string; title: string; notebookId: string } | null = null;
-    let mcpResolvingDocument = false;
     let mcpCopied = false;
     // SiYuan's desktop kernel listens on a random internal port and proxies
     // the first workspace through the stable external service port 6806.
@@ -172,9 +172,10 @@
             const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
             mcpEnabled = mcp.enabled;
             mcpAllowWrite = mcp.allowWrite;
-            mcpDefaultCreateTarget = mcp.defaultCreateTarget;
-            mcpInboxDocumentId = mcp.inboxDocumentId;
-            mcpDailyNoteNotebookId = mcp.dailyNoteNotebookId;
+            const creation = settings.taskCreationSettings ?? DEFAULT_SETTINGS.taskCreationSettings;
+            taskCreationDefaultCreateTarget = creation.defaultCreateTarget;
+            taskCreationInboxDocumentId = creation.inboxDocumentId;
+            taskCreationDailyNoteNotebookId = creation.dailyNoteNotebookId;
             aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
 
             try {
@@ -182,7 +183,7 @@
                     bridge.getMcpStatus(),
                     bridge.listMcpTargetNotebooks(),
                 ]);
-                if (mcpInboxDocumentId) await resolveMcpInboxDocument(false);
+                if (taskCreationInboxDocumentId) await loadTaskCreationInboxDocument(taskCreationInboxDocumentId);
             } catch (_e) {
                 mcpStatus = null;
                 mcpNotebooks = [];
@@ -269,11 +270,16 @@
             mcpSettings: {
                 enabled: mcpEnabled,
                 allowWrite: mcpAllowWrite,
-                defaultCreateTarget: mcpDefaultCreateTarget,
-                inboxDocumentId: mcpInboxDocumentId.trim(),
-                dailyNoteNotebookId: mcpDailyNoteNotebookId,
+                // Retain legacy values for downgrade compatibility. Runtime
+                // creation now reads taskCreationSettings instead.
+                defaultCreateTarget: current.mcpSettings.defaultCreateTarget,
+                inboxDocumentId: current.mcpSettings.inboxDocumentId,
+                dailyNoteNotebookId: current.mcpSettings.dailyNoteNotebookId,
             },
             taskCreationSettings: {
+                defaultCreateTarget: taskCreationDefaultCreateTarget,
+                inboxDocumentId: taskCreationInboxDocumentId.trim(),
+                dailyNoteNotebookId: taskCreationDailyNoteNotebookId,
                 recentTargets: [...(current.taskCreationSettings?.recentTargets || [])],
                 presets: [...(current.taskCreationSettings?.presets || [])],
             },
@@ -378,10 +384,13 @@
     function handleResetMcp() {
         mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
         mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
-        mcpDefaultCreateTarget = DEFAULT_MCP_SETTINGS.defaultCreateTarget;
-        mcpInboxDocumentId = DEFAULT_MCP_SETTINGS.inboxDocumentId;
-        mcpDailyNoteNotebookId = DEFAULT_MCP_SETTINGS.dailyNoteNotebookId;
-        mcpResolvedDocument = null;
+    }
+
+    function handleResetTaskCreation() {
+        taskCreationDefaultCreateTarget = DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
+        taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
+        taskCreationInboxDocument = null;
+        taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
     }
 
     function handleResetAi() {
@@ -398,6 +407,7 @@
             i18n?.settingResetAllConfirm || "Restore every saved setting to its default value?",
             () => {
                 handleResetDefaults();
+                handleResetTaskCreation();
                 handleResetMyDay();
                 handleResetReminder();
                 handleResetCustomFields();
@@ -409,29 +419,26 @@
         );
     }
 
-    async function resolveMcpInboxDocument(showError = true) {
-        mcpResolvedDocument = null;
-        if (!mcpInboxDocumentId.trim()) return;
-        mcpResolvingDocument = true;
+    async function loadTaskCreationInboxDocument(documentId: string) {
         try {
-            const resolved = await bridge.resolveMcpDocumentTarget(mcpInboxDocumentId.trim());
-            mcpResolvedDocument = resolved;
-            mcpInboxDocumentId = resolved.id;
-        } catch (e: any) {
-            if (showError) error = formatRpcError(e, i18n);
-        } finally {
-            mcpResolvingDocument = false;
+            const resolved = await bridge.resolveMcpDocumentTarget(documentId.trim());
+            const notebook = mcpNotebooks.find(item => item.id === resolved.notebookId);
+            taskCreationInboxDocument = {
+                id: resolved.id,
+                title: resolved.title,
+                notebookId: resolved.notebookId,
+                notebookName: notebook?.name || "",
+                path: resolved.path || "",
+                icon: resolved.icon || notebook?.icon || "",
+            };
+            taskCreationInboxDocumentId = resolved.id;
+        } catch (_e) {
+            taskCreationInboxDocument = null;
         }
     }
 
-    async function useCurrentDocumentForMcp() {
-        const id = getCurrentDocumentId();
-        if (!id) {
-            error = i18n?.settingMcpNoCurrentDocument || "No active document found";
-            return;
-        }
-        mcpInboxDocumentId = id;
-        await resolveMcpInboxDocument();
+    function handleTaskCreationDocumentChange(document: DocumentSelection | null) {
+        taskCreationInboxDocumentId = document?.id || "";
     }
 
     async function copyMcpEndpoint() {
@@ -526,7 +533,12 @@
         <div class="na-settings-modern__body" bind:this={settingsBodyEl}>
             {#if modernTab === "general"}
                 <GeneralSettingsPage
+                    {bridge}
                     {i18n}
+                    bind:taskCreationDefaultCreateTarget
+                    bind:taskCreationInboxDocument
+                    bind:taskCreationDailyNoteNotebookId
+                    taskCreationNotebooks={mcpNotebooks}
                     bind:defaultImportance
                     bind:defaultEffort
                     bind:semanticDateParsingEnabled
@@ -548,6 +560,8 @@
                     onAddOffset={handleAddOffset}
                     onRemoveOffset={handleRemoveOffset}
                     onPreviewSound={handlePreviewSound}
+                    onTaskCreationDocumentChange={handleTaskCreationDocumentChange}
+                    onResetTaskCreation={handleResetTaskCreation}
                     onResetDefaults={handleResetDefaults}
                     onResetMyDay={handleResetMyDay}
                     onResetReminder={handleResetReminder}
@@ -561,17 +575,9 @@
                     {i18n}
                     bind:mcpEnabled
                     bind:mcpAllowWrite
-                    bind:mcpDefaultCreateTarget
-                    bind:mcpInboxDocumentId
-                    bind:mcpDailyNoteNotebookId
                     {mcpStatus}
-                    {mcpNotebooks}
-                    {mcpResolvedDocument}
-                    {mcpResolvingDocument}
                     {mcpCopied}
                     {mcpEndpoint}
-                    onResolveDocument={() => resolveMcpInboxDocument()}
-                    onUseCurrentDocument={useCurrentDocumentForMcp}
                     onCopyEndpoint={copyMcpEndpoint}
                     onReset={handleResetMcp}
                 />

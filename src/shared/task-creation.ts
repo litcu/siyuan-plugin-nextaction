@@ -1,8 +1,9 @@
 export type CreateTaskDestinationType = "inbox" | "daily_note" | "document" | "block";
-export type CreateTaskFormat = "paragraph" | "list";
+export type CreateTaskFormat = "paragraph" | "document";
+export type CreateTaskDefaultTarget = "inbox" | "daily_note";
 
 export const CREATE_TASK_DESTINATION_TYPES = ["inbox", "daily_note", "document", "block"] as const;
-export const CREATE_TASK_FORMATS = ["paragraph", "list"] as const;
+export const CREATE_TASK_FORMATS = ["paragraph", "document"] as const;
 
 export interface CreateTaskDestination {
     type: CreateTaskDestinationType;
@@ -46,11 +47,17 @@ export interface TaskCreatePreset {
 }
 
 export interface TaskCreationSettings {
+    defaultCreateTarget: CreateTaskDefaultTarget;
+    inboxDocumentId: string;
+    dailyNoteNotebookId: string;
     recentTargets: TaskCreateTargetMemory[];
     presets: TaskCreatePreset[];
 }
 
 export const DEFAULT_TASK_CREATION_SETTINGS: TaskCreationSettings = {
+    defaultCreateTarget: "inbox",
+    inboxDocumentId: "",
+    dailyNoteNotebookId: "",
     recentTargets: [],
     presets: [],
 };
@@ -60,12 +67,38 @@ export function mergeTaskCreationSettings(
     override?: Partial<TaskCreationSettings>,
 ): TaskCreationSettings {
     return {
+        defaultCreateTarget: override?.defaultCreateTarget === "daily_note"
+            ? "daily_note"
+            : override?.defaultCreateTarget === "inbox"
+                ? "inbox"
+                : base.defaultCreateTarget || "inbox",
+        inboxDocumentId: typeof override?.inboxDocumentId === "string"
+            ? override.inboxDocumentId
+            : (base.inboxDocumentId || ""),
+        dailyNoteNotebookId: typeof override?.dailyNoteNotebookId === "string"
+            ? override.dailyNoteNotebookId
+            : (base.dailyNoteNotebookId || ""),
         recentTargets: Array.isArray(override?.recentTargets)
-            ? override!.recentTargets.slice(0, 3)
-            : [...(base.recentTargets || [])].slice(0, 3),
+            ? override!.recentTargets.slice(0, 3).map(normalizeTargetMemory)
+            : [...(base.recentTargets || [])].slice(0, 3).map(normalizeTargetMemory),
         presets: Array.isArray(override?.presets)
-            ? override!.presets.slice(0, 12)
-            : [...(base.presets || [])].slice(0, 12),
+            ? override!.presets.slice(0, 12).map(normalizePreset)
+            : [...(base.presets || [])].slice(0, 12).map(normalizePreset),
+    };
+}
+
+function normalizePreset(value: TaskCreatePreset): TaskCreatePreset {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    return { ...value, target: normalizeTargetMemory(value.target) };
+}
+
+function normalizeTargetMemory(value: TaskCreateTargetMemory): TaskCreateTargetMemory {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const target = value as TaskCreateTargetMemory & { format?: string };
+    return {
+        ...target,
+        // Migrate the removed list format to the text-block format.
+        format: target.format === "document" ? "document" : "paragraph",
     };
 }
 
@@ -82,6 +115,17 @@ function isTargetMemory(value: unknown): value is TaskCreateTargetMemory {
 
 export function validateTaskCreationSettings(settings?: Partial<TaskCreationSettings>): string | null {
     if (!settings) return null;
+    if (settings.defaultCreateTarget !== undefined
+        && settings.defaultCreateTarget !== "inbox"
+        && settings.defaultCreateTarget !== "daily_note") {
+        return "taskCreationSettings.defaultCreateTarget must be 'inbox' or 'daily_note'";
+    }
+    if (settings.inboxDocumentId !== undefined && typeof settings.inboxDocumentId !== "string") {
+        return "taskCreationSettings.inboxDocumentId must be string";
+    }
+    if (settings.dailyNoteNotebookId !== undefined && typeof settings.dailyNoteNotebookId !== "string") {
+        return "taskCreationSettings.dailyNoteNotebookId must be string";
+    }
     if (settings.recentTargets !== undefined) {
         if (!Array.isArray(settings.recentTargets) || settings.recentTargets.length > 3) return "taskCreationSettings.recentTargets must contain at most 3 items";
         if (settings.recentTargets.some(target => !isTargetMemory(target))) return "taskCreationSettings.recentTargets contains an invalid target";

@@ -1,12 +1,22 @@
 <script lang="ts">
     import type { MyDayViewMode } from "../../../shared/settings";
+    import type { CreateTaskDefaultTarget } from "../../../shared/task-creation";
     import type { ReminderSoundId } from "../../../shared/constants";
+    import type { KernelBridge } from "../../kernel-bridge";
+    import NaDocumentPicker from "../../ui/NaDocumentPicker.svelte";
     import NaDotRating from "../../ui/NaDotRating.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
+    type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
+
+    export let bridge: KernelBridge;
     export let i18n: any;
+    export let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget;
+    export let taskCreationInboxDocument: DocumentSelection | null;
+    export let taskCreationDailyNoteNotebookId: string;
+    export let taskCreationNotebooks: Array<{ id: string; name: string; icon: string }> = [];
     export let defaultImportance: number;
     export let defaultEffort: number;
     export let semanticDateParsingEnabled: boolean;
@@ -28,12 +38,47 @@
     export let onAddOffset: () => void;
     export let onRemoveOffset: (minutes: number) => void;
     export let onPreviewSound: (soundId: ReminderSoundId) => void;
+    export let onTaskCreationDocumentChange: (document: DocumentSelection | null) => void;
+    export let onResetTaskCreation: () => void;
     export let onResetDefaults: () => void;
     export let onResetMyDay: () => void;
     export let onResetReminder: () => void;
 </script>
 
 <div class="na-page-stack na-settings-general">
+    <NaSection
+        icon="iconInbox"
+        title={i18n?.settingTaskCreation || "Task creation"}
+        description={i18n?.settingTaskCreationDesc || "Choose where newly created tasks are stored by default"}
+        actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
+        onAction={onResetTaskCreation}
+    >
+        <NaSettingRow forId="setting-task-creation-target" title={i18n?.settingTaskCreationDefaultTarget || "Default storage location"} description={i18n?.settingTaskCreationDefaultTargetDesc || "Used by the task dialog and MCP when no location is specified"}>
+            <select id="setting-task-creation-target" class="b3-select" bind:value={taskCreationDefaultCreateTarget}>
+                <option value="inbox">{i18n?.settingTaskCreationTargetInbox || "Configured inbox document"}</option>
+                <option value="daily_note">{i18n?.settingTaskCreationTargetDailyNote || "Today's daily note"}</option>
+            </select>
+        </NaSettingRow>
+        {#if taskCreationDefaultCreateTarget === "inbox"}
+            <NaSettingRow stacked={true} title={i18n?.settingTaskCreationInboxDocument || "Inbox document"} description={i18n?.settingTaskCreationInboxDocumentDesc || "Text blocks and document blocks will be created under this document"}>
+                <NaDocumentPicker
+                    {bridge}
+                    {i18n}
+                    bind:value={taskCreationInboxDocument}
+                    fixedDropdown
+                    on:change={() => onTaskCreationDocumentChange(taskCreationInboxDocument)}
+                />
+            </NaSettingRow>
+        {:else}
+            <NaSettingRow forId="setting-task-creation-daily-notebook" title={i18n?.settingTaskCreationDailyNoteNotebook || "Daily note notebook"} description={i18n?.settingTaskCreationDailyNoteNotebookDesc || "The current daily note in this notebook is used as the parent location"}>
+                <select id="setting-task-creation-daily-notebook" class="b3-select" bind:value={taskCreationDailyNoteNotebookId}>
+                    <option value="">{i18n?.settingTaskCreationSelectNotebook || "Select a notebook"}</option>
+                    {#each taskCreationNotebooks as notebook}<option value={notebook.id}>{notebook.name}</option>{/each}
+                </select>
+            </NaSettingRow>
+        {/if}
+    </NaSection>
+
     <NaSection
         icon="iconCheck"
         title={i18n?.settingDefaults || "Task defaults"}
@@ -256,4 +301,5 @@
         font-size: 11px;
         font-style: italic;
     }
+
 </style>

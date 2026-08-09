@@ -166,7 +166,7 @@
                 <strong>{value.title || i18n?.untitled || "Untitled"}</strong>
                 <small>{[value.notebookName, value.path].filter(Boolean).join(" · ")}</small>
             </span>
-            <NaIconButton symbol="iconClose" label={i18n?.clear || "Clear"} compact {disabled} on:click={clearSelection} />
+            <NaIconButton symbol="iconClose" label={i18n?.clearSelection || "Clear selection"} compact {disabled} on:click={clearSelection} />
         </div>
     {/if}
 
