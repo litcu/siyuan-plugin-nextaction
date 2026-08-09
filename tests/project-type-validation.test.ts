@@ -23,7 +23,14 @@ test("任务属性目标只允许文本块和文档块", () => {
     assert.match(taskServiceSource, /private async resolveTaskAttributeBlock/);
     assert.match(taskServiceSource, /blockType === "i"[\s\S]*getChildBlocks[\s\S]*child\.type === "p" \|\| child\.type === "h"/);
     assert.match(taskServiceSource, /const cachedTask = this\.cacheManager\.get\(blockId\)/);
-    assert.match(taskServiceSource, /if \(!cachedTask \|\| attrs\[ATTR_TASK\] === "2"\)[\s\S]*this\.assertTaskAttributeBlockType\(blockType\);/);
+    assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)[\s\S]*this\.assertTaskAttributeBlockType\(blockType\);/);
+});
+
+test("缓存尚未同步时，已有任务属性仍可更新", () => {
+    assert.match(taskServiceSource, /let existingAttrsForValidation: Record<string, string> \| null = null;/);
+    assert.match(taskServiceSource, /existingAttrsForValidation = await siyuanFetch\("\/api\/attr\/getBlockAttrs", \{ id: blockId \}\);/);
+    assert.match(taskServiceSource, /const hasExistingTaskAttrs = !!existingAttrsForValidation\?\.\[ATTR_TASK\];/);
+    assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)/);
 });
 
 test("内核错误码和前端直连回退路径均覆盖项目校验", () => {

@@ -694,11 +694,21 @@ export class TaskService {
 
         this.checkReady();
         const cachedTask = this.cacheManager.get(blockId);
+        // The editor can issue a write before the incremental cache catches up.
+        // In that window an existing task is still a valid update target even
+        // though it is not present in the cache yet. Read the authoritative
+        // attributes before rejecting the block based on the eventually-
+        // consistent SQL type index.
+        let existingAttrsForValidation: Record<string, string> | null = null;
+        if (!cachedTask) {
+            existingAttrsForValidation = await siyuanFetch("/api/attr/getBlockAttrs", { id: blockId });
+        }
         // Cache entries can only come from the filtered p/h/d discovery query or
         // convertToTask's validated target. Reuse that invariant for immediate
         // post-create patches because SiYuan's SQL block index may still lag.
         // Uncached targets and project conversions still require a fresh type check.
-        if (!cachedTask || attrs[ATTR_TASK] === "2") {
+        const hasExistingTaskAttrs = !!existingAttrsForValidation?.[ATTR_TASK];
+        if (attrs[ATTR_TASK] === "2" || (!cachedTask && !hasExistingTaskAttrs)) {
             const blockType = await this.getBlockType(blockId);
             this.assertTaskAttributeBlockType(blockType);
             if (attrs[ATTR_TASK] === "2") this.assertProjectBlockType("2", blockType);
