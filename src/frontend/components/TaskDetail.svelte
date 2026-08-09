@@ -78,6 +78,7 @@
     let discardOnDestroy = false;
     let operationBusy = false;
     let repeatDateNoticeTaskId = "";
+    let repeatDateErrorTimer: ReturnType<typeof setTimeout> | null = null;
     let shellElement: HTMLDivElement | undefined;
 
     $: allTasks = $taskStore.allTasks || [];
@@ -365,7 +366,16 @@
     async function openRepeatSettings() {
         if (!start && !due) {
             repeatDateError = i18n?.repeatNeedsDate || "Set a start or due date first";
+            if (repeatDateErrorTimer) clearTimeout(repeatDateErrorTimer);
+            repeatDateErrorTimer = setTimeout(() => {
+                repeatDateError = "";
+                repeatDateErrorTimer = null;
+            }, 4200);
             return;
+        }
+        if (repeatDateErrorTimer) {
+            clearTimeout(repeatDateErrorTimer);
+            repeatDateErrorTimer = null;
         }
         repeatDateError = "";
         if (!await flushPendingSave()) return;
@@ -465,6 +475,10 @@
     }
 
     function handleDateChange() {
+        if (repeatDateErrorTimer) {
+            clearTimeout(repeatDateErrorTimer);
+            repeatDateErrorTimer = null;
+        }
         repeatDateError = "";
         if (repeatEnabled && repeatDateNoticeTaskId !== task.blockId) {
             repeatDateNoticeTaskId = task.blockId;
@@ -581,6 +595,7 @@
     onDestroy(() => {
         if (debounceTimer) clearTimeout(debounceTimer);
         if (savedStateTimer) clearTimeout(savedStateTimer);
+        if (repeatDateErrorTimer) clearTimeout(repeatDateErrorTimer);
         if (dirty && !discardOnDestroy && !activeSave) flushPendingSave();
     });
 </script>
@@ -605,7 +620,9 @@
         <NaIconButton symbol="iconTrashcan" label={i18n?.removeTask || "Remove task"} size={14} tone="danger" disabled={operationBusy || saveState === "saving"} on:click={handleRemove} />
     </div>
 
-    {#if noticeMessage}<NaInlineNotice slot="notice" message={noticeMessage} tone={noticeTone} />{/if}
+    {#if noticeMessage}
+        <div class="na-task-detail__notice"><NaInlineNotice message={noticeMessage} tone={noticeTone} /></div>
+    {/if}
 
     <NaPropertySection title={i18n?.detailGroupBasics || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
@@ -627,7 +644,7 @@
 
     <NaPropertySection title={i18n?.detailGroupTiming || "Schedule"}>
         <NaPropertyRow label={i18n?.startTime || i18n?.startDate || "Start"}><NaDatePicker bind:value={start} defaultTime="00:00" fixedDropdown={true} {i18n} on:change={handleDateChange} /></NaPropertyRow>
-        <NaPropertyRow label={i18n?.dueTime || i18n?.dueDate || "Due"} error={dateError}><NaDatePicker bind:value={due} defaultTime="23:59" fixedDropdown={true} {i18n} on:change={handleDateChange} /></NaPropertyRow>
+        <NaPropertyRow label={i18n?.dueTime || i18n?.dueDate || "Due"}><NaDatePicker bind:value={due} defaultTime="23:59" fixedDropdown={true} {i18n} on:change={handleDateChange} /></NaPropertyRow>
         <NaPropertyRow label={i18n?.myDay || "My Day"}><NaToggle checked={isInMyDay} disabled={operationBusy} label={i18n?.myDay || "My Day"} on:change={toggleMyDay} /></NaPropertyRow>
         <NaPropertyRow label={i18n?.reminder || "Reminders"}>
             <button type="button" class="b3-button b3-button--text na-task-detail__setting-action" on:click={openReminders}>
@@ -665,7 +682,7 @@
         <NaPropertyRow label={i18n?.dependencies || "Depends on"}>
             <NaSearchSelect multi={true} bind:selected={depends} searchFn={searchDepTasks} initialLabels={depLabels} placeholder={i18n?.searchDepTask || "Search tasks"} emptyText={i18n?.noOptions || "No options"} noMatchText={i18n?.noMatches || "No matches"} loadingText={i18n?.loadingMore || "Loading"} clearLabel={i18n?.clearSelection || "Clear selection"} removeLabel={i18n?.removeSelection || "Remove selection"} fixedDropdown={true} on:change={handleChange} />
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.depMode || "Dependency mode"} error={depError}>
+        <NaPropertyRow label={i18n?.depMode || "Dependency mode"}>
             <select class="b3-select fn__block" bind:value={depMode} on:change={handleChange}><option value="all">{i18n?.depModeAll || "All must complete"}</option><option value="any">{i18n?.depModeAny || "Any can complete"}</option></select>
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.sequential || "Sequential"}><NaToggle bind:checked={sequentialEnabled} label={i18n?.sequential || "Sequential"} on:change={handleChange} /></NaPropertyRow>
@@ -692,7 +709,7 @@
     {#if customFieldDefs.length > 0}
         <NaPropertySection title={i18n?.customFields || "Custom fields"}>
             {#each customFieldDefs as def (def.key)}
-                <NaPropertyRow label={def.label} error={customFieldError.startsWith(def.label + ":") ? customFieldError : ""}>
+                <NaPropertyRow label={def.label}>
                     <NaCustomFieldInput {def} value={customFieldValues[def.key] || ""} {i18n} fixedDropdown={true} on:change={(event) => { customFieldValues = { ...customFieldValues, [def.key]: event.detail.value }; handleChange(); }} on:open={(event) => openCustomFieldLink(event.detail.value)} />
                 </NaPropertyRow>
             {/each}
@@ -703,6 +720,16 @@
 
 <style lang="scss">
     .na-task-detail__header-actions { display: flex; align-items: center; gap: 2px; }
+    .na-task-detail__notice {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--b3-border-color);
+        background: color-mix(in srgb, var(--b3-theme-surface) 94%, transparent);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--b3-theme-on-surface) 10%, transparent);
+        backdrop-filter: blur(8px);
+    }
     .na-task-detail__setting-action { min-width: 104px; justify-content: center; }
     .na-task-detail__repeat-control { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; width: 100%; }
     .na-task-detail__review-control { display: flex; align-items: center; gap: 6px; width: 100%; }

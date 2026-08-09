@@ -66,6 +66,15 @@
     cursor = null;
   }
 
+  function handleClick() {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    visible = false;
+    cursor = null;
+  }
+
   function handleFocusIn() {
     cursor = null;
     if (timer !== null) clearTimeout(timer);
@@ -88,6 +97,7 @@
   on:mouseenter={handleMouseEnter}
   on:mousemove={handleMouseMove}
   on:mouseleave={handleMouseLeave}
+  on:click={handleClick}
   on:focusin={handleFocusIn}
   on:focusout={handleMouseLeave}
 >

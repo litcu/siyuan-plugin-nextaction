@@ -51,7 +51,7 @@ test("自动保存、未保存修改确认和错误状态保持可见", () => {
     assert.match(detail, /if \(!dirty\)[\s\S]*onClose\?\.\(\)/);
     assert.match(detail, /unsavedChangesTitle/);
     assert.match(detail, /function scheduleSave\(\)[\s\S]*flushPendingSave\(\)/);
-    assert.match(detail, /<NaInlineNotice slot="notice"/);
+    assert.match(detail, /<div class="na-task-detail__notice"><NaInlineNotice message=\{noticeMessage\}/);
     assert.match(shell, /aria-live="polite"/);
 });
 

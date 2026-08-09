@@ -12,9 +12,11 @@
     import { get } from "svelte/store";
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
 
     export let bridge: KernelBridge;
     export let i18n: any;
+    export let onOpenFullPanel: (() => void) | undefined = undefined;
 
     type DockTab = "nextAction" | "myDay" | "inbox";
     let activeTab: DockTab = "nextAction";
@@ -140,10 +142,25 @@
 </script>
 
 <div class="na-dock">
-    <NaPanelHeader compact title={activeTabLabel} icon={activeTab === "inbox" ? "iconInbox" : activeTab === "myDay" ? "iconCalendar" : "iconListItem"} />
-    <div class="na-dock__tabs">
-        <NaSegmentControl options={tabOptions} value={activeTab} size="sm" stretch label={i18n?.pluginName || "NextAction"} on:change={handleTabChange} />
-    </div>
+    <NaPanelHeader compact title={i18n?.pluginName || "NextAction"} icon="iconNextAction">
+        <svelte:fragment slot="actions">
+            {#if onOpenFullPanel}
+                <NaIconButton
+                    compact
+                    symbol="iconNextAction"
+                    label={i18n?.taskPanel || "Task Panel"}
+                    on:click={onOpenFullPanel}
+                />
+            {/if}
+            <NaSegmentControl
+                options={tabOptions}
+                value={activeTab}
+                size="sm"
+                label={i18n?.pluginName || "NextAction"}
+                on:change={handleTabChange}
+            />
+        </svelte:fragment>
+    </NaPanelHeader>
 
     <div class="na-dock__body">
         {#if activeTab === "nextAction"}
@@ -184,17 +201,15 @@
         background: var(--b3-theme-background);
     }
 
-    .na-dock__tabs {
-        display: flex;
-        justify-content: center;
-        padding: 7px 10px 8px;
-        border-bottom: 1px solid var(--b3-border-color);
-        background: var(--b3-theme-surface);
-        flex-shrink: 0;
+    :global(.na-dock > .na-panel-header) { gap: 8px; }
+    :global(.na-dock > .na-panel-header .na-panel-header__copy) { flex: 1 1 auto; min-width: 0; }
+    :global(.na-dock > .na-panel-header .na-panel-header__actions) { flex: 0 1 auto; min-width: 0; }
+    :global(.na-dock > .na-panel-header .na-segment-control) { max-width: 100%; }
+    :global(.na-dock > .na-panel-header .na-segment-control__option) {
+        overflow: hidden;
+        padding-inline: clamp(4px, 1.8vw, 9px);
+        text-overflow: ellipsis;
     }
-
-    :global(.na-dock__tabs .na-segment-control) { max-width: 100%; }
-    :global(.na-dock__tabs .na-segment-control__option) { overflow: hidden; text-overflow: ellipsis; }
 
     .na-dock__body {
         flex: 1;
@@ -202,7 +217,10 @@
     }
 
     @container na-dock (max-width: 260px) {
-        .na-dock__tabs { padding-inline: 6px; }
-        :global(.na-dock__tabs .na-segment-control__option) { padding-inline: 5px; }
+        :global(.na-dock > .na-panel-header) { gap: 4px; padding-inline: 7px; }
+        :global(.na-dock > .na-panel-header .na-panel-header__copy) { flex-basis: 72px; }
+        :global(.na-dock > .na-panel-header .na-panel-header__actions) { flex: 1 1 auto; }
+        :global(.na-dock > .na-panel-header .na-segment-control) { width: 100%; }
+        :global(.na-dock > .na-panel-header .na-segment-control__option) { padding-inline: 4px; font-size: 10px; }
     }
 </style>

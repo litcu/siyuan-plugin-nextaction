@@ -20,6 +20,6 @@ test("缺少重复日期显示前置警告而不是保存失败", () => {
     assert.match(openRepeat, /repeatDateError = i18n\?\.repeatNeedsDate/);
     assert.doesNotMatch(openRepeat, /saveState = "error"/);
     assert.match(detailSource, /repeatDateError[\s\S]*\? "warning"/);
-    assert.match(detailSource, /function handleDateChange\(\) \{\s*repeatDateError = ""/);
+    assert.match(detailSource, /function handleDateChange\(\) \{[\s\S]*?repeatDateError = ""/);
 });
 

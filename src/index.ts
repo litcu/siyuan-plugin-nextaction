@@ -70,6 +70,7 @@ export default class NextActionPlugin extends Plugin {
     }
 
     private openTaskPanel(): void {
+        if (this.isMobile) return;
         openTab({
             app: this.app,
             custom: {
@@ -554,8 +555,11 @@ export default class NextActionPlugin extends Plugin {
                 container.style.width = "100%";
                 container.style.height = "100%";
                 container.classList.add("nextaction");
-                import("./frontend/components/DockSidebar.svelte").then(({ default: DockSidebar }) => {
-                    const dock = new DockSidebar({
+                const componentImport = pluginRef.isMobile
+                    ? import("./frontend/components/MobileDockHost.svelte")
+                    : import("./frontend/components/DockSidebar.svelte");
+                componentImport.then(({ default: DockComponent }) => {
+                    const dock = new DockComponent({
                         target: container,
                         props: {
                             bridge: pluginRef.bridge,
@@ -567,13 +571,15 @@ export default class NextActionPlugin extends Plugin {
             },
         });
 
-        this.addTopBar({
-            icon: "iconNextAction",
-            title: this.i18n.pluginName || "NextAction",
-            callback: () => {
-                this.openTaskPanel();
-            },
-        });
+        if (!this.isMobile) {
+            this.addTopBar({
+                icon: "iconNextAction",
+                title: this.i18n.pluginName || "NextAction",
+                callback: () => {
+                    this.openTaskPanel();
+                },
+            });
+        }
 
         // Slash menu items
         this.protyleSlash = [
@@ -887,15 +893,17 @@ export default class NextActionPlugin extends Plugin {
             globalCallback: () => { this.runConvertWithChildrenCommand(); },
         });
 
-        this.addCommand({
-            langKey: "openTaskPanel",
-            langText: `[${this.i18n.pluginName}] ${this.i18n.openTaskPanel}`,
-            hotkey: "",
-            callback: () => { this.openTaskPanel(); },
-            globalCallback: () => { this.openTaskPanel(); },
-            editorCallback: () => { this.openTaskPanel(); },
-            dockCallback: () => { this.openTaskPanel(); },
-        });
+        if (!this.isMobile) {
+            this.addCommand({
+                langKey: "openTaskPanel",
+                langText: `[${this.i18n.pluginName}] ${this.i18n.openTaskPanel}`,
+                hotkey: "",
+                callback: () => { this.openTaskPanel(); },
+                globalCallback: () => { this.openTaskPanel(); },
+                editorCallback: () => { this.openTaskPanel(); },
+                dockCallback: () => { this.openTaskPanel(); },
+            });
+        }
 
         this.addCommand({
             langKey: "aiExtractTasks",

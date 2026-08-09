@@ -15,7 +15,11 @@
     const dispatch = createEventDispatcher<{ close: void }>();
 </script>
 
-<div bind:this={element} class="na-dialog-shell na-dialog-shell--{variant}" class:na-dialog-shell--with-footer={showFooter}>
+<div
+    bind:this={element}
+    class="na-dialog-shell na-dialog-shell--{variant}"
+    class:na-dialog-shell--with-footer={showFooter}
+>
     <NaDialogHeader {title} {subtitle} {closeLabel} {status} {statusTone} on:close={() => dispatch("close")}>
         <div slot="actions"><slot name="headerActions" /></div>
     </NaDialogHeader>

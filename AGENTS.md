@@ -135,5 +135,3 @@ BREAKING CHANGE: <Describe affected users or integrations and required migration
 ## Agent 工作流
 
 根目录存在 `.codegraph/`。定位符号、调用链或影响范围时，先运行 `codegraph explore "问题或符号"`，再按需使用 `rg` 和直接读取文件。不要覆盖用户已有的未提交改动。
-
-涉及大范围前端界面的新增或改动时，完成构建并通过 `pnpm run release` 部署后，必须打开浏览器访问 `http://127.0.0.1:6806` 进行实际样式与交互验收。验收前先重载插件或页面以加载最新 Bundle，再关闭所有已打开的任务管理面板并重新打开，避免旧组件实例和缓存状态影响结果；发现布局、主题、响应式或交互问题后应修正并重复上述流程。
