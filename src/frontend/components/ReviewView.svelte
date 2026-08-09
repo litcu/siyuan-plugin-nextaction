@@ -8,6 +8,7 @@
     import NaButton from "../ui/NaButton.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
+    import { taskStore } from "../stores/task-store";
 
     export let bridge: KernelBridge;
     export let selectedTaskId: string;
@@ -43,7 +44,8 @@
 
     async function handleMarkReviewed(blockIds: string[]) {
         try {
-            await bridge.markTaskReviewed(blockIds);
+            const updatedTasks = await bridge.markTaskReviewed(blockIds);
+            for (const task of updatedTasks) taskStore.applyUpdate(task);
             await loadReviewData();
         } catch (e: any) {
             console.error("[NextAction] markTaskReviewed failed:", e);

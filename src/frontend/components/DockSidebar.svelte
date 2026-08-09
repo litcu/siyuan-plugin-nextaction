@@ -31,8 +31,6 @@
         tabs[2].label = i18n?.inbox || "Inbox";
     }
 
-    $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
-
     function handleEdit(task: TaskCacheEntry) {
         const dialog = new Dialog({
             title: "",
@@ -93,7 +91,7 @@
     }
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
-        const inMyDay = myDayEnabled && ($taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false);
+        const inMyDay = $taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false;
         const callbacks: any = {
             onUpdated: (updated: TaskCacheEntry) => {
                 taskStore.applyUpdate(updated);
@@ -103,21 +101,19 @@
             },
             onEdit: handleEdit,
         };
-        if (myDayEnabled) {
-            callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
-                try {
-                    let myDayState;
-                    if (isInMyDay) {
-                        myDayState = await bridge.removeTaskFromMyDay(blockId);
-                    } else {
-                        myDayState = await bridge.addTaskToMyDay(blockId);
-                    }
-                    taskStore.applyMyDayUpdate(myDayState);
-                } catch (e: any) {
-                    console.error("[NextAction] myDay toggle failed:", e);
+        callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
+            try {
+                let myDayState;
+                if (isInMyDay) {
+                    myDayState = await bridge.removeTaskFromMyDay(blockId);
+                } else {
+                    myDayState = await bridge.addTaskToMyDay(blockId);
                 }
-            };
-        }
+                taskStore.applyMyDayUpdate(myDayState);
+            } catch (e: any) {
+                console.error("[NextAction] myDay toggle failed:", e);
+            }
+        };
         callbacks.onReminderEdit = (blockId: string) => {
             const storeState = get(taskStore);
             const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);
@@ -130,7 +126,6 @@
     }
 
     function switchTab(tab: DockTab) {
-        if (tab === "myDay" && !myDayEnabled) return;
         activeTab = tab;
     }
 
@@ -138,10 +133,7 @@
         switchTab(event.detail as DockTab);
     }
 
-    $: visibleTabs = tabs.filter(t => {
-        if (t.id === "myDay") return myDayEnabled;
-        return true;
-    });
+    $: visibleTabs = tabs;
 
     $: tabOptions = visibleTabs.map(tab => ({ value: tab.id, label: tab.label }));
     $: activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label || "";

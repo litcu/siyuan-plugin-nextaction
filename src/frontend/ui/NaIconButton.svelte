@@ -1,5 +1,6 @@
 <script lang="ts">
     import NaIcon from "./NaIcon.svelte";
+    import NaTooltip from "./NaTooltip.svelte";
 
     export let symbol: string;
     export let label: string;
@@ -9,21 +10,24 @@
     export let tone: "default" | "danger" = "default";
     export let type: "button" | "submit" = "button";
     export let compact = false;
+    export let tooltipPosition: "top" | "bottom" | "left" | "right" = "bottom";
 </script>
 
-<button
-    {type}
-    class="na-icon-button b3-tooltips b3-tooltips__n"
-    class:na-icon-button--compact={compact}
-    class:na-icon-button--active={active}
-    class:na-icon-button--danger={tone === "danger"}
-    aria-label={label}
-    aria-pressed={active || undefined}
-    {disabled}
-    on:click
->
-    <NaIcon {symbol} {size} />
-</button>
+<NaTooltip text={label} position={tooltipPosition} followCursor={false}>
+    <button
+        {type}
+        class="na-icon-button"
+        class:na-icon-button--compact={compact}
+        class:na-icon-button--active={active}
+        class:na-icon-button--danger={tone === "danger"}
+        aria-label={label}
+        aria-pressed={active || undefined}
+        {disabled}
+        on:click
+    >
+        <NaIcon {symbol} {size} />
+    </button>
+</NaTooltip>
 
 <style lang="scss">
     .na-icon-button {

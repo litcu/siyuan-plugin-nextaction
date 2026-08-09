@@ -49,7 +49,6 @@
     let defaultImportance = DEFAULT_SETTINGS.defaultImportance;
     let defaultEffort = DEFAULT_SETTINGS.defaultEffort;
     let semanticDateParsingEnabled = DEFAULT_SETTINGS.semanticDateParsingEnabled;
-    let myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
     let myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
     let myDayDefaultViewMode: MyDayViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
     let myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
@@ -140,7 +139,6 @@
             defaultImportance = settings.defaultImportance;
             defaultEffort = settings.defaultEffort;
             semanticDateParsingEnabled = settings.semanticDateParsingEnabled ?? DEFAULT_SETTINGS.semanticDateParsingEnabled;
-            myDayEnabled = settings.myDayEnabled ?? DEFAULT_SETTINGS.myDayEnabled;
             myDayResetHour = settings.myDayResetHour ?? DEFAULT_SETTINGS.myDayResetHour;
             myDayDefaultViewMode = settings.myDayDefaultViewMode ?? DEFAULT_SETTINGS.myDayDefaultViewMode;
             myDayDefaultDuration = settings.myDayDefaultDuration ?? DEFAULT_SETTINGS.myDayDefaultDuration;
@@ -255,7 +253,6 @@
                 priorityOffsetLow: current.priorityEngine.priorityOffsetLow,
                 priorityOffsetNone: current.priorityEngine.priorityOffsetNone,
             },
-            myDayEnabled,
             myDayResetHour,
             myDayDefaultViewMode,
             myDayDefaultDuration,
@@ -367,7 +364,6 @@
     }
 
     function handleResetMyDay() {
-        myDayEnabled = DEFAULT_SETTINGS.myDayEnabled;
         myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
         myDayDefaultViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
         myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
@@ -542,7 +538,6 @@
                     bind:defaultImportance
                     bind:defaultEffort
                     bind:semanticDateParsingEnabled
-                    bind:myDayEnabled
                     bind:myDayResetHour
                     bind:myDayDefaultViewMode
                     bind:myDayDefaultDuration

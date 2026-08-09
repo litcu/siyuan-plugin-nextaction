@@ -319,8 +319,6 @@
     "setPriority": "设置优先级",
     "settingMyDay": "我的一天",
     "settingMyDayDesc": "日常任务规划视图的相关设置",
-    "settingMyDayEnabled": "启用我的一天",
-    "settingMyDayEnabledDesc": "在导航栏中显示「我的一天」视图",
     "settingMyDayResetHour": "每日重置时间",
     "settingMyDayResetHourDesc": "在此时间之前仍属于前一天（0-23）",
     "settingMyDayDefaultViewMode": "默认视图模式",

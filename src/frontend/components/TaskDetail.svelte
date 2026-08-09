@@ -91,7 +91,6 @@
         .map(entry => ({ blockId: entry.blockId, title: entry.title || i18n?.untitled || "(untitled)", status: entry.status }));
     $: customFieldDefs = (($taskStore.settings.customFields || []) as CustomFieldDef[])
         .filter(field => isCustomFieldApplicable(field, task, taskMap));
-    $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
     $: isInMyDay = !!$taskStore.myDayState?.tasks.some(entry => entry.blockId === task.blockId);
     $: hasReminders = parseReminderItems(task.reminder).length > 0;
     $: repeatRuntimeState = parseRepeatState(task.repeatState);
@@ -629,7 +628,7 @@
     <NaPropertySection title={i18n?.detailGroupTiming || "Schedule"}>
         <NaPropertyRow label={i18n?.startTime || i18n?.startDate || "Start"}><NaDatePicker bind:value={start} defaultTime="00:00" fixedDropdown={true} {i18n} on:change={handleDateChange} /></NaPropertyRow>
         <NaPropertyRow label={i18n?.dueTime || i18n?.dueDate || "Due"} error={dateError}><NaDatePicker bind:value={due} defaultTime="23:59" fixedDropdown={true} {i18n} on:change={handleDateChange} /></NaPropertyRow>
-        {#if myDayEnabled}<NaPropertyRow label={i18n?.myDay || "My Day"}><NaToggle checked={isInMyDay} disabled={operationBusy} label={i18n?.myDay || "My Day"} on:change={toggleMyDay} /></NaPropertyRow>{/if}
+        <NaPropertyRow label={i18n?.myDay || "My Day"}><NaToggle checked={isInMyDay} disabled={operationBusy} label={i18n?.myDay || "My Day"} on:change={toggleMyDay} /></NaPropertyRow>
         <NaPropertyRow label={i18n?.reminder || "Reminders"}>
             <button type="button" class="b3-button b3-button--text na-task-detail__setting-action" on:click={openReminders}>
                 {hasReminders ? (i18n?.reminderConfigured || "Configured") : (i18n?.notConfigured || "Not configured")}

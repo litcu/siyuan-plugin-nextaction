@@ -55,7 +55,8 @@ test("常规页包含任务创建、任务默认值、我的一天和提醒四�
     assert.match(general, /onAction=\{onResetDefaults\}/);
     assert.match(general, /onAction=\{onResetMyDay\}/);
     assert.match(general, /onAction=\{onResetReminder\}/);
-    assert.match(general, /setting-myday-enabled/);
+    assert.match(general, /setting-myday-reset-hour/);
+    assert.doesNotMatch(general, /setting-myday-enabled|myDayEnabled/);
     assert.match(general, /setting-reminder-enabled/);
     assert.match(general, /setting-task-creation-target/);
 });

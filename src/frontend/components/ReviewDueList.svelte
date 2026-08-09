@@ -18,7 +18,7 @@
     let overdueExpanded = true;
     $: reviewDueTasks = reviewData.reviewDueTasks;
     $: overdueTasks = reviewData.overdueTasks;
-    $: totalDue = reviewDueTasks.length + overdueTasks.length;
+    $: totalDue = new Set([...reviewDueTasks, ...overdueTasks].map(task => task.blockId)).size;
 </script>
 
 <div class="na-review-due">

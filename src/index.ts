@@ -269,27 +269,24 @@ export default class NextActionPlugin extends Plugin {
 
         // My Day toggle
         const storeState = get(taskStore);
-        const myDayEnabled = storeState.settings.myDayEnabled !== false;
-        if (myDayEnabled) {
-            const isInMyDay = storeState.myDayState?.tasks.some(t => t.blockId === blockId) ?? false;
-            menu.addItem({
-                icon: isInMyDay ? 'iconClose' : 'iconBookmark',
-                label: isInMyDay
-                    ? (this.i18n.removeFromMyDay || 'Remove from My Day')
-                    : (this.i18n.addToMyDay || 'Add to My Day'),
-                click: async () => {
-                    try {
-                        const myDayState = isInMyDay
-                            ? await this.bridge.removeTaskFromMyDay(blockId)
-                            : await this.bridge.addTaskToMyDay(blockId);
-                        taskStore.applyMyDayUpdate(myDayState);
-                    } catch (e: any) {
-                        notifyError(formatRpcError(e, this.i18n));
-                    }
-                },
-            });
-            menu.addSeparator();
-        }
+        const isInMyDay = storeState.myDayState?.tasks.some(t => t.blockId === blockId) ?? false;
+        menu.addItem({
+            icon: isInMyDay ? 'iconClose' : 'iconBookmark',
+            label: isInMyDay
+                ? (this.i18n.removeFromMyDay || 'Remove from My Day')
+                : (this.i18n.addToMyDay || 'Add to My Day'),
+            click: async () => {
+                try {
+                    const myDayState = isInMyDay
+                        ? await this.bridge.removeTaskFromMyDay(blockId)
+                        : await this.bridge.addTaskToMyDay(blockId);
+                    taskStore.applyMyDayUpdate(myDayState);
+                } catch (e: any) {
+                    notifyError(formatRpcError(e, this.i18n));
+                }
+            },
+        });
+        menu.addSeparator();
 
         // Reminder
         menu.addItem({

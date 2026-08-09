@@ -391,38 +391,6 @@
         padding: 0;
     }
 
-    .na-nav-rail .na-nav-item::after,
-    .na-nav-rail__action-btn::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        left: calc(100% + 8px);
-        top: 50%;
-        z-index: 1;
-        padding: 4px 8px;
-        border: 1px solid color-mix(in srgb, var(--b3-border-color) 62%, transparent);
-        border-radius: var(--na-radius-sm);
-        background: color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-background));
-        color: var(--b3-theme-on-background);
-        box-shadow: var(--na-shadow-sm);
-        font-size: 11px;
-        font-weight: 500;
-        line-height: 1.4;
-        white-space: nowrap;
-        pointer-events: none;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(-50%) translateX(-2px);
-        transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
-    }
-
-    .na-nav-rail .na-nav-item:hover::after,
-    .na-nav-rail .na-nav-item:focus-visible::after,
-    .na-nav-rail__action-btn:hover::after,
-    .na-nav-rail__action-btn:focus-visible::after {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(-50%) translateX(0);
-    }
 }
 
 .na-nav-rail--compact {

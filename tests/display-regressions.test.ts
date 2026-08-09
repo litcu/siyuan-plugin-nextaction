@@ -46,16 +46,19 @@ test("任务面板建立独立层叠上下文且折叠导航低于抽屉", () =>
     }
 });
 
-test("公共 Tooltip 使用浅边框、主题表面色和轻圆角", () => {
-    for (const source of [tooltipSource, primitivesSource, stylesheetSource]) {
+test("公共 Tooltip 使用 Portal、主题样式和统一定位", () => {
+    for (const source of [tooltipSource, primitivesSource]) {
         assert.match(source, /color-mix\(in srgb, var\(--b3-border-color\) 62%, transparent\)/);
         assert.match(source, /border-radius:\s*var\(--na-radius-sm\)/);
     }
-    assert.match(iconButtonSource, /b3-tooltips b3-tooltips__n/);
+    assert.match(iconButtonSource, /<NaTooltip text=\{label\}/);
+    assert.match(iconButtonSource, /followCursor=\{false\}/);
     assert.doesNotMatch(iconButtonSource, /title=\{label\}/);
-    assert.match(navItemSource, /data-tooltip=\{tooltip \|\| label\}/);
+    assert.match(navItemSource, /<NaTooltip text=\{tooltip \|\| label\}/);
+    assert.match(navItemSource, /position="right"/);
     assert.doesNotMatch(navItemSource, /title=\{tooltip \|\| label\}/);
     assert.match(tooltipSource, /use:portal/);
+    assert.match(tooltipSource, /calculateTooltipPosition/);
     assert.match(tooltipSource, /z-index:\$\{getCurrentUiZIndex\(\)\}/);
 });
 

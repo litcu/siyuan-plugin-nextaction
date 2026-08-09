@@ -148,7 +148,6 @@ export interface PluginSettings {
     defaultEffort: number;
     semanticDateParsingEnabled: boolean;
     priorityEngine: PriorityEngineSettings;
-    myDayEnabled: boolean;
     myDayResetHour: number;
     myDayDefaultViewMode: MyDayViewMode;
     myDayDefaultDuration: number;
@@ -194,7 +193,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     defaultEffort: 4,
     semanticDateParsingEnabled: true,
     priorityEngine: { ...DEFAULT_PRIORITY_ENGINE },
-    myDayEnabled: true,
     myDayResetHour: 5,
     myDayDefaultViewMode: "timeline",
     myDayDefaultDuration: 60,
@@ -348,7 +346,6 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             ...base.priorityEngine,
             ...(override.priorityEngine ?? {}),
         },
-        myDayEnabled: override.myDayEnabled ?? base.myDayEnabled,
         myDayResetHour: override.myDayResetHour ?? base.myDayResetHour,
         myDayDefaultViewMode: override.myDayDefaultViewMode ?? base.myDayDefaultViewMode,
         myDayDefaultDuration: override.myDayDefaultDuration ?? base.myDayDefaultDuration,

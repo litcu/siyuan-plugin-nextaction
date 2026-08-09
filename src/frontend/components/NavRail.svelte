@@ -4,20 +4,20 @@
     import { taskStore, pendingReminderCount } from "../stores/task-store";
     import NaIcon from "../ui/NaIcon.svelte";
     import NaNavItem from "../ui/NaNavItem.svelte";
+    import NaTooltip from "../ui/NaTooltip.svelte";
 
     export let activeView: string = VIEW_NEXT_ACTION;
     export let onSwitchView: (view: string) => void;
     export let onRefresh: () => void;
     export let i18n: any;
 
-    $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
     $: reminderEnabled = $taskStore.settings?.reminderSettings?.enabled !== false;
 
     $: navGroups = [
         { label: i18n?.navFocus || "Focus", items: [
             { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
             { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
-            { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day", requiresMyDay: true },
+            { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day" },
         ] },
         { label: i18n?.navOrganize || "Organize", items: [
             { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
@@ -31,7 +31,6 @@
             { view: VIEW_REMINDER, icon: "iconClock", label: i18n?.reminder || "Reminders", requiresReminder: true },
         ] },
     ].map(group => ({ ...group, items: group.items.filter(item => {
-        if (item.requiresMyDay && !myDayEnabled) return false;
         if (item.requiresReminder && !reminderEnabled) return false;
         return true;
     }) }));
@@ -88,20 +87,26 @@
     {/each}
     <div class="na-nav-rail__spacer"></div>
     <div class="na-nav-rail__footer">
-        <button
-            class="na-nav-rail__action-btn"
-            class:is-done={refreshDone}
-            on:click={handleRefresh}
-            aria-label={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
-            data-tooltip={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
+        <NaTooltip
+            text={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
+            position="right"
+            followCursor={false}
+            block
         >
-            {#if refreshDone}
-                <NaIcon symbol="iconCheck" size={13} />
-                <span class="na-nav-rail__action-label">{i18n?.refreshed || "Refreshed"}</span>
-            {:else}
-                <NaIcon symbol="iconRefresh" size={13} />
-                <span class="na-nav-rail__action-label">{i18n?.refreshTasks || "Refresh Tasks"}</span>
-            {/if}
-        </button>
+            <button
+                class="na-nav-rail__action-btn"
+                class:is-done={refreshDone}
+                on:click={handleRefresh}
+                aria-label={refreshDone ? (i18n?.refreshed || "Refreshed") : (i18n?.refreshTasks || "Refresh Tasks")}
+            >
+                {#if refreshDone}
+                    <NaIcon symbol="iconCheck" size={13} />
+                    <span class="na-nav-rail__action-label">{i18n?.refreshed || "Refreshed"}</span>
+                {:else}
+                    <NaIcon symbol="iconRefresh" size={13} />
+                    <span class="na-nav-rail__action-label">{i18n?.refreshTasks || "Refresh Tasks"}</span>
+                {/if}
+            </button>
+        </NaTooltip>
     </div>
 </nav>

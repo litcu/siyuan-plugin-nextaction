@@ -55,16 +55,7 @@ import { MyDayManager } from "./my-day-manager";
 import type { MyDayState } from "../shared/types";
 import { ATTR_EXT_PREFIX } from "../shared/constants";
 import { parseTaskTitleDates } from "../shared/natural-date";
-
-/** Check if a due date is overdue. Supports both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm" formats. */
-function isDueOverdue(due: string, todayStr: string): boolean {
-    if (due.includes("T")) {
-        // "YYYY-MM-DDTHH:mm" — compare against current time
-        return new Date(due) < new Date();
-    }
-    // "YYYY-MM-DD" — compare against today's date
-    return due < todayStr;
-}
+import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
 
 function localActionDate(date: Date = new Date()): string {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -1644,7 +1635,7 @@ export class TaskService {
         const open = tasks.filter(e => e.status !== "done").length;
 
         // 逾期未完成：有截止日且截止日 < 今天且未完成
-        const overdue = tasks.filter(e => e.status !== "done" && e.due !== "" && isDueOverdue(e.due, todayStr)).length;
+        const overdue = tasks.filter(e => isTaskDueOverdue(e, todayStr)).length;
 
         const doneCount = total - open;
 
@@ -1771,12 +1762,12 @@ export class TaskService {
             const entry = allEntries[i];
 
             // 回顾到期
-            if (entry.reviewInterval > 0 && entry.reviewDate && entry.reviewDate <= todayStr && entry.status !== "done") {
+            if (isTaskReviewDue(entry, todayStr)) {
                 reviewDueTasks.push(entry);
             }
 
             // 逾期
-            if (entry.status !== "done" && entry.due !== "" && isDueOverdue(entry.due, todayStr)) {
+            if (isTaskDueOverdue(entry, todayStr)) {
                 overdueTasks.push(entry);
             }
 

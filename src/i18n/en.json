@@ -319,8 +319,6 @@
     "setPriority": "Set Priority",
     "settingMyDay": "My Day",
     "settingMyDayDesc": "Settings for the daily task planning view",
-    "settingMyDayEnabled": "Enable My Day",
-    "settingMyDayEnabledDesc": "Show the My Day view in the navigation rail",
     "settingMyDayResetHour": "Daily Reset Hour",
     "settingMyDayResetHourDesc": "Before this hour still counts as the previous day (0-23)",
     "settingMyDayDefaultViewMode": "Default View Mode",

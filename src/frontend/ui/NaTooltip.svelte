@@ -1,39 +1,60 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { getCurrentUiZIndex } from "../utils/layer";
   import { portal } from "../utils/portal";
+  import { calculateTooltipPosition, type TooltipPosition } from "../utils/tooltip-position";
 
   export let text: string;
-  export let position: "top" | "bottom" | "left" | "right" = "top";
+  export let position: TooltipPosition = "top";
   export let delay: number = 300;
   export let fill = false;
+  export let block = false;
+  export let followCursor = true;
 
   let visible = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let triggerEl: HTMLSpanElement;
+  let popupEl: HTMLSpanElement;
   let popupStyle = "";
+  let resolvedPosition: TooltipPosition = position;
+  let cursor: { x: number; y: number } | null = null;
 
   function updatePosition() {
-    if (!triggerEl) return;
+    if (!triggerEl || !popupEl || typeof window === "undefined") return;
     const rect = triggerEl.getBoundingClientRect();
-    const gap = 5;
-    const coordinates = position === "top"
-      ? { left: rect.left + rect.width / 2, top: rect.top - gap }
-      : position === "bottom"
-        ? { left: rect.left + rect.width / 2, top: rect.bottom + gap }
-        : position === "left"
-          ? { left: rect.left - gap, top: rect.top + rect.height / 2 }
-          : { left: rect.right + gap, top: rect.top + rect.height / 2 };
+    const popupRect = popupEl.getBoundingClientRect();
+    const coordinates = calculateTooltipPosition({
+      anchor: rect,
+      popupWidth: popupRect.width,
+      popupHeight: popupRect.height,
+      preferred: position,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      cursor: followCursor ? cursor : null,
+    });
+    resolvedPosition = coordinates.position;
     popupStyle = `left:${coordinates.left}px;top:${coordinates.top}px;z-index:${getCurrentUiZIndex()};`;
   }
 
-  function handleMouseEnter() {
+  async function showTooltip() {
+    if (!text) return;
+    visible = true;
+    await tick();
+    updatePosition();
+  }
+
+  function handleMouseEnter(event: MouseEvent) {
+    cursor = { x: event.clientX, y: event.clientY };
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      updatePosition();
-      visible = true;
+      void showTooltip();
     }, delay);
+  }
+
+  function handleMouseMove(event: MouseEvent) {
+    cursor = { x: event.clientX, y: event.clientY };
+    if (visible && followCursor) updatePosition();
   }
 
   function handleMouseLeave() {
@@ -42,6 +63,16 @@
       timer = null;
     }
     visible = false;
+    cursor = null;
+  }
+
+  function handleFocusIn() {
+    cursor = null;
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void showTooltip();
+    }, delay);
   }
 
   onDestroy(() => {
@@ -52,21 +83,21 @@
 <span
   class="na-tooltip"
   class:na-tooltip--fill={fill}
+  class:na-tooltip--block={block}
   bind:this={triggerEl}
   on:mouseenter={handleMouseEnter}
+  on:mousemove={handleMouseMove}
   on:mouseleave={handleMouseLeave}
-  on:focusin={handleMouseEnter}
+  on:focusin={handleFocusIn}
   on:focusout={handleMouseLeave}
 >
   <slot/>
   {#if visible}
     <span
       use:portal
+      bind:this={popupEl}
       class="na-tooltip__popup"
-      class:na-tooltip__popup--top={position === "top"}
-      class:na-tooltip__popup--bottom={position === "bottom"}
-      class:na-tooltip__popup--left={position === "left"}
-      class:na-tooltip__popup--right={position === "right"}
+      data-position={resolvedPosition}
       style={popupStyle}
       role="tooltip"
     >
@@ -86,6 +117,11 @@
     min-width: 0;
   }
 
+  .na-tooltip--block {
+    width: 100%;
+    min-width: 0;
+  }
+
   .na-tooltip__popup {
     position: fixed;
     pointer-events: none;
@@ -98,22 +134,6 @@
     font-size: var(--na-font-size-xs);
     box-shadow: var(--na-shadow-sm);
     animation: na-tooltip-fade 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .na-tooltip__popup--top {
-    transform: translate(-50%, -100%);
-  }
-
-  .na-tooltip__popup--bottom {
-    transform: translateX(-50%);
-  }
-
-  .na-tooltip__popup--left {
-    transform: translate(-100%, -50%);
-  }
-
-  .na-tooltip__popup--right {
-    transform: translateY(-50%);
   }
 
   @keyframes na-tooltip-fade {

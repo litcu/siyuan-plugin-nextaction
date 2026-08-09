@@ -20,7 +20,6 @@
     export let defaultImportance: number;
     export let defaultEffort: number;
     export let semanticDateParsingEnabled: boolean;
-    export let myDayEnabled: boolean;
     export let myDayResetHour: number;
     export let myDayDefaultViewMode: MyDayViewMode;
     export let myDayDefaultDuration: number;
@@ -104,30 +103,27 @@
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetMyDay}
     >
-        <NaSettingRow forId="setting-myday-enabled" title={i18n?.settingMyDayEnabled || "Enable My Day"} description={i18n?.settingMyDayEnabledDesc || "Show the My Day view in the navigation rail"}>
-            <input id="setting-myday-enabled" class="b3-switch" type="checkbox" bind:checked={myDayEnabled} />
-        </NaSettingRow>
-        <NaSettingRow disabled={!myDayEnabled} forId="setting-myday-reset-hour" title={i18n?.settingMyDayResetHour || "Daily reset hour"} description={i18n?.settingMyDayResetHourDesc || "Before this hour still counts as the previous day (0-23)"}>
+        <NaSettingRow forId="setting-myday-reset-hour" title={i18n?.settingMyDayResetHour || "Daily reset hour"} description={i18n?.settingMyDayResetHourDesc || "Before this hour still counts as the previous day (0-23)"}>
             <div class="na-settings-general__inline-control">
-                <input id="setting-myday-reset-hour" class="b3-text-field na-settings-general__number" type="number" min={0} max={23} step={1} bind:value={myDayResetHour} disabled={!myDayEnabled} />
+                <input id="setting-myday-reset-hour" class="b3-text-field na-settings-general__number" type="number" min={0} max={23} step={1} bind:value={myDayResetHour} />
                 <span>:00</span>
             </div>
         </NaSettingRow>
-        <NaSettingRow disabled={!myDayEnabled} title={i18n?.settingMyDayDefaultViewMode || "Default view mode"} description={i18n?.settingMyDayDefaultViewModeDesc || "Initial view when opening My Day"}>
+        <NaSettingRow title={i18n?.settingMyDayDefaultViewMode || "Default view mode"} description={i18n?.settingMyDayDefaultViewModeDesc || "Initial view when opening My Day"}>
             <div class="na-settings-general__segmented" aria-label={i18n?.settingMyDayDefaultViewMode || "Default view mode"}>
                 <label class:active={myDayDefaultViewMode === "timeline"}>
-                    <input type="radio" value="timeline" bind:group={myDayDefaultViewMode} disabled={!myDayEnabled} />
+                    <input type="radio" value="timeline" bind:group={myDayDefaultViewMode} />
                     <span>{i18n?.settingMyDayDefaultViewModeTimeline || "Timeline"}</span>
                 </label>
                 <label class:active={myDayDefaultViewMode === "list"}>
-                    <input type="radio" value="list" bind:group={myDayDefaultViewMode} disabled={!myDayEnabled} />
+                    <input type="radio" value="list" bind:group={myDayDefaultViewMode} />
                     <span>{i18n?.settingMyDayDefaultViewModeList || "List"}</span>
                 </label>
             </div>
         </NaSettingRow>
-        <NaSettingRow disabled={!myDayEnabled} forId="setting-myday-duration" title={i18n?.settingMyDayDefaultDuration || "Default schedule duration"} description={i18n?.settingMyDayDefaultDurationDesc || "Default duration when dropping a task onto the timeline"}>
+        <NaSettingRow forId="setting-myday-duration" title={i18n?.settingMyDayDefaultDuration || "Default schedule duration"} description={i18n?.settingMyDayDefaultDurationDesc || "Default duration when dropping a task onto the timeline"}>
             <div class="na-settings-general__inline-control">
-                <input id="setting-myday-duration" class="b3-text-field na-settings-general__number" type="number" min={15} max={480} step={15} bind:value={myDayDefaultDuration} disabled={!myDayEnabled} />
+                <input id="setting-myday-duration" class="b3-text-field na-settings-general__number" type="number" min={15} max={480} step={15} bind:value={myDayDefaultDuration} />
                 <span>{i18n?.settingMinutes || "min"}</span>
             </div>
         </NaSettingRow>

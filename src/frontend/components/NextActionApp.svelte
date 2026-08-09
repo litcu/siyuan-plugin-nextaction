@@ -36,12 +36,6 @@
     let viewAfterClose: string | undefined = undefined;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-    $: myDayEnabled = $taskStore.settings.myDayEnabled !== false;
-    $: if (!myDayEnabled && activeView === VIEW_MY_DAY) {
-        activeView = VIEW_NEXT_ACTION;
-        taskStore.setActiveView(VIEW_NEXT_ACTION);
-    }
-
     // Safety-net refresh: most data is kept in sync by tasksChanged broadcast
     // and local derivation in applyUpdate/applyChangeNotification. This timer
     // only handles edge cases where incremental updates might diverge.
@@ -129,7 +123,7 @@
     }
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
-        const inMyDay = myDayEnabled && ($taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false);
+        const inMyDay = $taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false;
         const callbacks: any = {
             onUpdated: (updated) => {
                 taskStore.applyUpdate(updated);
@@ -145,21 +139,19 @@
             },
             onEdit: handleEdit,
         };
-        if (myDayEnabled) {
-            callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
-                try {
-                    let myDayState;
-                    if (isInMyDay) {
-                        myDayState = await bridge.removeTaskFromMyDay(blockId);
-                    } else {
-                        myDayState = await bridge.addTaskToMyDay(blockId);
-                    }
-                    taskStore.applyMyDayUpdate(myDayState);
-                } catch (e: any) {
-                    console.error("[NextAction] myDay toggle failed:", e);
+        callbacks.onMyDayToggle = async (blockId: string, isInMyDay: boolean) => {
+            try {
+                let myDayState;
+                if (isInMyDay) {
+                    myDayState = await bridge.removeTaskFromMyDay(blockId);
+                } else {
+                    myDayState = await bridge.addTaskToMyDay(blockId);
                 }
-            };
-        }
+                taskStore.applyMyDayUpdate(myDayState);
+            } catch (e: any) {
+                console.error("[NextAction] myDay toggle failed:", e);
+            }
+        };
         callbacks.onReminderEdit = (blockId: string) => {
             const storeState = get(taskStore);
             const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);

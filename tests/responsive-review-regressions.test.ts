@@ -19,13 +19,15 @@ const typesSource = source("../src/shared/types.ts");
 const settingsSource = source("../src/shared/settings.ts");
 const stylesheetSource = source("../src/index.scss");
 const iconButtonSource = source("../src/frontend/ui/NaIconButton.svelte");
+const navItemSource = source("../src/frontend/ui/NaNavItem.svelte");
 const zhI18nSource = source("../src/i18n/zh-CN.json");
 const enI18nSource = source("../src/i18n/en.json");
 
 test("任务属性面板的跳转操作使用统一的图标按钮", () => {
     assert.match(taskDetailSource, /<NaIconButton symbol="iconOpenWindow"/);
     assert.match(iconButtonSource, /aria-label=\{label\}/);
-    assert.match(iconButtonSource, /b3-tooltips b3-tooltips__n/);
+    assert.match(iconButtonSource, /<NaTooltip text=\{label\}/);
+    assert.match(iconButtonSource, /tooltipPosition.*"bottom"/);
     assert.doesNotMatch(iconButtonSource, /title=\{label\}/);
 });
 
@@ -38,7 +40,9 @@ test("完整任务面板极窄时侧栏收缩为带 tooltip 的图标栏", () =>
     assert.match(stylesheetSource, /@container nextaction-app \(max-width:\s*520px\)/);
     assert.match(stylesheetSource, /\.na-nav-rail\s*\{[\s\S]*?width:\s*44px/);
     assert.match(stylesheetSource, /\.na-nav-rail__label[\s\S]*display:\s*none/);
-    assert.match(stylesheetSource, /content:\s*attr\(data-tooltip\)/);
+    assert.match(navItemSource, /<NaTooltip text=\{tooltip \|\| label\}/);
+    assert.match(navRailSource, /<NaTooltip[\s\S]*?position="right"/);
+    assert.doesNotMatch(stylesheetSource, /content:\s*attr\(data-tooltip\)/);
 });
 
 test("我的一天窄模式纵向排列并保留可用的未排期卡片宽度", () => {

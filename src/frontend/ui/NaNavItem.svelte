@@ -1,5 +1,6 @@
 <script lang="ts">
     import NaIcon from "./NaIcon.svelte";
+    import NaTooltip from "./NaTooltip.svelte";
 
     export let label = "";
     export let icon = "";
@@ -10,21 +11,22 @@
     export let disabled = false;
 </script>
 
-<button
-    type="button"
-    class="na-nav-item"
-    class:na-nav-item--active={active}
-    class:na-nav-item--collapsed={collapsed}
-    {disabled}
-    aria-label={label}
-    aria-current={active ? "page" : undefined}
-    data-tooltip={tooltip || label}
-    on:click
->
-    {#if icon}<span class="na-nav-item__icon"><NaIcon symbol={icon} size={collapsed ? 17 : 16} /></span>{/if}
-    <span class="na-nav-item__label">{label}</span>
-    {#if badge !== "" && badge !== 0}<span class="na-nav-item__badge">{badge}</span>{/if}
-</button>
+<NaTooltip text={tooltip || label} position="right" followCursor={false} block>
+    <button
+        type="button"
+        class="na-nav-item"
+        class:na-nav-item--active={active}
+        class:na-nav-item--collapsed={collapsed}
+        {disabled}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        on:click
+    >
+        {#if icon}<span class="na-nav-item__icon"><NaIcon symbol={icon} size={collapsed ? 17 : 16} /></span>{/if}
+        <span class="na-nav-item__label">{label}</span>
+        {#if badge !== "" && badge !== 0}<span class="na-nav-item__badge">{badge}</span>{/if}
+    </button>
+</NaTooltip>
 
 <style lang="scss">
     .na-nav-item {

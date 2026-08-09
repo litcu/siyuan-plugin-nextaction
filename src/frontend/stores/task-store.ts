@@ -7,6 +7,7 @@ import type { FilterState } from "../utils/filter";
 import { STATUS_LIST } from "../constants";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
+import { countReviewAttentionTasks } from "../../shared/review";
 
 function deriveContexts(allTasks: TaskCacheEntry[]): string[] {
     const contextSet = new Set<string>();
@@ -61,23 +62,8 @@ function deriveProjectReminders(allTasks: TaskCacheEntry[]): TaskCacheEntry[] {
     return reminders;
 }
 
-function localDateStr(): string {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
 function deriveReviewDueCount(allTasks: TaskCacheEntry[]): number {
-    const todayStr = localDateStr();
-    let count = 0;
-    for (const t of allTasks) {
-        if (t.reviewInterval > 0 && t.reviewDate && t.reviewDate <= todayStr && t.status !== "done") {
-            count++;
-        }
-    }
-    return count;
+    return countReviewAttentionTasks(allTasks);
 }
 
 interface TaskState {
