@@ -1,4 +1,5 @@
 import { TaskCacheEntry } from "../shared/types";
+import { ATTR_DEPENDS, ATTR_PARENT, ATTR_SEQUENTIAL, ATTR_STATUS } from "../shared/constants";
 import { DEFAULT_PRIORITY_ENGINE, type PriorityEngineSettings } from "../shared/settings";
 
 // === 运行时配置（可通过 updateSettings 更新）===
@@ -208,4 +209,72 @@ export function sortTasks(tasks: TaskCacheEntry[]): TaskCacheEntry[] {
         if (bEffImp !== aEffImp) return bEffImp - aEffImp;
         return a.blockId.localeCompare(b.blockId);
     });
+}
+
+/**
+ * Compute blockIds whose `blocked` status may have changed as a side-effect
+ * of updating `blockId` with `attrs`. The kernel cache is already correct
+ * (recalcBlockedStatus updates all entries); this function determines which
+ * entries the frontend needs to re-fetch to see the updated `blocked` state
+ * without waiting for the debounced full refresh.
+ */
+export function getSequentialBroadcastIds(
+    blockId: string,
+    attrs: Record<string, string>,
+    updatedEntry: TaskCacheEntry | null,
+    previousEntry: TaskCacheEntry | null,
+    cache: Record<string, TaskCacheEntry>,
+): string[] {
+    if (!updatedEntry) return [];
+    const result: string[] = [];
+
+    // ATTR_SEQUENTIAL toggled on a project -> all children's blocked status changes.
+    if (attrs[ATTR_SEQUENTIAL] !== undefined && updatedEntry.taskType === "2") {
+        for (const childId of updatedEntry.childIds) {
+            result.push(childId);
+        }
+    }
+
+    // ATTR_STATUS changed on a child of a sequential parent -> siblings may unblock/re-block.
+    if (attrs[ATTR_STATUS] !== undefined && updatedEntry.parentId !== "") {
+        const parent = cache[updatedEntry.parentId];
+        if (parent && parent.sequential) {
+            for (const siblingId of parent.childIds) {
+                if (siblingId !== blockId) result.push(siblingId);
+            }
+        }
+    }
+
+    // ATTR_PARENT changed -> old and new sequential siblings may be affected.
+    if (attrs[ATTR_PARENT] !== undefined && previousEntry && previousEntry.parentId !== updatedEntry.parentId) {
+        if (previousEntry.parentId !== "") {
+            const oldParent = cache[previousEntry.parentId];
+            if (oldParent && oldParent.sequential) {
+                for (const siblingId of oldParent.childIds) {
+                    if (siblingId !== blockId) result.push(siblingId);
+                }
+            }
+        }
+        if (updatedEntry.parentId !== "") {
+            const newParent = cache[updatedEntry.parentId];
+            if (newParent && newParent.sequential) {
+                for (const siblingId of newParent.childIds) {
+                    if (siblingId !== blockId) result.push(siblingId);
+                }
+            }
+        }
+    }
+
+    // ATTR_DEPENDS or ATTR_STATUS changed -> tasks that depend on this task may unblock/re-block.
+    if (attrs[ATTR_DEPENDS] !== undefined || attrs[ATTR_STATUS] !== undefined) {
+        const allIds = Object.keys(cache);
+        for (let i = 0; i < allIds.length; i++) {
+            const other = cache[allIds[i]];
+            if (other.depends && other.depends.includes(blockId)) {
+                result.push(other.blockId);
+            }
+        }
+    }
+
+    return result;
 }

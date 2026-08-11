@@ -38,7 +38,7 @@ import { CacheManager } from "./cache-manager";
 import { Mutex } from "./mutex";
 import { SyncEngine } from "./sync-engine";
 import { siyuanFetch, getSiyuan, attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle, errorToRpcError } from "./utils";
-import { calculateOrder, isNextActionCandidate, sortTasks, getBlockedReason, updatePriorityConfig } from "./priority-engine";
+import { calculateOrder, isNextActionCandidate, sortTasks, getBlockedReason, updatePriorityConfig, getSequentialBroadcastIds } from "./priority-engine";
 import {
     advanceRepeatState,
     createRepeatState,
@@ -882,7 +882,7 @@ export class TaskService {
             }
 
             // Check if order-impacting fields changed
-            const orderFields = [ATTR_IMPORTANCE, ATTR_EFFORT, ATTR_PRIORITY, ATTR_DUE, ATTR_START];
+            const orderFields = [ATTR_IMPORTANCE, ATTR_EFFORT, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_STATUS];
             let needRecalcOrder = false;
             for (let i = 0; i < orderFields.length; i++) {
                 if (attrs[orderFields[i]] !== undefined) {
@@ -900,14 +900,6 @@ export class TaskService {
             if (entry.parentId !== "" && needRecalcOrder) {
                 const parentEntry = this.cacheManager.get(entry.parentId);
                 if (parentEntry && parentEntry.taskType === "2") {
-                    parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
-                }
-            }
-
-            // If status changed to done, check parent for potential NextAction eligibility
-            if (attrs[ATTR_STATUS] === "done" && entry.parentId !== "") {
-                const parentEntry = this.cacheManager.get(entry.parentId);
-                if (parentEntry) {
                     parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
                 }
             }
@@ -948,6 +940,16 @@ export class TaskService {
 
             this.cacheManager.recalcBlockedStatus();
             this.syncEngine.addPendingChange(blockId, "update");
+
+            // Broadcast entries whose blocked status changed as a side-effect of this update.
+            const broadcastEntry = this.cacheManager.get(blockId);
+            const affectedIds = getSequentialBroadcastIds(
+                blockId, attrs, broadcastEntry, previousEntry ?? null, this.cacheManager.getCache(),
+            );
+            for (let i = 0; i < affectedIds.length; i++) {
+                this.syncEngine.addPendingChange(affectedIds[i], "update");
+            }
+
             this.syncEngine.broadcastChanges();
 
             const result = this.cacheManager.get(blockId)!;
@@ -1423,6 +1425,19 @@ export class TaskService {
             this.cacheManager.set(finalEntry);
             this.cacheManager.recalcBlockedStatus();
             this.syncEngine.addPendingChange(blockId, "update");
+
+            // In a sequential parent, reordering changes which siblings are blocked.
+            if (parentId) {
+                const parentEntry = this.cacheManager.get(parentId);
+                if (parentEntry && parentEntry.sequential) {
+                    for (let i = 0; i < parentEntry.childIds.length; i++) {
+                        if (parentEntry.childIds[i] !== blockId) {
+                            this.syncEngine.addPendingChange(parentEntry.childIds[i], "update");
+                        }
+                    }
+                }
+            }
+
             this.syncEngine.broadcastChanges();
             return finalEntry;
         } catch (e: any) {
