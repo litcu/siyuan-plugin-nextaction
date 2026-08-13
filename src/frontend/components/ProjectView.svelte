@@ -425,11 +425,13 @@
 </NaViewShell>
 
 <style lang="scss">
-    .na-project-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px 0; }
+    .na-project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px 0; }
     .na-project-toolbar__completed { display: inline-flex; align-items: center; gap: 6px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); cursor: pointer; white-space: nowrap; }
     .na-project-toolbar__select { width: auto; min-width: 86px; }
     .na-project-toolbar__hint { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .na-project-workspace { display: grid; grid-template-columns: minmax(185px, 24%) minmax(0, 1fr) minmax(180px, 22%); min-height: 0; height: 100%; overflow: hidden; background: var(--b3-theme-background); }
+    :global(.na-toolbar__main):has(> .na-toolbar__actions-content) { flex-wrap: wrap; }
+    .na-toolbar__actions-content { flex-shrink: 0; }
     .na-project-workspace--focus { grid-template-columns: minmax(185px, 24%) minmax(0, 1fr); }
     .na-project-index, .na-project-risk-rail { min-width: 0; border-right: 1px solid var(--na-color-divider); background: color-mix(in srgb, var(--b3-theme-surface) 82%, var(--b3-theme-background)); }
     .na-project-risk-rail { border-right: 0; border-left: 1px solid var(--na-color-divider); }
@@ -487,6 +489,6 @@
     .na-project-plan__row { display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px solid color-mix(in srgb, var(--na-color-divider) 60%, transparent); }
     .na-project-plan__row :global(.na-task-card) { flex: 1; min-width: 0; } .na-project-plan__date { flex: 0 0 82px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: right; }
     .na-project-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 6px; color: var(--na-text-secondary); text-align: center; } .na-project-empty strong { color: var(--na-text-primary); font-size: var(--na-font-size-lg); }
-    @media (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-overview { grid-template-columns: 1fr; } }
-    @media (max-width: 620px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-toolbar { align-items: flex-start; flex-direction: column; } .na-project-board { min-width: 760px; } }
+    @container nextaction-app (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-overview { grid-template-columns: 1fr; } .na-project-toolbar__hint { display: none; } }
+    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-toolbar { align-items: flex-start; flex-direction: column; } .na-project-board { min-width: 760px; } }
 </style>
