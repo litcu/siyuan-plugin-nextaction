@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { confirm } from "siyuan";
     import type { AiFeatureId } from "../../../shared/ai";
     import NaAccordion from "../../ui/NaAccordion.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
@@ -60,7 +61,13 @@
     }
 
     function resetPrompt(id: AiFeatureId) {
-        aiPrompts = { ...aiPrompts, [id]: defaultPrompts[id] };
+        confirm(
+            i18n?.settingAiPromptReset || "Reset",
+            i18n?.settingAiPromptResetConfirm || "Restore this prompt to its default? Any custom instructions will be lost. The reset only takes effect after you click Save.",
+            () => {
+                aiPrompts = { ...aiPrompts, [id]: defaultPrompts[id] };
+            },
+        );
     }
 </script>
 

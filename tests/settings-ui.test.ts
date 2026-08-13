@@ -18,7 +18,7 @@ const primitives = read("src/frontend/ui/primitives.scss");
 test("设置页使用五个现代页面并保留外部组件契约", () => {
     assert.match(panel, /type ModernTabId = "general" \| "customFields" \| "ai" \| "mcp" \| "advanced"/);
     assert.match(panel, /export let bridge: any/);
-    assert.match(panel, /export let onSave: \(settings: PluginSettings\) => void/);
+    assert.match(panel, /export let onSave: \(settings: PluginSettings\) => void \| Promise<void>/);
     assert.match(panel, /export let onClose: \(\) => void/);
     for (const id of ["general", "customFields", "ai", "mcp", "advanced"]) {
         assert.match(panel, new RegExp(`id: "${id}"`));
@@ -33,6 +33,10 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(panel, /settingsUnsavedDesc/);
     assert.match(panel, /on:keydown\|capture=\{handleWindowKeydown\}/);
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
+    assert.match(panel, /await onSave\(result\);[\s\S]*savedSignature = JSON\.stringify\(buildSettings\(\)\);[\s\S]*draftSignature = savedSignature/);
+    assert.match(panel, /i18n\?\.save \|\| "Save"/);
+    assert.match(indexSource, /showMessage\(`\[NextAction\] \$\{i18n\.settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*\} catch/);
+    assert.doesNotMatch(indexSource, /settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*dialog\.destroy\(\);/);
     assert.match(panel, /export function requestClose\(\)/);
     assert.match(indexSource, /\.b3-dialog__scrim/);
     assert.match(indexSource, /comp\.requestClose\(\)/);
@@ -48,6 +52,20 @@ test("设置页提供带确认的全部重置并统一原生表单字体", () =>
     assert.match(panel, /na-settings-modern__reset-all/);
     assert.match(primitives, /input\.b3-text-field/);
     assert.match(primitives, /select\.b3-select/);
+});
+
+test("各分区重置和维护操作要求确认且全部重置不会嵌套确认", () => {
+    for (const name of ["Priority", "Defaults", "MyDay", "Reminder", "Mcp", "TaskCreation"]) {
+        assert.match(panel, new RegExp(`function doReset${name}\\(\\)`));
+        assert.match(panel, new RegExp(`function handleReset${name}\\(\\) \\{[\\s\\S]*?settingResetSectionConfirm[\\s\\S]*?doReset${name}\\(\\)`));
+    }
+    const resetAll = panel.match(/function handleResetAll\(\) \{([\s\S]*?)\n    \}/)?.[1] || "";
+    for (const name of ["Defaults", "TaskCreation", "MyDay", "Reminder", "Mcp", "Priority"]) {
+        assert.match(resetAll, new RegExp(`doReset${name}\\(\\)`));
+        assert.doesNotMatch(resetAll, new RegExp(`handleReset${name}\\(\\)`));
+    }
+    assert.match(panel, /function handleRebuildCache\(\) \{[\s\S]*?rebuildCacheConfirm[\s\S]*?bridge\.rebuildCache\(\)/);
+    assert.match(panel, /function handleRebuildParents\(\) \{[\s\S]*?rebuildParentsConfirm[\s\S]*?bridge\.rebuildParents\(\)/);
 });
 
 test("常规页包含任务创建、任务默认值、我的一天和提醒四个可独立恢复分区", () => {

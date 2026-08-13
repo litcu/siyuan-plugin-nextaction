@@ -991,7 +991,6 @@ export default class NextActionPlugin extends Plugin {
                             taskStore.applySettingsUpdate(settings);
                             taskStore.loadTasks();
                             showMessage(`[NextAction] ${i18n.settingsSaved || "Settings saved"}`);
-                            dialog.destroy();
                         } catch (e: any) {
                             showMessage(`[NextAction] ${formatRpcError(e, i18n)}`);
                         }

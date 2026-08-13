@@ -20,7 +20,7 @@
 
     export let bridge: any;
     export let i18n: any;
-    export let onSave: (settings: PluginSettings) => void;
+    export let onSave: (settings: PluginSettings) => void | Promise<void>;
     export let onClose: () => void;
 
     type ModernTabId = "general" | "customFields" | "ai" | "mcp" | "advanced";
@@ -301,7 +301,10 @@
                 error = formatRpcError(result._rpcError, i18n);
                 return;
             }
-            onSave(result);
+            await onSave(result);
+            current = result;
+            savedSignature = JSON.stringify(buildSettings());
+            draftSignature = savedSignature;
         } catch (e: any) {
             console.error("[NextAction] saveSettings failed:", e);
             error = formatRpcError(e, i18n);
@@ -310,41 +313,53 @@
         }
     }
 
-    async function handleRebuildCache() {
-        rebuilding = true;
-        error = "";
-        try {
-            await bridge.rebuildCache();
-            notifyInfo(i18n?.rebuildCacheSuccess || "Cache rebuilt successfully");
-        } catch (e: any) {
-            console.error("[NextAction] rebuildCache failed:", e);
-            error = formatRpcError(e, i18n);
-            notifyError(i18n?.rebuildCacheFailed || "Failed to rebuild cache");
-        } finally {
-            rebuilding = false;
-        }
+    function handleRebuildCache() {
+        confirm(
+            i18n?.rebuildCache || "Rebuild Cache",
+            i18n?.rebuildCacheConfirm || "This will reload all task data from the database. The operation runs immediately and may take a moment.",
+            async () => {
+                rebuilding = true;
+                error = "";
+                try {
+                    await bridge.rebuildCache();
+                    notifyInfo(i18n?.rebuildCacheSuccess || "Cache rebuilt successfully");
+                } catch (e: any) {
+                    console.error("[NextAction] rebuildCache failed:", e);
+                    error = formatRpcError(e, i18n);
+                    notifyError(i18n?.rebuildCacheFailed || "Failed to rebuild cache");
+                } finally {
+                    rebuilding = false;
+                }
+            },
+        );
     }
 
-    async function handleRebuildParents() {
-        rebuildingParents = true;
-        error = "";
-        try {
-            const result = await bridge.rebuildParents();
-            const fixed = result?.fixed ?? result?.count ?? 0;
-            const message = i18n?.rebuildParentsSuccess
-                ? i18n.rebuildParentsSuccess.replace("{count}", String(fixed))
-                : "Fixed " + fixed + " parent relationship(s)";
-            notifyInfo(message);
-        } catch (e: any) {
-            console.error("[NextAction] rebuildParents failed:", e);
-            error = formatRpcError(e, i18n);
-            notifyError(i18n?.rebuildParentsFailed || "Failed to fix parent relationships");
-        } finally {
-            rebuildingParents = false;
-        }
+    function handleRebuildParents() {
+        confirm(
+            i18n?.rebuildParents || "Repair parent relationships",
+            i18n?.rebuildParentsConfirm || "This will check and fix task hierarchy relationships. The operation runs immediately and modifies data.",
+            async () => {
+                rebuildingParents = true;
+                error = "";
+                try {
+                    const result = await bridge.rebuildParents();
+                    const fixed = result?.fixed ?? result?.count ?? 0;
+                    const message = i18n?.rebuildParentsSuccess
+                        ? i18n.rebuildParentsSuccess.replace("{count}", String(fixed))
+                        : "Fixed " + fixed + " parent relationship(s)";
+                    notifyInfo(message);
+                } catch (e: any) {
+                    console.error("[NextAction] rebuildParents failed:", e);
+                    error = formatRpcError(e, i18n);
+                    notifyError(i18n?.rebuildParentsFailed || "Failed to fix parent relationships");
+                } finally {
+                    rebuildingParents = false;
+                }
+            },
+        );
     }
 
-    function handleResetPriority() {
+    function doResetPriority() {
         current = { ...current, priorityEngine: { ...DEFAULT_PRIORITY_ENGINE } };
         dueWeight = DEFAULT_PRIORITY_ENGINE.dueWeight;
         startWeight = DEFAULT_PRIORITY_ENGINE.startWeight;
@@ -357,19 +372,43 @@
         startPreviewDays = DEFAULT_PRIORITY_ENGINE.startPreviewDays;
     }
 
-    function handleResetDefaults() {
+    function handleResetPriority() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetPriority(),
+        );
+    }
+
+    function doResetDefaults() {
         defaultImportance = DEFAULT_SETTINGS.defaultImportance;
         defaultEffort = DEFAULT_SETTINGS.defaultEffort;
         semanticDateParsingEnabled = DEFAULT_SETTINGS.semanticDateParsingEnabled;
     }
 
-    function handleResetMyDay() {
+    function handleResetDefaults() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetDefaults(),
+        );
+    }
+
+    function doResetMyDay() {
         myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
         myDayDefaultViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
         myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
     }
 
-    function handleResetReminder() {
+    function handleResetMyDay() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetMyDay(),
+        );
+    }
+
+    function doResetReminder() {
         reminderEnabled = DEFAULT_REMINDER_SETTINGS.enabled;
         reminderDefaultOffsets = [...DEFAULT_REMINDER_SETTINGS.defaultOffsets];
         reminderDueSound = DEFAULT_REMINDER_SETTINGS.dueSound;
@@ -377,16 +416,40 @@
         reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
     }
 
-    function handleResetMcp() {
+    function handleResetReminder() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetReminder(),
+        );
+    }
+
+    function doResetMcp() {
         mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
         mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
     }
 
-    function handleResetTaskCreation() {
+    function handleResetMcp() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetMcp(),
+        );
+    }
+
+    function doResetTaskCreation() {
         taskCreationDefaultCreateTarget = DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
         taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
         taskCreationInboxDocument = null;
         taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
+    }
+
+    function handleResetTaskCreation() {
+        confirm(
+            i18n?.settingResetSection || "Reset",
+            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            () => doResetTaskCreation(),
+        );
     }
 
     function handleResetAi() {
@@ -402,14 +465,14 @@
             i18n?.settingResetAllTitle || i18n?.settingResetAll || "Reset all settings",
             i18n?.settingResetAllConfirm || "Restore every saved setting to its default value?",
             () => {
-                handleResetDefaults();
-                handleResetTaskCreation();
-                handleResetMyDay();
-                handleResetReminder();
+                doResetDefaults();
+                doResetTaskCreation();
+                doResetMyDay();
+                doResetReminder();
                 handleResetCustomFields();
-                handleResetMcp();
+                doResetMcp();
                 handleResetAi();
-                handleResetPriority();
+                doResetPriority();
                 error = "";
             },
         );
@@ -603,7 +666,7 @@
             <div class="na-settings-modern__dirty" class:visible={isDirty}><span></span>{i18n?.settingsUnsaved || "Unsaved changes"}</div>
             <div class="na-settings-modern__footer-actions">
                 <button type="button" class="b3-button b3-button--text" on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
-                <button type="button" class="b3-button b3-button--primary" on:click={handleSave} disabled={saving || !settingsLoaded || !isDirty}>{saving ? (i18n?.loading || "…") : (i18n?.confirm || "Save")}</button>
+                <button type="button" class="b3-button b3-button--primary" on:click={handleSave} disabled={saving || !settingsLoaded || !isDirty}>{saving ? (i18n?.loading || "…") : (i18n?.save || "Save")}</button>
             </div>
         </footer>
     </main>
