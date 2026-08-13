@@ -15,10 +15,8 @@
     export let onMarkReviewed: (blockIds: string[]) => void;
 
     let reviewDueExpanded = true;
-    let overdueExpanded = true;
     $: reviewDueTasks = reviewData.reviewDueTasks;
-    $: overdueTasks = reviewData.overdueTasks;
-    $: totalDue = new Set([...reviewDueTasks, ...overdueTasks].map(task => task.blockId)).size;
+    $: totalDue = reviewDueTasks.length;
 </script>
 
 <div class="na-review-due">
@@ -27,11 +25,6 @@
             <NaAccordion title={i18n?.reviewDue || "Due for Review"} icon="iconCheck" count={reviewDueTasks.length} open={reviewDueExpanded} on:openChange={(event) => reviewDueExpanded = event.detail}>
                 <svelte:fragment slot="action"><NaButton size="sm" variant="text" on:click={() => onMarkReviewed(reviewDueTasks.map(task => task.blockId))}>{i18n?.markAllReviewed || "Mark all reviewed"}</NaButton></svelte:fragment>
                 <div class="na-review-due__body">{#each reviewDueTasks as task (task.blockId)}<div class="na-review-due__task-row"><TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} /><NaButton size="sm" variant="text" icon="iconSelect" on:click={() => onMarkReviewed([task.blockId])}>{i18n?.markReviewed || "Reviewed"}</NaButton></div>{/each}</div>
-            </NaAccordion>
-        {/if}
-        {#if overdueTasks.length > 0}
-            <NaAccordion title={i18n?.overdueTasks || "Overdue Tasks"} icon="iconClock" count={overdueTasks.length} tone="danger" open={overdueExpanded} on:openChange={(event) => overdueExpanded = event.detail}>
-                <div class="na-review-due__body">{#each overdueTasks as task (task.blockId)}<TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} />{/each}</div>
             </NaAccordion>
         {/if}
     {/if}

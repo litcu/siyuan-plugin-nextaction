@@ -36,7 +36,7 @@
 <div class="na-review-guide">
     {#each checklistItems as item (item.key)}
         {@const tasks = getTasks(item.key)}
-        <NaAccordion title={item.label} description={item.hint} icon={item.icon} count={tasks.length} open={expandedKey === item.key} variant="plain" on:openChange={(event) => expandedKey = event.detail ? item.key : null}>
+        <NaAccordion title={item.label} description={item.hint} icon={item.icon} count={tasks.length} tone={item.key === "overdue" && tasks.length > 0 ? "danger" : "default"} open={expandedKey === item.key} variant="plain" on:openChange={(event) => expandedKey = event.detail ? item.key : null}>
             {#if tasks.length === 0}<NaEmpty text={i18n?.noTasks || "No tasks"} />{:else}<div class="na-review-guide__tasks">{#each tasks as task (task.blockId)}<TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} />{/each}</div>{/if}
         </NaAccordion>
     {/each}
