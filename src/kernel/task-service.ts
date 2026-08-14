@@ -919,6 +919,14 @@ export class TaskService {
                 }
 
                 await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs: repeatAttrs });
+                if (!advanced.ended && advanced.state.status === "active") {
+                    try {
+                        await this.myDayManager.clearTaskCompleted(blockId);
+                    } catch (e: any) {
+                        const siyuan = getSiyuan();
+                        siyuan?.logger?.warn(`updateTask: failed to clear My Day completion after repeat advancement: ${e.message || e}`);
+                    }
+                }
                 const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
                 const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
                 this.cacheWithRecalculatedOrder(finalEntry);
@@ -1093,9 +1101,9 @@ export class TaskService {
             }
             await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
             try {
-                await this.myDayManager.removeTask(blockId);
+                await this.myDayManager.clearTaskCompleted(blockId);
             } catch (e: any) {
-                getSiyuan()?.logger?.warn(`skipRepeatOccurrence: failed to remove My Day entry: ${e.message || e}`);
+                getSiyuan()?.logger?.warn(`skipRepeatOccurrence: failed to clear My Day completion: ${e.message || e}`);
             }
 
             const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
@@ -1149,6 +1157,14 @@ export class TaskService {
                 if (nextState.currentStart) attrs[ATTR_START] = nextState.currentStart;
             }
             await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+            if (!paused && entry.status === "done") {
+                try {
+                    await this.myDayManager.clearTaskCompleted(blockId);
+                } catch (e: any) {
+                    const siyuan = getSiyuan();
+                    siyuan?.logger?.warn(`setRepeatPaused: failed to clear My Day completion: ${e.message || e}`);
+                }
+            }
 
             const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
             const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);

@@ -32,7 +32,7 @@ test("内核 RPC 与前端桥接暴露三项系列操作", () => {
     }
 });
 
-test("完成推进保留完成时间，并广播重开后的最终状态", () => {
+test("完成推进清除我的一天完成状态，并广播重开后的最终状态", () => {
     const section = serviceSource.slice(
         serviceSource.indexOf("async updateTask("),
         serviceSource.indexOf("async setRepeatRule("),
@@ -40,15 +40,17 @@ test("完成推进保留完成时间，并广播重开后的最终状态", () =>
     assert.match(section, /\[ATTR_COMPLETED\]: newCompleted/);
     assert.match(section, /advanceRepeatState\([\s\S]*"complete"\)/);
     assert.match(section, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
+    assert.match(section, /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/);
     assert.match(section, /cacheWithRecalculatedOrder\(finalEntry\)/);
     assert.match(section, /syncEngine\.broadcastChanges\(\)/);
 });
 
-test("跳过只推进系列状态，不写完成历史，并移出我的一天", () => {
+test("跳过只推进系列状态，不写完成历史，并保留在我的一天", () => {
     const section = methodSection("skipRepeatOccurrence", "setRepeatPaused");
     assert.match(section, /advanceRepeatState\([\s\S]*"skip"\)/);
     assert.doesNotMatch(section, /ATTR_COMPLETED/);
-    assert.match(section, /myDayManager\.removeTask\(blockId\)/);
+    assert.match(section, /myDayManager\.clearTaskCompleted\(blockId\)/);
+    assert.doesNotMatch(section, /myDayManager\.removeTask\(blockId\)/);
     assert.match(section, /cacheWithRecalculatedOrder\(finalEntry\)/);
     assert.match(section, /syncEngine\.broadcastChanges\(\)/);
 });
@@ -58,5 +60,6 @@ test("暂停恢复写回状态，恢复已完成任务时重开同一块", () =>
     assert.match(section, /status:\s*paused\s*\?\s*"paused"\s*:\s*"active"/);
     assert.match(section, /!paused && entry\.status === "done"/);
     assert.match(section, /attrs\[ATTR_STATUS\] = "todo"/);
+    assert.match(section, /!paused && entry\.status === "done"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/);
     assert.match(section, /syncEngine\.broadcastChanges\(\)/);
 });

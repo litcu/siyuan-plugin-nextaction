@@ -150,6 +150,14 @@ export class MyDayManager {
             this.state = savedState;
             throw e;
         }
+        try {
+            await this.siyuan.rpc.broadcast("myDayChanged", {
+                ...this.state,
+                tasks: [...this.state.tasks],
+            });
+        } catch (e: any) {
+            this.siyuan?.logger?.warn?.(`MyDayManager: failed to broadcast removal: ${e.message || e}`);
+        }
         return { ...this.state, tasks: [...this.state.tasks] };
     }
 
