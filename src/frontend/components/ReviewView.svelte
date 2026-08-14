@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import { runAiReview } from "../ai/ai-feature-service";
     import type { KernelBridge } from "../kernel-bridge";
     import type { TaskCacheEntry, ReviewData } from "../../shared/types";
@@ -21,6 +21,15 @@
     let reviewData: ReviewData | null = null;
     let loading = false;
     let completing = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    $: if ($taskStore.allTasks) {
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            loadReviewData();
+        }, 300);
+    }
 
     function formatLastReview(value: string): string {
         if (!value) return i18n?.reviewNeverCompleted || "No checklist review recorded";
@@ -46,6 +55,10 @@
         try {
             const updatedTasks = await bridge.markTaskReviewed(blockIds);
             for (const task of updatedTasks) taskStore.applyUpdate(task);
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+                refreshTimer = null;
+            }
             await loadReviewData();
         } catch (e: any) {
             console.error("[NextAction] markTaskReviewed failed:", e);
@@ -65,7 +78,18 @@
     }
 
     onMount(() => {
+        if (refreshTimer) {
+            clearTimeout(refreshTimer);
+            refreshTimer = null;
+        }
         loadReviewData();
+    });
+
+    onDestroy(() => {
+        if (refreshTimer) {
+            clearTimeout(refreshTimer);
+            refreshTimer = null;
+        }
     });
 </script>
 
