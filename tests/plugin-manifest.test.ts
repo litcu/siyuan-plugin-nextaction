@@ -12,3 +12,7 @@ test("插件清单声明支持桌面端与 Web 前端", () => {
         "browser-mobile",
     ]);
 });
+
+test("插件清单要求提供 Agent capability API 的思源版本", () => {
+    assert.equal(manifest.minAppVersion, "3.8.0");
+});

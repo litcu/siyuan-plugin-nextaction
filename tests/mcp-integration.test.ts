@@ -15,10 +15,13 @@ const aiSettingsPageSource = readFileSync(
     "utf8",
 );
 
-test("MCP 工具通过思源注册并保留插件来源和完整名称", () => {
-    assert.match(managerSource, /mcpApi\.registerTool/);
+test("MCP 工具通过思源 Agent capability 注册并保留插件来源和完整名称", () => {
+    assert.match(managerSource, /agentApi\.registerCapability/);
+    assert.match(managerSource, /agentApi\.unregisterCapability/);
+    assert.match(managerSource, /effects:\s*getMcpCapabilityEffects/);
     assert.match(managerSource, /source:\s*"plugin"/);
-    assert.match(managerSource, /plugin__\$\{plugin\}__\$\{tool\}/);
+    assert.match(managerSource, /fullName:\s*result\.name/);
+    assert.doesNotMatch(managerSource, /\.mcp\?\.registerTool|\.registerTool\(|\.unregisterTool\(/);
     assert.match(managerSource, /\[NextAction Plugin\]/);
 });
 
@@ -61,6 +64,7 @@ test("通用任务更新支持状态、重复规则、类型和标题", () => {
     assert.match(managerSource, /taskService\.updateTaskTitle/);
     assert.match(taskServiceSource, /\/api\/filetree\/renameDocByID/);
     assert.match(taskServiceSource, /\/api\/block\/updateBlock/);
+    assert.match(taskServiceSource, /getBlockType\(blockId, true\)/);
 });
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {

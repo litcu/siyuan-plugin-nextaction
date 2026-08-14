@@ -51,6 +51,17 @@ export const WRITE_MCP_TOOL_NAMES = [
 
 export type McpToolName = typeof READ_MCP_TOOL_NAMES[number] | typeof WRITE_MCP_TOOL_NAMES[number];
 
+export interface McpCapabilityEffects {
+    localRead: true;
+    localWrite?: true;
+}
+
+export function getMcpCapabilityEffects(name: McpToolName): McpCapabilityEffects {
+    return (WRITE_MCP_TOOL_NAMES as readonly string[]).includes(name)
+        ? { localRead: true, localWrite: true }
+        : { localRead: true };
+}
+
 export function getDesiredMcpToolNames(enabled: boolean, allowWrite: boolean): McpToolName[] {
     if (!enabled) return [];
     return allowWrite

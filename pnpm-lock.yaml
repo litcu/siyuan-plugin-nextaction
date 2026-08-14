@@ -31,8 +31,8 @@ importers:
         specifier: ^1
         version: 1.101.0
       siyuan:
-        specifier: 1.2.2
-        version: 1.2.2
+        specifier: 1.2.4
+        version: 1.2.4
       svelte:
         specifier: ^4
         version: 4.2.20
@@ -1657,8 +1657,8 @@ packages:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
 
-  siyuan@1.2.2:
-    resolution: {integrity: sha512-2Y/0rfmaXj5PKD8z2Mm/55wlAYbSdNlQrmYZWV22+2frHJEPujbqrEJWZSbl2DCGZEprjP4ByvcTt8QqEsSYjQ==}
+  siyuan@1.2.4:
+    resolution: {integrity: sha512-L1QZcFp2zZxX7Qsjvmj/pqim1vBw9iEDeilEht51zxLf21csdYsuUV5U5NjUYfI/+1PUGeS/uJZGYwOwkfBHXw==}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -3446,7 +3446,7 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  siyuan@1.2.2:
+  siyuan@1.2.4:
     dependencies:
       '@dop251/types-goja_nodejs-buffer': 0.0.0-20260212111938-1f56ff5bcf14
       '@dop251/types-goja_nodejs-global': 0.0.0-20260212111938-1f56ff5bcf14

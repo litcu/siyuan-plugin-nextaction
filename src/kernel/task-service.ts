@@ -138,11 +138,17 @@ export class TaskService {
         }
     }
 
-    private async getBlockType(blockId: string): Promise<string> {
-        const rows: Array<{ type?: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "' LIMIT 1",
-        });
-        return rows?.[0]?.type || "";
+    private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
+        const attempts = waitForIndex ? 20 : 1;
+        for (let attempt = 0; attempt < attempts; attempt++) {
+            const rows: Array<{ type?: string }> = await siyuanFetch("/api/query/sql", {
+                stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "' LIMIT 1",
+            });
+            const blockType = rows?.[0]?.type || "";
+            if (blockType || attempt === attempts - 1) return blockType;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return "";
     }
 
     private assertProjectBlockType(taskType: string, blockType: string): void {
@@ -989,7 +995,9 @@ export class TaskService {
             err.code = RPC_ERROR_TASK_NOT_FOUND;
             throw err;
         }
-        const blockType = await this.getBlockType(blockId);
+        // MCP may rename a task immediately after create_tasks returns, before
+        // SiYuan's asynchronous SQL index exposes the newly inserted block.
+        const blockType = await this.getBlockType(blockId, true);
         if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
             const err: any = new Error("Only paragraph, heading, or document tasks can be renamed");
             err.code = RPC_ERROR_INVALID_PARAMS;

@@ -14,6 +14,7 @@ import {
     extractInsertedBlockMeta,
     extractInsertedBlockId,
     searchTasksForMcp,
+    getMcpCapabilityEffects,
     getDesiredMcpToolNames,
     taskToMcpDto,
 } from "../src/kernel/mcp-utils.ts";
@@ -75,6 +76,8 @@ test("MCP 工具清单稳定区分只读和写入工具", () => {
     assert.deepEqual(getDesiredMcpToolNames(false, false), []);
     assert.deepEqual(getDesiredMcpToolNames(true, false), READ_MCP_TOOL_NAMES);
     assert.deepEqual(getDesiredMcpToolNames(true, true), [...READ_MCP_TOOL_NAMES, ...WRITE_MCP_TOOL_NAMES]);
+    assert.deepEqual(getMcpCapabilityEffects("get_tasks"), { localRead: true });
+    assert.deepEqual(getMcpCapabilityEffects("update_tasks"), { localRead: true, localWrite: true });
 });
 
 test("任务 DTO 将内部字符串转换为 MCP 友好结构", () => {

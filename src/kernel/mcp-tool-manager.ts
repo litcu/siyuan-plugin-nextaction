@@ -23,6 +23,7 @@ import {
     extractDocumentIdFromPath,
     extractInsertedBlockMeta,
     type InsertedBlockMeta,
+    getMcpCapabilityEffects,
     searchTasksForMcp,
     getDesiredMcpToolNames,
     normalizeMcpContext,
@@ -105,7 +106,7 @@ export class McpToolManager {
     }
 
     isSupported(): boolean {
-        return !!(this.siyuan as any).mcp?.registerTool;
+        return typeof this.siyuan.agent?.registerCapability === "function";
     }
 
     getStatus(): McpStatus {
@@ -264,9 +265,9 @@ export class McpToolManager {
     async reconcile(settings: PluginSettings): Promise<void> {
         this.settings = settings;
         this.lastError = "";
-        const mcpApi = (this.siyuan as any).mcp;
+        const agentApi = this.siyuan.agent;
         if (!this.isSupported()) {
-            this.lastError = "siyuan.mcp is unavailable in this SiYuan version";
+            this.lastError = "siyuan.agent is unavailable in this SiYuan version";
             return;
         }
 
@@ -278,7 +279,7 @@ export class McpToolManager {
         for (const name of Array.from(this.registered.keys())) {
             if (!desired.has(name)) {
                 try {
-                    await mcpApi.unregisterTool(name);
+                    await agentApi.unregisterCapability(name);
                     this.registered.delete(name);
                 } catch (error: any) {
                     this.lastError = String(error?.message || error);
@@ -293,19 +294,20 @@ export class McpToolManager {
             const definition = definitions[name as McpToolName];
             if (!definition) continue;
             try {
-                const result = await mcpApi.registerTool(
+                const result = await agentApi.registerCapability(
                     name,
                     {
                         title: definition.title,
                         description: definition.description,
                         inputSchema: definition.inputSchema,
                         outputSchema: { type: "object" },
+                        effects: getMcpCapabilityEffects(name as McpToolName),
                     },
                     this.wrapHandler(name, definition.handler),
                 );
                 this.registered.set(name, {
                     localName: name,
-                    fullName: result?.name || this.expectedFullName(name),
+                    fullName: result.name,
                     title: definition.title,
                     source: "plugin",
                     write: (WRITE_MCP_TOOL_NAMES as readonly string[]).includes(name),
@@ -319,21 +321,15 @@ export class McpToolManager {
 
     async unload(): Promise<void> {
         if (!this.isSupported()) return;
-        const mcpApi = (this.siyuan as any).mcp;
+        const agentApi = this.siyuan.agent;
         for (const name of Array.from(this.registered.keys())) {
             try {
-                await mcpApi.unregisterTool(name);
+                await agentApi.unregisterCapability(name);
             } catch (error: any) {
                 await this.siyuan.logger.warn(`MCP tool unregister failed [${name}]: ${String(error?.message || error)}`);
             }
         }
         this.registered.clear();
-    }
-
-    private expectedFullName(localName: string): string {
-        const plugin = this.siyuan.plugin.name.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
-        const tool = localName.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
-        return `plugin__${plugin}__${tool}`;
     }
 
     private wrapHandler(name: string, handler: ToolDefinition["handler"]) {
