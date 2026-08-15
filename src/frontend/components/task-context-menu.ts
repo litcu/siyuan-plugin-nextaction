@@ -109,8 +109,8 @@ export function showTaskContextMenu(
         if (repeatStatus !== "ended") {
             menu.addItem({
                 label: repeatStatus === "paused"
-                    ? (i18n?.repeatResume || "恢复重复")
-                    : (i18n?.repeatPause || "暂停重复"),
+                    ? (i18n?.repeatResume || "Resume")
+                    : (i18n?.repeatPause || "Pause"),
                 click: async () => {
                     try {
                         const updated = await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused");
@@ -139,7 +139,7 @@ export function showTaskContextMenu(
 
     menu.addItem({
         icon: "iconSparkles",
-        label: isProject ? (i18n?.aiDecomposeProject || "AI 拆解项目") : (i18n?.aiDecomposeTask || "AI 拆解任务"),
+        label: isProject ? (i18n?.aiDecomposeProject || "Break down project with AI") : (i18n?.aiDecomposeTask || "Break down with AI"),
         click: async () => runAiDecomposeTask(task),
     });
 

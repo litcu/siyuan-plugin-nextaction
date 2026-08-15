@@ -27,9 +27,9 @@
 
 <div class="nextaction na-ai-review">
     <div class="na-ai-review__intro">
-        <span class="na-ai-review__eyebrow">NEXTACTION / REVIEW</span>
+        <span class="na-ai-review__eyebrow">{i18n?.aiReviewEyebrow || "NEXTACTION / REVIEW"}</span>
         <h3>{proposal.review?.summary || proposal.summary}</h3>
-        <p>{i18n?.aiReviewReadOnly || "这是只读建议，不会自动修改任务。"}</p>
+        <p>{i18n?.aiReviewReadOnly || "This is a read-only review; tasks will not be modified automatically."}</p>
     </div>
     <div class="na-ai-review__content">
         <div class="na-ai-review__groups">
@@ -69,7 +69,7 @@
         {/if}
     </div>
     <div class="na-ai-review__footer">
-        <span class="na-ai-review__footer-hint">{i18n?.aiReviewReadOnly || "只读建议"}</span>
+        <span class="na-ai-review__footer-hint">{i18n?.aiReviewReadOnly || "This is a read-only review; tasks will not be modified automatically."}</span>
         <button class="na-button na-button--primary" on:click={() => dialog.destroy()}>{i18n?.done || "完成"}</button>
     </div>
 </div>

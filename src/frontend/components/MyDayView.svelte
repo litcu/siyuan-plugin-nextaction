@@ -101,7 +101,7 @@
                 <NaMetricStrip items={summaryItems} />
                 <div class="na-toolbar__actions-content">
                     <NaButton size="sm" icon="iconSparkles" on:click={runAiPlanMyDay}>{i18n?.aiPlanMyDay || "自动规划"}</NaButton>
-                    <NaSegmentControl size="sm" options={[{ value: "timeline", label: i18n?.timelineMode || "Timeline" }, { value: "list", label: i18n?.listMode || "List" }]} value={viewMode} label={i18n?.myDayDefaultViewMode || "View mode"} on:change={handleViewModeChange} />
+                    <NaSegmentControl size="sm" options={[{ value: "timeline", label: i18n?.timelineMode || "Timeline" }, { value: "list", label: i18n?.listMode || "List" }]} value={viewMode} label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"} on:change={handleViewModeChange} />
                 </div>
             </NaToolbar>
             {#if viewMode === "list"}<NaTaskFilterBar

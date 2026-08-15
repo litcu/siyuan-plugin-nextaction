@@ -51,31 +51,31 @@
             // Overdue
             const overdueMin = Math.round(Math.abs(diffMs) / 60000);
             if (overdueMin < 60) {
-                const template = i18n?.reminderOverdueMinutes || "已逾期{n}分钟";
+                const template = i18n?.reminderOverdueMinutes || "{n}min overdue";
                 return template.replace("{n}", String(overdueMin));
             }
             const overdueH = Math.round(overdueMin / 60);
             if (overdueH < 24) {
-                const template = i18n?.reminderOverdueHours || "已逾期{n}小时";
+                const template = i18n?.reminderOverdueHours || "{n}h overdue";
                 return template.replace("{n}", String(overdueH));
             }
             const overdueD = Math.round(overdueH / 24);
-            const template = i18n?.reminderOverdueDays || "已逾期{n}天";
+            const template = i18n?.reminderOverdueDays || "{n}d overdue";
             return template.replace("{n}", String(overdueD));
         }
         // Still before due
         const remainMin = Math.round(diffMs / 60000);
         if (remainMin < 60) {
-            const template = i18n?.reminderDueInMinutes || "{n}分钟后到期";
+            const template = i18n?.reminderDueInMinutes || "Due in {n}min";
             return template.replace("{n}", String(remainMin));
         }
         const remainH = Math.round(remainMin / 60);
         if (remainH < 24) {
-            const template = i18n?.reminderDueIn || "{n}小时后到期";
+            const template = i18n?.reminderDueIn || "Due in {n}h";
             return template.replace("{n}", String(remainH));
         }
         const remainD = Math.round(remainH / 24);
-        const template = i18n?.reminderDueInDays || "{n}天后到期";
+        const template = i18n?.reminderDueInDays || "Due in {n}d";
         return template.replace("{n}", String(remainD));
     }
 </script>
@@ -95,9 +95,7 @@
         {/each}
         {#if overflowCount > 0}
             <div class="na-notification-host__overflow">
-                {i18n?.reminderNoPending
-                    ? `${overflowCount}+`
-                    : `还有 ${overflowCount} 条提醒`}
+                {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
             </div>
         {/if}
         <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>

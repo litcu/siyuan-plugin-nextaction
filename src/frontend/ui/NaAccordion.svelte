@@ -10,7 +10,8 @@
     export let variant: "framed" | "plain" = "framed";
     export let open = false;
     export let modified = false;
-    export let modifiedLabel = "Modified";
+    export let modifiedLabel = "";
+    export let i18n: any = null;
     const dispatch = createEventDispatcher<{ openChange: boolean }>();
 
     function toggle() {
@@ -28,7 +29,7 @@
                 <strong>{title}</strong>
                 {#if description}<span>{description}</span>{/if}
             </span>
-            {#if modified}<span class="na-accordion__modified">{modifiedLabel}</span>{/if}
+            {#if modified}<span class="na-accordion__modified">{i18n?.modifiedLabel || modifiedLabel || "Modified"}</span>{/if}
             {#if count !== undefined}<span class="na-accordion__count">{count}</span>{/if}
         </button>
         {#if $$slots.action}<div class="na-accordion__action"><slot name="action" /></div>{/if}

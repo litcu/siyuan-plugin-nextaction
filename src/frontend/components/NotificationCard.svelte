@@ -17,7 +17,7 @@
             : type === "review"
             ? (i18n?.reminderReview || "回顾提醒")
             : type === "absolute"
-            ? (i18n?.reminderTypeAbsolute || "固定提醒")
+            ? (i18n?.reminderTypeAbsolute || "Fixed Time")
             : (i18n?.reminderSummaryTitle || "任务概览");
     $: dismissTitle = i18n?.reminderDismiss || "已读";
 

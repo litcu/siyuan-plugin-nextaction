@@ -87,7 +87,7 @@
 
 <div class="nextaction na-ai-proposal">
     <div class="na-ai-proposal__intro">
-        <div class="na-ai-proposal__eyebrow"><span class="na-ai-proposal__eyebrow-dot"></span>AI 建议 · 任务提取</div>
+        <div class="na-ai-proposal__eyebrow"><span class="na-ai-proposal__eyebrow-dot"></span>{i18n?.aiProposalEyebrow || "AI Proposal · Task Extraction"}</div>
         <h3 class="na-ai-proposal__summary">{proposal.summary}</h3>
         <div class="na-ai-proposal__intro-meta">
             {(i18n?.aiDetectedItems || "Detected {count} items").replace("{count}", String(proposalItems.length))}
@@ -120,7 +120,7 @@
                     <input type="checkbox" checked={selected.has(index)} on:change={() => toggle(index)} />
                     <span class="na-ai-proposal__row-copy">
                         <strong>{item.title}</strong>
-                        <small>{item.reason || (item.kind === "project" ? "项目" : "任务")}</small>
+                        <small>{item.reason || (item.kind === "project" ? (i18n?.aiProposalKindProject || "Project") : (i18n?.aiProposalKindTask || "Task"))}</small>
                     </span>
                     {#if item.due}<NaBadge text={item.due} />{/if}
                     {#if item.priority}<NaBadge text={item.priority} />{/if}

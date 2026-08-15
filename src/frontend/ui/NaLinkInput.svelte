@@ -2,9 +2,10 @@
     import { createEventDispatcher } from "svelte";
 
     export let value = "";
-    export let placeholder = "URL";
+    export let placeholder = "";
     export let disabled = false;
-    export let openLabel = "Open link";
+    export let openLabel = "";
+    export let i18n: any = null;
 
     const dispatch = createEventDispatcher<{
         input: { value: string };
@@ -13,6 +14,8 @@
 
     $: normalizedValue = value.trim();
     $: canOpen = isSupportedLink(normalizedValue);
+    $: resolvedPlaceholder = placeholder || i18n?.urlPlaceholder || "URL";
+    $: resolvedOpenLabel = openLabel || i18n?.openLink || "Open link";
 
     function isSupportedLink(raw: string): boolean {
         if (!raw) return false;
@@ -40,7 +43,7 @@
         class="na-link-input__control"
         type="url"
         {value}
-        {placeholder}
+        placeholder={resolvedPlaceholder}
         {disabled}
         on:input={handleInput}
     />
@@ -48,7 +51,7 @@
         class="na-link-input__open b3-tooltips b3-tooltips__n"
         type="button"
         disabled={!canOpen || disabled}
-        aria-label={openLabel}
+        aria-label={resolvedOpenLabel}
         on:click={handleOpen}
     >
         <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

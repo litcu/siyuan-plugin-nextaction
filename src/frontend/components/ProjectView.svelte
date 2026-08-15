@@ -196,7 +196,7 @@
             ]} />
             <div class="na-toolbar__actions-content">
                 <NaButton size="sm" icon="iconAdd" disabled={!selectedSummary} on:click={() => selectedSummary && onCreateChild?.(selectedSummary.project)}>{i18n?.createChildTask || "Create child task"}</NaButton>
-                <NaButton size="sm" icon="iconSparkles" disabled={!selectedSummary} on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}>{i18n?.aiDecomposeProject || "AI 拆解项目"}</NaButton>
+                <NaButton size="sm" icon="iconSparkles" disabled={!selectedSummary} on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}>{i18n?.aiDecomposeProject || "Break down project with AI"}</NaButton>
             </div>
         </NaToolbar>
         <div class="na-project-toolbar">

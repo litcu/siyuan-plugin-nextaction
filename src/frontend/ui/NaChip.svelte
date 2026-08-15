@@ -3,6 +3,7 @@
   export let color: string | undefined = undefined;
   export let onClose: (() => void) | undefined = undefined;
   export let ellipsis: boolean = true;
+  export let i18n: any = null;
 </script>
 
 <div
@@ -13,7 +14,7 @@
 >
   <span class="na-chip__label">{label}</span>
   {#if onClose}
-    <button class="na-chip__close" on:click={onClose} aria-label="Remove">
+    <button class="na-chip__close" on:click={onClose} aria-label={i18n?.removeLabel || "Remove"}>
       <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <line x1="4" y1="4" x2="12" y2="12" />
         <line x1="12" y1="4" x2="4" y2="12" />

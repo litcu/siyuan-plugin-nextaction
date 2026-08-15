@@ -106,6 +106,7 @@
     <NaLinkInput
         {value}
         {placeholder}
+        {i18n}
         openLabel={i18n?.customFieldOpenLink || "Open link"}
         on:input={(event) => emit(event.detail.value)}
         on:open={(event) => dispatch("open", { value: event.detail.value })}

@@ -147,7 +147,7 @@
     $: isProject = taskType === "2";
     $: aiDecomposeLabel = isProject
         ? (i18n?.aiDecomposeProject || "Break down project with AI")
-        : (i18n?.aiDecomposeTask || "Break down task with AI");
+        : (i18n?.aiDecomposeTask || "Break down with AI");
     $: removeLabel = isProject
         ? (i18n?.removeProject || "Remove project")
         : (i18n?.removeTask || "Remove task");
@@ -640,7 +640,7 @@
                 {#each STATUS_LIST as item}<option value={item}>{i18n?.[toI18nKey("status", item)] || item}</option>{/each}
             </select>
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.taskType || i18n?.type || "Type"}>
+        <NaPropertyRow label={i18n?.taskType || "Item type"}>
             <NaSegmentControl options={taskTypeOptions} bind:value={taskType} label={i18n?.taskType || "Task type"} on:change={handleChange} />
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.priority || "Priority"}>

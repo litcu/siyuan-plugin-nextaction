@@ -127,7 +127,7 @@
                 { value: "list", label: i18n?.listMode || "列表" },
             ]}
             value={viewMode}
-            label={i18n?.myDayDefaultViewMode || "View mode"}
+            label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
                     on:change={handleViewModeChange}
                 /></svelte:fragment>
             </NaToolbar>

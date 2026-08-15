@@ -15,7 +15,7 @@
 
     function getTypeLabel(type: "due" | "review" | "absolute" | "summary"): string {
         if (type === "due") return i18n?.reminderDue || "截止提醒";
-        if (type === "absolute") return i18n?.reminderTypeAbsolute || "固定提醒";
+        if (type === "absolute") return i18n?.reminderTypeAbsolute || "Fixed Time";
         if (type === "summary") return i18n?.reminderSummaryTitle || "任务概览";
         return i18n?.reminderReview || "回顾提醒";
     }
@@ -88,7 +88,7 @@
                         <span class="na-reminder__desc">{getDescription(entry)}</span>
                         <span class="na-reminder__time">{formatTriggerTime(entry.triggerTime)}</span>
                     </div>
-                    <NaIconButton symbol="iconClose" label={i18n?.dismiss || "Dismiss"} compact on:click={() => handleDismiss(entry)} />
+                    <NaIconButton symbol="iconClose" label={i18n?.reminderDismiss || "Dismiss"} compact on:click={() => handleDismiss(entry)} />
                 </div>
             {/each}
         </div>

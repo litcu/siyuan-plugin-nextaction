@@ -26,8 +26,8 @@ class AiRawResponseError extends Error {
     readonly raw: string;
     readonly details: string;
 
-    constructor(raw: string, details = "") {
-        super("AI 返回内容无法使用");
+    constructor(message: string, raw: string, details = "") {
+        super(message);
         this.name = "AiRawResponseError";
         this.raw = raw;
         this.details = details;
@@ -329,7 +329,7 @@ ${outputExample}
     };
 }
 
-async function requestProposal(feature: AiFeatureId, ids: string[], context: unknown): Promise<AiProposal> {
+async function requestProposal(feature: AiFeatureId, ids: string[], context: unknown, i18n: any): Promise<AiProposal> {
     let lastRaw = "";
     let lastErrors: string[] = [];
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -354,7 +354,7 @@ async function requestProposal(feature: AiFeatureId, ids: string[], context: unk
         if (!validation.errors.length) return validation.proposal;
         lastErrors = validation.errors;
     }
-    throw new AiRawResponseError(lastRaw, lastErrors.join("；"));
+    throw new AiRawResponseError(i18n?.errAiRawResponse || "AI response cannot be used", lastRaw, lastErrors.join("；"));
 }
 
 async function openComponent(title: string, loader: () => Promise<any>, props: Record<string, unknown>): Promise<void> {
@@ -372,7 +372,8 @@ async function openComponent(title: string, loader: () => Promise<any>, props: R
     const hostElement = dialog.element.querySelector(".na-ai-dialog-host");
     if (!hostElement) {
         dialog.destroy();
-        throw new Error("AI 结果窗口无法打开，请重新加载插件后再试");
+        const i18n = props.i18n as any;
+        throw new Error(i18n?.errAiDialogHost || "AI result window cannot be opened. Reload the plugin and try again.");
     }
     const module = await loader();
     const Component = module.default;
@@ -388,7 +389,7 @@ export async function runAiExtractTasks(blockIds: string[]): Promise<void> {
             sourceBlockIds: blockIds,
             selectedBlockIds: blockIds,
             currentDocumentId: host?.getCurrentDocumentId?.(),
-        });
+        }, i18n);
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         await openComponent(i18n?.aiExtractTasks || "AI 提取任务", () => import("../components/AiProposalDialog.svelte"), {
             proposal,
@@ -421,12 +422,12 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
             currentTaskChildren: children,
             currentTaskParent,
             currentTaskBlockWithParent: { task: currentTask, parent: currentTaskParent || null },
-        });
+        }, i18n);
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         if (proposal.tasks) proposal.tasks = proposal.tasks.map(item => ({ ...item, parentId: item.parentId ?? task.blockId }));
         const dialogTitle = task.taskType === "2"
-            ? (i18n?.aiDecomposeProject || "AI 拆解项目")
-            : (i18n?.aiDecomposeTask || "AI 拆解任务");
+            ? (i18n?.aiDecomposeProject || "Break down project with AI")
+            : (i18n?.aiDecomposeTask || "Break down with AI");
         await openComponent(dialogTitle, () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,
@@ -460,7 +461,7 @@ export async function runAiPlanMyDay(): Promise<void> {
             .filter(task => !existing.has(task.blockId) && task.status !== "done" && task.status !== "someday" && !task.blocked)
             .slice(0, MAX_MY_DAY_CANDIDATES)
             .map(taskSnapshot);
-        const proposal = await requestProposal("planMyDay", [], { existingMyDay, myDay: existingMyDay, myDayTaskIds: [...existing], candidates, nextaction: candidates });
+        const proposal = await requestProposal("planMyDay", [], { existingMyDay, myDay: existingMyDay, myDayTaskIds: [...existing], candidates, nextaction: candidates }, i18n);
         await openComponent(i18n?.aiPlanMyDay || "自动规划我的一天", () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,
@@ -480,7 +481,7 @@ export async function runAiReview(): Promise<void> {
     try {
         const review = await bridge.getReviewData();
         const reviewContext = buildReviewContext(review);
-        const proposal = completeReviewProposal(await requestProposal("review", [], reviewContext), reviewContext, i18n);
+        const proposal = completeReviewProposal(await requestProposal("review", [], reviewContext, i18n), reviewContext, i18n);
         const reviewTaskMap = new Map<string, TaskCacheEntry>();
         for (const task of [
             ...review.overdueTasks,

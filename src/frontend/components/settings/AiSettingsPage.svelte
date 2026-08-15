@@ -36,7 +36,7 @@
 
     const variableGroups = [
         { id: "runtime", names: ["{{today}}", "{{currentDateTime}}", "{{timezone}}", "{{feature}}"] },
-        { id: "task", names: ["{{currentTaskBlock}}", "{{currentTaskBlockWithChildren}}", "{{currentTaskBlockWithParent}}", "{{selectedBlocks}}", "{{block:块ID}}"] },
+        { id: "task", names: ["{{currentTaskBlock}}", "{{currentTaskBlockWithChildren}}", "{{currentTaskBlockWithParent}}", "{{selectedBlocks}}", "{{block:blockID}}"] },
         { id: "gtd", names: ["{{nextaction}}", "{{myDay}}", "{{inbox}}", "{{waiting}}", "{{someday}}", "{{overdue}}", "{{reviewDue}}", "{{activeProjects}}"] },
     ];
 
@@ -102,6 +102,7 @@
                 open={isOpen(feature.id)}
                 modified={aiPrompts[feature.id] !== defaultPrompts[feature.id]}
                 modifiedLabel={i18n?.settingUnsavedBadge || "Modified"}
+                {i18n}
                 on:openChange={(event) => setOpen(feature.id, event.detail)}
             >
                 <svelte:fragment slot="default">

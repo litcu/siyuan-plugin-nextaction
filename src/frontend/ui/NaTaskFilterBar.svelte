@@ -86,7 +86,7 @@
                 <NaButton size="sm" on:click={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
             </div>
             {#each filterState.customFieldFilters || [] as filter, index}
-                <NaChip label={`${activeFields.find(field => field.key === filter.key)?.label || filter.key} ${filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`}`} onClose={() => removeCustomFieldFilter(index)} />
+                <NaChip label={`${activeFields.find(field => field.key === filter.key)?.label || filter.key} ${filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`}`} onClose={() => removeCustomFieldFilter(index)} {i18n} />
             {/each}
         {/if}
         <NaSortSelect options={computedSortOptions} selected={filterState.sortBy} ascending={filterState.sortAsc} {i18n} onChange={(value, ascending) => change({ ...filterState, sortBy: value, sortAsc: ascending })} />
