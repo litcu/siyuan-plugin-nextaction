@@ -80,6 +80,7 @@ test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引",
 
 test("子任务创建直接写入文本块并停止生成列表项", () => {
     assert.match(managerSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
+    assert.match(managerSource, /containerTypes = new Set\(\[[^\]]*"d"/);
     assert.match(managerSource, /dataType: "markdown"/);
     assert.match(managerSource, /data: escapeMarkdownText\(title\)/);
     assert.doesNotMatch(managerSource, /buildListItemBlockDom/);

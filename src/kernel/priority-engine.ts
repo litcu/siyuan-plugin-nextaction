@@ -120,12 +120,14 @@ export function getBlockedReason(entry: TaskCacheEntry, cache: Record<string, Ta
     if (entry.status === "inbox") return "inbox";
     if (entry.status === "someday") return "someday";
 
-    // 1. 子任务未完成
-    const hasIncompleteChild = entry.childIds.some((id) => {
-        const child = cache[id];
-        return child && child.status !== "done";
-    });
-    if (hasIncompleteChild) return "children";
+    // 1. 普通父任务需要等待子任务完成；项目用于持续承载工作，不因存在进行中的子任务而阻塞。
+    if (entry.taskType !== "2") {
+        const hasIncompleteChild = entry.childIds.some((id) => {
+            const child = cache[id];
+            return child && child.status !== "done";
+        });
+        if (hasIncompleteChild) return "children";
+    }
 
     // 2. 显式依赖
     if (entry.depends) {

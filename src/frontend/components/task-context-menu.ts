@@ -25,6 +25,7 @@ export function showTaskContextMenu(
     inMyDay?: boolean,
 ): void {
     const menu = new Menu("na-task-context");
+    const isProject = task.taskType === "2";
 
     for (const s of STATUS_LIST) {
         const i18nKey = toI18nKey("status", s);
@@ -127,7 +128,7 @@ export function showTaskContextMenu(
     if (callbacks.onEdit) {
         menu.addItem({
             icon: "iconEdit",
-            label: i18n?.taskProperties || "Task Properties",
+            label: isProject ? (i18n?.projectProperties || "Project Properties") : (i18n?.taskProperties || "Task Properties"),
             click: () => {
                 callbacks.onEdit!(task);
             },
@@ -138,7 +139,7 @@ export function showTaskContextMenu(
 
     menu.addItem({
         icon: "iconSparkles",
-        label: i18n?.aiDecomposeTask || "AI 拆解任务",
+        label: isProject ? (i18n?.aiDecomposeProject || "AI 拆解项目") : (i18n?.aiDecomposeTask || "AI 拆解任务"),
         click: async () => runAiDecomposeTask(task),
     });
 
@@ -158,11 +159,13 @@ export function showTaskContextMenu(
 
     menu.addItem({
         icon: "iconTrashcan",
-        label: i18n?.removeTask || "Remove Task",
+        label: isProject ? (i18n?.removeProject || "Remove Project") : (i18n?.removeTask || "Remove Task"),
         click: async () => {
             confirm(
-                i18n?.removeTask || "Remove Task",
-                i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.",
+                isProject ? (i18n?.removeProject || "Remove Project") : (i18n?.removeTask || "Remove Task"),
+                isProject
+                    ? (i18n?.confirmRemoveProject || "This will clear all project attributes. This action cannot be undone.")
+                    : (i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone."),
                 async () => {
                     try {
                         await bridge.removeTask(task.blockId);

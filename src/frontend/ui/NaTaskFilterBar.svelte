@@ -18,6 +18,7 @@
     export let showPriority = true;
     export let statusValues: readonly string[] = STATUS_LIST;
     export let sortOptions: { value: string; label: string }[] | undefined = undefined;
+    export let searchPlaceholder = "";
     export let i18n: any;
 
     const dispatch = createEventDispatcher<{ change: FilterState }>();
@@ -70,7 +71,7 @@
 
 <div class="na-task-filter-bar">
     <div class="na-task-filter-bar__search">
-        <NaSearchInput value={searchText} compact placeholder={i18n?.searchPlaceholder || "Search..."} ariaLabel={i18n?.searchPlaceholder || "Search..."} on:input={(event) => onSearchInput(event.detail.value)} />
+        <NaSearchInput value={searchText} compact placeholder={searchPlaceholder || i18n?.searchPlaceholder || "Search..."} ariaLabel={searchPlaceholder || i18n?.searchPlaceholder || "Search..."} on:input={(event) => onSearchInput(event.detail.value)} />
     </div>
     <div class="na-task-filter-bar__filters">
         <div style="--na-filter-active-color: var(--na-filter-context)"><NaFilterDropdown label={i18n?.context || "Context"} options={contextOptions} selected={filterState.contexts} {i18n} onChange={(selected) => change({ ...filterState, contexts: selected })} /></div>

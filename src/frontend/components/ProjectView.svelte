@@ -1,9 +1,10 @@
 <script lang="ts">
     import { VIEW_BY_PROJECT } from "../constants";
-    import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
+    import { applyFilters, DEFAULT_FILTER_STATE, hasActiveTaskFilters, sortTasksBy } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "../utils/project";
     import TaskCard from "./TaskCard.svelte";
+    import GanttView from "./GanttView.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -17,19 +18,20 @@
     import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
     import { taskStore } from "../stores/task-store";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
+    import { buildProjectTreeModel, type ProjectTreeSortMode } from "../utils/project-tree";
 
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let i18n: any;
     export let selectedTaskId: string = "";
+    export let selectedTaskOverride: TaskCacheEntry | null = null;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined = undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
-    type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan";
-    type TreeRow = { task: TaskCacheEntry; depth: number };
+    type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
     type RiskItem = { summary: ProjectSummary; risk: ProjectRisk; target: TaskCacheEntry };
 
     const statuses = ["inbox", "todo", "doing", "waiting", "someday", "done"];
@@ -44,12 +46,22 @@
     let riskFilter = "all";
     let dateFilter = "all";
     let actionFilter = "all";
+    let ganttSortMode: ProjectTreeSortMode = "timeline";
 
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: projects = $taskStore.allTasks.filter(task => task.taskType === "2");
-    $: summaries = buildProjectSummaries($taskStore.allTasks);
-    $: filteredProjectIds = new Set(applyFilters(projects, filterState, $taskStore.settings.customFields).map(task => task.blockId));
-    $: visibleSummaries = summaries.filter(summary => filteredProjectIds.has(summary.project.blockId) && (showCompleted || summary.health !== "complete") && matchesProjectFilters(summary));
+    $: projectSourceTasks = reconcileProjectTasks($taskStore.allTasks, selectedTaskOverride);
+    $: summaries = buildProjectSummaries(projectSourceTasks);
+    $: taskFiltersActive = hasActiveTaskFilters(filterState);
+    $: filterCandidates = projectSourceTasks.filter(task => showCompleted || task.status !== "done" || task.taskType === "2");
+    $: matchedTaskIds = new Set((taskFiltersActive ? applyFilters(filterCandidates, filterState, $taskStore.settings.customFields) : filterCandidates).map(task => task.blockId));
+    $: matchingSummaries = summaries.filter(summary => (
+        (!taskFiltersActive || matchedTaskIds.has(summary.project.blockId) || summary.descendants.some(task => matchedTaskIds.has(task.blockId)))
+        && (showCompleted || summary.health !== "complete")
+        && matchesProjectFilters(summary)
+    ));
+    $: orderedProjectIds = sortTasksBy(matchingSummaries.map(summary => summary.project), filterState.sortBy, filterState.sortAsc, $taskStore.settings.customFields).map(task => task.blockId);
+    $: summaryByProjectId = new Map(matchingSummaries.map(summary => [summary.project.blockId, summary]));
+    $: visibleSummaries = orderedProjectIds.map(blockId => summaryByProjectId.get(blockId)).filter((summary): summary is ProjectSummary => Boolean(summary));
     $: if (selectedTaskId) {
         const containing = summaries.find(summary => summary.project.blockId === selectedTaskId || summary.descendants.some(task => task.blockId === selectedTaskId));
         if (containing) activeProjectId = containing.project.blockId;
@@ -66,10 +78,26 @@
     $: overdueCount = summaries.reduce((count, summary) => count + summary.overdueTasks.length, 0);
     $: dueSoonCount = summaries.reduce((count, summary) => count + summary.descendants.filter(task => task.status !== "done" && (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek")).length, 0);
     $: noActionCount = summaries.filter(summary => summary.risks.some(risk => risk.kind === "noNextAction")).length;
-    // Passing collapse state explicitly keeps this derivation reactive in Svelte.
-    $: treeRows = selectedSummary ? buildTreeRows(selectedSummary, collapsedIds) : [];
-    $: planGroups = dateBuckets.map(bucket => ({ bucket, tasks: (selectedSummary?.descendants || []).filter(task => task.taskType !== "2" && (showCompleted || task.status !== "done") && getProjectDateBucket(task) === bucket).sort(sortByDue) })).filter(group => group.tasks.length > 0);
-    $: boardTasks = (selectedSummary?.descendants || []).filter(task => (showCompleted || task.status !== "done") && (filterState.statuses.length === 0 || filterState.statuses.includes(task.status)));
+    $: selectedMatchedTaskIds = !selectedSummary || !taskFiltersActive
+        ? null
+        : new Set(selectedSummary.descendants.filter(task => matchedTaskIds.has(task.blockId)).map(task => task.blockId));
+    $: projectTreeModel = selectedSummary ? buildProjectTreeModel(selectedSummary, collapsedIds, {
+        showCompleted,
+        matchedTaskIds: selectedMatchedTaskIds,
+        sortMode: mode === "gantt" ? ganttSortMode : "manual",
+    }) : null;
+    $: detailTasks = (selectedSummary?.descendants || []).filter(task => (
+        (showCompleted || task.status !== "done")
+        && (!taskFiltersActive || matchedTaskIds.has(task.blockId))
+    ));
+    $: sortedDetailTasks = sortTasksBy(detailTasks, filterState.sortBy, filterState.sortAsc, $taskStore.settings.customFields);
+    $: planGroups = dateBuckets.map(bucket => ({ bucket, tasks: sortedDetailTasks.filter(task => task.taskType !== "2" && getProjectDateBucket(task) === bucket) })).filter(group => group.tasks.length > 0);
+    $: boardTasks = sortedDetailTasks;
+
+    function reconcileProjectTasks(tasks: TaskCacheEntry[], override: TaskCacheEntry | null): TaskCacheEntry[] {
+        if (!override) return tasks;
+        return tasks.map(task => task.blockId === override.blockId ? override : task);
+    }
 
     function riskWeight(severity: ProjectRisk["severity"]): number {
         return severity === "high" ? 3 : severity === "medium" ? 2 : 1;
@@ -89,12 +117,12 @@
         return i18n?.[`status${status.charAt(0).toUpperCase()}${status.slice(1)}`] || status;
     }
 
-    function healthLabel(health: ProjectSummary["health"]): string {
-        return i18n?.[`projectHealth${health.charAt(0).toUpperCase()}${health.slice(1)}`] || health;
-    }
-
-    function healthTone(health: ProjectSummary["health"]): "neutral" | "primary" | "info" | "success" | "warning" | "danger" {
-        return health === "complete" ? "success" : health === "blocked" ? "danger" : health === "attention" ? "warning" : "info";
+    function statusTone(status: string): "neutral" | "primary" | "info" | "success" | "warning" | "danger" {
+        if (status === "done") return "success";
+        if (status === "doing") return "primary";
+        if (status === "waiting") return "warning";
+        if (status === "someday") return "neutral";
+        return "info";
     }
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
@@ -103,13 +131,6 @@
 
     function bucketLabel(bucket: ProjectDateBucket): string {
         return i18n?.[`projectPlan${bucket.charAt(0).toUpperCase()}${bucket.slice(1)}`] || bucket;
-    }
-
-    function sortByDue(a: TaskCacheEntry, b: TaskCacheEntry): number {
-        if (!a.due && !b.due) return a.sort - b.sort;
-        if (!a.due) return 1;
-        if (!b.due) return -1;
-        return a.due.localeCompare(b.due);
     }
 
     function handleFilterChange(state: FilterState) {
@@ -133,74 +154,6 @@
         if (next.has(blockId)) next.delete(blockId);
         else next.add(blockId);
         collapsedIds = next;
-    }
-
-    function buildTreeRows(summary: ProjectSummary, collapseState: ReadonlySet<string>): TreeRow[] {
-        const map = new Map<string, TaskCacheEntry[]>();
-        const allowed = new Set(summary.descendants.map(task => task.blockId));
-        const taskMap = new Map<string, TaskCacheEntry>([
-            [summary.project.blockId, summary.project],
-            ...summary.descendants.map(task => [task.blockId, task] as [string, TaskCacheEntry]),
-        ]);
-        const addEdge = (parentId: string, child: TaskCacheEntry) => {
-            if (!taskMap.has(parentId) || !allowed.has(child.blockId) || parentId === child.blockId) return;
-            const children = map.get(parentId) || [];
-            if (!children.some(entry => entry.blockId === child.blockId)) children.push(child);
-            map.set(parentId, children);
-        };
-        for (const task of summary.descendants) {
-            if (task.parentId) addEdge(task.parentId, task);
-        }
-        for (const parent of [summary.project, ...summary.descendants]) {
-            for (const childId of parent.childIds || []) {
-                const child = taskMap.get(childId);
-                if (child) addEdge(parent.blockId, child);
-            }
-        }
-        const connectedIds = new Set<string>([summary.project.blockId]);
-        const markConnected = (parentId: string) => {
-            for (const child of map.get(parentId) || []) {
-                if (connectedIds.has(child.blockId)) continue;
-                connectedIds.add(child.blockId);
-                markConnected(child.blockId);
-            }
-        };
-        markConnected(summary.project.blockId);
-        const rows: TreeRow[] = [{ task: summary.project, depth: 0 }];
-        const visited = new Set<string>([summary.project.blockId]);
-        const visit = (parentId: string, depth: number) => {
-            for (const child of (map.get(parentId) || []).sort((a, b) => a.sort - b.sort)) {
-                if (visited.has(child.blockId)) continue;
-                visited.add(child.blockId);
-                if (!showCompleted && child.status === "done") {
-                    visit(child.blockId, depth);
-                    continue;
-                }
-                rows.push({ task: child, depth });
-                if (!collapseState.has(child.blockId)) visit(child.blockId, depth + 1);
-            }
-        };
-        // The project itself is the tree root, so its collapsed state must gate
-        // the first visit just like every other parent node.
-        if (!collapseState.has(summary.project.blockId) && (showCompleted || summary.project.status !== "done")) {
-            visit(summary.project.blockId, 1);
-        }
-        for (const task of summary.descendants) {
-            if (!connectedIds.has(task.blockId) && !visited.has(task.blockId) && (showCompleted || task.status !== "done")) {
-                rows.push({ task, depth: 0 });
-            }
-        }
-        return rows;
-    }
-
-    function hasTreeChildren(task: TaskCacheEntry): boolean {
-        return Boolean(task.childIds?.length) || Boolean(selectedSummary?.descendants.some(child => child.parentId === task.blockId));
-    }
-
-    function treeChildCount(task: TaskCacheEntry): number {
-        return selectedSummary?.descendants.filter(child => (
-            child.parentId === task.blockId || task.childIds?.includes(child.blockId)
-        )).length || 0;
     }
 
     function handleDragStart(task: TaskCacheEntry, event: DragEvent) {
@@ -243,16 +196,19 @@
             ]} />
             <div class="na-toolbar__actions-content">
                 <NaButton size="sm" icon="iconAdd" disabled={!selectedSummary} on:click={() => selectedSummary && onCreateChild?.(selectedSummary.project)}>{i18n?.createChildTask || "Create child task"}</NaButton>
-                <NaButton size="sm" icon="iconSparkles" disabled={!selectedSummary} on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}>{i18n?.aiDecomposeTask || "AI 拆解任务"}</NaButton>
+                <NaButton size="sm" icon="iconSparkles" disabled={!selectedSummary} on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}>{i18n?.aiDecomposeProject || "AI 拆解项目"}</NaButton>
             </div>
         </NaToolbar>
         <div class="na-project-toolbar">
-            <NaSegmentControl size="sm" value={mode} options={[
-                { value: "overview", label: i18n?.projectViewOverview || "Overview" },
-                { value: "hierarchy", label: i18n?.projectViewHierarchy || "Hierarchy" },
-                { value: "board", label: i18n?.projectViewBoard || "Board" },
-                { value: "plan", label: i18n?.projectViewPlan || "Plan" },
-            ]} on:change={handleModeChange} />
+            <div class="na-project-toolbar__view-switcher">
+                <NaSegmentControl size="sm" value={mode} options={[
+                    { value: "overview", label: i18n?.projectViewOverview || "Overview" },
+                    { value: "hierarchy", label: i18n?.projectViewHierarchy || "Hierarchy" },
+                    { value: "board", label: i18n?.projectViewBoard || "Board" },
+                    { value: "plan", label: i18n?.projectViewPlan || "Plan" },
+                    { value: "gantt", label: i18n?.projectViewGantt || "Gantt" },
+                ]} on:change={handleModeChange} />
+            </div>
             <div class="na-project-toolbar__completed">
                 <NaToggle checked={showCompleted} label={i18n?.projectShowCompleted || "Show completed"} on:change={(event) => showCompleted = event.detail.checked} />
                 <span>{i18n?.projectShowCompleted || "Show completed"}</span>
@@ -274,7 +230,7 @@
             </select>
             <span class="na-project-toolbar__hint">{i18n?.projectControlHint || "Select a project to inspect its momentum and risks"}</span>
         </div>
-        <NaTaskFilterBar contexts={$taskStore.contexts} tags={$taskStore.tags} customFields={$taskStore.settings.customFields} filterState={filterState} showStatus={true} {i18n} on:change={(event) => handleFilterChange(event.detail)} />
+        <NaTaskFilterBar contexts={$taskStore.contexts} tags={$taskStore.tags} customFields={$taskStore.settings.customFields} filterState={filterState} showStatus={true} searchPlaceholder={i18n?.searchProjectsAndTasks || "Search projects and tasks..."} {i18n} on:change={(event) => handleFilterChange(event.detail)} />
     </svelte:fragment>
 
     <div class="na-project-workspace" class:na-project-workspace--focus={mode !== "overview"}>
@@ -291,23 +247,23 @@
                             <strong>{summary.project.title || i18n?.untitled || "(untitled)"}</strong>
                             <span>{summary.doneCount}/{workItemCount(summary)} · {summary.nextActions.length} {i18n?.projectNextShort || "next"}</span>
                         </span>
-                        <NaBadge text={healthLabel(summary.health)} tone={healthTone(summary.health)} />
+                        <NaBadge text={statusLabel(summary.project.status)} tone={statusTone(summary.project.status)} />
                     </button>
                 {/each}
             </div>
         </aside>
 
-        <section class="na-project-canvas">
+        <section class="na-project-canvas" class:na-project-canvas--gantt={mode === "gantt"}>
             {#if selectedSummary}
                 <div class="na-project-canvas__header">
                     <div class="na-project-canvas__title">
                         <span class="na-project-canvas__kicker">{i18n?.project || "Project"}</span>
                         <h2>{selectedSummary.project.title || i18n?.untitled || "(untitled)"}</h2>
-                        <span>{statusLabel(selectedSummary.project.status)} · {selectedSummary.openCount} {i18n?.projectOpenTasks || "open tasks"}</span>
+                        <span>{selectedSummary.openCount} {i18n?.projectOpenTasks || "open tasks"} · {selectedSummary.risks.length} {i18n?.projectRisks || "risks"}</span>
                     </div>
                     <div class="na-project-canvas__actions">
-                        <NaBadge text={healthLabel(selectedSummary.health)} tone={healthTone(selectedSummary.health)} />
-                        <NaButton size="sm" on:click={() => onEdit(selectedSummary.project)}>{i18n?.editTask || "Edit"}</NaButton>
+                        <NaBadge text={statusLabel(selectedSummary.project.status)} tone={statusTone(selectedSummary.project.status)} />
+                        <NaButton size="sm" on:click={() => onEdit(selectedSummary.project)}>{i18n?.editProject || "Edit project"}</NaButton>
                     </div>
                 </div>
                 <div class="na-project-canvas__progress">
@@ -356,7 +312,7 @@
                     </div>
                 {:else if mode === "hierarchy"}
                     <div class="na-project-tree">
-                        {#each treeRows as row (row.task.blockId)}
+                        {#each projectTreeModel?.rows || [] as row (row.task.blockId)}
                             <div class="na-project-tree__row" style="padding-left: {row.depth * 18}px" draggable="true" on:dragstart={(event) => handleDragStart(row.task, event)} on:dragend={handleDragEnd}>
                                 <TaskCard
                                     task={row.task}
@@ -366,9 +322,9 @@
                                     {onStatusClick}
                                     {onContextMenu}
                                     {i18n}
-                                    hasChildren={hasTreeChildren(row.task)}
+                                    hasChildren={row.hasChildren}
                                     isCollapsed={collapsedIds.has(row.task.blockId)}
-                                    childCount={treeChildCount(row.task)}
+                                    childCount={row.childCount}
                                     onToggleCollapse={() => toggleCollapse(row.task.blockId)}
                                     isRoot={row.depth === 0}
                                 />
@@ -403,6 +359,20 @@
                         {/each}
                         {#if planGroups.length === 0}<p class="na-project-muted">{i18n?.projectNoPlan || "No dated tasks in this project"}</p>{/if}
                     </div>
+                {:else if mode === "gantt" && projectTreeModel}
+                    <GanttView
+                        model={projectTreeModel}
+                        projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
+                        {collapsedIds}
+                        {selectedTaskId}
+                        {i18n}
+                        sortMode={ganttSortMode}
+                        onSortModeChange={(value) => ganttSortMode = value}
+                        onToggleCollapse={toggleCollapse}
+                        {onSelectTask}
+                        {onEdit}
+                        {onContextMenu}
+                    />
                 {/if}
             {:else}
                 <div class="na-project-empty"><strong>{i18n?.projectSelectTitle || "Select a project"}</strong><span>{i18n?.projectSelectHint || "Choose a project to inspect its progress and risks."}</span></div>
@@ -426,6 +396,8 @@
 
 <style lang="scss">
     .na-project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 8px 12px; }
+    .na-project-toolbar__view-switcher { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+    .na-project-toolbar__view-switcher :global(.na-segment-control) { width: max-content; }
     .na-project-toolbar__completed { display: inline-flex; align-items: center; gap: 6px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); cursor: pointer; white-space: nowrap; }
     .na-project-toolbar__select { width: auto; min-width: 86px; }
     .na-project-toolbar__hint { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -448,6 +420,7 @@
     .na-project-index__item-copy strong { font-size: var(--na-font-size-md); font-weight: 600; letter-spacing: 0; }
     .na-project-index__item-copy span { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); }
     .na-project-canvas { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: auto; padding: 14px; }
+    .na-project-canvas--gantt { overflow: hidden; }
     .na-project-canvas__header { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
     .na-project-canvas__title { min-width: 0; } .na-project-canvas__kicker { color: var(--na-accent); font-size: var(--na-font-size-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
     .na-project-canvas h2 { margin: 2px 0; font-size: 18px; line-height: 24px; font-weight: 650; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -490,5 +463,5 @@
     .na-project-plan__row :global(.na-task-card) { flex: 1; min-width: 0; } .na-project-plan__date { flex: 0 0 82px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: right; }
     .na-project-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 6px; color: var(--na-text-secondary); text-align: center; } .na-project-empty strong { color: var(--na-text-primary); font-size: var(--na-font-size-lg); }
     @container nextaction-app (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-overview { grid-template-columns: 1fr; } .na-project-toolbar__hint { display: none; } }
-    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-board { min-width: 760px; } }
+    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-canvas--gantt { min-height: 420px; overflow: hidden; } .na-project-board { min-width: 760px; } }
 </style>

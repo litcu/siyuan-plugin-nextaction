@@ -66,6 +66,10 @@ function isNextAction(task: TaskCacheEntry, today: string): boolean {
     return !start || dayDifference(start, today) <= 0;
 }
 
+function isHardBlocked(task: TaskCacheEntry): boolean {
+    return task.blocked && task.blockedReason !== "inbox" && task.blockedReason !== "someday";
+}
+
 export function getProjectDateBucket(task: TaskCacheEntry, today = localDateString()): ProjectDateBucket {
     const value = datePart(task.due) || datePart(task.start);
     if (!value) return "unscheduled";
@@ -87,7 +91,7 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], today = localDate
         const doneTasks = workItems.filter(task => task.status === "done");
         const overdueTasks = actionable.filter(task => getProjectDateBucket(task, today) === "overdue");
         const dueSoonTasks = actionable.filter(task => getProjectDateBucket(task, today) === "thisWeek" || getProjectDateBucket(task, today) === "today");
-        const blockedTasks = actionable.filter(task => task.blocked);
+        const blockedTasks = actionable.filter(isHardBlocked);
         const waitingTasks = actionable.filter(task => task.status === "waiting");
         const nextActions = actionable.filter(task => isNextAction(task, today));
         const allWaiting = actionable.length > 0 && waitingTasks.length === actionable.length;
@@ -105,7 +109,11 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], today = localDate
         const doneCount = doneTasks.length;
         const openCount = Math.max(0, workItems.length - doneCount);
         const complete = project.status === "done" || (workItems.length > 0 && openCount === 0);
-        const blocked = !complete && (project.blocked || blockedTasks.length > 0);
+        // Older cache snapshots may still carry the former project-level
+        // `children` reason. Active child work is normal project progress, not
+        // a blocked project state.
+        const projectBlocked = isHardBlocked(project) && project.blockedReason !== "children";
+        const blocked = !complete && (projectBlocked || (nextActions.length === 0 && blockedTasks.length > 0));
         const health = complete ? "complete" : blocked ? "blocked" : risks.length > 0 ? "attention" : "onTrack";
 
         return {

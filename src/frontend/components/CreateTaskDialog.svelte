@@ -123,6 +123,7 @@
             properties: {
                 status,
                 priority,
+                ...(parentTask ? { parentId: parentTask.blockId } : {}),
                 ...(start ? { start } : {}),
                 ...(due ? { due } : {}),
                 ...(contextsText.trim() ? { contexts: splitValues(contextsText) } : {}),

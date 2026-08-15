@@ -201,6 +201,7 @@ export default class NextActionPlugin extends Plugin {
         if (!blockId) return;
         const currentStatus = taskBlock.getAttribute('custom-na-status') || 'todo';
         const currentPriority = normalizePriority(taskBlock.getAttribute('custom-na-priority'));
+        const isProject = taskBlock.getAttribute('custom-na-task') === '2';
 
         event.stopPropagation();
         event.preventDefault();
@@ -237,7 +238,9 @@ export default class NextActionPlugin extends Plugin {
             type: "submenu",
             submenu: [{
                 icon: "iconSparkles",
-                label: this.i18n.aiDecomposeTask || "AI 拆解任务",
+                label: isProject
+                    ? (this.i18n.aiDecomposeProject || "AI 拆解项目")
+                    : (this.i18n.aiDecomposeTask || "AI 拆解任务"),
                 click: async () => {
                     const task = get(taskStore).allTasks.find(item => item.blockId === blockId);
                     if (task) await runAiDecomposeTask(task);
@@ -303,7 +306,9 @@ export default class NextActionPlugin extends Plugin {
         // Task properties
         menu.addItem({
             icon: 'iconEdit',
-            label: this.i18n.taskProperties || 'Task Properties',
+            label: isProject
+                ? (this.i18n.projectProperties || 'Project Properties')
+                : (this.i18n.taskProperties || 'Task Properties'),
             click: () => {
                 this.openTaskDetailDialog(blockId);
             },
@@ -312,11 +317,15 @@ export default class NextActionPlugin extends Plugin {
         // Remove task
         menu.addItem({
             icon: 'iconTrashcan',
-            label: this.i18n.removeTask || 'Remove Task',
+            label: isProject
+                ? (this.i18n.removeProject || 'Remove Project')
+                : (this.i18n.removeTask || 'Remove Task'),
             click: async () => {
                 confirm(
-                    this.i18n.removeTask || 'Remove Task',
-                    this.i18n.confirmRemoveTask || 'This will clear all task attributes. This action cannot be undone.',
+                    isProject ? (this.i18n.removeProject || 'Remove Project') : (this.i18n.removeTask || 'Remove Task'),
+                    isProject
+                        ? (this.i18n.confirmRemoveProject || 'This will clear all project attributes. This action cannot be undone.')
+                        : (this.i18n.confirmRemoveTask || 'This will clear all task attributes. This action cannot be undone.'),
                     async () => {
                         try {
                             await this.bridge.removeTask(blockId);
@@ -363,7 +372,7 @@ export default class NextActionPlugin extends Plugin {
             }
         }
         if (!task) {
-            notifyError(this.i18n?.errTaskNotFound || "Task not found");
+            notifyError(this.i18n?.errItemNotFound || this.i18n?.errTaskNotFound || "Project or task not found");
             return;
         }
 
@@ -693,6 +702,7 @@ export default class NextActionPlugin extends Plugin {
         this.blockIconHandler = ({ detail }: any) => {
             const blockElements = detail.blockElements || [];
             const taskBlock = blockElements.length === 1 && blockElements[0].hasAttribute("custom-na-task");
+            const isProjectBlock = taskBlock && blockElements[0].getAttribute("custom-na-task") === "2";
             detail.menu.addItem({
                 icon: "iconSparkles",
                 label: `[NextAction] ${this.i18n.ai || "AI"}`,
@@ -705,7 +715,9 @@ export default class NextActionPlugin extends Plugin {
                     },
                     ...(taskBlock ? [{
                         icon: "iconSplitLR",
-                        label: this.i18n.aiDecomposeTask || "AI 拆解任务",
+                        label: isProjectBlock
+                            ? (this.i18n.aiDecomposeProject || "AI 拆解项目")
+                            : (this.i18n.aiDecomposeTask || "AI 拆解任务"),
                         click: async () => {
                             const task = get(taskStore).allTasks.find(item => item.blockId === blockElements[0].dataset.nodeId);
                             if (task) await runAiDecomposeTask(task);

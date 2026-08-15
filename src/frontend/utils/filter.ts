@@ -46,6 +46,17 @@ export const DEFAULT_FILTER_STATE: FilterState = {
     sortAsc: false,
 };
 
+export function hasActiveTaskFilters(filters: FilterState): boolean {
+    return Boolean(
+        filters.searchText
+        || filters.contexts.length
+        || filters.priorities.length
+        || filters.statuses.length
+        || filters.tags.length
+        || filters.customFieldFilters.length,
+    );
+}
+
 export function isNextActionCandidate(entry: TaskCacheEntry, startPreviewDays: number = 0): boolean {
     if (entry.status === "done") return false;
     if (entry.status === "waiting") return false;

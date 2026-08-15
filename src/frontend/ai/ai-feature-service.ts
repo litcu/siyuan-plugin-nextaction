@@ -424,7 +424,10 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
         });
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         if (proposal.tasks) proposal.tasks = proposal.tasks.map(item => ({ ...item, parentId: item.parentId ?? task.blockId }));
-        await openComponent(i18n?.aiDecomposeTask || "AI 拆解任务", () => import("../components/AiProposalDialog.svelte"), {
+        const dialogTitle = task.taskType === "2"
+            ? (i18n?.aiDecomposeProject || "AI 拆解项目")
+            : (i18n?.aiDecomposeTask || "AI 拆解任务");
+        await openComponent(dialogTitle, () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,
             i18n,

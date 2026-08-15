@@ -847,7 +847,7 @@ export class McpToolManager {
         });
         if (!rows?.length) throw new McpToolError("TARGET_NOT_FOUND", `Parent block unavailable: ${taskBlockId}`);
         const byId = new Map(rows.map(row => [row.id, row]));
-        const containerTypes = new Set(["b", "i", "l", "s", "callout"]);
+        const containerTypes = new Set(["b", "d", "i", "l", "s", "callout"]);
         let current = byId.get(taskBlockId);
         while (current) {
             if (containerTypes.has(current.type)) {

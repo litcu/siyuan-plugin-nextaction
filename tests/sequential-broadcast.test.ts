@@ -40,6 +40,14 @@ test("仅重要性等非阻塞属性变化不会进入副作用分支", () => {
     assert.doesNotMatch(helperSection, /ATTR_IMPORTANCE/);
 });
 
+test("项目不会因未完成子任务被判定为阻塞", () => {
+    const blockedSection = prioritySource.slice(
+        prioritySource.indexOf("export function getBlockedReason("),
+        prioritySource.indexOf("export function isBlocked("),
+    );
+    assert.match(blockedSection, /if \(entry\.taskType !== "2"\)[\s\S]*?if \(hasIncompleteChild\) return "children"/);
+});
+
 test("任务服务将状态纳入项目排序字段并移除 done 专用分支", () => {
     assert.match(updateSection, /const orderFields = \[ATTR_IMPORTANCE, ATTR_EFFORT, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_STATUS\]/);
     assert.doesNotMatch(updateSection, /If status changed to done, check parent/);

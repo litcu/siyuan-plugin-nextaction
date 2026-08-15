@@ -136,9 +136,11 @@ test("面板提供全局和上下文创建入口", () => {
     const app = source("../src/frontend/components/NextActionApp.svelte");
     const project = source("../src/frontend/components/ProjectView.svelte");
     const detail = source("../src/frontend/components/TaskDetail.svelte");
+    const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
 
     assert.match(app, /openCreateTaskDialog/);
     assert.match(app, /variant="primary" icon="iconAdd"/);
     assert.match(project, /onCreateChild/);
     assert.match(detail, /createChildTask/);
+    assert.match(dialog, /parentTask \? \{ parentId: parentTask\.blockId \}/);
 });

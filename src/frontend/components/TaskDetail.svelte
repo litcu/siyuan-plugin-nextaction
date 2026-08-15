@@ -144,6 +144,16 @@
         { value: "1", label: i18n?.task || "Task" },
         { value: "2", label: i18n?.project || "Project" },
     ];
+    $: isProject = taskType === "2";
+    $: aiDecomposeLabel = isProject
+        ? (i18n?.aiDecomposeProject || "Break down project with AI")
+        : (i18n?.aiDecomposeTask || "Break down task with AI");
+    $: removeLabel = isProject
+        ? (i18n?.removeProject || "Remove project")
+        : (i18n?.removeTask || "Remove task");
+    $: removeConfirmMessage = isProject
+        ? (i18n?.confirmRemoveProject || "This will clear all project attributes. This action cannot be undone.")
+        : (i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.");
     $: headerSubtitle = [
         task.created ? formatCreated(task.created) : "",
         task.blocked && taskType !== "2"
@@ -550,8 +560,8 @@
     function handleRemove() {
         if (!onRemove) return;
         confirm(
-            i18n?.removeTask || "Remove task",
-            i18n?.confirmRemoveTask || "This action cannot be undone.",
+            removeLabel,
+            removeConfirmMessage,
             async () => {
                 if (debounceTimer) clearTimeout(debounceTimer);
                 discardOnDestroy = true;
@@ -616,8 +626,8 @@
     <div slot="headerActions" class="na-task-detail__header-actions">
         <NaIconButton symbol="iconAdd" label={i18n?.createChildTask || "Create child task"} size={14} on:click={() => onCreateChild?.(task)} />
         {#if showJumpToBlock}<NaIconButton symbol="iconOpenWindow" label={i18n?.jumpToBlock || "Jump to block"} size={14} on:click={() => jump(task.blockId)} />{/if}
-        <NaIconButton symbol="iconSparkles" label={i18n?.aiDecomposeTask || "AI decompose task"} size={14} on:click={() => runAiDecomposeTask(task)} />
-        <NaIconButton symbol="iconTrashcan" label={i18n?.removeTask || "Remove task"} size={14} tone="danger" disabled={operationBusy || saveState === "saving"} on:click={handleRemove} />
+        <NaIconButton symbol="iconSparkles" label={aiDecomposeLabel} size={14} on:click={() => runAiDecomposeTask(task)} />
+        <NaIconButton symbol="iconTrashcan" label={removeLabel} size={14} tone="danger" disabled={operationBusy || saveState === "saving"} on:click={handleRemove} />
     </div>
 
     {#if noticeMessage}
@@ -664,8 +674,8 @@
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.detailGroupOrganization || "Organization"}>
-        <NaPropertyRow label={i18n?.parentTask || "Parent"}>
-            <NaSearchSelect multi={false} bind:selected={parentId} bind:selectedLabel={parentLabel} searchFn={searchParentTasks} placeholder={i18n?.searchParentTask || "Search parent task"} emptyText={i18n?.noOptions || "No options"} noMatchText={i18n?.noMatches || "No matches"} loadingText={i18n?.loadingMore || "Loading"} clearLabel={i18n?.clearSelection || "Clear selection"} removeLabel={i18n?.removeSelection || "Remove selection"} fixedDropdown={true} on:change={handleChange} />
+        <NaPropertyRow label={i18n?.parentItem || "Parent item"}>
+            <NaSearchSelect multi={false} bind:selected={parentId} bind:selectedLabel={parentLabel} searchFn={searchParentTasks} placeholder={i18n?.searchParentItem || "Search projects and tasks"} emptyText={i18n?.noOptions || "No options"} noMatchText={i18n?.noMatches || "No matches"} loadingText={i18n?.loadingMore || "Loading"} clearLabel={i18n?.clearSelection || "Clear selection"} removeLabel={i18n?.removeSelection || "Remove selection"} fixedDropdown={true} on:change={handleChange} />
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.context || "Context"}>
             <NaSearchSelect multi={true} allowCreate={true} bind:selected={contexts} allOptions={allContexts} placeholder={i18n?.addContext || "Add context"} emptyText={i18n?.noOptions || "No options"} noMatchText={i18n?.noMatches || "No matches"} loadingText={i18n?.loadingMore || "Loading"} clearLabel={i18n?.clearSelection || "Clear selection"} removeLabel={i18n?.removeSelection || "Remove selection"} fixedDropdown={true} on:change={handleChange} />
@@ -675,7 +685,7 @@
         </NaPropertyRow>
     </NaPropertySection>
 
-    <NaPropertySection title={i18n?.taskRelations || i18n?.detailGroupDependencies || "Task relations"} collapsible={true} open={false} summary={relationSummary}>
+    <NaPropertySection title={isProject ? (i18n?.projectRelations || "Project relations") : (i18n?.taskRelations || i18n?.detailGroupDependencies || "Task relations")} collapsible={true} open={false} summary={relationSummary}>
         <NaPropertyRow label={i18n?.subtasks || "Subtasks"} stacked={true}>
             <NaTaskLinkList items={childTasks} emptyText={i18n?.noSubtasks || "No subtasks"} openLabel={i18n?.jumpToBlock || "Jump to block"} onOpen={jump} />
         </NaPropertyRow>

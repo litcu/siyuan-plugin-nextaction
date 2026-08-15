@@ -288,6 +288,7 @@
             {:else if activeView === VIEW_BY_PROJECT}
                 <ProjectView
                     {selectedTaskId}
+                    selectedTaskOverride={selectedTask}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}

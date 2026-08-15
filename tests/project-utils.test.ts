@@ -38,6 +38,52 @@ test("项目风险优先级为完成、阻塞、关注、正常", () => {
     assert.equal(summaries.find(item => item.project.blockId === "normal-project")?.health, "onTrack");
 });
 
+test("项目不会因为存在未完成子任务而显示阻塞", () => {
+    const project = task("project", {
+        taskType: "2",
+        status: "doing",
+        childIds: ["child"],
+        blocked: true,
+        blockedReason: "children",
+    });
+    const child = task("child", { parentId: "project", status: "todo" });
+    const summary = buildProjectSummaries([project, child], "2026-08-15")[0];
+    assert.equal(summary.health, "onTrack");
+    assert.equal(summary.nextActions.length, 1);
+});
+
+test("收件箱子任务属于待澄清而不是项目阻塞", () => {
+    const project = task("project", { taskType: "2", status: "doing", childIds: ["inbox", "next"] });
+    const inbox = task("inbox", {
+        parentId: "project",
+        status: "inbox",
+        blocked: true,
+        blockedReason: "inbox",
+    });
+    const next = task("next", { parentId: "project", status: "todo" });
+    const summary = buildProjectSummaries([project, inbox, next], "2026-08-15")[0];
+    assert.equal(summary.health, "onTrack");
+    assert.equal(summary.blockedTasks.length, 0);
+    assert.equal(summary.nextActions.length, 1);
+});
+
+test("部分子任务阻塞时项目需关注，只有没有可执行任务时才阻塞", () => {
+    const project = task("project", { taskType: "2", status: "doing", childIds: ["blocked", "next"] });
+    const blocked = task("blocked", {
+        parentId: "project",
+        blocked: true,
+        blockedReason: "dependency",
+    });
+    const next = task("next", { parentId: "project" });
+    const attention = buildProjectSummaries([project, blocked, next], "2026-08-15")[0];
+    const fullyBlocked = buildProjectSummaries([
+        { ...project, childIds: ["blocked"] },
+        blocked,
+    ], "2026-08-15")[0];
+    assert.equal(attention.health, "attention");
+    assert.equal(fullyBlocked.health, "blocked");
+});
+
 test("空项目和缺少下一步行动项目会进入关注队列", () => {
     const empty = task("empty", { taskType: "2" });
     const parent = task("parent", { taskType: "2", childIds: ["child"] });
