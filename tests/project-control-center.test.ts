@@ -31,6 +31,12 @@ test("项目控制中心提供总览、层级、看板和计划四种模式", ()
     assert.match(view, /isCollapsed=\{collapsedIds\.has\(row\.task\.blockId\)\}/);
 });
 
+test("项目视图窄屏筛选控件流式换行并与搜索区保持间距", () => {
+    const view = source("../src/frontend/components/ProjectView.svelte");
+    assert.match(view, /\.na-project-toolbar\s*\{[^}]*flex-wrap:\s*wrap;[^}]*gap:\s*8px 10px;[^}]*padding:\s*8px 12px;/);
+    assert.doesNotMatch(view, /@container nextaction-app \(max-width:\s*780px\)[^{]*\{[^}]*\.na-project-toolbar\s*\{[^}]*flex-direction:\s*column/);
+});
+
 test("看板通过父组件回调进入统一任务写入链路", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
     const app = source("../src/frontend/components/NextActionApp.svelte");

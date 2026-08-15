@@ -425,7 +425,7 @@
 </NaViewShell>
 
 <style lang="scss">
-    .na-project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px 0; }
+    .na-project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 8px 12px; }
     .na-project-toolbar__completed { display: inline-flex; align-items: center; gap: 6px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); cursor: pointer; white-space: nowrap; }
     .na-project-toolbar__select { width: auto; min-width: 86px; }
     .na-project-toolbar__hint { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -490,5 +490,5 @@
     .na-project-plan__row :global(.na-task-card) { flex: 1; min-width: 0; } .na-project-plan__date { flex: 0 0 82px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: right; }
     .na-project-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 6px; color: var(--na-text-secondary); text-align: center; } .na-project-empty strong { color: var(--na-text-primary); font-size: var(--na-font-size-lg); }
     @container nextaction-app (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-overview { grid-template-columns: 1fr; } .na-project-toolbar__hint { display: none; } }
-    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-toolbar { align-items: flex-start; flex-direction: column; } .na-project-board { min-width: 760px; } }
+    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-board { min-width: 760px; } }
 </style>
