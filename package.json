@@ -1,6 +1,6 @@
 {
   "name": "siyuan-plugin-nextaction",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "description": "GTD task management plugin for SiYuan",
   "license": "PolyForm-Noncommercial-1.0.0",
