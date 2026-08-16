@@ -55,6 +55,30 @@ function assert(condition, testName, detail) {
     }
 }
 
+function requireBlockId(value, name) {
+    if (typeof value !== "string" || !/^\d{14}-[0-9a-z]{7}$/.test(value)) {
+        throw new Error(`${name} did not return a valid block ID: ${String(value)}`);
+    }
+    return value;
+}
+
+async function snapshotAfter(testName, previous, operation) {
+    const result = await operation();
+    if (result.error || result.result?._rpcError) {
+        throw new Error(`${testName} RPC failed: ${JSON.stringify(result.error || result.result._rpcError)}`);
+    }
+    const response = await rpc("getTaskSnapshotV2");
+    const snapshot = response.result;
+    assert(
+        snapshot?.schema === 2 && typeof snapshot.streamId === "string" && snapshot.streamId.length > 0,
+        `${testName} returns a valid V2 snapshot`,
+        JSON.stringify(snapshot),
+    );
+    assert(snapshot?.streamId === previous.streamId, `${testName} keeps the active stream`);
+    assert(snapshot?.revision > previous.revision, `${testName} advances snapshot revision`, `${previous.revision} -> ${snapshot?.revision}`);
+    return { result, snapshot };
+}
+
 function sleep(milliseconds) {
     return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
@@ -132,6 +156,9 @@ async function runTests() {
     const temporary = await createTemporaryDocument();
     console.log(`Setup: created temporary document ${temporary.id}`);
     const blockUri = `siyuan://blocks/${temporary.id}`;
+    const initialSnapshotResponse = await rpc("getTaskSnapshotV2");
+    const initialSnapshot = initialSnapshotResponse.result;
+    assert(initialSnapshot?.schema === 2, "getTaskSnapshotV2 exposes schema 2", JSON.stringify(initialSnapshot));
 
     console.log("\n--- raw/URI input contract ---");
     const uriRejected = await rpc("getTask", { blockId: blockUri });
@@ -140,7 +167,8 @@ async function runTests() {
     assert(mcpResolved.result?.id === temporary.id, "MCP document resolver accepts and normalizes block URI", JSON.stringify(mcpResolved.result));
 
     console.log("\n--- convertToTask ---");
-    const converted = await rpc("convertToTask", { blockId: temporary.id });
+    const conversion = await snapshotAfter("task creation", initialSnapshot, () => rpc("convertToTask", { blockId: temporary.id }));
+    const converted = conversion.result;
     assert(!converted.error && !converted.result?._rpcError, "convertToTask succeeds", JSON.stringify(converted));
     assert(converted.result?.blockId === temporary.id, "converted block ID matches");
     assert(converted.result?.status === "inbox", "default status is inbox", converted.result?.status);
@@ -151,16 +179,17 @@ async function runTests() {
 
     console.log("\n--- updateTask/getTask/getNextActions ---");
     const due = localDateAfter(2);
-    const updated = await rpc("updateTask", {
+    const update = await snapshotAfter("task update", conversion.snapshot, () => rpc("updateTask", {
         blockId: temporary.id,
         attrs: {
             "na-status": "todo",
             "na-importance": "7",
             "na-priority": "high",
-            "na-context": "阶段一集成测试",
+            "na-context": "阶段四集成测试",
             "na-due": due,
         },
-    });
+    }));
+    const updated = update.result;
     assert(!updated.error && !updated.result?._rpcError, "updateTask succeeds", JSON.stringify(updated));
     assert(updated.result?.status === "todo" && updated.result?.priority === "high", "authoritative update is returned");
     assert(updated.result?.due === due, "due date is updated", updated.result?.due);
@@ -170,23 +199,55 @@ async function runTests() {
     const nextActions = await rpc("getNextActions");
     assert(Array.isArray(nextActions.result) && nextActions.result.some(item => item.blockId === temporary.id), "updated task is a next action");
 
+    console.log("\n--- createTask/reorderTask ---");
+    const firstCreation = await snapshotAfter("first child creation", update.snapshot, () => rpc("createTask", {
+        title: "Stage four first child",
+        destination: { type: "block", parentBlockId: temporary.id },
+    }));
+    const firstChildId = requireBlockId(firstCreation.result?.result?.task?.id, "first child creation");
+    assert(true, "first child task is created");
+
+    const secondCreation = await snapshotAfter("second child creation", firstCreation.snapshot, () => rpc("createTask", {
+        title: "Stage four second child",
+        destination: { type: "block", parentBlockId: temporary.id },
+    }));
+    const secondChildId = requireBlockId(secondCreation.result?.result?.task?.id, "second child creation");
+    assert(true, "second child task is created");
+
+    const reorder = await snapshotAfter("task reorder", secondCreation.snapshot, () => rpc("reorderTask", {
+        blockId: firstChildId,
+        parentId: temporary.id,
+        afterId: secondChildId,
+    }));
+    assert(reorder.result?.result?.blockId === firstChildId, "reorderTask returns the moved child", JSON.stringify(reorder.result));
+
     console.log("\n--- repeat rule ---");
-    const repeated = await rpc("setRepeatRule", {
+    const repeatRule = await snapshotAfter("repeat rule update", reorder.snapshot, () => rpc("setRepeatRule", {
         blockId: temporary.id,
         rule: { version: 2, frequency: "day", interval: 1 },
-    });
+    }));
+    const repeated = repeatRule.result;
     assert(!repeated.error && !repeated.result?._rpcError, "setRepeatRule succeeds", JSON.stringify(repeated));
     assert(Boolean(repeated.result?.repeat && repeated.result?.repeatState), "repeat rule and state are returned");
 
+    const repeatAdvance = await snapshotAfter("repeat advance", repeatRule.snapshot, () => rpc("skipRepeatOccurrence", {
+        blockId: temporary.id,
+    }));
+    assert(!repeatAdvance.result.error && !repeatAdvance.result.result?._rpcError, "skipRepeatOccurrence succeeds", JSON.stringify(repeatAdvance.result));
+
     console.log("\n--- cache rebuild ---");
     await waitForTaskAttributeIndex(temporary.id);
-    const rebuilt = await rpc("rebuildCache");
+    const rebuild = await snapshotAfter("cache rebuild reset", repeatAdvance.snapshot, () => rpc("rebuildCache"));
+    const rebuilt = rebuild.result;
     assert(rebuilt.result?.success === true, "rebuildCache succeeds", JSON.stringify(rebuilt.result));
     const afterRebuild = await rpc("getTask", { blockId: temporary.id });
     assert(afterRebuild.result?.blockId === temporary.id, "task survives authoritative cache rebuild");
 
     console.log("\n--- removeTask ---");
-    const removed = await rpc("removeTask", { blockId: temporary.id });
+    const childRemoval = await snapshotAfter("child deletion", rebuild.snapshot, () => rpc("removeTask", { blockId: secondChildId }));
+    assert(childRemoval.result?.result?.success === true, "child removeTask succeeds", JSON.stringify(childRemoval.result));
+    const parentRemoval = await snapshotAfter("parent deletion", childRemoval.snapshot, () => rpc("removeTask", { blockId: temporary.id }));
+    const removed = parentRemoval.result;
     assert(removed.result?.success === true, "removeTask succeeds", JSON.stringify(removed.result));
     const afterRemove = await rpc("getTask", { blockId: temporary.id });
     assert(afterRemove.result == null, "removed task is absent from cache", JSON.stringify(afterRemove.result));

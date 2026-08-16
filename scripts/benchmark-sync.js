@@ -66,6 +66,23 @@ function createCache() {
     return cache;
 }
 
+function runFullSyncCycle() {
+    const fullCache = createCache();
+    const fullDerivedState = new TaskDerivedStateService(fullCache);
+    fullDerivedState.reconcileAll();
+    for (const parentId of parentIds) fullCache.getByParent(parentId);
+    const snapshotTasks = fullCache.getAll().map(task => ({
+        ...task,
+        childIds: [...task.childIds],
+        customFields: { ...task.customFields },
+    }));
+    const collection = buildTaskCollection(snapshotTasks);
+    reduceTaskChanges(collection, {
+        upserts: snapshotTasks.slice(0, 10).map(task => ({ ...task, note: "updated" })),
+        deletedBlockIds: [snapshotTasks[99].blockId],
+    });
+}
+
 function percentile(sorted, ratio) {
     return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)];
 }
@@ -118,3 +135,4 @@ measure("array reducer batch", () => {
         deletedBlockIds: [changedIds[99]],
     });
 });
+measure("full sync cycle", runFullSyncCycle);

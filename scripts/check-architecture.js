@@ -159,6 +159,58 @@ if (/\b(?:Menu|Dialog|openTab|addEventListener|rpc\.bind)\b/.test(frontendEntryS
     failures.push("frontend entry must not implement UI hosts or runtime listeners directly");
 }
 
+const derivedStateOwner = "src/kernel/task-derived-state-service.ts";
+const cacheOwner = "src/kernel/cache-manager.ts";
+const nonTaskOrderOwner = "src/kernel/my-day-manager.ts";
+for (const [path, source] of textByFile) {
+    const name = projectPath(path);
+    if (!name.startsWith("src/kernel/") || name === derivedStateOwner || name === cacheOwner || name === nonTaskOrderOwner) continue;
+    if (/\.(?:childIds|blocked|blockedReason|order)\s*=/.test(source)) {
+        failures.push(`${name}: derived task state may only be assigned by the cache or derived-state service`);
+    }
+    if (/\bcacheManager\.(?:set|remove)\s*\(/.test(source) && name !== "src/kernel/task-repository.ts") {
+        failures.push(`${name}: cache writes must be routed through TaskRepository`);
+    }
+}
+
+for (const [path, source] of textByFile) {
+    const name = projectPath(path);
+    if (!name.startsWith("src/kernel/")) continue;
+    for (const legacyHelper of ["recalcBlockedStatus", "getSequentialBroadcastIds"]) {
+        if (source.includes(legacyHelper)) failures.push(`${name}: legacy derived-state helper ${legacyHelper} is forbidden`);
+    }
+}
+
+const taskStoreSource = readFileSync(join(sourceRoot, "frontend", "stores", "task-store.ts"), "utf8");
+const v1RefreshSection = taskStoreSource.match(/function scheduleV1Refresh\(\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
+if (!v1RefreshSection.includes("2000") || /\b2000\b/.test(taskStoreSource.replace(v1RefreshSection, ""))) {
+    failures.push("the fixed two-second full refresh must remain isolated to V1 compatibility mode");
+}
+const v2ApplySection = taskStoreSource.match(/function applyV2Notification\(value: unknown\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
+if (!v2ApplySection || /getAllTasks|setTimeout/.test(v2ApplySection)) {
+    failures.push("V2 notification reduction must not schedule or invoke a full V1 task reload");
+}
+
+const runtimeSource = readFileSync(join(sourceRoot, "frontend", "controllers", "frontend-runtime.ts"), "utf8");
+if ([...runtimeSource.matchAll(/\bsetInterval\s*\(/g)].length !== 1
+    || !runtimeSource.includes("TASK_CALIBRATION_INTERVAL_MS = 5 * 60 * 1000")) {
+    failures.push("FrontendRuntime must own exactly one five-minute task calibration timer");
+}
+for (const marker of [
+    'rpc.bind("tasksChanged"',
+    'rpc.bind("tasksChangedV2"',
+    'getTaskSnapshotV2',
+    'TaskSnapshotV2',
+    'TaskChangeSetV2',
+]) {
+    const source = marker.startsWith("rpc.bind")
+        ? runtimeSource
+        : marker === "getTaskSnapshotV2"
+            ? methodsSource + serverSource + bridgeSource
+            : readFileSync(join(sourceRoot, "shared", "types.ts"), "utf8");
+    if (!source.includes(marker)) failures.push(`revisioned task sync boundary is missing ${marker}`);
+}
+
 if (failures.length) {
     console.error(failures.map(message => `- ${message}`).join("\n"));
     process.exit(1);
