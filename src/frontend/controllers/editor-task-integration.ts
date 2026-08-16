@@ -2,10 +2,11 @@ import { Dialog, Menu, confirm, type Plugin } from "siyuan";
 import { get } from "svelte/store";
 import type TaskDetail from "../components/TaskDetail.svelte";
 import type { KernelBridge } from "../kernel-bridge";
+import type { I18nStrings } from "../../shared/i18n";
 import { taskStore } from "../stores/task-store";
 import { notifyError, notifyInfo, notifyOperationError } from "../notify";
 import { normalizePriority, PRIORITY_LIST } from "../constants";
-import { toI18nKey } from "../utils";
+import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import type { TaskCommandController } from "./task-command-controller";
@@ -17,6 +18,7 @@ export class EditorTaskIntegration {
 
     constructor(
         private readonly plugin: Plugin,
+        private readonly i18n: I18nStrings,
         private readonly getBridge: () => KernelBridge,
         private readonly commands: TaskCommandController,
     ) {}
@@ -49,15 +51,15 @@ export class EditorTaskIntegration {
 
         // Status section
         for (const s of ['inbox', 'todo', 'doing', 'waiting', 'someday', 'done']) {
-            const i18nKey = 'status' + s.charAt(0).toUpperCase() + s.slice(1);
+            const i18nKey = statusI18nKey(s);
             menu.addItem({
                 icon: s === currentStatus ? 'iconSelect' : '',
-                label: this.plugin.i18n[i18nKey] || s,
+                label: translateKey(this.i18n, i18nKey, s),
                 click: async () => {
                     try {
                         const updated = await this.getBridge().updateTask(blockId, { 'na-status': s });
                         taskStore.applyUpdate(updated);
-                        const statusLabel = this.plugin.i18n[i18nKey] || s;
+                        const statusLabel = translateKey(this.i18n, i18nKey, s);
                         const template = s === "done"
                             ? (this.plugin.i18n.taskMarkedDone || "Marked as done")
                             : (this.plugin.i18n.taskStatusUpdated || "Status updated to {status}");
@@ -96,7 +98,7 @@ export class EditorTaskIntegration {
             type: 'submenu',
             submenu: PRIORITY_LIST.map((p) => ({
                 icon: p === currentPriority ? 'iconSelect' : '',
-                label: this.plugin.i18n[toI18nKey('priority', p)] || p,
+                label: translateKey(this.i18n, priorityI18nKey(p), p),
                 click: async () => {
                     try {
                         const updated = await this.getBridge().updateTask(blockId, { 'na-priority': p });
@@ -251,7 +253,7 @@ export class EditorTaskIntegration {
                     props: {
                         task,
                         bridge: this.getBridge(),
-                        i18n: this.plugin.i18n,
+                        i18n: this.i18n,
                         dialogMode: true,
                         onSave: (updated: any) => {
                             taskStore.applyUpdate(updated);

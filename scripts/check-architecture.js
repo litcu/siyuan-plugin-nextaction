@@ -159,6 +159,35 @@ if (/\b(?:Menu|Dialog|openTab|addEventListener|rpc\.bind)\b/.test(frontendEntryS
     failures.push("frontend entry must not implement UI hosts or runtime listeners directly");
 }
 
+const typedI18nFiles = [
+    "src/frontend/components/TaskDetail.svelte",
+    "src/frontend/components/NextActionApp.svelte",
+    "src/frontend/components/MobileDockHost.svelte",
+    "src/frontend/components/ProjectView.svelte",
+    "src/frontend/components/project/ProjectOverviewMode.svelte",
+    "src/frontend/components/project/ProjectHierarchyMode.svelte",
+    "src/frontend/components/project/ProjectBoardMode.svelte",
+    "src/frontend/components/project/ProjectPlanMode.svelte",
+    "src/frontend/components/SettingsPanel.svelte",
+    "src/frontend/components/settings/GeneralSettingsPage.svelte",
+    "src/frontend/components/settings/CustomFieldsSettingsPage.svelte",
+    "src/frontend/components/settings/AiSettingsPage.svelte",
+    "src/frontend/components/settings/McpSettingsPage.svelte",
+    "src/frontend/components/settings/AdvancedSettingsPage.svelte",
+];
+for (const name of typedI18nFiles) {
+    const source = textByFile.get(join(root, name));
+    if (!source) {
+        failures.push(`${name}: typed i18n migration target is missing`);
+    } else if (/\bi18n\s*:\s*any\b/.test(source)) {
+        failures.push(`${name}: migrated component must use I18nStrings instead of i18n: any`);
+    }
+}
+const typedBridgeSource = textByFile.get(join(sourceRoot, "frontend", "components", "SettingsPanel.svelte")) || "";
+if (/\bbridge\s*:\s*any\b/.test(typedBridgeSource)) {
+    failures.push("src/frontend/components/SettingsPanel.svelte: bridge must use KernelBridge");
+}
+
 const derivedStateOwner = "src/kernel/task-derived-state-service.ts";
 const cacheOwner = "src/kernel/cache-manager.ts";
 const nonTaskOrderOwner = "src/kernel/my-day-manager.ts";

@@ -2,6 +2,7 @@
     import type { MyDayViewMode } from "../../../shared/settings";
     import type { CreateTaskDefaultTarget } from "../../../shared/task-creation";
     import type { ReminderSoundId } from "../../../shared/constants";
+    import type { I18nStrings } from "../../../shared/i18n";
     import type { KernelBridge } from "../../kernel-bridge";
     import NaDocumentPicker from "../../ui/NaDocumentPicker.svelte";
     import NaDotRating from "../../ui/NaDotRating.svelte";
@@ -12,7 +13,7 @@
     type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
 
     export let bridge: KernelBridge;
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget;
     export let taskCreationInboxDocument: DocumentSelection | null;
     export let taskCreationDailyNoteNotebookId: string;

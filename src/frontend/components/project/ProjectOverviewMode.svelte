@@ -1,22 +1,24 @@
 <script lang="ts">
     import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
+    import type { I18nStrings } from "../../../shared/i18n";
+    import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
     import NaTaskList from "../../ui/NaTaskList.svelte";
 
     export let summary: ProjectSummary;
     export let selectedTaskId = "";
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
-        return i18n?.[`projectRisk${kind.charAt(0).toUpperCase()}${kind.slice(1)}`] || kind;
+        return translateKey(i18n, projectRiskI18nKey(kind), kind);
     }
 
     function statusLabel(status: string): string {
-        return i18n?.[`status${status.charAt(0).toUpperCase()}${status.slice(1)}`] || status;
+        return translateKey(i18n, statusI18nKey(status), status);
     }
 </script>
 

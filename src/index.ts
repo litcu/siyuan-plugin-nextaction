@@ -6,6 +6,7 @@ import { PanelHostRegistrar } from "./frontend/controllers/panel-host-registrar"
 import { FrontendRuntime } from "./frontend/controllers/frontend-runtime";
 import { TaskCommandController } from "./frontend/controllers/task-command-controller";
 import { EditorTaskIntegration } from "./frontend/controllers/editor-task-integration";
+import { asI18nStrings } from "./shared/i18n";
 
 export default class NextActionPlugin extends Plugin {
     private bridge!: KernelBridge;
@@ -19,7 +20,7 @@ export default class NextActionPlugin extends Plugin {
     onload() {
         this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
 
-        this.panelHosts = new PanelHostRegistrar(this, this.isMobile, () => this.bridge);
+        this.panelHosts = new PanelHostRegistrar(this, asI18nStrings(this.i18n), this.isMobile, () => this.bridge);
         this.panelHosts.register();
 
         this.taskCommands = new TaskCommandController(this, this.isMobile, () => this.bridge, () => this.panelHosts?.openTaskPanel());
@@ -30,7 +31,7 @@ export default class NextActionPlugin extends Plugin {
         this.runtime = new FrontendRuntime(this, () => this.taskCommands?.getCurrentDocumentId() || "");
         this.bridge = this.runtime.start();
 
-        this.editorIntegration = new EditorTaskIntegration(this, () => this.bridge, this.taskCommands!);
+        this.editorIntegration = new EditorTaskIntegration(this, asI18nStrings(this.i18n), () => this.bridge, this.taskCommands!);
         this.editorIntegration.start();
 
         this.taskCommands?.registerCommands();
@@ -50,7 +51,7 @@ export default class NextActionPlugin extends Plugin {
     }
 
     openSetting(): void {
-        if (!this.settingsDialog) this.settingsDialog = new SettingsDialogController(this.bridge, this.i18n);
+        if (!this.settingsDialog) this.settingsDialog = new SettingsDialogController(this.bridge, asI18nStrings(this.i18n));
         this.settingsDialog.open();
     }
 }

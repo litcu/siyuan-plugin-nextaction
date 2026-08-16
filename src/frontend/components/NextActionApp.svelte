@@ -19,6 +19,7 @@
     import { onMount, onDestroy } from "svelte";
     import { notifyError, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
+    import type { I18nStrings } from "../../shared/i18n";
     import { get } from "svelte/store";
     import NaDrawerHost from "../ui/NaDrawerHost.svelte";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
@@ -28,7 +29,7 @@
     import { confirm } from "siyuan";
 
     export let bridge: KernelBridge;
-    export let i18n: any;
+    export let i18n: I18nStrings;
 
     let activeView: string = VIEW_NEXT_ACTION;
     let selectedTask: TaskCacheEntry | null = null;

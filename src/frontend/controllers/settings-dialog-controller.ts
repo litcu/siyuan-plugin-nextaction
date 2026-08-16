@@ -1,5 +1,6 @@
 import { Dialog } from "siyuan";
 import type { PluginSettings } from "../../shared/settings";
+import type { I18nStrings } from "../../shared/i18n";
 import type { KernelBridge } from "../kernel-bridge";
 import { notifyInfo, notifyOperationError } from "../notify";
 import { taskStore } from "../stores/task-store";
@@ -9,7 +10,7 @@ export class SettingsDialogController {
 
     constructor(
         private readonly bridge: KernelBridge,
-        private readonly i18n: Record<string, string>,
+        private readonly i18n: I18nStrings,
     ) {}
 
     open(): void {

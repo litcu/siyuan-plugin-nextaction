@@ -1,12 +1,14 @@
 <script lang="ts">
+    import type { I18nStrings } from "../../../shared/i18n";
+    import type { RpcMcpStatus } from "../../../shared/rpc-methods";
     import NaIcon from "../../ui/NaIcon.svelte";
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let mcpEnabled: boolean;
     export let mcpAllowWrite: boolean;
-    export let mcpStatus: any;
+    export let mcpStatus: RpcMcpStatus | null;
     export let mcpCopied = false;
     export let mcpEndpoint = "";
     export let onCopyEndpoint: () => void;

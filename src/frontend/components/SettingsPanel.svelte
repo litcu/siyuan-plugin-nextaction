@@ -4,6 +4,8 @@
     import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
     import type { CreateTaskDefaultTarget } from "../../shared/task-creation";
     import type { AiFeatureId } from "../../shared/ai";
+    import type { I18nStrings } from "../../shared/i18n";
+    import type { RpcMcpStatus } from "../../shared/rpc-methods";
     import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
     import { formatOperationError, formatValidationError, notifyInfo, notifyError } from "../notify";
@@ -11,6 +13,7 @@
     import { SettingsPanelController, type SettingsAction, type SettingsPage } from "../controllers/settings-panel-controller";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
+    import { reminderSoundI18nKey, translateKey } from "../i18n";
     import NaIcon from "../ui/NaIcon.svelte";
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import GeneralSettingsPage from "./settings/GeneralSettingsPage.svelte";
@@ -20,7 +23,7 @@
     import AdvancedSettingsPage from "./settings/AdvancedSettingsPage.svelte";
 
     export let bridge: KernelBridge;
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSave: (settings: PluginSettings) => void | Promise<void>;
     export let onClose: () => void;
 
@@ -76,7 +79,7 @@
     let taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
     let taskCreationInboxDocument: DocumentSelection | null = null;
     let taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
-    let mcpStatus: any = null;
+    let mcpStatus: RpcMcpStatus | null = null;
     let mcpNotebooks: Array<{ id: string; name: string; icon: string }> = [];
     let mcpCopied = false;
     // SiYuan's desktop kernel listens on a random internal port and proxies
@@ -164,7 +167,7 @@
 
             try {
                 const diagnostics = await bridge.getCustomFieldDiagnostics();
-                customFieldUsage = Object.fromEntries((diagnostics.fields || []).map((item: any) => [item.key, item.count]));
+                customFieldUsage = Object.fromEntries(diagnostics.fields.map(item => [item.key, item.count]));
             } catch (_e) {
                 customFieldUsage = {};
             }
@@ -588,8 +591,7 @@
     }
 
     function getSoundLabel(soundId: ReminderSoundId): string {
-        const key = "reminderSound" + soundId.charAt(0).toUpperCase() + soundId.slice(1);
-        return i18n?.[key] || soundId;
+        return translateKey(i18n, reminderSoundI18nKey(soundId), soundId);
     }
 
     function getUnitLabel(unit: "minutes" | "hours" | "days"): string {

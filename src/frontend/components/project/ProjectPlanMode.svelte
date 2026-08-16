@@ -1,18 +1,20 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../../shared/types";
+    import type { I18nStrings } from "../../../shared/i18n";
     import type { ProjectDateBucket } from "../../utils/project";
+    import { projectPlanI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
 
     export let groups: Array<{ bucket: ProjectDateBucket; tasks: TaskCacheEntry[] }>;
     export let selectedTaskId = "";
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
 
     function bucketLabel(bucket: ProjectDateBucket): string {
-        return i18n?.[`projectPlan${bucket.charAt(0).toUpperCase()}${bucket.slice(1)}`] || bucket;
+        return translateKey(i18n, projectPlanI18nKey(bucket), bucket);
     }
 </script>
 

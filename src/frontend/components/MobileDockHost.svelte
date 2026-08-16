@@ -4,9 +4,10 @@
     import NaIcon from "../ui/NaIcon.svelte";
     import NaIconButton from "../ui/NaIconButton.svelte";
     import type { KernelBridge } from "../kernel-bridge";
+    import type { I18nStrings } from "../../shared/i18n";
 
     export let bridge: KernelBridge;
-    export let i18n: any;
+    export let i18n: I18nStrings;
 
     type MobileDockMode = "sidebar" | "full";
     let mode: MobileDockMode = "sidebar";

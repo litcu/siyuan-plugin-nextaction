@@ -1,12 +1,13 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../../shared/types";
+    import type { I18nStrings } from "../../../shared/i18n";
     import type { ProjectTreeModel } from "../../utils/project-tree";
     import TaskCard from "../TaskCard.svelte";
 
     export let model: ProjectTreeModel;
     export let collapsedIds: ReadonlySet<string>;
     export let selectedTaskId = "";
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;

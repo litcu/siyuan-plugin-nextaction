@@ -1,6 +1,7 @@
 import { openTab, type Plugin } from "siyuan";
 import type { SvelteComponent } from "svelte";
 import type { KernelBridge } from "../kernel-bridge";
+import type { I18nStrings } from "../../shared/i18n";
 
 export const NEXTACTION_TAB_TYPE = "nextaction_tab";
 export const NEXTACTION_DOCK_TYPE = "nextaction_dock";
@@ -13,6 +14,7 @@ export class PanelHostRegistrar {
 
     constructor(
         private readonly plugin: Plugin,
+        private readonly i18n: I18nStrings,
         private readonly isMobile: boolean,
         private readonly getBridge: () => KernelBridge,
     ) {}
@@ -37,7 +39,7 @@ export class PanelHostRegistrar {
                         if (registrar.disposed) return;
                         const component = new NextActionApp({
                             target: container,
-                            props: { bridge: registrar.getBridge(), i18n: registrar.plugin.i18n },
+                            props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
                         });
                         registrar.mounted.add(component);
                         (this as unknown as { _naApp?: MountedComponent })._naApp = component;
@@ -56,7 +58,7 @@ export class PanelHostRegistrar {
                 position: "RightTop",
                 size: { width: 300, height: 0 },
                 icon: "iconNextAction",
-                title: this.plugin.i18n.pluginName || "NextAction",
+                title: this.i18n.pluginName || "NextAction",
                 hotkey: "",
             },
             data: {},
@@ -80,7 +82,7 @@ export class PanelHostRegistrar {
                     if (registrar.disposed) return;
                     const component = new DockComponent({
                         target: container,
-                        props: { bridge: registrar.getBridge(), i18n: registrar.plugin.i18n },
+                        props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
                     });
                     registrar.mounted.add(component);
                     (this as unknown as { _naDock?: MountedComponent })._naDock = component;
@@ -91,7 +93,7 @@ export class PanelHostRegistrar {
         if (!this.isMobile) {
             this.plugin.addTopBar({
                 icon: "iconNextAction",
-                title: this.plugin.i18n.pluginName || "NextAction",
+                title: this.i18n.pluginName || "NextAction",
                 callback: () => this.openTaskPanel(),
             });
         }
@@ -104,7 +106,7 @@ export class PanelHostRegistrar {
             custom: {
                 id: this.plugin.name + NEXTACTION_TAB_TYPE,
                 icon: "iconNextAction",
-                title: this.plugin.i18n.pluginName || "NextAction",
+                title: this.i18n.pluginName || "NextAction",
             },
         });
     }

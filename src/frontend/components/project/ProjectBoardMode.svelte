@@ -1,11 +1,13 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../../shared/types";
+    import type { I18nStrings } from "../../../shared/i18n";
     import type { ProjectBoardMoveIntent } from "../../utils/project-view-state";
+    import { statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
 
     export let tasks: TaskCacheEntry[];
     export let selectedTaskId = "";
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -18,7 +20,7 @@
     let busy = false;
 
     function statusLabel(status: string): string {
-        return i18n?.[`status${status.charAt(0).toUpperCase()}${status.slice(1)}`] || status;
+        return translateKey(i18n, statusI18nKey(status), status);
     }
 
     function handleDragStart(task: TaskCacheEntry, event: DragEvent) {

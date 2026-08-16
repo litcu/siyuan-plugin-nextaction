@@ -17,6 +17,8 @@
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+    import type { I18nStrings } from "../../shared/i18n";
+    import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
@@ -33,7 +35,7 @@
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let selectedTaskId: string = "";
     export let selectedTaskOverride: TaskCacheEntry | null = null;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
@@ -82,7 +84,7 @@
     $: noActionCount = viewModel.metrics.noAction;
 
     function statusLabel(status: string): string {
-        return i18n?.[`status${status.charAt(0).toUpperCase()}${status.slice(1)}`] || status;
+        return translateKey(i18n, statusI18nKey(status), status);
     }
 
     function statusTone(status: string): "neutral" | "primary" | "info" | "success" | "warning" | "danger" {
@@ -94,7 +96,7 @@
     }
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
-        return i18n?.[`projectRisk${kind.charAt(0).toUpperCase()}${kind.slice(1)}`] || kind;
+        return translateKey(i18n, projectRiskI18nKey(kind), kind);
     }
 
     function handleFilterChange(state: FilterState) {

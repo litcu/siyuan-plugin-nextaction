@@ -1,9 +1,10 @@
 <script lang="ts">
     import type { AiFeatureId } from "../../../shared/ai";
+    import type { I18nStrings } from "../../../shared/i18n";
     import NaAccordion from "../../ui/NaAccordion.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
 
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let aiPrompts: Record<AiFeatureId, string>;
     export let defaultPrompts: Record<AiFeatureId, string>;
     export let getRuntimePreview: (feature: AiFeatureId) => { input: string; schema: string; example: string };

@@ -1,9 +1,10 @@
 <script lang="ts">
+    import type { I18nStrings } from "../../../shared/i18n";
     import NaIcon from "../../ui/NaIcon.svelte";
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let dueWeight: number;
     export let startWeight: number;
     export let importanceWeight: number;

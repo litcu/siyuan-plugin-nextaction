@@ -2,6 +2,7 @@
     import { confirm } from "siyuan";
     import { onDestroy } from "svelte";
     import type { TaskCacheEntry } from "../../shared/types";
+    import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
     import { parseRepeatState } from "../../shared/repeat";
@@ -9,7 +10,8 @@
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { taskStore } from "../stores/task-store";
     import { formatRpcError, notifyInfo } from "../notify";
-    import { jumpToBlock as jump, toI18nKey } from "../utils";
+    import { jumpToBlock as jump } from "../utils";
+    import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { parseReminderItems } from "../utils/reminder-utils";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
     import { openReminderSettingsDialog, openRepeatRuleDialog } from "../dialogs/task-property-dialogs";
@@ -35,7 +37,7 @@
 
     export let task: TaskCacheEntry;
     export let bridge: KernelBridge;
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let onSave: ((updatedEntry: TaskCacheEntry) => void) | undefined = undefined;
     export let onRemove: ((blockId: string) => void) | undefined = undefined;
     export let onClose: (() => void) | undefined = undefined;
@@ -107,7 +109,7 @@
                 ? (i18n?.saved || "Saved")
                 : saveState === "error"
                     ? (i18n?.saveFailed || "Save failed")
-                    : (i18n?.[toI18nKey("status", status)] || status);
+                    : translateKey(i18n, statusI18nKey(status), status);
     $: statusTone = (saveState === "error" ? "error" : saveState === "pending" ? "warning" : "default") as "error" | "warning" | "default";
     $: relationSummary = [
         childTasks.length ? (i18n?.subtaskCount || "{n} subtasks").replace("{n}", String(childTasks.length)) : "",
@@ -536,7 +538,7 @@
     <NaPropertySection title={i18n?.detailGroupBasics || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
             <select class="b3-select fn__block" bind:value={status} on:change={handleChange}>
-                {#each STATUS_LIST as item}<option value={item}>{i18n?.[toI18nKey("status", item)] || item}</option>{/each}
+                {#each STATUS_LIST as item}<option value={item}>{translateKey(i18n, statusI18nKey(item), item)}</option>{/each}
             </select>
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.taskType || "Item type"}>
@@ -544,7 +546,7 @@
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.priority || "Priority"}>
             <select class="b3-select fn__block" bind:value={priority} on:change={handleChange}>
-                {#each PRIORITY_LIST as item}<option value={item}>{i18n?.[toI18nKey("priority", item)] || item}</option>{/each}
+                {#each PRIORITY_LIST as item}<option value={item}>{translateKey(i18n, priorityI18nKey(item), item)}</option>{/each}
             </select>
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.importance || "Importance"}><NaDotRating count={7} bind:value={importance} on:change={handleChange} /></NaPropertyRow>

@@ -1,8 +1,10 @@
 <script lang="ts">
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, normalizeCustomFieldKey, type CustomFieldDef, type CustomFieldOption, type CustomFieldType } from "../../../shared/custom-fields";
+    import type { I18nStrings } from "../../../shared/i18n";
+    import { customFieldTypeI18nKey, translateKey } from "../../i18n";
     import NaIcon from "../../ui/NaIcon.svelte";
 
-    export let i18n: any;
+    export let i18n: I18nStrings;
     export let customFields: CustomFieldDef[];
     export let customFieldUsage: Record<string, number> = {};
     export let purgingFieldId = "";
@@ -19,11 +21,10 @@
     let error = "";
 
     function typeLabel(type: CustomFieldType): string {
-        const key = `customFieldType${type.charAt(0).toUpperCase()}${type.slice(1)}`;
         const fallback: Record<CustomFieldType, string> = {
             text: "Text", textarea: "Long text", number: "Number", boolean: "Yes / No", date: "Date", datetime: "Date & time", singleSelect: "Single select", multiSelect: "Multi-select", url: "URL",
         };
-        return i18n?.[key] || fallback[type];
+        return translateKey(i18n, customFieldTypeI18nKey(type), fallback[type]);
     }
 
     function scopeLabel(scope: CustomFieldDef["scope"]): string {
