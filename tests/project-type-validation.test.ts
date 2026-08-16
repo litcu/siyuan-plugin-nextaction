@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const taskServiceSource = readFileSync(new URL("../src/kernel/task-service.ts", import.meta.url), "utf8");
-const frontendSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+const taskServiceSource = readFileSync(new URL("../src/kernel/task-lifecycle-service.ts", import.meta.url), "utf8");
+const frontendSource = readFileSync(new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url), "utf8");
 const constantsSource = readFileSync(new URL("../src/shared/constants.ts", import.meta.url), "utf8");
 
 test("单块转换在 knownTextBlock 路径也校验项目必须是文档", () => {
@@ -37,5 +37,5 @@ test("内核错误码覆盖项目校验且前端不再保留直连回退", () =>
     assert.match(constantsSource, /RPC_ERROR_PROJECT_REQUIRES_DOCUMENT = -32009/);
     assert.doesNotMatch(frontendSource, /\/api\/attr\//);
     assert.doesNotMatch(frontendSource, /\/api\/query\/sql/);
-    assert.match(frontendSource, /return this\.bridge\.convertToTask\(blockId, cleanTitle, taskType\)/);
+    assert.match(frontendSource, /return this\.getBridge\(\)\.convertToTask\(blockId, cleanTitle, taskType\)/);
 });

@@ -20,11 +20,12 @@ test("移动 Dock 在精简侧栏和完整任务面板之间切换", () => {
 });
 
 test("移动端隐藏顶部栏和命令入口，但保留 Dock 内部入口", () => {
-    const plugin = source("../src/index.ts");
-    assert.match(plugin, /if \(this\.isMobile\) return/);
-    assert.match(plugin, /pluginRef\.isMobile[\s\S]*MobileDockHost\.svelte/);
-    assert.match(plugin, /if \(!this\.isMobile\) \{[\s\S]*this\.addTopBar/);
-    assert.match(plugin, /if \(!this\.isMobile\) \{[\s\S]*langKey: "openTaskPanel"/);
+    const panels = source("../src/frontend/controllers/panel-host-registrar.ts");
+    const commands = source("../src/frontend/controllers/task-command-controller.ts");
+    assert.match(panels, /if \(this\.isMobile\) return/);
+    assert.match(panels, /registrar\.isMobile[\s\S]*MobileDockHost\.svelte/);
+    assert.match(panels, /if \(!this\.isMobile\) \{[\s\S]*this\.plugin\.addTopBar/);
+    assert.match(commands, /if \(!this\.isMobile\) \{[\s\S]*langKey: "openTaskPanel"/);
 });
 
 test("侧边栏标题和页签使用同一行的弹性布局", () => {

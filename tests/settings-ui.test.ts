@@ -9,7 +9,7 @@ const customFields = read("src/frontend/components/settings/CustomFieldsSettings
 const ai = read("src/frontend/components/settings/AiSettingsPage.svelte");
 const mcp = read("src/frontend/components/settings/McpSettingsPage.svelte");
 const advanced = read("src/frontend/components/settings/AdvancedSettingsPage.svelte");
-const indexSource = read("src/index.ts");
+const indexSource = read("src/frontend/controllers/settings-dialog-controller.ts");
 const naSection = read("src/frontend/ui/NaSection.svelte");
 const naSettingRow = read("src/frontend/ui/NaSettingRow.svelte");
 const naAccordion = read("src/frontend/ui/NaAccordion.svelte");
@@ -35,11 +35,11 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
     assert.match(panel, /await onSave\(result\);[\s\S]*savedSignature = JSON\.stringify\(buildSettings\(\)\);[\s\S]*draftSignature = savedSignature/);
     assert.match(panel, /i18n\?\.save \|\| "Save"/);
-    assert.match(indexSource, /notifyInfo\(i18n\.settingsSaved \|\| "Settings saved"\);\s*\n\s*\} catch/);
+    assert.match(indexSource, /notifyInfo\(this\.i18n\.settingsSaved \|\| "Settings saved"\);\s*\n\s*\} catch/);
     assert.doesNotMatch(indexSource, /settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*dialog\.destroy\(\);/);
     assert.match(panel, /export function requestClose\(\)/);
     assert.match(indexSource, /\.b3-dialog__scrim/);
-    assert.match(indexSource, /comp\.requestClose\(\)/);
+    assert.match(indexSource, /component\.requestClose\(\)/);
     assert.match(panel, /na-settings-modern__header \{ position: sticky/);
     assert.match(panel, /na-settings-modern__footer \{ position: sticky/);
     assert.match(panel, /na-settings-modern__nav \{[\s\S]*position: sticky/);

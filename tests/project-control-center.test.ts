@@ -89,7 +89,7 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     const contextMenu = source("../src/frontend/components/task-context-menu.ts");
     const aiService = source("../src/frontend/ai/ai-feature-service.ts");
     const filterBar = source("../src/frontend/ui/NaTaskFilterBar.svelte");
-    const plugin = source("../src/index.ts");
+    const plugin = source("../src/frontend/controllers/editor-task-integration.ts");
 
     assert.match(view, /i18n\?\.editProject/);
     assert.match(view, /i18n\?\.aiDecomposeProject/);
@@ -105,6 +105,6 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     assert.match(aiService, /i18n\?\.aiDecomposeProject/);
     assert.match(plugin, /custom-na-task'\) === '2'/);
     assert.match(plugin, /const isProjectBlock = taskBlock/);
-    assert.match(plugin, /this\.i18n\.projectProperties/);
-    assert.match(plugin, /this\.i18n\.removeProject/);
+    assert.match(plugin, /this\.plugin\.i18n\.projectProperties/);
+    assert.match(plugin, /this\.plugin\.i18n\.removeProject/);
 });
