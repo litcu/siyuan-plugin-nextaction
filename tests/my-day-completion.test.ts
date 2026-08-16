@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { isMyDayEntryDone, setMyDayTaskCompletedAt } from "../src/shared/my-day.ts";
 
 const taskServiceSource = readFileSync(
-    new URL("../src/kernel/task-service.ts", import.meta.url),
+    new URL("../src/kernel/task-lifecycle-service.ts", import.meta.url),
     "utf8",
 );
 const myDayManagerSource = readFileSync(

@@ -7,10 +7,11 @@ function source(path: string): string {
 }
 
 const prioritySource = source("../src/kernel/priority-engine.ts");
-const serviceSource = source("../src/kernel/task-service.ts");
+const lifecycleSource = source("../src/kernel/task-lifecycle-service.ts");
+const relationshipSource = source("../src/kernel/task-relationship-service.ts");
 const helperSection = prioritySource.slice(prioritySource.indexOf("export function getSequentialBroadcastIds("));
-const updateSection = serviceSource.slice(serviceSource.indexOf("async updateTask("), serviceSource.indexOf("async updateTaskTitle("));
-const reorderSection = serviceSource.slice(serviceSource.indexOf("async reorderTask("), serviceSource.indexOf("// ---- Read operations ----", serviceSource.indexOf("async reorderTask(")));
+const updateSection = lifecycleSource.slice(lifecycleSource.indexOf("async updateTask("), lifecycleSource.indexOf("async updateTaskTitle("));
+const reorderSection = relationshipSource.slice(relationshipSource.indexOf("async reorderTask("));
 
 test("顺序广播 helper 导出并处理项目开关及全部子任务", () => {
     assert.match(prioritySource, /export function getSequentialBroadcastIds\(/);

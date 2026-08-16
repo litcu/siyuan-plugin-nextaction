@@ -74,6 +74,6 @@ test("字段定义校验拒绝大写、下划线和重复 Key", () => {
 });
 
 test("孤立字段清理兼容完整属性名", () => {
-    const source = readFileSync(new URL("../src/kernel/task-service.ts", import.meta.url), "utf8");
+    const source = readFileSync(new URL("../src/kernel/task-custom-field-service.ts", import.meta.url), "utf8");
     assert.match(source, /key\?\.startsWith\(ATTR_EXT_PREFIX\) \? key\.slice\(ATTR_EXT_PREFIX\.length\) : key/);
 });
