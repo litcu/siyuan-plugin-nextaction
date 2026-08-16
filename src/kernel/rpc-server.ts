@@ -16,7 +16,7 @@ import type {
 import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rpc-methods";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type { PluginSettings } from "../shared/settings";
-import type { ReviewData } from "../shared/types";
+import type { ReviewData, TaskSnapshotV2 } from "../shared/types";
 import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
@@ -30,6 +30,8 @@ export interface RpcServerHooks {
     resolveChildTarget?: (value: unknown) => Promise<RpcChildTargetResult>;
     createTask?: (input: CreateTaskInput) => Promise<CreateTaskResult>;
     aiProposalService?: AiProposalService;
+    getTaskSnapshotV2?: () => TaskSnapshotV2;
+    broadcastTaskReset?: () => void;
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -88,6 +90,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getTask: ({ blockId }) => taskService.getTask(blockId),
         getNextActions: () => taskService.getNextActions(),
         getAllTasks: ({ status, sortBy }) => taskService.getAllTasks({ status, sortBy }),
+        getTaskSnapshotV2: () => hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2"),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),
         recalcAllOrders: async () => {
@@ -96,6 +99,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         },
         rebuildCache: async () => {
             await taskService.rebuildCache();
+            hooks.broadcastTaskReset?.();
             return { success: true };
         },
         getDoneTaskCount: () => ({ count: taskService.getDoneTaskCount() }),

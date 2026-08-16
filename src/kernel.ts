@@ -41,7 +41,7 @@ class NextActionKernelPlugin {
         const api = new ProductionSiyuanApi(this.siyuan);
         this.mutex = new Mutex();
         this.cacheManager = new CacheManager(api);
-        this.syncEngine = new SyncEngine(api);
+        this.syncEngine = new SyncEngine(api, this.cacheManager);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
         const taskRepository = new TaskRepository(api, this.cacheManager, this.mutex, this.syncEngine, DEFAULT_SETTINGS);
         this.taskService = new TaskService(this.cacheManager, taskRepository, myDayManager, api);
@@ -99,6 +99,8 @@ class NextActionKernelPlugin {
             resolveChildTarget: (value) => this.taskTargetResolver.resolveChildTarget(value),
             createTask,
             aiProposalService,
+            getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
+            broadcastTaskReset: () => this.syncEngine.broadcastReset(),
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
@@ -107,6 +109,7 @@ class NextActionKernelPlugin {
             if (mismatches > 0) {
                 await logger.warn("onload: cache integrity check found " + mismatches + " mismatches, rebuilding...");
                 await this.taskService.rebuildCache();
+                this.syncEngine.broadcastReset();
             }
             this.isReady = true;
             await myDayManager.load();

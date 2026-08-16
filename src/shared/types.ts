@@ -106,6 +106,33 @@ export interface TaskChangeNotification {
     changeTypes: Record<string, "create" | "update" | "delete">;
 }
 
+export interface TaskSnapshotV2 {
+    schema: 2;
+    streamId: string;
+    revision: number;
+    tasks: TaskCacheEntry[];
+}
+
+export interface TaskDeltaChangeSetV2 {
+    schema: 2;
+    type: "delta";
+    streamId: string;
+    fromRevision: number;
+    revision: number;
+    upserts: TaskCacheEntry[];
+    deletedBlockIds: string[];
+}
+
+export interface TaskResetChangeSetV2 {
+    schema: 2;
+    type: "reset";
+    streamId: string;
+    revision: number;
+}
+
+export type TaskChangeSetV2 = TaskDeltaChangeSetV2 | TaskResetChangeSetV2;
+export type TaskBroadcastPayload = TaskChangeNotification | TaskChangeSetV2;
+
 export interface StatisticsSummary {
     total: number;
     open: number;              // 未完成任务数（status ≠ done）

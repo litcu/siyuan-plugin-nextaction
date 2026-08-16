@@ -1,4 +1,4 @@
-import type { TaskCacheEntry, TaskChangeNotification, StatisticsResult, PluginSettings, MyDayState, ReviewData, CompletedTasksPage } from "../shared/types";
+import type { TaskCacheEntry, TaskChangeNotification, TaskSnapshotV2, StatisticsResult, PluginSettings, MyDayState, ReviewData, CompletedTasksPage } from "../shared/types";
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
@@ -115,6 +115,10 @@ export class KernelBridge {
 
     async getAllTasks(filters?: { status?: string; sortBy?: string }): Promise<TaskCacheEntry[]> {
         return this.call("getAllTasks", filters || {});
+    }
+
+    async getTaskSnapshotV2(): Promise<TaskSnapshotV2> {
+        return this.call("getTaskSnapshotV2", {});
     }
 
     async getCompletedTasksPage(options: CompletedTasksPageOptions = {}): Promise<CompletedTasksPage> {

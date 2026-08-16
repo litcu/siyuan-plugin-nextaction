@@ -1,5 +1,5 @@
 import type * as kernel from "siyuan/kernel";
-import type { TaskChangeNotification } from "../shared/types";
+import type { TaskBroadcastPayload } from "../shared/types";
 import type { SiyuanApiResponse } from "./types";
 
 export type SiyuanLogLevel = "info" | "warn" | "error";
@@ -11,7 +11,7 @@ export interface SiyuanApiPort {
     batchGetBlockAttrs(blockIds: string[]): Promise<Record<string, Record<string, string>>>;
     batchSetBlockAttrs(blockAttrs: Array<{ id: string; attrs: Record<string, string> }>): Promise<void>;
     query<T = Record<string, unknown>>(statement: string): Promise<T[]>;
-    broadcast(name: string, payload: TaskChangeNotification): void | Promise<void>;
+    broadcast(name: string, payload: TaskBroadcastPayload): void | Promise<void>;
     log(level: SiyuanLogLevel, message: string): void | Promise<void>;
 }
 
@@ -54,7 +54,7 @@ export class ProductionSiyuanApi implements SiyuanApiPort {
         return this.request("/api/query/sql", { stmt: statement });
     }
 
-    broadcast(name: string, payload: TaskChangeNotification): void | Promise<void> {
+    broadcast(name: string, payload: TaskBroadcastPayload): void | Promise<void> {
         return this.siyuan.rpc?.broadcast(name, payload);
     }
 

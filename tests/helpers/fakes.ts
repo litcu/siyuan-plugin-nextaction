@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, type PluginSettings } from "../../src/shared/settings";
-import type { MyDayState, TaskCacheEntry, TaskChangeNotification } from "../../src/shared/types";
+import type { MyDayState, TaskBroadcastPayload, TaskCacheEntry } from "../../src/shared/types";
 import type { SiyuanApiPort, SiyuanLogLevel } from "../../src/kernel/siyuan-api";
 import type { TaskChangePublisher } from "../../src/kernel/sync-engine";
 import type { MyDayTaskPort } from "../../src/kernel/task-service";
@@ -17,7 +17,7 @@ export class FakeSiyuanApi implements SiyuanApiPort {
     readonly blocks = new Map<string, FakeBlock>();
     readonly notebooks: Array<{ id: string; name: string; icon?: string; closed?: boolean }> = [];
     readonly requests: Array<{ path: string; body: object }> = [];
-    readonly broadcasts: Array<{ name: string; payload: TaskChangeNotification }> = [];
+    readonly broadcasts: Array<{ name: string; payload: TaskBroadcastPayload }> = [];
     readonly logs: Array<{ level: SiyuanLogLevel; message: string }> = [];
     readonly failPaths = new Set<string>();
     readonly failAtRequest = new Map<string, number>();
@@ -91,7 +91,7 @@ export class FakeSiyuanApi implements SiyuanApiPort {
         return this.request<T[]>("/api/query/sql", { stmt: statement });
     }
 
-    broadcast(name: string, payload: TaskChangeNotification): void {
+    broadcast(name: string, payload: TaskBroadcastPayload): void {
         if (this.failBroadcast) throw new Error("Fake broadcast failure");
         this.broadcasts.push({ name, payload });
     }

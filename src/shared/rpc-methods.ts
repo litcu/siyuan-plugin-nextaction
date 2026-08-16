@@ -11,6 +11,7 @@ import type {
     ReviewData,
     StatisticsResult,
     TaskCacheEntry,
+    TaskSnapshotV2,
 } from "./types";
 
 export interface RpcErrorPayload {
@@ -242,6 +243,7 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { status: optionalString(input.status, "status"), sortBy: optionalString(input.sortBy, "sortBy") };
     }),
+    getTaskSnapshotV2: defineRpc<Record<string, never>, TaskSnapshotV2>(noParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);
         for (const key of ["page", "pageSize"] as const) {
