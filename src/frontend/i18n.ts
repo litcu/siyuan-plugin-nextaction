@@ -3,7 +3,7 @@ import type { CustomFieldType } from "../shared/custom-fields";
 import type { I18nKey, I18nStrings } from "../shared/i18n";
 import type { ProjectRiskKind } from "../shared/types";
 import type { ProjectDateBucket } from "./utils/project";
-import { PRIORITY_LIST, STATUS_LIST } from "./constants";
+import type { PRIORITY_LIST, STATUS_LIST } from "./constants";
 
 type Status = typeof STATUS_LIST[number];
 type Priority = typeof PRIORITY_LIST[number] | "none";

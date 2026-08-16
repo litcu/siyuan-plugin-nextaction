@@ -1,4 +1,6 @@
-export type I18nResource = typeof import("../i18n/en.json");
+import type en from "../i18n/en.json";
+
+export type I18nResource = typeof en;
 export type I18nKey = keyof I18nResource;
 export type I18nStrings = { [Key in I18nKey]: string };
 
