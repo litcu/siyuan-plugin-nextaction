@@ -8,6 +8,7 @@ const shell = source("../src/frontend/ui/NaDialogShell.svelte");
 const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
 const app = source("../src/frontend/components/NextActionApp.svelte");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
+const stateController = source("../src/frontend/controllers/task-detail-controller.ts");
 const stylesheet = source("../src/index.scss");
 const propertyRow = source("../src/frontend/ui/NaPropertyRow.svelte");
 const propertySection = source("../src/frontend/ui/NaPropertySection.svelte");
@@ -48,16 +49,18 @@ test("属性子弹窗提升到打开的任务抽屉之上", () => {
 });
 
 test("自动保存、未保存修改确认和错误状态保持可见", () => {
-    assert.match(detail, /if \(!dirty\)[\s\S]*onClose\?\.\(\)/);
-    assert.match(detail, /unsavedChangesTitle/);
-    assert.match(detail, /function scheduleSave\(\)[\s\S]*flushPendingSave\(\)/);
+    assert.match(detail, /const decision = await controller\.requestClose\(\)/);
+    assert.match(detail, /onConfirmDiscard/);
+    assert.match(detail, /controller\.edit\(buildDraft\(\)\)/);
+    assert.match(stateController, /options\.debounceMs \?\? 500/);
+    assert.match(stateController, /void this\.flush\(\)/);
     assert.match(detail, /<div class="na-task-detail__notice"><NaInlineNotice message=\{noticeMessage\}/);
     assert.match(shell, /aria-live="polite"/);
 });
 
 test("任务草稿显式声明响应式字段依赖", () => {
-    assert.doesNotMatch(detail, /\$:\s*draftKey\s*=\s*buildDraftKey\(\)/);
-    assert.match(detail, /\$:\s*draftKey\s*=\s*taskDetailDraftKey\(\{[\s\S]*status,[\s\S]*customFieldValues,[\s\S]*\}\);/);
+    assert.match(detail, /function buildDraft\(\): TaskDetailDraft \{[\s\S]*status,[\s\S]*customFieldValues,[\s\S]*\};/);
+    assert.match(stateController, /dirtyFieldsFor\(this\.state\.draft, this\.state\.baseline\)/);
     assert.match(detail, /\$:\s*dateError\s*=\s*getDateError\(start, due\)/);
 });
 
@@ -66,7 +69,7 @@ test("全部既有任务属性进入统一保存载荷", () => {
         "na-status", "na-priority", "na-importance", "na-effort", "na-due", "na-start",
         "na-context", "na-tags", "na-parent", "na-task", "na-depends", "na-dep-mode",
         "na-sequential", "na-note", "na-review-interval", "na-review-date", "na-ext-",
-    ]) assert.match(detail, new RegExp(attribute));
+    ]) assert.match(attribute === "na-ext-" ? detail : stateController, new RegExp(attribute));
 });
 
 test("任务类型与标签保持同行，极窄视口再由公共属性行换行", () => {

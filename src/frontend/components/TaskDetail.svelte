@@ -6,19 +6,20 @@
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
-    import { normalizePriority, PRIORITY_LIST, STATUS_LIST } from "../constants";
+    import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { taskStore } from "../stores/task-store";
     import { formatRpcError, notifyInfo } from "../notify";
     import { jumpToBlock as jump, toI18nKey } from "../utils";
     import { parseReminderItems } from "../utils/reminder-utils";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
     import { openReminderSettingsDialog, openRepeatRuleDialog } from "../dialogs/task-property-dialogs";
+    import { isTaskDateRangeValid, taskDetailDraftKey, type TaskDetailDraft } from "../utils/task-detail-draft";
     import {
-        isTaskDateRangeValid,
-        shouldConfirmTaskDetailClose,
-        shouldContinueTaskDetailSave,
-        taskDetailDraftKey,
-    } from "../utils/task-detail-draft";
+        TaskDetailController,
+        taskDetailDraftToAttrs,
+        type TaskDetailControllerSnapshot,
+        type TaskDetailSaveState,
+    } from "../controllers/task-detail-controller";
     import NaCustomFieldInput from "../ui/NaCustomFieldInput.svelte";
     import NaDatePicker from "../ui/NaDatePicker.svelte";
     import NaDialogShell from "../ui/NaDialogShell.svelte";
@@ -38,11 +39,10 @@
     export let onSave: ((updatedEntry: TaskCacheEntry) => void) | undefined = undefined;
     export let onRemove: ((blockId: string) => void) | undefined = undefined;
     export let onClose: (() => void) | undefined = undefined;
+    export let onConfirmDiscard: ((confirmDiscard: () => void, cancelClose: () => void) => void) | undefined = undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let showJumpToBlock = true;
     export let dialogMode = false;
-
-    type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
 
     let status = "todo";
     let priority = "none";
@@ -64,22 +64,17 @@
     let reviewIntervalMode = "0";
     let reviewIntervalCustom = "";
     let customFieldValues: Record<string, string> = {};
-    let currentBlockId = "";
-    let savedDraftKey = "";
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let savedStateTimer: ReturnType<typeof setTimeout> | null = null;
-    let activeSave: Promise<boolean> | null = null;
     let activeClose: Promise<boolean> | null = null;
-    let saveState: SaveState = "idle";
+    let saveState: TaskDetailSaveState = "idle";
     let saveError = "";
     let depError = "";
     let customFieldError = "";
     let repeatDateError = "";
-    let discardOnDestroy = false;
     let operationBusy = false;
     let repeatDateNoticeTaskId = "";
     let repeatDateErrorTimer: ReturnType<typeof setTimeout> | null = null;
     let shellElement: HTMLDivElement | undefined;
+    let appliedControllerTask: TaskCacheEntry | null = null;
 
     $: allTasks = $taskStore.allTasks || [];
     $: allContexts = $taskStore.contexts || [];
@@ -97,26 +92,7 @@
     $: repeatRuntimeState = parseRepeatState(task.repeatState);
     $: repeatStatus = repeatRuntimeState?.status || (task.repeat ? "active" : "");
     $: dateError = getDateError(start, due);
-    $: draftKey = taskDetailDraftKey({
-        status,
-        priority,
-        importance,
-        effort,
-        due,
-        start,
-        note,
-        contexts,
-        taskTags,
-        parentId,
-        depends,
-        depMode,
-        sequentialEnabled,
-        taskType,
-        reviewInterval,
-        reviewDate,
-        customFieldValues,
-    });
-    $: dirty = !!savedDraftKey && draftKey !== savedDraftKey;
+    let dirty = false;
     $: noticeMessage = dateError || depError || customFieldError || saveError || repeatDateError;
     $: noticeTone = (dateError || depError || customFieldError || saveError
         ? "error"
@@ -165,42 +141,8 @@
             : "",
     ].filter(Boolean).join(" · ");
 
-    function syncFromTask(entry: TaskCacheEntry) {
-        status = entry.status || "todo";
-        priority = normalizePriority(entry.priority);
-        importance = entry.importance || 4;
-        effort = entry.effort || 4;
-        due = entry.due || "";
-        start = entry.start || "";
-        note = entry.note || "";
-        contexts = entry.context ? entry.context.split("|").filter(Boolean) : [];
-        taskTags = entry.tags ? entry.tags.split("|").filter(Boolean) : [];
-        parentId = entry.parentId || "";
-        depends = entry.depends ? entry.depends.split("|").filter(Boolean) : [];
-        depMode = entry.depMode || "all";
-        sequentialEnabled = entry.sequential || false;
-        repeatEnabled = !!entry.repeat;
-        taskType = entry.taskType || "1";
-        reviewInterval = entry.reviewInterval || 0;
-        reviewDate = entry.reviewDate || "";
-        reviewIntervalMode = reviewInterval === 0 ? "0" : [7, 14, 30, 60, 90].includes(reviewInterval) ? String(reviewInterval) : "custom";
-        reviewIntervalCustom = reviewIntervalMode === "custom" ? String(reviewInterval) : "";
-        customFieldValues = { ...(entry.customFields || {}) };
-        depError = "";
-        customFieldError = "";
-        repeatDateError = "";
-        saveError = "";
-        saveState = "idle";
-        savedDraftKey = buildDraftKey();
-    }
-
-    $: if (task.blockId !== currentBlockId) {
-        currentBlockId = task.blockId;
-        syncFromTask(task);
-    }
-
-    function buildDraftKey(): string {
-        return taskDetailDraftKey({
+    function buildDraft(): TaskDetailDraft {
+        return {
             status,
             priority,
             importance,
@@ -218,7 +160,70 @@
             reviewInterval,
             reviewDate,
             customFieldValues,
-        });
+        };
+    }
+
+    function applyControllerSnapshot(snapshot: TaskDetailControllerSnapshot) {
+        const incomingKey = taskDetailDraftKey(snapshot.draft);
+        if (incomingKey !== taskDetailDraftKey(buildDraft())) {
+            const draft = snapshot.draft;
+            status = draft.status;
+            priority = draft.priority;
+            importance = draft.importance;
+            effort = draft.effort;
+            due = draft.due;
+            start = draft.start;
+            note = draft.note;
+            contexts = [...draft.contexts];
+            taskTags = [...draft.taskTags];
+            parentId = draft.parentId;
+            depends = [...draft.depends];
+            depMode = draft.depMode;
+            sequentialEnabled = draft.sequentialEnabled;
+            taskType = draft.taskType;
+            reviewInterval = draft.reviewInterval;
+            reviewDate = draft.reviewDate;
+            reviewIntervalMode = reviewInterval === 0 ? "0" : [7, 14, 30, 60, 90].includes(reviewInterval) ? String(reviewInterval) : "custom";
+            reviewIntervalCustom = reviewIntervalMode === "custom" ? String(reviewInterval) : "";
+            customFieldValues = { ...draft.customFieldValues };
+        }
+        if (appliedControllerTask !== snapshot.task) {
+            appliedControllerTask = snapshot.task;
+            task = snapshot.task;
+            repeatEnabled = !!snapshot.task.repeat;
+            depError = "";
+            customFieldError = "";
+            repeatDateError = "";
+        }
+        dirty = snapshot.dirty;
+        saveState = snapshot.saveState;
+        saveError = snapshot.saveError;
+    }
+
+    class CustomFieldDraftError extends Error {}
+
+    const controller = new TaskDetailController(task, {
+        save: async (blockId, draft) => {
+            const customAttrs: Record<string, string> = {};
+            for (const def of customFieldDefs) {
+                try {
+                    customAttrs["na-ext-" + def.key] = encodeCustomFieldValue(def, draft.customFieldValues[def.key] || "");
+                } catch {
+                    throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
+                }
+            }
+            const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+            onSave?.(updated);
+            return updated;
+        },
+        formatError: error => error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n),
+    });
+    const unsubscribeController = controller.subscribe(applyControllerSnapshot);
+
+    $: if (task !== controller.snapshot.task) controller.receiveExternalTask(task);
+
+    function syncFromTask(entry: TaskCacheEntry) {
+        controller.receiveExternalTask(entry);
     }
 
     function getDateError(startValue: string, dueValue: string): string {
@@ -226,131 +231,39 @@
         return isTaskDateRangeValid(startValue, dueValue) ? "" : (i18n?.dueBeforeStart || "Due date must not be earlier than start date");
     }
 
-    function scheduleSave() {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        if (savedStateTimer) clearTimeout(savedStateTimer);
+    function handleChange() {
         depError = "";
         customFieldError = "";
         saveError = "";
-        saveState = "pending";
-        debounceTimer = setTimeout(() => {
-            debounceTimer = null;
-            flushPendingSave();
-        }, 500);
-    }
-
-    function handleChange() {
-        scheduleSave();
+        controller.edit(buildDraft());
     }
 
     export async function flushPendingSave(): Promise<boolean> {
-        if (debounceTimer) {
-            clearTimeout(debounceTimer);
-            debounceTimer = null;
-        }
-        if (activeSave) {
-            const activeResult = await activeSave;
-            if (!activeResult) return false;
-            return dirty ? flushPendingSave() : true;
-        }
-        if (!dirty) {
-            saveState = "idle";
-            return true;
-        }
-        if (dateError) {
-            saveState = "error";
-            return false;
-        }
-
-        const savingDraftKey = draftKey;
-        const savingBlockId = task.blockId;
-        const savePromise = (async () => {
-            const customAttrs: Record<string, string> = {};
-            customFieldError = "";
-            try {
-                for (const def of customFieldDefs) {
-                    try {
-                        customAttrs["na-ext-" + def.key] = encodeCustomFieldValue(def, customFieldValues[def.key] || "");
-                    } catch {
-                        customFieldError = `${def.label}: ${getCustomFieldValidationError(def)}`;
-                        saveState = "error";
-                        return false;
-                    }
-                }
-
-                saveState = "saving";
-                saveError = "";
-                const updated = await bridge.updateTask(task.blockId, {
-                    "na-status": status,
-                    "na-priority": priority,
-                    "na-importance": String(importance),
-                    "na-effort": String(effort),
-                    "na-due": due,
-                    "na-start": start,
-                    "na-context": contexts.join("|"),
-                    "na-tags": taskTags.join("|"),
-                    "na-parent": parentId,
-                    "na-task": taskType,
-                    "na-depends": depends.join("|"),
-                    "na-dep-mode": depMode,
-                    "na-sequential": sequentialEnabled ? "1" : "",
-                    "na-note": note,
-                    "na-review-interval": reviewInterval > 0 ? String(reviewInterval) : "",
-                    "na-review-date": reviewDate || "",
-                    ...customAttrs,
-                });
-                task = updated;
-                onSave?.(updated);
-                if (currentBlockId === savingBlockId && draftKey === savingDraftKey) {
-                    syncFromTask(updated);
-                    savedDraftKey = buildDraftKey();
-                    saveState = "saved";
-                    savedStateTimer = setTimeout(() => {
-                        if (saveState === "saved") saveState = "idle";
-                    }, 1600);
-                } else {
-                    savedDraftKey = savingDraftKey;
-                    saveState = "pending";
-                }
-                return true;
-            } catch (error: any) {
-                saveError = formatRpcError(error, i18n);
-                saveState = "error";
-                return false;
-            }
-        })();
-        activeSave = savePromise;
-        const result = await savePromise;
-        if (activeSave === savePromise) activeSave = null;
-        if (shouldContinueTaskDetailSave(savingDraftKey, draftKey, result)) {
-            return flushPendingSave();
-        }
-        return result;
+        return controller.flush();
     }
 
     export async function requestClose(): Promise<boolean> {
         if (activeClose) return activeClose;
         const closePromise = (async () => {
-            if (activeSave) await activeSave;
-            if (!shouldConfirmTaskDetailClose(dirty)) {
+            const decision = await controller.requestClose();
+            if (decision === "close") {
                 onClose?.();
                 return true;
             }
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-                debounceTimer = null;
-            }
             return new Promise<boolean>((resolve) => {
-                confirm(
-                    i18n?.unsavedChangesTitle || "Unsaved changes",
-                    i18n?.unsavedChangesMessage || "Discard unsaved changes?",
+                if (!onConfirmDiscard) {
+                    controller.cancelClose();
+                    resolve(false);
+                    return;
+                }
+                onConfirmDiscard(
                     () => {
-                        discardOnDestroy = true;
+                        controller.confirmDiscard();
                         onClose?.();
                         resolve(true);
                     },
                     () => {
-                        scheduleSave();
+                        controller.cancelClose();
                         resolve(false);
                     },
                 );
@@ -405,8 +318,7 @@
                 const updated = await bridge.updateTask(task.blockId, { "na-repeat": "" });
                 applyExternalUpdate(updated);
             } catch (error: any) {
-                saveError = formatRpcError(error, i18n);
-                saveState = "error";
+                controller.reportError(formatRpcError(error, i18n));
             } finally {
                 operationBusy = false;
             }
@@ -419,8 +331,7 @@
         try {
             applyExternalUpdate(await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused"));
         } catch (error: any) {
-            saveError = formatRpcError(error, i18n);
-            saveState = "error";
+            controller.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -432,8 +343,7 @@
         try {
             applyExternalUpdate(await bridge.skipRepeatOccurrence(task.blockId));
         } catch (error: any) {
-            saveError = formatRpcError(error, i18n);
-            saveState = "error";
+            controller.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -447,8 +357,7 @@
                 : await bridge.addTaskToMyDay(task.blockId);
             taskStore.applyMyDayUpdate(state);
         } catch (error: any) {
-            saveError = formatRpcError(error, i18n);
-            saveState = "error";
+            controller.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -546,8 +455,7 @@
                 throw new Error("unsupported protocol");
             }
         } catch {
-            saveError = i18n?.customFieldInvalidLink || "Invalid link";
-            saveState = "error";
+            controller.reportError(i18n?.customFieldInvalidLink || "Invalid link");
         }
     }
 
@@ -557,16 +465,14 @@
             removeLabel,
             removeConfirmMessage,
             async () => {
-                if (debounceTimer) clearTimeout(debounceTimer);
-                discardOnDestroy = true;
+                controller.confirmDiscard();
                 operationBusy = true;
                 try {
                     await bridge.removeTask(task.blockId);
                     onRemove?.(task.blockId);
                     onClose?.();
                 } catch (error: any) {
-                    saveError = formatRpcError(error, i18n);
-                    saveState = "error";
+                    controller.reportError(formatRpcError(error, i18n));
                 } finally {
                     operationBusy = false;
                 }
@@ -597,10 +503,9 @@
     }
 
     onDestroy(() => {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        if (savedStateTimer) clearTimeout(savedStateTimer);
         if (repeatDateErrorTimer) clearTimeout(repeatDateErrorTimer);
-        if (dirty && !discardOnDestroy && !activeSave) flushPendingSave();
+        unsubscribeController();
+        controller.dispose({ bestEffort: true });
     });
 </script>
 

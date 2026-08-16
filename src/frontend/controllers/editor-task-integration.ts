@@ -263,6 +263,14 @@ export class EditorTaskIntegration {
                         onClose: () => {
                             dialog.destroy();
                         },
+                        onConfirmDiscard: (confirmDiscard: () => void, cancelClose: () => void) => {
+                            confirm(
+                                this.plugin.i18n?.unsavedChangesTitle || "Unsaved changes",
+                                this.plugin.i18n?.unsavedChangesMessage || "Discard unsaved changes?",
+                                confirmDiscard,
+                                cancelClose,
+                            );
+                        },
                     },
                 });
                 (dialog as any)._naDetail = comp;

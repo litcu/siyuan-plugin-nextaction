@@ -25,6 +25,7 @@
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+    import { confirm } from "siyuan";
 
     export let bridge: KernelBridge;
     export let i18n: any;
@@ -108,6 +109,15 @@
         } else {
             closeDetailNow();
         }
+    }
+
+    function confirmDetailDiscard(confirmDiscard: () => void, cancelClose: () => void) {
+        confirm(
+            i18n?.unsavedChangesTitle || "Unsaved changes",
+            i18n?.unsavedChangesMessage || "Discard unsaved changes?",
+            confirmDiscard,
+            cancelClose,
+        );
     }
 
     function handleDetailSave(updated: TaskCacheEntry) {
@@ -354,6 +364,7 @@
                         onRemove={handleDetailRemove}
                         onCreateChild={(task) => openCreate(task)}
                         onClose={closeDetailNow}
+                        onConfirmDiscard={confirmDetailDiscard}
                     />
                 {/key}
             </div>
