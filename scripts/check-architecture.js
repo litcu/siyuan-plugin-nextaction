@@ -116,9 +116,52 @@ if (rpcResultDefinitions.length !== 1 || rpcResultDefinitions[0] !== "src/shared
     failures.push(`RpcResult must have one shared definition, found: ${rpcResultDefinitions.join(", ") || "none"}`);
 }
 
+const taskFacadeSource = readFileSync(join(sourceRoot, "kernel", "task-service.ts"), "utf8");
+if (taskFacadeSource.split(/\r?\n/).length > 160) failures.push("TaskService compatibility facade must remain below 160 lines");
+for (const forbidden of ["new Mutex", "setBlockAttrs(", "publishChanges(", "/api/"]) {
+    if (taskFacadeSource.includes(forbidden)) failures.push(`TaskService facade contains business implementation marker: ${forbidden}`);
+}
+for (const service of [
+    "TaskRuntimeState",
+    "TaskLifecycleService",
+    "TaskQueryService",
+    "TaskRelationshipService",
+    "RepeatTaskService",
+    "TaskReviewService",
+    "TaskCustomFieldService",
+]) {
+    if (!taskFacadeSource.includes(`new ${service}`)) failures.push(`TaskService facade must compose ${service}`);
+}
+
+const mcpExecutorSource = readFileSync(join(sourceRoot, "kernel", "mcp-tool-executor.ts"), "utf8");
+if (/\/api\/attr\/|\bsetBlockAttrs\s*\(|\bbatchSetBlockAttrs\s*\(/.test(mcpExecutorSource)) {
+    failures.push("MCP executor must not write task attributes directly");
+}
+const mcpUtilsSource = readFileSync(join(sourceRoot, "kernel", "mcp-utils.ts"), "utf8");
+const readToolSection = mcpUtilsSource.match(/READ_MCP_TOOL_NAMES = \[([\s\S]*?)\] as const/)?.[1] || "";
+const writeToolSection = mcpUtilsSource.match(/WRITE_MCP_TOOL_NAMES = \[([\s\S]*?)\] as const/)?.[1] || "";
+const mcpToolNames = [...readToolSection.matchAll(/"([a-z_]+)"/g), ...writeToolSection.matchAll(/"([a-z_]+)"/g)].map(match => match[1]);
+if (mcpToolNames.length !== 14 || new Set(mcpToolNames).size !== 14) {
+    failures.push(`MCP catalog must contain 14 unique tools, found ${mcpToolNames.length}/${new Set(mcpToolNames).size}`);
+}
+for (const name of mcpToolNames) {
+    if (!new RegExp(`^ {12}${name}:`, "m").test(mcpExecutorSource)) failures.push(`MCP tool ${name} has no executor definition`);
+}
+const capabilitySource = readFileSync(join(sourceRoot, "kernel", "mcp-capability-manager.ts"), "utf8");
+if (!capabilitySource.includes("executor.getCatalog()")) failures.push("MCP capability registration must use the shared catalog");
+
+const frontendEntrySource = readFileSync(join(sourceRoot, "index.ts"), "utf8");
+if (frontendEntrySource.split(/\r?\n/).length > 100) failures.push("frontend entry must remain below 100 lines");
+for (const controller of ["PanelHostRegistrar", "TaskCommandController", "EditorTaskIntegration", "FrontendRuntime"]) {
+    if (!frontendEntrySource.includes(controller)) failures.push(`frontend entry must delegate to ${controller}`);
+}
+if (/\b(?:Menu|Dialog|openTab|addEventListener|rpc\.bind)\b/.test(frontendEntrySource)) {
+    failures.push("frontend entry must not implement UI hosts or runtime listeners directly");
+}
+
 if (failures.length) {
     console.error(failures.map(message => `- ${message}`).join("\n"));
     process.exit(1);
 }
 
-console.log(`Architecture checks passed (${declared.size} RPC methods).`);
+console.log(`Architecture checks passed (${declared.size} RPC methods, ${mcpToolNames.length} MCP tools).`);
