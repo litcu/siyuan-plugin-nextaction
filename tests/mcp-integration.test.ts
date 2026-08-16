@@ -2,8 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const managerSource = readFileSync(new URL("../src/kernel/mcp-tool-manager.ts", import.meta.url), "utf8");
-const taskServiceSource = readFileSync(new URL("../src/kernel/task-service.ts", import.meta.url), "utf8");
+const capabilitySource = readFileSync(new URL("../src/kernel/mcp-capability-manager.ts", import.meta.url), "utf8");
+const executorSource = readFileSync(new URL("../src/kernel/mcp-tool-executor.ts", import.meta.url), "utf8");
+const catalogSource = readFileSync(new URL("../src/kernel/mcp-tool-catalog.ts", import.meta.url), "utf8");
+const creationSource = readFileSync(new URL("../src/kernel/task-creation-service.ts", import.meta.url), "utf8");
+const targetSource = readFileSync(new URL("../src/kernel/task-target-resolver.ts", import.meta.url), "utf8");
+const taskServiceSource = readFileSync(new URL("../src/kernel/task-lifecycle-service.ts", import.meta.url), "utf8");
 const rpcSource = readFileSync(new URL("../src/kernel/rpc-server.ts", import.meta.url), "utf8");
 const kernelSource = readFileSync(new URL("../src/kernel.ts", import.meta.url), "utf8");
 const mcpSettingsPageSource = readFileSync(
@@ -16,13 +20,14 @@ const aiSettingsPageSource = readFileSync(
 );
 
 test("MCP 工具通过思源 Agent capability 注册并保留插件来源和完整名称", () => {
-    assert.match(managerSource, /agentApi\.registerCapability/);
-    assert.match(managerSource, /agentApi\.unregisterCapability/);
-    assert.match(managerSource, /effects:\s*getMcpCapabilityEffects/);
-    assert.match(managerSource, /source:\s*"plugin"/);
-    assert.match(managerSource, /fullName:\s*result\.name/);
-    assert.doesNotMatch(managerSource, /\.mcp\?\.registerTool|\.registerTool\(|\.unregisterTool\(/);
-    assert.match(managerSource, /\[NextAction Plugin\]/);
+    assert.match(capabilitySource, /agentApi\.registerCapability/);
+    assert.match(capabilitySource, /agentApi\.unregisterCapability/);
+    assert.match(capabilitySource, /effects:\s*definition\.effects/);
+    assert.match(capabilitySource, /source:\s*"plugin"/);
+    assert.match(capabilitySource, /fullName:\s*result\.name/);
+    assert.doesNotMatch(capabilitySource, /\.mcp\?\.registerTool|\.registerTool\(|\.unregisterTool\(/);
+    assert.match(executorSource, /\[NextAction Plugin\]/);
+    assert.match(catalogSource, /ALL_MCP_TOOL_NAMES/);
 });
 
 test("设置由内核存储并触发 MCP 动态重配置", () => {
@@ -43,57 +48,57 @@ test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
 });
 
 test("MCP 提供统一的批量 CRUD，并移除重复的单项和状态工具", () => {
-    assert.match(managerSource, /create_tasks/);
-    assert.match(managerSource, /get_tasks/);
-    assert.match(managerSource, /update_tasks/);
-    assert.match(managerSource, /delete_tasks/);
-    assert.doesNotMatch(managerSource, /batch_set_task_status/);
-    assert.doesNotMatch(managerSource, /set_task_status:/);
-    assert.match(managerSource, /MAX_MCP_BATCH_SIZE = 100/);
-    assert.match(managerSource, /private async runBatch/);
-    assert.match(managerSource, /success: true, result: await operation/);
-    assert.match(managerSource, /success: false,[\s\S]*error:/);
-    assert.match(managerSource, /succeeded,[\s\S]*failed:[\s\S]*results/);
-    assert.match(managerSource, /taskService\.removeTask/);
-    assert.match(managerSource, /blockPreserved: true/);
+    assert.match(executorSource, /create_tasks/);
+    assert.match(executorSource, /get_tasks/);
+    assert.match(executorSource, /update_tasks/);
+    assert.match(executorSource, /delete_tasks/);
+    assert.doesNotMatch(executorSource, /batch_set_task_status/);
+    assert.doesNotMatch(executorSource, /set_task_status:/);
+    assert.match(executorSource, /MAX_MCP_BATCH_SIZE = 100/);
+    assert.match(executorSource, /private async runBatch/);
+    assert.match(executorSource, /success: true, result: await operation/);
+    assert.match(executorSource, /success: false,[\s\S]*error:/);
+    assert.match(executorSource, /succeeded,[\s\S]*failed:[\s\S]*results/);
+    assert.match(executorSource, /taskService\.removeTask/);
+    assert.match(executorSource, /blockPreserved: true/);
 });
 
 test("通用任务更新支持状态、重复规则、类型和标题", () => {
-    assert.match(managerSource, /validateMcpTaskPatch/);
-    assert.match(managerSource, /taskService\.setRepeatRule/);
-    assert.match(managerSource, /taskService\.updateTaskTitle/);
+    assert.match(executorSource, /validateMcpTaskPatch/);
+    assert.match(executorSource, /taskService\.setRepeatRule/);
+    assert.match(executorSource, /taskService\.updateTaskTitle/);
     assert.match(taskServiceSource, /\/api\/filetree\/renameDocByID/);
     assert.match(taskServiceSource, /\/api\/block\/updateBlock/);
     assert.match(taskServiceSource, /getBlockType\(blockId, true\)/);
 });
 
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
-    assert.match(managerSource, /extractInsertedBlockMeta/);
-    assert.match(managerSource, /resolveInsertedTaskBlock/);
-    assert.match(managerSource, /knownTextBlock:\s*true/);
-    assert.match(managerSource, /knownTextBlockType:\s*kind === "2" \|\| format === "document" \? "d" : "p"/);
-    assert.match(managerSource, /parentIdHint:\s*insertedMeta\.parentId/);
-    assert.match(managerSource, /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/);
-    assert.match(managerSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
+    assert.match(creationSource, /extractInsertedBlockMeta/);
+    assert.match(creationSource, /resolveInsertedTaskBlock/);
+    assert.match(creationSource, /knownTextBlock:\s*true/);
+    assert.match(creationSource, /knownTextBlockType:\s*kind === "2" \|\| format === "document" \? "d" : "p"/);
+    assert.match(creationSource, /parentIdHint:\s*insertedMeta\.parentId/);
+    assert.match(creationSource, /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/);
+    assert.match(creationSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
     assert.match(taskServiceSource, /cleanTitle \|\| await this\.fetchBlockTitle/);
 });
 
 test("子任务创建直接写入文本块并停止生成列表项", () => {
-    assert.match(managerSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
-    assert.match(managerSource, /containerTypes = new Set\(\[[^\]]*"d"/);
-    assert.match(managerSource, /dataType: "markdown"/);
-    assert.match(managerSource, /data: escapeMarkdownText\(title\)/);
-    assert.doesNotMatch(managerSource, /buildListItemBlockDom/);
-    assert.match(managerSource, /format: "paragraph"/);
-    assert.match(managerSource, /Inserted list does not contain a text block/);
-    assert.match(managerSource, /await this\.taskService\.addTaskToMyDay\(taskBlockId\)/);
+    assert.match(creationSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
+    assert.match(targetSource, /containerTypes = new Set\(\[[^\]]*"d"/);
+    assert.match(creationSource, /dataType: "markdown"/);
+    assert.match(creationSource, /data: escapeMarkdownText\(title\)/);
+    assert.doesNotMatch(creationSource, /buildListItemBlockDom/);
+    assert.match(creationSource, /format: "paragraph"/);
+    assert.match(targetSource, /Inserted list does not contain a text block/);
+    assert.match(creationSource, /await this\.taskService\.addTaskToMyDay\(taskBlockId\)/);
 });
 
 test("列表项父块会复用已有的子列表", () => {
-    assert.match(managerSource, /current\.type === "i"/);
-    assert.match(managerSource, /\/api\/block\/getChildBlocks/);
-    assert.match(managerSource, /nestedList\?\.id/);
-    assert.match(managerSource, /containerId: nestedList\.id, containerType: "l"/);
+    assert.match(targetSource, /current\.type === "i"/);
+    assert.match(targetSource, /\/api\/block\/getChildBlocks/);
+    assert.match(targetSource, /nestedList\?\.id/);
+    assert.match(targetSource, /containerId: nestedList\.id, containerType: "l"/);
 });
 
 test("设置页提供四个内置 AI 功能的提示词编辑器", () => {

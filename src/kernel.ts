@@ -13,6 +13,8 @@ import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
 import { ProductionSiyuanApi } from "./kernel/siyuan-api";
 import { RpcContractError } from "./shared/rpc-methods";
+import { TaskTargetResolver } from "./kernel/task-target-resolver";
+import { TaskCreationService } from "./kernel/task-creation-service";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -21,6 +23,8 @@ class NextActionKernelPlugin {
     private syncEngine!: SyncEngine;
     private taskService!: TaskService;
     private mcpToolManager!: McpToolManager;
+    private taskTargetResolver!: TaskTargetResolver;
+    private taskCreationService!: TaskCreationService;
     private isReady = false;
 
     constructor() {
@@ -49,23 +53,51 @@ class NextActionKernelPlugin {
             await logger.warn("onload: saved settings invalid, using defaults: " + message);
             this.taskService.updateSettings(DEFAULT_SETTINGS);
         }
-        this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings(), api);
+        this.taskTargetResolver = new TaskTargetResolver(api, () => this.taskService.getSettings());
+        this.taskCreationService = new TaskCreationService(
+            this.taskService,
+            api,
+            this.taskTargetResolver,
+            () => this.taskService.getSettings(),
+        );
+        this.mcpToolManager = new McpToolManager(
+            this.siyuan,
+            this.taskService,
+            this.taskService.getSettings(),
+            api,
+            this.taskTargetResolver,
+            this.taskCreationService,
+        );
+        const createTask = async (input: Parameters<TaskCreationService["create"]>[0]) => {
+            const outcome = await this.taskCreationService.create(
+                input,
+                this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+            );
+            return this.mcpToolManager.executor.adaptTaskCreationOutcome(outcome);
+        };
+        const convertTask = async (input: Record<string, unknown>) => {
+            const outcome = await this.taskCreationService.convertExisting(
+                input,
+                this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+            );
+            return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
+        };
         const aiProposalService = new AiProposalService(
             this.taskService,
-            this.mcpToolManager.createTaskForPlugin.bind(this.mcpToolManager),
-            this.mcpToolManager.convertTaskForPlugin.bind(this.mcpToolManager),
+            createTask,
+            convertTask,
         );
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
             completeReview: this.completeReview.bind(this),
             getMcpStatus: () => this.mcpToolManager.getStatus(),
-            listMcpTargetNotebooks: () => this.mcpToolManager.listTargetNotebooks(),
-            listMcpTargetDocuments: (notebookId, path) => this.mcpToolManager.listTargetDocuments(notebookId, path),
-            searchMcpTargetDocuments: (query) => this.mcpToolManager.searchTargetDocuments(query),
-            resolveMcpDocumentTarget: (value) => this.mcpToolManager.resolveDocumentTarget(value),
-            resolveChildTarget: (value) => this.mcpToolManager.resolveChildTarget(value),
-            createTask: (input) => this.mcpToolManager.createTaskForPlugin(input),
+            listMcpTargetNotebooks: () => this.taskTargetResolver.listNotebooks(),
+            listMcpTargetDocuments: (notebookId, path) => this.taskTargetResolver.listDocuments(notebookId, path),
+            searchMcpTargetDocuments: (query) => this.taskTargetResolver.searchDocuments(query),
+            resolveMcpDocumentTarget: (value) => this.taskTargetResolver.resolveDocument(value),
+            resolveChildTarget: (value) => this.taskTargetResolver.resolveChildTarget(value),
+            createTask,
             aiProposalService,
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
@@ -115,7 +147,7 @@ class NextActionKernelPlugin {
         const next = mergeSettings(current, partial);
         const validationError = validateSettings(next);
         if (validationError) throw new RpcContractError(validationError);
-        await this.mcpToolManager.validateSettings(next);
+        await this.taskTargetResolver.validateSettings(next);
         await this.siyuan.storage.put("settings.json", JSON.stringify(next));
         const applied = this.taskService.updateSettings(next);
         await this.mcpToolManager.reconcile(applied);

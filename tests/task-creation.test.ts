@@ -47,7 +47,8 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
     const dialogHost = source("../src/frontend/dialogs/create-task-dialog.ts");
 
-    assert.match(kernel, /createTask:\s*\(input\)\s*=>\s*this\.mcpToolManager\.createTaskForPlugin\(input\)/);
+    assert.match(kernel, /createTask,\s*\n\s*aiProposalService/);
+    assert.match(kernel, /this\.taskCreationService\.create/);
     assert.match(contract, /createTask:\s*defineRpc/);
     assert.match(rpc, /createTask:\s*\(input\)\s*=>\s*hooks\.createTask/);
     assert.match(rpc, /for \(const method of RPC_METHOD_NAMES\)/);
@@ -59,7 +60,7 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
 });
 
 test("任务创建支持文本块与文档块并移除列表形式", () => {
-    const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const manager = source("../src/kernel/task-creation-service.ts") + source("../src/kernel/mcp-tool-executor.ts");
     const cache = source("../src/kernel/cache-manager.ts");
 
     assert.match(manager, /format:\s*\{\s*type:\s*"string",\s*enum:\s*\[\.\.\.CREATE_TASK_FORMATS\]/);
@@ -67,12 +68,12 @@ test("任务创建支持文本块与文档块并移除列表形式", () => {
     assert.match(manager, /kind === "2" \|\| format === "document"/);
     assert.match(manager, /block destinations always use paragraph format/);
     assert.doesNotMatch(manager, /format === "list"/);
-    assert.match(manager, /insertedMeta = await this\.resolveInsertedTaskBlock\(insertedMeta\)/);
+    assert.match(manager, /insertedMeta = await this\.targets\.resolveInsertedTaskBlock\(insertedMeta\)/);
     assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
 });
 
 test("项目仅允许指定文档位置并通过文档接口回滚", () => {
-    const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const manager = source("../src/kernel/task-creation-service.ts") + source("../src/kernel/task-target-resolver.ts");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
 
     assert.match(manager, /createChildDocument\(title, destination\)/);
@@ -85,14 +86,14 @@ test("项目仅允许指定文档位置并通过文档接口回滚", () => {
 });
 
 test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {
-    const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const manager = source("../src/kernel/task-creation-service.ts");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
     const settings = source("../src/frontend/components/SettingsPanel.svelte");
     const general = source("../src/frontend/components/settings/GeneralSettingsPage.svelte");
     const mcp = source("../src/frontend/components/settings/McpSettingsPage.svelte");
     const sharedSettings = source("../src/shared/settings.ts");
 
-    assert.match(manager, /this\.settings\.taskCreationSettings\.defaultCreateTarget/);
+    assert.match(manager, /settings\.taskCreationSettings\.defaultCreateTarget/);
     assert.match(dialog, /initialSettings\.taskCreationSettings\.defaultCreateTarget/);
     assert.match(settings, /taskCreationSettings:\s*\{[\s\S]*defaultCreateTarget: taskCreationDefaultCreateTarget/);
     assert.match(general, /settingTaskCreationDefaultTarget/);
@@ -102,7 +103,7 @@ test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {
 });
 
 test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {
-    const manager = source("../src/kernel/mcp-tool-manager.ts");
+    const manager = source("../src/kernel/task-target-resolver.ts");
     const picker = source("../src/frontend/ui/NaDocumentPicker.svelte");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
     const settings = source("../src/frontend/components/SettingsPanel.svelte");
