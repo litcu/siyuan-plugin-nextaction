@@ -37,7 +37,7 @@ import { numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
 import { assertBlockId } from "../shared/block-id";
 import { sql } from "../shared/sql";
 import type { SiyuanApiPort } from "./siyuan-api";
-import { calculateOrder, isNextActionCandidate, sortTasks, getBlockedReason, getSequentialBroadcastIds } from "./priority-engine";
+import { isNextActionCandidate, sortTasks } from "./priority-engine";
 import {
     advanceRepeatState,
     createRepeatState,
@@ -121,14 +121,8 @@ export class TaskLifecycleService {
         this.runtime.assertReady();
     }
 
-    private cacheWithRecalculatedOrder(entry: TaskCacheEntry): void {
-        entry.order = calculateOrder(entry, this.cacheManager.getCache());
+    private cacheConfirmedEntry(entry: TaskCacheEntry): void {
         this.repository.cache(entry);
-        if (!entry.parentId) return;
-        const parentEntry = this.cacheManager.get(entry.parentId);
-        if (parentEntry?.taskType === "2") {
-            parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
-        }
     }
 
     private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
@@ -249,38 +243,19 @@ export class TaskLifecycleService {
                 }
 
                 if (cached) {
-                    if (!cached.title && title) {
-                        cached.title = title;
-                    }
+                    let updated = cached;
+                    if (!updated.title && title) updated = { ...updated, title };
                     if (existingAttrs[ATTR_PARENT] && cached.parentId !== existingAttrs[ATTR_PARENT]) {
-                        const oldParentId = cached.parentId;
-                        // Remove from old parent's childIds
-                        if (oldParentId) {
-                            const oldParent = this.cacheManager.get(oldParentId);
-                            if (oldParent) {
-                                const idx = oldParent.childIds.indexOf(blockId);
-                                if (idx !== -1) {
-                                    oldParent.childIds.splice(idx, 1);
-                                }
-                            }
-                        }
-                        // Assign new parentId
-                        cached.parentId = existingAttrs[ATTR_PARENT];
-                        // Add to new parent's childIds
-                        const newParent = this.cacheManager.get(existingAttrs[ATTR_PARENT]);
-                        if (newParent && newParent.childIds.indexOf(blockId) === -1) {
-                            newParent.childIds.push(blockId);
-                        }
-                        // Broadcast na-parent change
+                        updated = { ...updated, parentId: existingAttrs[ATTR_PARENT] };
                         this.repository.recordChange(blockId, "update");
                     }
                     if (taskType !== currentType) {
-                        cached.taskType = taskType;
+                        updated = { ...updated, taskType };
                         this.repository.recordChange(blockId, "update");
                     }
-                    this.repository.cache(cached);
+                    this.repository.cache(updated);
                     this.repository.publishChanges();
-                    return cached;
+                    return updated;
                 }
 
                 // Not in cache (e.g. missed by sync), build and store
@@ -337,9 +312,7 @@ export class TaskLifecycleService {
             }
 
             const entry = this.repository.buildEntry(blockId, finalAttrs, undefined, title);
-            entry.order = calculateOrder(entry, this.cacheManager.getCache());
             this.repository.cache(entry);
-            this.cacheManager.recalcBlockedStatus();
 
             this.repository.recordChange(blockId, "create");
             this.repository.publishChanges();
@@ -486,7 +459,6 @@ export class TaskLifecycleService {
                 } catch (_error: unknown) { /* ignore */ }
 
                 const entry = this.repository.buildEntry(pid, finalAttrs, undefined, effectiveTitle);
-                entry.order = calculateOrder(entry, this.cacheManager.getCache());
                 this.repository.cache(entry);
 
                 this.repository.recordChange(pid, "create");
@@ -494,7 +466,6 @@ export class TaskLifecycleService {
             }
 
             if (converted > 0) {
-                this.cacheManager.recalcBlockedStatus();
                 this.repository.publishChanges();
             }
         } finally {
@@ -527,15 +498,6 @@ export class TaskLifecycleService {
                     if (childEntry) {
                         const confirmedChild = this.repository.buildEntry(childId, childAttrs, childEntry);
                         this.repository.cache(confirmedChild);
-                        // Update grandparent's childIds
-                        if (grandParentId !== "") {
-                            const gp = this.cacheManager.get(grandParentId);
-                            if (gp && gp.childIds.indexOf(childId) === -1) {
-                                gp.childIds.push(childId);
-                            } else if (!gp) {
-                                void this.api.log("warn", `removeTask: grandparent ${grandParentId} not in cache, child ${childId} parentId points to non-cached entry`);
-                            }
-                        }
                         this.repository.recordChange(childId, "update");
                     }
                 } catch (_error: unknown) {
@@ -589,7 +551,6 @@ export class TaskLifecycleService {
 
             // Remove from cache
             this.repository.removeFromCache(blockId);
-            this.cacheManager.recalcBlockedStatus();
 
             this.repository.recordChange(blockId, "delete");
             this.repository.publishChanges();
@@ -774,28 +735,7 @@ export class TaskLifecycleService {
                 entry.title = await this.fetchBlockTitle(blockId);
             }
 
-            // Check if order-impacting fields changed
-            const orderFields = [ATTR_IMPORTANCE, ATTR_EFFORT, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_STATUS];
-            let needRecalcOrder = false;
-            for (let i = 0; i < orderFields.length; i++) {
-                if (attrs[orderFields[i]] !== undefined) {
-                    needRecalcOrder = true;
-                    break;
-                }
-            }
-            if (needRecalcOrder || !existing) {
-                entry.order = calculateOrder(entry, this.cacheManager.getCache());
-            }
-
             this.repository.cache(entry);
-
-            // Recalculate parent project order (propagation) when child order may have changed
-            if (entry.parentId !== "" && needRecalcOrder) {
-                const parentEntry = this.cacheManager.get(entry.parentId);
-                if (parentEntry && parentEntry.taskType === "2") {
-                    parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
-                }
-            }
 
             // 循环/重复任务：完成当前发生后推进轻量状态，不生成新块。
             const updatedEntry = this.cacheManager.get(blockId);
@@ -820,7 +760,7 @@ export class TaskLifecycleService {
                     }
                 }
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, updatedEntry);
-                this.cacheWithRecalculatedOrder(finalEntry);
+                this.cacheConfirmedEntry(finalEntry);
             }
 
             // 回顾日期推算：status 变为 done 且有 review-interval 时，自动推算下次 review-date
@@ -833,17 +773,7 @@ export class TaskLifecycleService {
                 this.repository.cache(reviewEntry);
             }
 
-            this.cacheManager.recalcBlockedStatus();
             this.repository.recordChange(blockId, "update");
-
-            // Broadcast entries whose blocked status changed as a side-effect of this update.
-            const broadcastEntry = this.cacheManager.get(blockId);
-            const affectedIds = getSequentialBroadcastIds(
-                blockId, attrs, broadcastEntry ?? null, previousEntry ?? null, this.cacheManager.getCache(),
-            );
-            for (let i = 0; i < affectedIds.length; i++) {
-                this.repository.recordChange(affectedIds[i], "update");
-            }
 
             this.repository.publishChanges();
 
@@ -883,10 +813,11 @@ export class TaskLifecycleService {
                 const markdown = title.replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1");
                 await this.api.request("/api/block/updateBlock", { id: blockId, dataType: "markdown", data: markdown });
             }
-            existing.title = title;
+            const updated = { ...existing, title };
+            this.repository.cache(updated);
             this.repository.recordChange(blockId, "update");
             this.repository.publishChanges();
-            return existing;
+            return updated;
         } finally {
             lock.release();
         }
@@ -894,10 +825,12 @@ export class TaskLifecycleService {
 
     async rebuildCache(): Promise<void> {
         await this.cacheManager.rebuild(blockIds => this.repository.batchGetBlockAttrs(blockIds));
+        this.repository.reconcileAllDerivedState();
     }
 
     async loadCache(): Promise<void> {
         await this.cacheManager.loadAll(blockIds => this.repository.batchGetBlockAttrs(blockIds));
+        this.repository.reconcileAllDerivedState();
     }
 
     updateSettings(partial: Partial<PluginSettings>): PluginSettings {

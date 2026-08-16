@@ -4,7 +4,6 @@ import { DEFAULT_SETTINGS } from "../shared/settings";
 import { attrToNumber, cleanSlashFromTitle } from "./utils";
 import { sql } from "../shared/sql";
 import type { SiyuanApiPort } from "./siyuan-api";
-import { calculateOrder, getBlockedReason } from "./priority-engine";
 
 interface SqlRow {
     id: string;
@@ -19,11 +18,13 @@ export class CacheManager {
     private cache: Record<string, TaskCacheEntry>;
     private childrenByParent: Map<string, Set<string>>;
     private dependentsByDependency: Map<string, Set<string>>;
+    private pendingAffectedIds: Set<string>;
 
     constructor(private readonly api: SiyuanApiPort) {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();
+        this.pendingAffectedIds = new Set();
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
@@ -126,31 +127,12 @@ export class CacheManager {
                 title: titleMap[row.id] || "",
             };
 
-            entry.order = calculateOrder(entry);
             newCache[entry.blockId] = entry;
 
         }
 
         // Step 3: Atomically replace the primary cache and relationship indexes.
         this.replaceCache(newCache);
-        const allIds = Object.keys(this.cache);
-
-        // Step 3.1: Propagate child order to project parents
-        for (let i = 0; i < allIds.length; i++) {
-            const entry = this.cache[allIds[i]];
-            if (entry.taskType === "2") {
-                entry.order = calculateOrder(entry, this.cache);
-            }
-        }
-
-        // Step 3.5: Compute blocked status for all entries
-        for (let i = 0; i < allIds.length; i++) {
-            const entry = this.cache[allIds[i]];
-            const reason = getBlockedReason(entry, this.cache);
-            entry.blocked = reason !== "";
-            entry.blockedReason = reason;
-        }
-
         // na-sort 迁移：为 sort=-1 的现有子任务分配间距编号
         this.migrateSortValues();
     }
@@ -208,6 +190,7 @@ export class CacheManager {
     set(entry: TaskCacheEntry): void {
         const existing = this.cache[entry.blockId];
         const oldParentId = existing?.parentId || "";
+        this.markRelationshipImpact(entry.blockId, existing?.parentId, entry.parentId);
         this.removeFromRelationshipIndexes(existing);
 
         const stored = entry;
@@ -218,12 +201,14 @@ export class CacheManager {
         this.syncParentEntry(oldParentId);
         this.syncParentEntry(stored.parentId);
         this.syncParentEntry(stored.blockId);
+        this.markRelationshipImpact(entry.blockId, oldParentId, stored.parentId);
     }
 
     remove(blockId: string): void {
         const entry = this.cache[blockId];
         if (!entry) return;
 
+        this.markRelationshipImpact(blockId, entry.parentId);
         this.removeFromRelationshipIndexes(entry);
         delete this.cache[blockId];
         this.syncParentEntry(entry.parentId);
@@ -282,20 +267,17 @@ export class CacheManager {
         return result;
     }
 
-    recalcBlockedStatus(): void {
-        const keys = Object.keys(this.cache);
-        for (let i = 0; i < keys.length; i++) {
-            const entry = this.cache[keys[i]];
-            const reason = getBlockedReason(entry, this.cache);
-            entry.blocked = reason !== "";
-            entry.blockedReason = reason;
-        }
+    consumeAffectedIds(): string[] {
+        const affectedIds = [...this.pendingAffectedIds];
+        this.pendingAffectedIds.clear();
+        return affectedIds;
     }
 
     private replaceCache(nextCache: Record<string, TaskCacheEntry>): void {
         this.cache = nextCache;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();
+        this.pendingAffectedIds.clear();
 
         for (const entry of Object.values(this.cache)) {
             this.addToRelationshipIndexes(entry);
@@ -332,6 +314,23 @@ export class CacheManager {
         if (!parentId) return;
         const parent = this.cache[parentId];
         if (parent) parent.childIds = this.childIdsFor(parentId);
+    }
+
+    private markRelationshipImpact(blockId: string, ...parentIds: Array<string | undefined>): void {
+        this.pendingAffectedIds.add(blockId);
+        for (const parentId of parentIds) {
+            if (!parentId) continue;
+            this.pendingAffectedIds.add(parentId);
+            for (const sibling of this.getByParent(parentId)) {
+                this.pendingAffectedIds.add(sibling.blockId);
+            }
+        }
+        for (const child of this.getByParent(blockId)) {
+            this.pendingAffectedIds.add(child.blockId);
+        }
+        for (const dependent of this.getDependents(blockId)) {
+            this.pendingAffectedIds.add(dependent.blockId);
+        }
     }
 
     private addIndexValue(index: Map<string, Set<string>>, key: string, value: string): void {

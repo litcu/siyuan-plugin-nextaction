@@ -1,67 +1,148 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { CacheManager } from "../src/kernel/cache-manager.ts";
+import { TaskDerivedStateService } from "../src/kernel/task-derived-state-service.ts";
+import { TaskRepository } from "../src/kernel/task-repository.ts";
+import { Mutex } from "../src/kernel/mutex.ts";
+import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
+import { FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 
-function source(path: string): string {
-    return readFileSync(new URL(path, import.meta.url), "utf8");
+const PROJECT_A = "20260816100000-projecta";
+const PROJECT_B = "20260816100001-projectb";
+const CHILD_A = "20260816100002-childaaa";
+const CHILD_B = "20260816100003-childbbb";
+const DEPENDENCY = "20260816100004-dependxx";
+const DEPENDENT = "20260816100005-dependyy";
+
+function reconcile(cache: CacheManager): string[] {
+    return new TaskDerivedStateService(cache).reconcile(cache.consumeAffectedIds());
 }
 
-const prioritySource = source("../src/kernel/priority-engine.ts");
-const lifecycleSource = source("../src/kernel/task-lifecycle-service.ts");
-const relationshipSource = source("../src/kernel/task-relationship-service.ts");
-const helperSection = prioritySource.slice(prioritySource.indexOf("export function getSequentialBroadcastIds("));
-const updateSection = lifecycleSource.slice(lifecycleSource.indexOf("async updateTask("), lifecycleSource.indexOf("async updateTaskTitle("));
-const reorderSection = relationshipSource.slice(relationshipSource.indexOf("async reorderTask("));
+test("顺序项目开关由统一派生服务更新全部子任务", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", sequential: false }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A, sort: 0 }));
+    cache.set(taskFactory(CHILD_B, { parentId: PROJECT_A, sort: 10000 }));
+    reconcile(cache);
 
-test("顺序广播 helper 导出并处理项目开关及全部子任务", () => {
-    assert.match(prioritySource, /export function getSequentialBroadcastIds\(/);
-    assert.match(helperSection, /attrs\[ATTR_SEQUENTIAL\] !== undefined && updatedEntry\.taskType === "2"/);
-    assert.match(helperSection, /for \(const childId of updatedEntry\.childIds\)/);
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", sequential: true }));
+    const changed = reconcile(cache);
+
+    assert.equal(cache.get(CHILD_A)?.blocked, false);
+    assert.equal(cache.get(CHILD_B)?.blockedReason, "sequential");
+    assert.ok(changed.includes(CHILD_B));
 });
 
-test("顺序父任务中的状态变化广播其他兄弟", () => {
-    assert.match(helperSection, /attrs\[ATTR_STATUS\] !== undefined && updatedEntry\.parentId !== ""/);
-    assert.match(helperSection, /if \(parent && parent\.sequential\)/);
-    assert.match(helperSection, /if \(siblingId !== blockId\) result\.push\(siblingId\)/);
+test("顺序父任务中的状态变化只提交实际变化的兄弟", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", sequential: true }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A, sort: 0 }));
+    cache.set(taskFactory(CHILD_B, { parentId: PROJECT_A, sort: 10000 }));
+    reconcile(cache);
+    assert.equal(cache.get(CHILD_B)?.blockedReason, "sequential");
+
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A, sort: 0, status: "done" }));
+    const changed = reconcile(cache);
+
+    assert.equal(cache.get(CHILD_B)?.blocked, false);
+    assert.ok(changed.includes(CHILD_B));
 });
 
-test("父任务变化覆盖旧父和新父的顺序兄弟", () => {
-    assert.match(helperSection, /attrs\[ATTR_PARENT\] !== undefined && previousEntry && previousEntry\.parentId !== updatedEntry\.parentId/);
-    assert.match(helperSection, /const oldParent = cache\[previousEntry\.parentId\]/);
-    assert.match(helperSection, /const newParent = cache\[updatedEntry\.parentId\]/);
+test("父任务移动同时更新旧父和新父的顺序派生状态", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", sequential: true }));
+    cache.set(taskFactory(PROJECT_B, { taskType: "2", sequential: true }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A, sort: 0 }));
+    cache.set(taskFactory(CHILD_B, { parentId: PROJECT_A, sort: 10000 }));
+    reconcile(cache);
+
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_B, sort: 0 }));
+    const changed = reconcile(cache);
+
+    assert.equal(cache.get(CHILD_B)?.blocked, false);
+    assert.deepEqual(cache.get(PROJECT_A)?.childIds, [CHILD_B]);
+    assert.deepEqual(cache.get(PROJECT_B)?.childIds, [CHILD_A]);
+    assert.ok(changed.includes(CHILD_B));
 });
 
-test("依赖关系和被依赖任务状态变化会广播关联任务", () => {
-    assert.match(helperSection, /attrs\[ATTR_DEPENDS\] !== undefined \|\| attrs\[ATTR_STATUS\] !== undefined/);
-    assert.match(helperSection, /other\.depends && other\.depends\.includes\(blockId\)/);
-    assert.match(helperSection, /result\.push\(other\.blockId\)/);
+test("依赖目标状态变化和删除通过反向索引解除阻塞", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(DEPENDENCY));
+    cache.set(taskFactory(DEPENDENT, { depends: DEPENDENCY }));
+    reconcile(cache);
+    assert.equal(cache.get(DEPENDENT)?.blockedReason, "dependency");
+
+    cache.set(taskFactory(DEPENDENCY, { status: "done" }));
+    assert.ok(reconcile(cache).includes(DEPENDENT));
+    assert.equal(cache.get(DEPENDENT)?.blocked, false);
+
+    cache.set(taskFactory(DEPENDENCY));
+    reconcile(cache);
+    cache.remove(DEPENDENCY);
+    assert.ok(reconcile(cache).includes(DEPENDENT));
+    assert.equal(cache.get(DEPENDENT)?.blocked, false);
 });
 
-test("仅重要性等非阻塞属性变化不会进入副作用分支", () => {
-    assert.doesNotMatch(helperSection, /ATTR_IMPORTANCE/);
+test("all 与 any 依赖模式使用相同的派生提交入口", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(DEPENDENCY, { status: "done" }));
+    cache.set(taskFactory(CHILD_A));
+    cache.set(taskFactory(DEPENDENT, { depends: `${DEPENDENCY}|${CHILD_A}`, depMode: "all" }));
+    reconcile(cache);
+    assert.equal(cache.get(DEPENDENT)?.blockedReason, "dependency");
+
+    cache.set(taskFactory(DEPENDENT, { depends: `${DEPENDENCY}|${CHILD_A}`, depMode: "any" }));
+    reconcile(cache);
+    assert.equal(cache.get(DEPENDENT)?.blocked, false);
 });
 
-test("项目不会因未完成子任务被判定为阻塞", () => {
-    const blockedSection = prioritySource.slice(
-        prioritySource.indexOf("export function getBlockedReason("),
-        prioritySource.indexOf("export function isBlocked("),
-    );
-    assert.match(blockedSection, /if \(entry\.taskType !== "2"\)[\s\S]*?if \(hasIncompleteChild\) return "children"/);
+test("普通父任务在子任务删除后解除 children 阻塞", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(PROJECT_A, { taskType: "1" }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A }));
+    reconcile(cache);
+    assert.equal(cache.get(PROJECT_A)?.blockedReason, "children");
+
+    cache.remove(CHILD_A);
+    assert.ok(reconcile(cache).includes(PROJECT_A));
+    assert.equal(cache.get(PROJECT_A)?.blocked, false);
 });
 
-test("任务服务将状态纳入项目排序字段并移除 done 专用分支", () => {
-    assert.match(updateSection, /const orderFields = \[ATTR_IMPORTANCE, ATTR_EFFORT, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_STATUS\]/);
-    assert.doesNotMatch(updateSection, /If status changed to done, check parent/);
+test("嵌套项目从最深层向祖先传播子任务排序", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", importance: 1, effort: 8 }));
+    cache.set(taskFactory(PROJECT_B, { taskType: "2", parentId: PROJECT_A, importance: 1, effort: 8 }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_B, importance: 8, effort: 1, priority: "critical" }));
+    reconcile(cache);
+
+    assert.equal(cache.get(PROJECT_B)?.order, cache.get(CHILD_A)?.order);
+    assert.equal(cache.get(PROJECT_A)?.order, cache.get(CHILD_A)?.order);
 });
 
-test("updateTask 在广播前登记顺序副作用任务", () => {
-    assert.match(updateSection, /const affectedIds = getSequentialBroadcastIds\([\s\S]*?repository\.publishChanges\(\)/);
-    assert.match(updateSection, /for \(let i = 0; i < affectedIds\.length; i\+\+\)/);
-    assert.match(updateSection, /recordChange\(affectedIds\[i\], "update"\)/);
+test("不影响派生值的任务更新不会产生额外派生通知", () => {
+    const cache = new CacheManager(new FakeSiyuanApi());
+    cache.set(taskFactory(CHILD_A));
+    reconcile(cache);
+    cache.set({ ...cache.get(CHILD_A)!, title: "Renamed" });
+
+    assert.deepEqual(reconcile(cache), []);
 });
 
-test("reorderTask 在顺序父任务中广播全部兄弟", () => {
-    assert.match(reorderSection, /if \(parentId\)/);
-    assert.match(reorderSection, /if \(parentEntry && parentEntry\.sequential\)/);
-    assert.match(reorderSection, /recordChange\(parentEntry\.childIds\[i\], "update"\)/);
+test("Repository 提交点自动登记间接受影响的顺序兄弟", () => {
+    const api = new FakeSiyuanApi();
+    const cache = new CacheManager(api);
+    const publisher = new FakeTaskChangePublisher();
+    const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
+    cache.set(taskFactory(PROJECT_A, { taskType: "2", sequential: true }));
+    cache.set(taskFactory(CHILD_A, { parentId: PROJECT_A, sort: 0 }));
+    cache.set(taskFactory(CHILD_B, { parentId: PROJECT_A, sort: 10000 }));
+    repository.reconcileAllDerivedState();
+    cache.consumeAffectedIds();
+
+    repository.cache({ ...cache.get(CHILD_A)!, status: "done" });
+    repository.recordChange(CHILD_A, "update");
+    repository.publishChanges();
+
+    assert.ok(publisher.changes.some(change => change.blockId === CHILD_B && change.type === "update"));
+    assert.equal(cache.get(CHILD_B)?.blocked, false);
 });

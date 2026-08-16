@@ -2,7 +2,6 @@ import type { TaskCacheEntry } from "../shared/types";
 import { ATTR_PARENT, ATTR_SORT, ATTR_TASK, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND } from "../shared/constants";
 import { assertBlockId } from "../shared/block-id";
 import { sql } from "../shared/sql";
-import { calculateOrder } from "./priority-engine";
 import type { CacheManager } from "./cache-manager";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskRepository } from "./task-repository";
@@ -17,55 +16,7 @@ export class TaskRelationshipService {
     ) {}
 
     async recalcAllOrders(): Promise<void> {
-            const allEntries = this.cacheManager.getAll();
-            const cache = this.cacheManager.getCache();
-            const batchSize = 50;
-            const projects: TaskCacheEntry[] = [];
-
-            // Pass 1: compute own order for all entries
-            for (let i = 0; i < allEntries.length; i++) {
-                allEntries[i].order = calculateOrder(allEntries[i]);
-                if (allEntries[i].taskType === "2") {
-                    projects.push(allEntries[i]);
-                }
-
-                if ((i + 1) % batchSize === 0) {
-                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-                }
-            }
-
-            // Pass 2: propagate child order to projects (deepest first)
-            const depthMap = new Map<string, number>();
-            const getDepth = (id: string, visited: Set<string>): number => {
-                if (depthMap.has(id)) return depthMap.get(id)!;
-                if (visited.has(id)) return 0;
-                visited.add(id);
-                const entry = cache[id];
-                if (!entry || entry.childIds.length === 0) {
-                    depthMap.set(id, 0);
-                    return 0;
-                }
-                let maxChildDepth = 0;
-                for (const childId of entry.childIds) {
-                    const child = cache[childId];
-                    if (child && child.taskType === "2") {
-                        maxChildDepth = Math.max(maxChildDepth, getDepth(childId, visited));
-                    }
-                }
-                const depth = maxChildDepth + 1;
-                depthMap.set(id, depth);
-                return depth;
-            };
-
-            for (const p of projects) {
-                getDepth(p.blockId, new Set());
-            }
-
-            projects.sort((a, b) => (depthMap.get(b.blockId) || 0) - (depthMap.get(a.blockId) || 0));
-
-            for (let i = 0; i < projects.length; i++) {
-                projects[i].order = calculateOrder(projects[i], cache);
-            }
+            this.repository.reconcileAllDerivedState();
         }
 
     async rebuildParentRelationships(): Promise<number> {
@@ -105,7 +56,6 @@ export class TaskRelationshipService {
             }
 
             if (fixed > 0) {
-                this.cacheManager.recalcBlockedStatus();
                 for (const id of fixedIds) {
                     this.repository.recordChange(id, "update");
                 }
@@ -253,24 +203,22 @@ export class TaskRelationshipService {
                 if (newSort === null) {
                     // 给兄弟分配均匀间距，为插入位置留出空位
                     const step = 10000;
-                    for (let i = 0; i < siblings.length; i++) {
-                        const sort = i < insertIndex ? i * step : (i + 1) * step;
-                        siblings[i].sort = sort;
-                    }
-                    for (const sibling of siblings) {
+                    const plannedSiblings = siblings.map((sibling, index) => ({
+                        sibling,
+                        sort: index < insertIndex ? index * step : (index + 1) * step,
+                    }));
+                    for (const { sibling, sort } of plannedSiblings) {
                         try {
-                            const siblingAttrs = await this.repository.writeAttrs(sibling.blockId, { [ATTR_SORT]: String(sibling.sort) });
+                            const siblingAttrs = await this.repository.writeAttrs(sibling.blockId, { [ATTR_SORT]: String(sort) });
                             const cachedSibling = this.cacheManager.get(sibling.blockId);
-                            if (cachedSibling) this.repository.cache(this.repository.buildEntry(sibling.blockId, siblingAttrs, cachedSibling));
+                            if (cachedSibling) {
+                                this.repository.cache(this.repository.buildEntry(sibling.blockId, siblingAttrs, cachedSibling));
+                                this.repository.recordChange(sibling.blockId, "update");
+                            }
                         } catch (error: unknown) {
                             const message = error instanceof Error ? error.message : String(error);
                             void this.api.log("warn", `reorderTask: failed to write sort for ${sibling.blockId}: ${message}`);
                         }
-                    }
-                    // 更新缓存中的 sort
-                    for (const s of siblings) {
-                        const cached = this.cacheManager.get(s.blockId);
-                        if (cached) cached.sort = s.sort;
                     }
                     newSort = insertIndex * step;
                 }
@@ -278,20 +226,7 @@ export class TaskRelationshipService {
                 const finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_SORT]: String(newSort) });
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
                 this.repository.cache(finalEntry);
-                this.cacheManager.recalcBlockedStatus();
                 this.repository.recordChange(blockId, "update");
-
-                // In a sequential parent, reordering changes which siblings are blocked.
-                if (parentId) {
-                    const parentEntry = this.cacheManager.get(parentId);
-                    if (parentEntry && parentEntry.sequential) {
-                        for (let i = 0; i < parentEntry.childIds.length; i++) {
-                            if (parentEntry.childIds[i] !== blockId) {
-                                this.repository.recordChange(parentEntry.childIds[i], "update");
-                            }
-                        }
-                    }
-                }
 
                 this.repository.publishChanges();
                 return finalEntry;
@@ -470,11 +405,6 @@ export class TaskRelationshipService {
                     const attrs = await this.repository.writeAttrs(childId, { [ATTR_PARENT]: blockId });
                     // Update parentId
                     this.repository.cache(this.repository.buildEntry(childId, attrs, childEntry));
-                    // Add to new parent's childIds
-                    const newParent = this.cacheManager.get(blockId);
-                    if (newParent && newParent.childIds.indexOf(childId) === -1) {
-                        newParent.childIds.push(childId);
-                    }
                     this.repository.recordChange(childId, "update");
                 }
             }

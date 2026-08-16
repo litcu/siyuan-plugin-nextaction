@@ -1,7 +1,6 @@
 import type { TaskCacheEntry } from "../shared/types";
 import { ATTR_DUE, ATTR_REPEAT, ATTR_REPEAT_STATE, ATTR_START, ATTR_STATUS, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND } from "../shared/constants";
 import { assertBlockId } from "../shared/block-id";
-import { calculateOrder } from "./priority-engine";
 import { advanceRepeatState, createRepeatState, normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatStateV1 } from "./repeat-engine";
 import type { CacheManager } from "./cache-manager";
 import type { SiyuanApiPort } from "./siyuan-api";
@@ -29,12 +28,8 @@ export class RepeatTaskService {
         private readonly runtime: TaskRuntimeState,
     ) {}
 
-    private cacheWithRecalculatedOrder(entry: TaskCacheEntry): void {
-        entry.order = calculateOrder(entry, this.cacheManager.getCache());
+    private cacheConfirmedEntry(entry: TaskCacheEntry): void {
         this.repository.cache(entry);
-        if (!entry.parentId) return;
-        const parentEntry = this.cacheManager.get(entry.parentId);
-        if (parentEntry?.taskType === "2") parentEntry.order = calculateOrder(parentEntry, this.cacheManager.getCache());
     }
 
     async setRepeatRule(blockId: string, rawRule: unknown): Promise<TaskCacheEntry> {
@@ -63,8 +58,7 @@ export class RepeatTaskService {
                 if (entry.status === "done") attrs[ATTR_STATUS] = "todo";
                 const finalAttrs = await this.repository.writeAttrs(blockId, attrs);
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-                this.cacheWithRecalculatedOrder(finalEntry);
-                this.cacheManager.recalcBlockedStatus();
+                this.cacheConfirmedEntry(finalEntry);
                 this.repository.recordChange(blockId, "update");
                 this.repository.publishChanges();
                 return finalEntry;
@@ -109,8 +103,7 @@ export class RepeatTaskService {
                 }
 
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-                this.cacheWithRecalculatedOrder(finalEntry);
-                this.cacheManager.recalcBlockedStatus();
+                this.cacheConfirmedEntry(finalEntry);
                 this.repository.recordChange(blockId, "update");
                 this.repository.publishChanges();
                 return finalEntry;
@@ -160,8 +153,7 @@ export class RepeatTaskService {
                 }
 
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-                this.cacheWithRecalculatedOrder(finalEntry);
-                this.cacheManager.recalcBlockedStatus();
+                this.cacheConfirmedEntry(finalEntry);
                 this.repository.recordChange(blockId, "update");
                 this.repository.publishChanges();
                 return finalEntry;

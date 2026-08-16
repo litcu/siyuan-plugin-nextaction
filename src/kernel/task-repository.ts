@@ -29,9 +29,9 @@ import type { PluginSettings } from "../shared/settings";
 import type { TaskCacheEntry } from "../shared/types";
 import type { CacheManager } from "./cache-manager";
 import type { Mutex } from "./mutex";
-import { calculateOrder } from "./priority-engine";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskChangePublisher } from "./sync-engine";
+import { TaskDerivedStateService } from "./task-derived-state-service";
 import { attrToNumber } from "./utils";
 
 export type TaskChangeType = "create" | "update" | "delete";
@@ -55,7 +55,6 @@ export function buildTaskEntryFromAttrs(
     blockId: string,
     attrs: Record<string, string>,
     defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">,
-    cache: Record<string, TaskCacheEntry>,
     existing?: TaskCacheEntry,
     titleOverride?: string,
 ): TaskCacheEntry {
@@ -90,12 +89,13 @@ export function buildTaskEntryFromAttrs(
         childIds: existing ? existing.childIds : [],
         title: titleOverride ?? (existing ? existing.title : ""),
     };
-    entry.order = calculateOrder(entry, cache);
     return entry;
 }
 
 export class TaskRepository {
     private settings: Pick<PluginSettings, "defaultImportance" | "defaultEffort">;
+    private readonly derivedState: TaskDerivedStateService;
+    private readonly pendingDirectChanges = new Set<string>();
 
     constructor(
         private readonly api: SiyuanApiPort,
@@ -106,6 +106,7 @@ export class TaskRepository {
         private readonly writeLockTimeoutMs: number = WRITE_LOCK_TIMEOUT_MS,
     ) {
         this.settings = settings;
+        this.derivedState = new TaskDerivedStateService(cacheManager);
     }
 
     updateSettings(settings: Pick<PluginSettings, "defaultImportance" | "defaultEffort">): void {
@@ -173,7 +174,7 @@ export class TaskRepository {
     }
 
     buildEntry(blockId: string, attrs: Record<string, string>, existing?: TaskCacheEntry, titleOverride?: string): TaskCacheEntry {
-        return buildTaskEntryFromAttrs(blockId, attrs, this.settings, this.cacheManager.getCache(), existing, titleOverride);
+        return buildTaskEntryFromAttrs(blockId, attrs, this.settings, existing, titleOverride);
     }
 
     cache(entry: TaskCacheEntry): void {
@@ -185,15 +186,28 @@ export class TaskRepository {
     }
 
     recordChange(blockId: string, type: TaskChangeType): void {
+        this.pendingDirectChanges.add(blockId);
         this.changePublisher.addPendingChange(blockId, type);
     }
 
     publishChanges(): void {
         try {
+            const derivedChanges = this.derivedState.reconcile(this.cacheManager.consumeAffectedIds());
+            for (const blockId of derivedChanges) {
+                if (!this.pendingDirectChanges.has(blockId)) {
+                    this.changePublisher.addPendingChange(blockId, "update");
+                }
+            }
             this.changePublisher.broadcastChanges();
         } catch (error: unknown) {
             void this.api.log("error", `TaskRepository: failed to broadcast confirmed task changes: ${this.errorMessage(error)}`);
+        } finally {
+            this.pendingDirectChanges.clear();
         }
+    }
+
+    reconcileAllDerivedState(): string[] {
+        return this.derivedState.reconcileAll();
     }
 
     private errorMessage(error: unknown): string {

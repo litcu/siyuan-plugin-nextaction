@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { CacheManager } from "../src/kernel/cache-manager.ts";
+import { TaskDerivedStateService } from "../src/kernel/task-derived-state-service.ts";
 
 const TASK_COUNT = 1000;
 const RUNS = 30;
@@ -83,6 +84,9 @@ function measure(name, operation) {
 }
 
 const cache = createCache();
+const derivedState = new TaskDerivedStateService(cache);
+derivedState.reconcileAll();
+cache.consumeAffectedIds();
 const parentIds = fixture.filter(task => task.taskType === "2").map(task => task.blockId);
 const changedIds = fixture.slice(0, 100).map(task => task.blockId);
 
@@ -95,7 +99,8 @@ measure("single cache update", () => {
     const current = cache.get(blockId(501));
     cache.set({ ...current, priority: current.priority === "high" ? "medium" : "high" });
 });
-measure("derived blocked pass", () => { cache.recalcBlockedStatus(); });
+measure("incremental derived", () => { derivedState.reconcile(cache.consumeAffectedIds()); });
+measure("full derived pass", () => { derivedState.reconcileAll(); });
 measure("full snapshot clone", () => {
     cache.getAll().map(task => ({ ...task, childIds: [...task.childIds], customFields: { ...task.customFields } }));
 });
