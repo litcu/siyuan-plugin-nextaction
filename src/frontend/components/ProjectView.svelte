@@ -1,24 +1,34 @@
 <script lang="ts">
     import { VIEW_BY_PROJECT } from "../constants";
-    import { applyFilters, DEFAULT_FILTER_STATE, hasActiveTaskFilters, sortTasksBy } from "../utils/filter";
+    import { DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
-    import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "../utils/project";
-    import TaskCard from "./TaskCard.svelte";
     import GanttView from "./GanttView.svelte";
+    import ProjectOverviewMode from "./project/ProjectOverviewMode.svelte";
+    import ProjectHierarchyMode from "./project/ProjectHierarchyMode.svelte";
+    import ProjectBoardMode from "./project/ProjectBoardMode.svelte";
+    import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
     import NaProgressBar from "../ui/NaProgressBar.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
     import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
-    import NaTaskList from "../ui/NaTaskList.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
     import { taskStore } from "../stores/task-store";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
-    import { buildProjectTreeModel, type ProjectTreeSortMode } from "../utils/project-tree";
+    import type { ProjectTreeSortMode } from "../utils/project-tree";
+    import {
+        buildProjectViewModel,
+        executeProjectBoardMove,
+        type ProjectActionFilter,
+        type ProjectBoardMoveIntent,
+        type ProjectDateFilter,
+        type ProjectRiskFilter,
+        type ProjectViewMode,
+    } from "../utils/project-view-state";
 
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -31,87 +41,45 @@
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined = undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
-    type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
     type RiskItem = { summary: ProjectSummary; risk: ProjectRisk; target: TaskCacheEntry };
 
-    const statuses = ["inbox", "todo", "doing", "waiting", "someday", "done"];
-    const dateBuckets: ProjectDateBucket[] = ["overdue", "today", "thisWeek", "later", "unscheduled"];
     let mode: ProjectViewMode = "overview";
     let activeProjectId = "";
     let collapsedIds: Set<string> = new Set();
-    let draggingId = "";
-    let dropStatus = "";
-    let dropBusy = false;
     let showCompleted = false;
-    let riskFilter = "all";
-    let dateFilter = "all";
-    let actionFilter = "all";
+    let riskFilter: ProjectRiskFilter = "all";
+    let dateFilter: ProjectDateFilter = "all";
+    let actionFilter: ProjectActionFilter = "all";
     let ganttSortMode: ProjectTreeSortMode = "timeline";
+    let riskItems: RiskItem[] = [];
 
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: projectSourceTasks = reconcileProjectTasks($taskStore.allTasks, selectedTaskOverride);
-    $: summaries = buildProjectSummaries(projectSourceTasks);
-    $: taskFiltersActive = hasActiveTaskFilters(filterState);
-    $: filterCandidates = projectSourceTasks.filter(task => showCompleted || task.status !== "done" || task.taskType === "2");
-    $: matchedTaskIds = new Set((taskFiltersActive ? applyFilters(filterCandidates, filterState, $taskStore.settings.customFields) : filterCandidates).map(task => task.blockId));
-    $: matchingSummaries = summaries.filter(summary => (
-        (!taskFiltersActive || matchedTaskIds.has(summary.project.blockId) || summary.descendants.some(task => matchedTaskIds.has(task.blockId)))
-        && (showCompleted || summary.health !== "complete")
-        && matchesProjectFilters(summary)
-    ));
-    $: orderedProjectIds = sortTasksBy(matchingSummaries.map(summary => summary.project), filterState.sortBy, filterState.sortAsc, $taskStore.settings.customFields).map(task => task.blockId);
-    $: summaryByProjectId = new Map(matchingSummaries.map(summary => [summary.project.blockId, summary]));
-    $: visibleSummaries = orderedProjectIds.map(blockId => summaryByProjectId.get(blockId)).filter((summary): summary is ProjectSummary => Boolean(summary));
-    $: if (selectedTaskId) {
-        const containing = summaries.find(summary => summary.project.blockId === selectedTaskId || summary.descendants.some(task => task.blockId === selectedTaskId));
-        if (containing) activeProjectId = containing.project.blockId;
-    }
-    $: if (!visibleSummaries.some(summary => summary.project.blockId === activeProjectId)) activeProjectId = visibleSummaries[0]?.project.blockId || "";
-    $: selectedSummary = visibleSummaries.find(summary => summary.project.blockId === activeProjectId) || null;
-    $: riskItems = visibleSummaries.flatMap(summary => summary.risks.map(risk => ({
-        summary,
-        risk,
-        target: summary.descendants.find(task => task.blockId === risk.taskId) || summary.project,
-    }))).sort((a, b) => riskWeight(b.risk.severity) - riskWeight(a.risk.severity));
-    $: activeProjectsCount = summaries.filter(summary => summary.health !== "complete").length;
-    $: attentionCount = summaries.filter(summary => summary.health === "attention" || summary.health === "blocked").length;
-    $: overdueCount = summaries.reduce((count, summary) => count + summary.overdueTasks.length, 0);
-    $: dueSoonCount = summaries.reduce((count, summary) => count + summary.descendants.filter(task => task.status !== "done" && (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek")).length, 0);
-    $: noActionCount = summaries.filter(summary => summary.risks.some(risk => risk.kind === "noNextAction")).length;
-    $: selectedMatchedTaskIds = !selectedSummary || !taskFiltersActive
-        ? null
-        : new Set(selectedSummary.descendants.filter(task => matchedTaskIds.has(task.blockId)).map(task => task.blockId));
-    $: projectTreeModel = selectedSummary ? buildProjectTreeModel(selectedSummary, collapsedIds, {
+    $: viewModel = buildProjectViewModel($taskStore.allTasks, $taskStore.settings.customFields, {
+        mode,
+        activeProjectId,
+        selectedTaskId,
+        selectedTaskOverride,
         showCompleted,
-        matchedTaskIds: selectedMatchedTaskIds,
-        sortMode: mode === "gantt" ? ganttSortMode : "manual",
-    }) : null;
-    $: detailTasks = (selectedSummary?.descendants || []).filter(task => (
-        (showCompleted || task.status !== "done")
-        && (!taskFiltersActive || matchedTaskIds.has(task.blockId))
-    ));
-    $: sortedDetailTasks = sortTasksBy(detailTasks, filterState.sortBy, filterState.sortAsc, $taskStore.settings.customFields);
-    $: planGroups = dateBuckets.map(bucket => ({ bucket, tasks: sortedDetailTasks.filter(task => task.taskType !== "2" && getProjectDateBucket(task) === bucket) })).filter(group => group.tasks.length > 0);
-    $: boardTasks = sortedDetailTasks;
-
-    function reconcileProjectTasks(tasks: TaskCacheEntry[], override: TaskCacheEntry | null): TaskCacheEntry[] {
-        if (!override) return tasks;
-        return tasks.map(task => task.blockId === override.blockId ? override : task);
-    }
-
-    function riskWeight(severity: ProjectRisk["severity"]): number {
-        return severity === "high" ? 3 : severity === "medium" ? 2 : 1;
-    }
-
-    function matchesProjectFilters(summary: ProjectSummary): boolean {
-        if (riskFilter === "attention" && summary.health !== "attention") return false;
-        if (riskFilter === "blocked" && summary.health !== "blocked") return false;
-        if (dateFilter === "overdue" && summary.overdueTasks.length === 0) return false;
-        if (dateFilter === "week" && !summary.descendants.some(task => task.status !== "done" && (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek"))) return false;
-        if (actionFilter === "missing" && !summary.risks.some(risk => risk.kind === "noNextAction")) return false;
-        if (actionFilter === "available" && summary.nextActions.length === 0) return false;
-        return true;
-    }
+        riskFilter,
+        dateFilter,
+        actionFilter,
+        filterState,
+        collapsedIds,
+        ganttSortMode,
+    });
+    $: resolvedActiveProjectId = viewModel.activeProjectId;
+    $: summaries = viewModel.summaries;
+    $: visibleSummaries = viewModel.visibleSummaries;
+    $: selectedSummary = viewModel.selectedSummary;
+    $: riskItems = viewModel.riskItems;
+    $: projectTreeModel = viewModel.projectTreeModel;
+    $: boardTasks = viewModel.boardTasks;
+    $: planGroups = viewModel.planGroups;
+    $: activeProjectsCount = viewModel.metrics.activeProjects;
+    $: attentionCount = viewModel.metrics.attention;
+    $: overdueCount = viewModel.metrics.overdue;
+    $: dueSoonCount = viewModel.metrics.dueSoon;
+    $: noActionCount = viewModel.metrics.noAction;
 
     function statusLabel(status: string): string {
         return i18n?.[`status${status.charAt(0).toUpperCase()}${status.slice(1)}`] || status;
@@ -127,10 +95,6 @@
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return i18n?.[`projectRisk${kind.charAt(0).toUpperCase()}${kind.slice(1)}`] || kind;
-    }
-
-    function bucketLabel(bucket: ProjectDateBucket): string {
-        return i18n?.[`projectPlan${bucket.charAt(0).toUpperCase()}${bucket.slice(1)}`] || bucket;
     }
 
     function handleFilterChange(state: FilterState) {
@@ -156,31 +120,12 @@
         collapsedIds = next;
     }
 
-    function handleDragStart(task: TaskCacheEntry, event: DragEvent) {
-        draggingId = task.blockId;
-        event.dataTransfer?.setData("text/plain", task.blockId);
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    }
-
-    function handleDragEnd() {
-        draggingId = "";
-        dropStatus = "";
-    }
-
-    async function handleDrop(status: string, afterId = "") {
-        if (!draggingId || !selectedSummary || dropBusy) return;
-        const task = selectedSummary.descendants.find(entry => entry.blockId === draggingId);
-        if (!task) return;
-        dropBusy = true;
-        try {
-            if (task.status !== status && onTaskUpdate) await onTaskUpdate(task, { "na-status": status });
-            if (onTaskReorder) await onTaskReorder(task.blockId, task.parentId || selectedSummary.project.blockId, afterId || undefined);
-        } catch (error) {
-            console.error("[NextAction] project board drop failed:", error);
-        } finally {
-            dropBusy = false;
-            handleDragEnd();
-        }
+    async function handleBoardMove(intent: ProjectBoardMoveIntent) {
+        if (!selectedSummary) return;
+        await executeProjectBoardMove(intent, selectedSummary.project.blockId, {
+            updateTask: onTaskUpdate,
+            reorderTask: onTaskReorder,
+        });
     }
 </script>
 
@@ -241,7 +186,7 @@
             </div>
             <div class="na-project-index__scroll">
                 {#each visibleSummaries as summary (summary.project.blockId)}
-                    <button type="button" class="na-project-index__item" class:active={summary.project.blockId === activeProjectId} on:click={() => selectProject(summary)}>
+                    <button type="button" class="na-project-index__item" class:active={summary.project.blockId === resolvedActiveProjectId} on:click={() => selectProject(summary)}>
                         <span class="na-project-index__item-accent na-project-index__item-accent--{summary.health}"></span>
                         <span class="na-project-index__item-copy">
                             <strong>{summary.project.title || i18n?.untitled || "(untitled)"}</strong>
@@ -271,94 +216,13 @@
                 </div>
 
                 {#if mode === "overview"}
-                    <div class="na-project-overview">
-                        <section class="na-project-section na-project-section--risks">
-                            <div class="na-project-section__heading"><h3>{i18n?.projectRisks || "Risks"}</h3><span>{selectedSummary.risks.length}</span></div>
-                            {#if selectedSummary.risks.length === 0}
-                                <p class="na-project-muted">{i18n?.projectNoRisks || "No obvious risks"}</p>
-                            {:else}
-                                {#each selectedSummary.risks as item (item.kind + item.taskId)}
-                                    {@const target = selectedSummary.descendants.find(task => task.blockId === item.taskId) || selectedSummary.project}
-                                    <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(target)}>
-                                        <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
-                                        <span><strong>{riskLabel(item.kind)}</strong><small>{target.title || i18n?.untitled || "(untitled)"}</small></span>
-                                    </button>
-                                {/each}
-                            {/if}
-                        </section>
-                        <section class="na-project-section">
-                            <div class="na-project-section__heading"><h3>{i18n?.projectNextActions || "Next actions"}</h3><span>{selectedSummary.nextActions.length}</span></div>
-                            {#if selectedSummary.nextActions.length === 0}
-                                <p class="na-project-muted">{i18n?.projectNoNextActions || "No available next action"}</p>
-                            {:else}
-                                <NaTaskList>
-                                <div class="na-project-task-stack">
-                                    {#each selectedSummary.nextActions.slice(0, 5) as task (task.blockId)}
-                                        <TaskCard task={task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} isRoot={false} />
-                                    {/each}
-                                </div>
-                                </NaTaskList>
-                            {/if}
-                        </section>
-                        <section class="na-project-section">
-                            <div class="na-project-section__heading"><h3>{i18n?.projectSnapshot || "Snapshot"}</h3></div>
-                            <dl class="na-project-facts">
-                                <div><dt>{i18n?.status || "Status"}</dt><dd>{statusLabel(selectedSummary.project.status)}</dd></div>
-                                <div><dt>{i18n?.dueDate || "Due"}</dt><dd>{selectedSummary.project.due || i18n?.projectNoDue || "No date"}</dd></div>
-                                <div><dt>{i18n?.projectWaiting || "Waiting"}</dt><dd>{selectedSummary.waitingTasks.length}</dd></div>
-                                <div><dt>{i18n?.blocked || "Blocked"}</dt><dd>{selectedSummary.blockedTasks.length}</dd></div>
-                            </dl>
-                        </section>
-                    </div>
-                {:else if mode === "hierarchy"}
-                    <div class="na-project-tree" role="list">
-                        {#each projectTreeModel?.rows || [] as row (row.task.blockId)}
-                            <div class="na-project-tree__row" style="padding-left: {row.depth * 18}px" role="listitem" draggable="true" on:dragstart={(event) => handleDragStart(row.task, event)} on:dragend={handleDragEnd}>
-                                <TaskCard
-                                    task={row.task}
-                                    selected={row.task.blockId === selectedTaskId}
-                                    onSelect={onSelectTask}
-                                    {onEdit}
-                                    {onStatusClick}
-                                    {onContextMenu}
-                                    {i18n}
-                                    hasChildren={row.hasChildren}
-                                    isCollapsed={collapsedIds.has(row.task.blockId)}
-                                    childCount={row.childCount}
-                                    onToggleCollapse={() => toggleCollapse(row.task.blockId)}
-                                    isRoot={row.depth === 0}
-                                />
-                            </div>
-                        {/each}
-                    </div>
+                    <ProjectOverviewMode summary={selectedSummary} {selectedTaskId} {i18n} {onSelectTask} {onEdit} {onStatusClick} {onContextMenu} />
+                {:else if mode === "hierarchy" && projectTreeModel}
+                    <ProjectHierarchyMode model={projectTreeModel} {collapsedIds} {selectedTaskId} {i18n} {onSelectTask} {onEdit} {onStatusClick} {onContextMenu} onToggleCollapse={toggleCollapse} />
                 {:else if mode === "board"}
-                    <div class="na-project-board">
-                        {#each statuses as status}
-                            <section class="na-project-board__column" role="list" class:drop-active={dropStatus === status} on:dragover|preventDefault={() => dropStatus = status} on:dragleave={() => dropStatus = ""} on:drop|preventDefault={() => handleDrop(status)}>
-                                <header><span>{statusLabel(status)}</span><span>{boardTasks.filter(task => task.status === status).length}</span></header>
-                                <div class="na-project-board__cards">
-                                    {#each boardTasks.filter(task => task.status === status).sort((a, b) => a.sort - b.sort) as task (task.blockId)}
-                                        <div class="na-project-board__card" role="listitem" draggable="true" on:dragstart={(event) => handleDragStart(task, event)} on:dragend={handleDragEnd} on:dragover|preventDefault={() => dropStatus = status} on:drop|preventDefault|stopPropagation={() => handleDrop(status, task.blockId)}>
-                                            <TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} isRoot={false} />
-                                        </div>
-                                    {/each}
-                                    {#if boardTasks.filter(task => task.status === status).length === 0}<p class="na-project-board__empty">{i18n?.projectDropHere || "Drop tasks here"}</p>{/if}
-                                </div>
-                            </section>
-                        {/each}
-                    </div>
+                    <ProjectBoardMode tasks={boardTasks} {selectedTaskId} {i18n} {onSelectTask} {onEdit} {onStatusClick} {onContextMenu} onMoveTask={handleBoardMove} />
                 {:else if mode === "plan"}
-                    <div class="na-project-plan">
-                        {#each planGroups as group (group.bucket)}
-                            <section class="na-project-plan__group">
-                                <header><h3>{bucketLabel(group.bucket)}</h3><span>{group.tasks.length}</span></header>
-                                {#each group.tasks as task (task.blockId)}
-                                    <div class="na-project-plan__row"><TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} isRoot={false} />{#if group.bucket !== "unscheduled"}<span class="na-project-plan__date">{task.due || task.start}</span>{/if}</div>
-                                {/each}
-                            </section>
-                        {/each}
-                        {#if planGroups.length === 0}<p class="na-project-muted">{i18n?.projectNoPlan || "No dated tasks in this project"}</p>{/if}
-                    </div>
+                    <ProjectPlanMode groups={planGroups} {selectedTaskId} {i18n} {onSelectTask} {onEdit} {onStatusClick} {onContextMenu} />
                 {:else if mode === "gantt" && projectTreeModel}
                     <GanttView
                         model={projectTreeModel}
@@ -427,41 +291,15 @@
     .na-project-canvas__title > span:last-child { color: var(--na-text-secondary); font-size: var(--na-font-size-sm); }
     .na-project-canvas__actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .na-project-canvas__progress { margin-bottom: 14px; }
-    .na-project-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .na-project-section { min-width: 0; padding: 12px; border-top: 2px solid var(--na-color-divider); background: var(--b3-theme-surface); }
-    .na-project-section--risks { border-top-color: var(--na-color-warning); }
-    .na-project-section__heading { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--na-text-secondary); }
-    .na-project-section__heading h3 { margin: 0; color: var(--na-text-primary); font-size: var(--na-font-size-md); font-weight: 700; }
-    .na-project-section__heading > span { font-size: var(--na-font-size-xs); font-variant-numeric: tabular-nums; }
-    .na-project-risk, .na-project-risk-rail__item { border: 0; background: transparent; }
-    .na-project-risk { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 0; text-align: left; color: var(--na-text-primary); cursor: pointer; }
-    .na-project-risk:hover { color: var(--na-accent); }
-    .na-project-risk > span:last-child, .na-project-risk-rail__item > span:last-child { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-    .na-project-risk strong, .na-project-risk-rail__item strong { font-size: var(--na-font-size-sm); font-weight: 650; }
-    .na-project-risk small, .na-project-risk-rail__item small { color: var(--na-text-primary); font-size: var(--na-font-size-sm); }
+    .na-project-risk-rail__item { border: 0; background: transparent; }
+    .na-project-risk-rail__item > span:last-child { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+    .na-project-risk-rail__item strong { font-size: var(--na-font-size-sm); font-weight: 650; }
+    .na-project-risk-rail__item small { color: var(--na-text-primary); font-size: var(--na-font-size-sm); }
     .na-project-risk-rail__item em { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); font-style: normal; }
     .na-project-risk__marker { display: inline-block; flex: 0 0 7px; width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--na-color-info); }
     .na-project-risk__marker--high { background: var(--na-color-error); } .na-project-risk__marker--medium { background: var(--na-color-warning); } .na-project-risk__marker--low { background: var(--na-color-info); }
     .na-project-muted { margin: 4px 0; color: var(--na-text-secondary); font-size: var(--na-font-size-sm); }
-    .na-project-task-stack { display: flex; flex-direction: column; gap: 4px; }
-    .na-project-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-    .na-project-facts div { min-width: 0; padding: 7px 8px; background: var(--na-task-card-meta-bg); }
-    .na-project-facts dt { color: var(--na-text-secondary); font-size: var(--na-font-size-xs); } .na-project-facts dd { margin: 2px 0 0; color: var(--na-text-primary); font-size: var(--na-font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .na-project-tree { display: flex; flex-direction: column; gap: 4px; }
-    .na-project-tree__row { display: flex; align-items: center; }
-    .na-project-tree__row :global(.na-task-card) { flex: 1; min-width: 0; }
-    .na-project-board { display: grid; flex: 1 1 auto; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 8px; min-width: 900px; min-height: 0; align-items: stretch; }
-    .na-project-board__column { min-height: 260px; height: 100%; border: 1px solid var(--na-color-divider); background: color-mix(in srgb, var(--b3-theme-surface) 78%, var(--b3-theme-background)); transition: border-color .15s, background-color .15s; }
-    .na-project-board__column.drop-active { border-color: var(--na-accent); background: var(--na-color-selected-bg); }
-    .na-project-board__column > header, .na-project-plan__group > header { display: flex; justify-content: space-between; padding: 9px 10px; border-bottom: 1px solid var(--na-color-divider); color: var(--na-text-secondary); font-size: var(--na-font-size-xs); font-weight: 700; text-transform: uppercase; }
-    .na-project-board__cards { display: flex; flex-direction: column; gap: 5px; padding: 6px; min-height: 220px; }
-    .na-project-board__card { cursor: grab; } .na-project-board__card:active { cursor: grabbing; }
-    .na-project-board__empty { margin: 14px 6px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: center; }
-    .na-project-plan { display: flex; flex-direction: column; gap: 10px; }
-    .na-project-plan__group { border-top: 2px solid var(--na-color-divider); background: var(--b3-theme-surface); }
-    .na-project-plan__row { display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px solid color-mix(in srgb, var(--na-color-divider) 60%, transparent); }
-    .na-project-plan__row :global(.na-task-card) { flex: 1; min-width: 0; } .na-project-plan__date { flex: 0 0 82px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: right; }
     .na-project-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 6px; color: var(--na-text-secondary); text-align: center; } .na-project-empty strong { color: var(--na-text-primary); font-size: var(--na-font-size-lg); }
-    @container nextaction-app (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-overview { grid-template-columns: 1fr; } .na-project-toolbar__hint { display: none; } }
-    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-canvas--gantt { min-height: 420px; overflow: hidden; } .na-project-board { min-width: 760px; } }
+    @container nextaction-app (max-width: 880px) { .na-project-workspace { grid-template-columns: 190px minmax(0, 1fr); } .na-project-risk-rail { display: none; } .na-project-toolbar__hint { display: none; } }
+    @container nextaction-app (max-width: 780px) { .na-project-workspace { display: flex; flex-direction: column; overflow: auto; } .na-project-index { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--na-color-divider); } .na-project-canvas { overflow: visible; padding: 10px; } .na-project-canvas--gantt { min-height: 420px; overflow: hidden; } }
 </style>

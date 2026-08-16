@@ -8,31 +8,34 @@ function source(path: string): string {
 
 test("项目控制中心提供总览、层级、看板、计划和甘特五种模式", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
+    const state = source("../src/frontend/utils/project-view-state.ts");
+    const overview = source("../src/frontend/components/project/ProjectOverviewMode.svelte");
+    const hierarchy = source("../src/frontend/components/project/ProjectHierarchyMode.svelte");
     for (const mode of ["overview", "hierarchy", "board", "plan", "gantt"]) assert.match(view, new RegExp(`value: \\\"${mode}\\\"`));
-    assert.match(view, /buildProjectSummaries/);
-    assert.match(view, /getProjectDateBucket/);
+    assert.match(view, /buildProjectViewModel/);
+    assert.match(state, /buildProjectSummaries/);
+    assert.match(state, /getProjectDateBucket/);
     assert.match(view, /NaTaskFilterBar/);
-    assert.match(view, /NaTaskList/);
+    assert.match(overview, /NaTaskList/);
     assert.match(view, /NaToggle/);
     assert.match(view, /showCompleted/);
-    assert.match(view, /matchesProjectFilters/);
+    assert.match(state, /matchesProjectFilters/);
     assert.match(view, /riskFilter/);
     assert.match(view, /dateFilter/);
     assert.match(view, /actionFilter/);
-    assert.match(view, /buildProjectTreeModel/);
+    assert.match(state, /buildProjectTreeModel/);
     assert.match(view, /GanttView/);
     assert.match(view, /selectedTaskOverride/);
-    assert.match(view, /projectSourceTasks/);
-    assert.match(view, /reconcileProjectTasks\(\$taskStore\.allTasks, selectedTaskOverride\)/);
-    assert.match(view, /task\.blockId === override\.blockId/);
-    assert.match(view, /buildProjectSummaries\(projectSourceTasks\)/);
+    assert.match(state, /sourceTasks = reconcileProjectTasks\(tasks, state\.selectedTaskOverride\)/);
+    assert.match(state, /task\.blockId === override\.blockId/);
+    assert.match(state, /buildProjectSummaries\(sourceTasks\)/);
     assert.match(source("../src/frontend/components/NextActionApp.svelte"), /selectedTaskOverride=\{selectedTask\}/);
-    assert.match(view, /projectTreeModel\?\.rows/);
-    assert.match(view, /padding-left: \{row\.depth \* 18\}px/);
-    assert.match(view, /matchedTaskIds/);
-    assert.match(view, /selectedMatchedTaskIds/);
-    assert.match(view, /onToggleCollapse=\{\(\) => toggleCollapse\(row\.task\.blockId\)\}/);
-    assert.match(view, /isCollapsed=\{collapsedIds\.has\(row\.task\.blockId\)\}/);
+    assert.match(hierarchy, /model\.rows/);
+    assert.match(hierarchy, /padding-left: \{row\.depth \* 18\}px/);
+    assert.match(state, /matchedTaskIds/);
+    assert.match(state, /selectedMatchedTaskIds/);
+    assert.match(hierarchy, /onToggleCollapse\(row\.task\.blockId\)/);
+    assert.match(hierarchy, /isCollapsed=\{collapsedIds\.has\(row\.task\.blockId\)\}/);
 });
 
 test("项目视图窄屏筛选控件流式换行并与搜索区保持间距", () => {
@@ -72,15 +75,19 @@ test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作",
 
 test("看板通过父组件回调进入统一任务写入链路", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
+    const board = source("../src/frontend/components/project/ProjectBoardMode.svelte");
+    const plan = source("../src/frontend/components/project/ProjectPlanMode.svelte");
     const app = source("../src/frontend/components/NextActionApp.svelte");
     assert.match(view, /onTaskUpdate/);
     assert.match(view, /onTaskReorder/);
-    assert.match(view, /draggable=\"true\"/);
+    assert.match(board, /draggable=\{!busy\}/);
+    assert.match(board, /onMoveTask\(\{ task: draggingTask, status, afterId:/);
     assert.match(app, /handleProjectTaskUpdate/);
     assert.match(app, /handleProjectTaskReorder/);
     assert.match(app, /onTaskUpdate=\{handleProjectTaskUpdate\}/);
     assert.match(app, /onTaskReorder=\{handleProjectTaskReorder\}/);
-    assert.match(view, /group\.bucket !== \"unscheduled\"/);
+    assert.match(plan, /group\.bucket !== "unscheduled"/);
+    assert.doesNotMatch(board, /KernelBridge|bridge\.updateTask|bridge\.reorderTask/);
 });
 
 test("项目入口与共享详情按条目类型使用项目语义", () => {
