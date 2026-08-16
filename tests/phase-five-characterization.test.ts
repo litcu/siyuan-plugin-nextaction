@@ -99,12 +99,13 @@ test("设置保存链当前由面板持久化、宿主执行后处理", () => {
     const panel = source("../src/frontend/components/SettingsPanel.svelte");
     const host = source("../src/frontend/controllers/settings-dialog-controller.ts");
 
-    assert.match(panel, /await bridge\.updateSettings\(settings\)/);
+    assert.match(panel, /controller\.save\(settings => bridge\.updateSettings\(settings\)\)/);
     assert.match(panel, /await onSave\(result\)/);
+    assert.match(panel, /settingsSavedRefreshFailed/);
     assert.match(host, /await this\.bridge\.recalcAllOrders\(\)/);
     assert.match(host, /taskStore\.applySettingsUpdate\(settings\)/);
-    assert.match(host, /taskStore\.loadTasks\(\)/);
+    assert.match(host, /finally \{[\s\S]*?taskStore\.loadTasks\(\)/);
     assert.match(host, /\.b3-dialog__scrim/);
     assert.match(panel, /event\.key !== "Escape"/);
-    assert.match(panel, /export function requestClose\(\)/);
+    assert.match(panel, /export async function requestClose\(\)/);
 });

@@ -16,8 +16,8 @@ const naAccordion = read("src/frontend/ui/NaAccordion.svelte");
 const primitives = read("src/frontend/ui/primitives.scss");
 
 test("设置页使用五个现代页面并保留外部组件契约", () => {
-    assert.match(panel, /type ModernTabId = "general" \| "customFields" \| "ai" \| "mcp" \| "advanced"/);
-    assert.match(panel, /export let bridge: any/);
+    assert.match(panel, /type ModernTabId = SettingsPage/);
+    assert.match(panel, /export let bridge: KernelBridge/);
     assert.match(panel, /export let onSave: \(settings: PluginSettings\) => void \| Promise<void>/);
     assert.match(panel, /export let onClose: \(\) => void/);
     for (const id of ["general", "customFields", "ai", "mcp", "advanced"]) {
@@ -26,18 +26,23 @@ test("设置页使用五个现代页面并保留外部组件契约", () => {
 });
 
 test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
-    assert.match(panel, /savedSignature/);
-    assert.match(panel, /draftSignature/);
-    assert.match(panel, /afterUpdate\(\(\) => \{[\s\S]*JSON\.stringify\(buildSettings\(\)\)[\s\S]*draftSignature = nextSignature/);
-    assert.doesNotMatch(panel, /\$:\s*draftSignature\s*=\s*settingsLoaded\s*\?\s*JSON\.stringify\(buildSettings\(\)\)/);
+    const controller = read("src/frontend/controllers/settings-panel-controller.ts");
+    assert.match(panel, /new SettingsPanelController/);
+    assert.match(panel, /controller\.edit\(buildSettings\(\)\)/);
+    assert.doesNotMatch(panel, /afterUpdate|savedSignature|draftSignature/);
+    assert.match(controller, /dirty:\s*!settingsEqual\(next, this\.state\.saved\)/);
     assert.match(panel, /settingsUnsavedDesc/);
     assert.match(panel, /on:keydown\|capture=\{handleWindowKeydown\}/);
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
-    assert.match(panel, /await onSave\(result\);[\s\S]*savedSignature = JSON\.stringify\(buildSettings\(\)\);[\s\S]*draftSignature = savedSignature/);
+    assert.match(panel, /const result = await controller\.save/);
+    assert.match(panel, /applySettings\(result\);[\s\S]*await onSave\(result\)/);
+    assert.match(panel, /settingsSavedRefreshFailed/);
+    assert.match(controller, /saved: authoritative[\s\S]*dirty: false/);
     assert.match(panel, /i18n\?\.save \|\| "Save"/);
-    assert.match(indexSource, /notifyInfo\(this\.i18n\.settingsSaved \|\| "Settings saved"\);\s*\n\s*\} catch/);
+    assert.match(indexSource, /taskStore\.applySettingsUpdate\(settings\);[\s\S]*recalcAllOrders\(\)[\s\S]*notifyInfo/);
+    assert.match(indexSource, /finally \{[\s\S]*taskStore\.loadTasks\(\)/);
     assert.doesNotMatch(indexSource, /settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*dialog\.destroy\(\);/);
-    assert.match(panel, /export function requestClose\(\)/);
+    assert.match(panel, /export async function requestClose\(\)/);
     assert.match(indexSource, /\.b3-dialog__scrim/);
     assert.match(indexSource, /component\.requestClose\(\)/);
     assert.match(panel, /na-settings-modern__header \{ position: sticky/);
@@ -57,15 +62,16 @@ test("设置页提供带确认的全部重置并统一原生表单字体", () =>
 test("各分区重置和维护操作要求确认且全部重置不会嵌套确认", () => {
     for (const name of ["Priority", "Defaults", "MyDay", "Reminder", "Mcp", "TaskCreation"]) {
         assert.match(panel, new RegExp(`function doReset${name}\\(\\)`));
-        assert.match(panel, new RegExp(`function handleReset${name}\\(\\) \\{[\\s\\S]*?settingResetSectionConfirm[\\s\\S]*?doReset${name}\\(\\)`));
+        assert.match(panel, new RegExp(`function handleReset${name}\\(\\) \\{[\\s\\S]*?requestDraftAction[\\s\\S]*?settingResetSectionConfirm[\\s\\S]*?doReset${name}\\(\\)`));
     }
     const resetAll = panel.match(/function handleResetAll\(\) \{([\s\S]*?)\n    \}/)?.[1] || "";
     for (const name of ["Defaults", "TaskCreation", "MyDay", "Reminder", "Mcp", "Priority"]) {
         assert.match(resetAll, new RegExp(`doReset${name}\\(\\)`));
         assert.doesNotMatch(resetAll, new RegExp(`handleReset${name}\\(\\)`));
     }
-    assert.match(panel, /function handleRebuildCache\(\) \{[\s\S]*?rebuildCacheConfirm[\s\S]*?bridge\.rebuildCache\(\)/);
-    assert.match(panel, /function handleRebuildParents\(\) \{[\s\S]*?rebuildParentsConfirm[\s\S]*?bridge\.rebuildParents\(\)/);
+    assert.match(panel, /function handleRebuildCache\(\) \{[\s\S]*?requestMaintenanceAction[\s\S]*?rebuildCacheConfirm[\s\S]*?bridge\.rebuildCache\(\)/);
+    assert.doesNotMatch(panel, /bridge\.rebuildParents|handleRebuildParents/);
+    assert.doesNotMatch(advanced, /rebuildParents|onRebuildParents/);
 });
 
 test("常规页包含任务创建、任务默认值、我的一天和提醒四个可独立恢复分区", () => {
@@ -92,7 +98,8 @@ test("指定的收件箱文档通过搜索选择且不提供当前文档快捷�
 
 test("复杂设置页保留关键行为并使用按需展开交互", () => {
     assert.match(customFields, /builderOpen/);
-    assert.match(customFields, /purgeCustomField/);
+    assert.match(panel, /bridge\.purgeCustomField/);
+    assert.match(customFields, /onPurgeField/);
     assert.match(customFields, /customFieldTypeLocked/);
     assert.match(customFields, /na-settings-custom-field__show-card/);
     assert.match(customFields, /<code>\{field\.key\}<\/code>/);
@@ -101,7 +108,7 @@ test("复杂设置页保留关键行为并使用按需展开交互", () => {
     assert.match(mcp, /settingMcpWriteWarning/);
     assert.match(mcp, /settingMcpToolInventory/);
     assert.match(advanced, /rebuildCache/);
-    assert.match(advanced, /rebuildParents/);
+    assert.doesNotMatch(advanced, /rebuildParents/);
 });
 
 test("MCP 地址使用思源固定服务端口而不是当前随机端口", () => {

@@ -1,12 +1,12 @@
 <script lang="ts">
-    import { confirm } from "siyuan";
     import { CUSTOM_FIELD_TYPES, isValidCustomFieldKey, normalizeCustomFieldKey, type CustomFieldDef, type CustomFieldOption, type CustomFieldType } from "../../../shared/custom-fields";
     import NaIcon from "../../ui/NaIcon.svelte";
 
     export let i18n: any;
-    export let bridge: any;
     export let customFields: CustomFieldDef[];
     export let customFieldUsage: Record<string, number> = {};
+    export let purgingFieldId = "";
+    export let onPurgeField: (field: CustomFieldDef) => void;
 
     let builderOpen = false;
     let newFieldKey = "";
@@ -131,24 +131,9 @@
         customFields = next;
     }
 
-    async function purgeField(field: CustomFieldDef, index: number) {
+    function purgeField(field: CustomFieldDef) {
         if (field.status !== "archived") return;
-        confirm(
-            i18n?.purgeCustomField || "Clear field values",
-            i18n?.customFieldPurgeConfirm || "This immediately clears all values for this archived field. The action cannot be undone.",
-            async () => {
-                try {
-                    const result = await bridge.purgeCustomField(field.id);
-                    if (result.failedBlockIds?.length) {
-                        error = (i18n?.customFieldPurgePartial || "{key}: {count} task value(s) could not be cleared").replace("{key}", field.key).replace("{count}", String(result.failedBlockIds.length));
-                        return;
-                    }
-                    customFields = customFields.filter((_, fieldIndex) => fieldIndex !== index);
-                } catch (e: any) {
-                    error = e?.message || String(e);
-                }
-            },
-        );
+        onPurgeField(field);
     }
 </script>
 
@@ -220,7 +205,7 @@
                             <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => moveField(index, -1)} disabled={index === 0} aria-label={i18n?.moveUp || "Move up"}><NaIcon symbol="iconUp" size={14} /></button>
                             <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => moveField(index, 1)} disabled={index === customFields.length - 1} aria-label={i18n?.moveDown || "Move down"}><NaIcon symbol="iconDown" size={14} /></button>
                             <button type="button" class="b3-button b3-button--text" on:click={() => toggleStatus(index)}>{field.status === "active" ? (i18n?.archiveCustomField || "Archive") : (i18n?.restoreCustomField || "Restore")}</button>
-                            {#if field.status === "archived"}<button type="button" class="b3-button b3-button--text na-settings-custom-field__danger" on:click={() => purgeField(field, index)}>{i18n?.purgeCustomField || "Purge"}</button>{/if}
+                            {#if field.status === "archived"}<button type="button" class="b3-button b3-button--text na-settings-custom-field__danger" disabled={purgingFieldId === field.id} on:click={() => purgeField(field)}>{i18n?.purgeCustomField || "Purge"}</button>{/if}
                         </div>
                     </header>
                     <div class="na-settings-custom-field__details">

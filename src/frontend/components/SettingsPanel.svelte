@@ -1,13 +1,14 @@
 <script lang="ts">
-    import { afterUpdate, onMount, tick } from "svelte";
+    import { onMount, tick } from "svelte";
     import { confirm } from "siyuan";
     import type { PluginSettings, MyDayViewMode, CustomFieldDef } from "../../shared/settings";
     import type { CreateTaskDefaultTarget } from "../../shared/task-creation";
     import type { AiFeatureId } from "../../shared/ai";
-    import { migrateCustomFieldDefs } from "../../shared/custom-fields";
-    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS, validateSettings } from "../../shared/settings";
+    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
-    import { formatOperationError, formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
+    import { formatOperationError, formatValidationError, notifyInfo, notifyError } from "../notify";
+    import type { KernelBridge } from "../kernel-bridge";
+    import { SettingsPanelController, type SettingsAction, type SettingsPage } from "../controllers/settings-panel-controller";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
     import NaIcon from "../ui/NaIcon.svelte";
@@ -18,25 +19,23 @@
     import McpSettingsPage from "./settings/McpSettingsPage.svelte";
     import AdvancedSettingsPage from "./settings/AdvancedSettingsPage.svelte";
 
-    export let bridge: any;
+    export let bridge: KernelBridge;
     export let i18n: any;
     export let onSave: (settings: PluginSettings) => void | Promise<void>;
     export let onClose: () => void;
 
-    type ModernTabId = "general" | "customFields" | "ai" | "mcp" | "advanced";
+    type ModernTabId = SettingsPage;
     type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
 
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
     let saving = false;
     let rebuilding = false;
-    let rebuildingParents = false;
     let error = "";
     let modernTab: ModernTabId = "general";
     let settingsRootEl: HTMLDivElement;
     let settingsBodyEl: HTMLDivElement;
     let settingsLoaded = false;
-    let savedSignature = "";
-    let draftSignature = "";
+    let isDirty = false;
 
     $: modernTabs = [
         { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
@@ -87,70 +86,81 @@
     let aiPrompts: Record<AiFeatureId, string> = { ...DEFAULT_AI_SETTINGS.prompts };
     let customFields: CustomFieldDef[] = [];
     let customFieldUsage: Record<string, number> = {};
+    let purgingFieldId = "";
 
-    $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
-    $: isDirty = settingsLoaded && draftSignature !== savedSignature;
-
-    // Child component bindings are not visible inside a legacy reactive function call.
-    // Recompute after updates so custom-field edits and every other setting enable Save.
-    afterUpdate(() => {
-        if (!settingsLoaded) return;
-        const nextSignature = JSON.stringify(buildSettings());
-        if (draftSignature !== nextSignature) draftSignature = nextSignature;
+    const controller = new SettingsPanelController({
+        formatError: error => formatOperationError(error, i18n),
+        formatValidationError: validationError => formatValidationError(validationError, i18n),
     });
 
+    function syncControllerState() {
+        const state = controller.snapshot;
+        current = state.saved;
+        saving = state.saveState === "saving";
+        rebuilding = state.maintenanceBusy.has("cache");
+        purgingFieldId = [...state.maintenanceBusy].find(id => id.startsWith("purge:"))?.slice("purge:".length) || "";
+        error = state.error;
+        modernTab = state.page;
+        settingsLoaded = state.loadState === "loaded";
+        isDirty = state.dirty;
+    }
+
+    $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
+    $: draftRevision = [
+        defaultImportance, defaultEffort, semanticDateParsingEnabled,
+        dueWeight, startWeight, importanceWeight, dueDecayTau, overdueGrowth, overdueCap, startHorizon, effortScale, startPreviewDays,
+        myDayResetHour, myDayDefaultViewMode, myDayDefaultDuration,
+        reminderEnabled, reminderDefaultOffsets, reminderDueSound, reminderReviewSound, reminderSoundEnabled,
+        mcpEnabled, mcpAllowWrite,
+        taskCreationDefaultCreateTarget, taskCreationInboxDocumentId, taskCreationDailyNoteNotebookId,
+        aiPrompts, customFields,
+    ];
+    $: if (settingsLoaded && draftRevision) {
+        controller.edit(buildSettings());
+        syncControllerState();
+    }
+
+    function applySettings(settings: PluginSettings) {
+        defaultImportance = settings.defaultImportance;
+        defaultEffort = settings.defaultEffort;
+        semanticDateParsingEnabled = settings.semanticDateParsingEnabled ?? DEFAULT_SETTINGS.semanticDateParsingEnabled;
+        myDayResetHour = settings.myDayResetHour ?? DEFAULT_SETTINGS.myDayResetHour;
+        myDayDefaultViewMode = settings.myDayDefaultViewMode ?? DEFAULT_SETTINGS.myDayDefaultViewMode;
+        myDayDefaultDuration = settings.myDayDefaultDuration ?? DEFAULT_SETTINGS.myDayDefaultDuration;
+        dueWeight = settings.priorityEngine.dueWeight;
+        startWeight = settings.priorityEngine.startWeight;
+        importanceWeight = settings.priorityEngine.importanceWeight;
+        dueDecayTau = settings.priorityEngine.dueDecayTau;
+        overdueGrowth = settings.priorityEngine.overdueGrowth;
+        overdueCap = settings.priorityEngine.overdueCap;
+        startHorizon = settings.priorityEngine.startHorizon;
+        effortScale = settings.priorityEngine.effortScale;
+        startPreviewDays = settings.priorityEngine.startPreviewDays ?? DEFAULT_PRIORITY_ENGINE.startPreviewDays;
+        customFields = [...settings.customFields];
+        const reminder = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
+        reminderEnabled = reminder.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
+        reminderDefaultOffsets = [...(reminder.defaultOffsets ?? DEFAULT_REMINDER_SETTINGS.defaultOffsets)];
+        reminderDueSound = reminder.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
+        reminderReviewSound = reminder.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
+        reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
+        const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
+        mcpEnabled = mcp.enabled;
+        mcpAllowWrite = mcp.allowWrite;
+        const creation = settings.taskCreationSettings ?? DEFAULT_SETTINGS.taskCreationSettings;
+        taskCreationDefaultCreateTarget = creation.defaultCreateTarget;
+        taskCreationInboxDocumentId = creation.inboxDocumentId;
+        taskCreationDailyNoteNotebookId = creation.dailyNoteNotebookId;
+        aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
+    }
+
     onMount(async () => {
+        controller.beginLoad();
+        syncControllerState();
         try {
             const rawSettings = await bridge.getSettings();
-            const settings: PluginSettings = {
-                ...DEFAULT_SETTINGS,
-                ...(rawSettings || {}),
-                priorityEngine: {
-                    ...DEFAULT_PRIORITY_ENGINE,
-                    ...(rawSettings?.priorityEngine || {}),
-                },
-                reminderSettings: {
-                    ...DEFAULT_REMINDER_SETTINGS,
-                    ...(rawSettings?.reminderSettings || {}),
-                },
-                mcpSettings: {
-                    ...DEFAULT_MCP_SETTINGS,
-                    ...(rawSettings?.mcpSettings || {}),
-                },
-                taskCreationSettings: {
-                    ...DEFAULT_SETTINGS.taskCreationSettings,
-                    ...(rawSettings?.taskCreationSettings || {}),
-                    recentTargets: [...(rawSettings?.taskCreationSettings?.recentTargets || [])],
-                    presets: [...(rawSettings?.taskCreationSettings?.presets || [])],
-                },
-                aiSettings: {
-                    ...DEFAULT_AI_SETTINGS,
-                    ...(rawSettings?.aiSettings || {}),
-                    prompts: {
-                        ...DEFAULT_AI_SETTINGS.prompts,
-                        ...(rawSettings?.aiSettings?.prompts || {}),
-                    },
-                },
-                customFields: migrateCustomFieldDefs(rawSettings?.customFields || []).fields,
-            };
-
-            current = settings;
-            defaultImportance = settings.defaultImportance;
-            defaultEffort = settings.defaultEffort;
-            semanticDateParsingEnabled = settings.semanticDateParsingEnabled ?? DEFAULT_SETTINGS.semanticDateParsingEnabled;
-            myDayResetHour = settings.myDayResetHour ?? DEFAULT_SETTINGS.myDayResetHour;
-            myDayDefaultViewMode = settings.myDayDefaultViewMode ?? DEFAULT_SETTINGS.myDayDefaultViewMode;
-            myDayDefaultDuration = settings.myDayDefaultDuration ?? DEFAULT_SETTINGS.myDayDefaultDuration;
-            dueWeight = settings.priorityEngine.dueWeight;
-            startWeight = settings.priorityEngine.startWeight;
-            importanceWeight = settings.priorityEngine.importanceWeight;
-            dueDecayTau = settings.priorityEngine.dueDecayTau;
-            overdueGrowth = settings.priorityEngine.overdueGrowth;
-            overdueCap = settings.priorityEngine.overdueCap;
-            startHorizon = settings.priorityEngine.startHorizon;
-            effortScale = settings.priorityEngine.effortScale;
-            startPreviewDays = settings.priorityEngine.startPreviewDays ?? DEFAULT_PRIORITY_ENGINE.startPreviewDays;
-            customFields = [...settings.customFields];
+            const settings = controller.load(rawSettings);
+            syncControllerState();
+            applySettings(settings);
 
             try {
                 const diagnostics = await bridge.getCustomFieldDiagnostics();
@@ -158,22 +168,6 @@
             } catch (_e) {
                 customFieldUsage = {};
             }
-
-            const reminder = settings.reminderSettings ?? DEFAULT_REMINDER_SETTINGS;
-            reminderEnabled = reminder.enabled ?? DEFAULT_REMINDER_SETTINGS.enabled;
-            reminderDefaultOffsets = [...(reminder.defaultOffsets ?? DEFAULT_REMINDER_SETTINGS.defaultOffsets)];
-            reminderDueSound = reminder.dueSound ?? DEFAULT_REMINDER_SETTINGS.dueSound;
-            reminderReviewSound = reminder.reviewSound ?? DEFAULT_REMINDER_SETTINGS.reviewSound;
-            reminderSoundEnabled = reminder.soundEnabled ?? DEFAULT_REMINDER_SETTINGS.soundEnabled;
-
-            const mcp = settings.mcpSettings ?? DEFAULT_MCP_SETTINGS;
-            mcpEnabled = mcp.enabled;
-            mcpAllowWrite = mcp.allowWrite;
-            const creation = settings.taskCreationSettings ?? DEFAULT_SETTINGS.taskCreationSettings;
-            taskCreationDefaultCreateTarget = creation.defaultCreateTarget;
-            taskCreationInboxDocumentId = creation.inboxDocumentId;
-            taskCreationDailyNoteNotebookId = creation.dailyNoteNotebookId;
-            aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts, ...(settings.aiSettings?.prompts || {}) };
 
             try {
                 [mcpStatus, mcpNotebooks] = await Promise.all([
@@ -188,16 +182,18 @@
 
             await tick();
             settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" });
-            savedSignature = JSON.stringify(buildSettings());
-            settingsLoaded = true;
+            controller.edit(buildSettings());
+            syncControllerState();
         } catch (e: any) {
             console.error("[NextAction] loadSettings failed:", e);
-            error = formatRpcError(e, i18n);
+            controller.loadFailed(e);
+            syncControllerState();
         }
     });
 
     function selectModernTab(tab: ModernTabId) {
-        modernTab = tab;
+        controller.setPage(tab);
+        syncControllerState();
         requestAnimationFrame(() => settingsBodyEl?.scrollTo({ top: 0, behavior: "auto" }));
     }
 
@@ -208,15 +204,25 @@
         return !topDialog || ownDialog === topDialog;
     }
 
-    export function requestClose() {
-        if (!isDirty) {
+    export async function requestClose() {
+        const decision = await controller.requestClose();
+        syncControllerState();
+        if (decision === "close") {
             onClose();
             return;
         }
         confirm(
             i18n?.settingsUnsavedTitle || i18n?.settingsTitle || "Unsaved changes",
             i18n?.settingsUnsavedDesc || "You have unsaved changes. Close without saving?",
-            () => onClose(),
+            () => {
+                controller.confirmDiscard();
+                syncControllerState();
+                onClose();
+            },
+            () => {
+                controller.cancelClose();
+                syncControllerState();
+            },
         );
     }
 
@@ -287,69 +293,73 @@
     }
 
     async function handleSave() {
-        error = "";
-        const settings = buildSettings();
-        const validationError = validateSettings(settings);
-        if (validationError) {
-            error = formatValidationError(validationError, i18n);
-            return;
-        }
-        saving = true;
+        controller.edit(buildSettings());
+        const result = await controller.save(settings => bridge.updateSettings(settings));
+        syncControllerState();
+        if (!result) return;
+        applySettings(result);
         try {
-            const result = await bridge.updateSettings(settings);
             await onSave(result);
-            current = result;
-            savedSignature = JSON.stringify(buildSettings());
-            draftSignature = savedSignature;
         } catch (e: unknown) {
-            console.error("[NextAction] saveSettings failed:", e);
-            error = formatOperationError(e, i18n);
-        } finally {
-            saving = false;
+            console.error("[NextAction] settings post-save refresh failed:", e);
+            controller.reportPostSaveError(
+                i18n?.settingsSavedRefreshFailed
+                || "Settings were saved, but task order refresh failed. Use Refresh or maintenance tools to retry.",
+            );
+            syncControllerState();
         }
     }
 
-    function handleRebuildCache() {
+    function requestDraftAction(action: SettingsAction, title: string, message: string, apply: () => void) {
+        controller.requestAction(action);
         confirm(
-            i18n?.rebuildCache || "Rebuild Cache",
-            i18n?.rebuildCacheConfirm || "This will reload all task data from the database. The operation runs immediately and may take a moment.",
-            async () => {
-                rebuilding = true;
-                error = "";
-                try {
-                    await bridge.rebuildCache();
-                    notifyInfo(i18n?.rebuildCacheSuccess || "Cache rebuilt successfully");
-                } catch (e: any) {
-                    console.error("[NextAction] rebuildCache failed:", e);
-                    error = formatRpcError(e, i18n);
-                    notifyError(i18n?.rebuildCacheFailed || "Failed to rebuild cache");
-                } finally {
-                    rebuilding = false;
-                }
+            title,
+            message,
+            () => {
+                controller.confirmAction();
+                apply();
+                controller.clearError();
+                syncControllerState();
+            },
+            () => {
+                controller.cancelAction();
+                syncControllerState();
             },
         );
     }
 
-    function handleRebuildParents() {
+    function requestMaintenanceAction(action: SettingsAction, title: string, message: string, run: () => Promise<void>) {
+        controller.requestAction(action);
         confirm(
-            i18n?.rebuildParents || "Repair parent relationships",
-            i18n?.rebuildParentsConfirm || "This will check and fix task hierarchy relationships. The operation runs immediately and modifies data.",
+            title,
+            message,
+            () => {
+                controller.confirmAction();
+                void run();
+            },
+            () => {
+                controller.cancelAction();
+                syncControllerState();
+            },
+        );
+    }
+
+    function handleRebuildCache() {
+        requestMaintenanceAction(
+            { id: "maintenance:cache", kind: "maintenance" },
+            i18n?.rebuildCache || "Rebuild Cache",
+            i18n?.rebuildCacheConfirm || "This will reload all task data from the database. The operation runs immediately and may take a moment.",
             async () => {
-                rebuildingParents = true;
-                error = "";
                 try {
-                    const result = await bridge.rebuildParents();
-                    const fixed = result?.fixed ?? result?.count ?? 0;
-                    const message = i18n?.rebuildParentsSuccess
-                        ? i18n.rebuildParentsSuccess.replace("{count}", String(fixed))
-                        : "Fixed " + fixed + " parent relationship(s)";
-                    notifyInfo(message);
+                    const running = controller.runMaintenance("cache", () => bridge.rebuildCache());
+                    syncControllerState();
+                    await running;
+                    notifyInfo(i18n?.rebuildCacheSuccess || "Cache rebuilt successfully");
                 } catch (e: any) {
-                    console.error("[NextAction] rebuildParents failed:", e);
-                    error = formatRpcError(e, i18n);
-                    notifyError(i18n?.rebuildParentsFailed || "Failed to fix parent relationships");
+                    console.error("[NextAction] rebuildCache failed:", e);
+                    notifyError(i18n?.rebuildCacheFailed || "Failed to rebuild cache");
                 } finally {
-                    rebuildingParents = false;
+                    syncControllerState();
                 }
             },
         );
@@ -369,7 +379,8 @@
     }
 
     function handleResetPriority() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:priority", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetPriority(),
@@ -383,7 +394,8 @@
     }
 
     function handleResetDefaults() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:defaults", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetDefaults(),
@@ -397,7 +409,8 @@
     }
 
     function handleResetMyDay() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:my-day", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetMyDay(),
@@ -413,7 +426,8 @@
     }
 
     function handleResetReminder() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:reminder", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetReminder(),
@@ -426,7 +440,8 @@
     }
 
     function handleResetMcp() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:mcp", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetMcp(),
@@ -441,7 +456,8 @@
     }
 
     function handleResetTaskCreation() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:task-creation", kind: "draft" },
             i18n?.settingResetSection || "Reset",
             i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetTaskCreation(),
@@ -452,12 +468,50 @@
         aiPrompts = { ...DEFAULT_AI_SETTINGS.prompts };
     }
 
+    function handleResetAiPrompt(feature: AiFeatureId) {
+        requestDraftAction(
+            { id: `reset:ai:${feature}`, kind: "draft" },
+            i18n?.settingAiPromptReset || "Reset",
+            i18n?.settingAiPromptResetConfirm || "Restore this prompt to its default? Any custom instructions will be lost. The reset only takes effect after you click Save.",
+            () => { aiPrompts = { ...aiPrompts, [feature]: DEFAULT_AI_SETTINGS.prompts[feature] }; },
+        );
+    }
+
     function handleResetCustomFields() {
         customFields = [];
     }
 
+    function handlePurgeCustomField(field: CustomFieldDef) {
+        requestMaintenanceAction(
+            { id: `maintenance:purge:${field.id}`, kind: "maintenance" },
+            i18n?.purgeCustomField || "Clear field values",
+            i18n?.customFieldPurgeConfirm || "This immediately clears all values for this archived field. The action cannot be undone.",
+            async () => {
+                try {
+                    const running = controller.runMaintenance(`purge:${field.id}`, () => bridge.purgeCustomField(field.id));
+                    syncControllerState();
+                    const result = await running;
+                    if (result.failedBlockIds?.length) {
+                        controller.reportError(
+                            (i18n?.customFieldPurgePartial || "{key}: {count} task value(s) could not be cleared")
+                                .replace("{key}", field.key)
+                                .replace("{count}", String(result.failedBlockIds.length)),
+                        );
+                    } else {
+                        customFields = customFields.filter(item => item.id !== field.id);
+                    }
+                } catch (e: unknown) {
+                    console.error("[NextAction] purgeCustomField failed:", e);
+                } finally {
+                    syncControllerState();
+                }
+            },
+        );
+    }
+
     function handleResetAll() {
-        confirm(
+        requestDraftAction(
+            { id: "reset:all", kind: "draft" },
             i18n?.settingResetAllTitle || i18n?.settingResetAll || "Reset all settings",
             i18n?.settingResetAllConfirm || "Restore every saved setting to its default value?",
             () => {
@@ -621,9 +675,9 @@
                     onResetReminder={handleResetReminder}
                 />
             {:else if modernTab === "customFields"}
-                <CustomFieldsSettingsPage {i18n} {bridge} bind:customFields {customFieldUsage} />
+                <CustomFieldsSettingsPage {i18n} bind:customFields {customFieldUsage} {purgingFieldId} onPurgeField={handlePurgeCustomField} />
             {:else if modernTab === "ai"}
-                <AiSettingsPage {i18n} bind:aiPrompts defaultPrompts={DEFAULT_AI_SETTINGS.prompts} getRuntimePreview={getAiPromptRuntimePreview} />
+                <AiSettingsPage {i18n} bind:aiPrompts defaultPrompts={DEFAULT_AI_SETTINGS.prompts} getRuntimePreview={getAiPromptRuntimePreview} onResetPrompt={handleResetAiPrompt} />
             {:else if modernTab === "mcp"}
                 <McpSettingsPage
                     {i18n}
@@ -649,10 +703,8 @@
                     bind:startPreviewDays
                     {weightSum}
                     {rebuilding}
-                    {rebuildingParents}
                     onResetPriority={handleResetPriority}
                     onRebuildCache={handleRebuildCache}
-                    onRebuildParents={handleRebuildParents}
                 />
             {/if}
         </div>

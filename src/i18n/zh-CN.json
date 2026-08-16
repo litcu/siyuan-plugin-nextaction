@@ -245,6 +245,7 @@
     "addTag": "添加标签…",
     "settingsTitle": "插件设置",
     "settingsSaved": "设置已保存",
+    "settingsSavedRefreshFailed": "设置已保存，但任务顺序刷新失败。请使用刷新或维护工具重试。",
     "settingsUnsaved": "有未保存的修改",
     "settingsUnsavedTitle": "未保存的修改",
     "settingsUnsavedDesc": "当前有未保存的修改，确定不保存就关闭吗？",

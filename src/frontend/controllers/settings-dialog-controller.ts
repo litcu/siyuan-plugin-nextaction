@@ -51,13 +51,12 @@ export class SettingsDialogController {
                     bridge: this.bridge,
                     i18n: this.i18n,
                     onSave: async (settings: PluginSettings) => {
+                        taskStore.applySettingsUpdate(settings);
                         try {
                             await this.bridge.recalcAllOrders();
-                            taskStore.applySettingsUpdate(settings);
-                            void taskStore.loadTasks();
                             notifyInfo(this.i18n.settingsSaved || "Settings saved");
-                        } catch (error: unknown) {
-                            notifyOperationError(error, this.i18n);
+                        } finally {
+                            void taskStore.loadTasks();
                         }
                     },
                     onClose: () => dialog.destroy(),

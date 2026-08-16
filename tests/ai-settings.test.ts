@@ -8,6 +8,10 @@ const aiSettingsPageSource = readFileSync(
     new URL("../src/frontend/components/settings/AiSettingsPage.svelte", import.meta.url),
     "utf8",
 );
+const settingsPanelSource = readFileSync(
+    new URL("../src/frontend/components/SettingsPanel.svelte", import.meta.url),
+    "utf8",
+);
 
 test("AI 设置为四个内置功能提供独立默认提示词", () => {
     assert.match(settingsSource, /export interface AiSettings/);
@@ -19,11 +23,12 @@ test("AI 设置为四个内置功能提供独立默认提示词", () => {
 });
 
 test("AI 设置支持单项提示词恢复默认", () => {
-    assert.match(aiSettingsPageSource, /function resetPrompt/);
+    assert.match(aiSettingsPageSource, /onResetPrompt: \(feature: AiFeatureId\) => void/);
+    assert.match(aiSettingsPageSource, /onResetPrompt\(feature\.id\)/);
     assert.match(aiSettingsPageSource, /settingAiPromptReset/);
-    assert.match(aiSettingsPageSource, /settingAiPromptResetConfirm/);
-    assert.match(aiSettingsPageSource, /confirm\([\s\S]*?defaultPrompts\[id\]/);
-    assert.match(aiSettingsPageSource, /defaultPrompts\[id\]/);
+    assert.match(settingsPanelSource, /function handleResetAiPrompt\(feature: AiFeatureId\)/);
+    assert.match(settingsPanelSource, /settingAiPromptResetConfirm/);
+    assert.match(settingsPanelSource, /requestDraftAction\([\s\S]*?DEFAULT_AI_SETTINGS\.prompts\[feature\]/);
 });
 
 test("AI 提示词支持局部合并并限制长度", () => {

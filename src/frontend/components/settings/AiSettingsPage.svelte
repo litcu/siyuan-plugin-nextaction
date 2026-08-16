@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { confirm } from "siyuan";
     import type { AiFeatureId } from "../../../shared/ai";
     import NaAccordion from "../../ui/NaAccordion.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
@@ -8,6 +7,7 @@
     export let aiPrompts: Record<AiFeatureId, string>;
     export let defaultPrompts: Record<AiFeatureId, string>;
     export let getRuntimePreview: (feature: AiFeatureId) => { input: string; schema: string; example: string };
+    export let onResetPrompt: (feature: AiFeatureId) => void;
 
     let openFeatures: AiFeatureId[] = ["extractTasks"];
 
@@ -60,15 +60,6 @@
         aiPrompts = { ...aiPrompts, [id]: value };
     }
 
-    function resetPrompt(id: AiFeatureId) {
-        confirm(
-            i18n?.settingAiPromptReset || "Reset",
-            i18n?.settingAiPromptResetConfirm || "Restore this prompt to its default? Any custom instructions will be lost. The reset only takes effect after you click Save.",
-            () => {
-                aiPrompts = { ...aiPrompts, [id]: defaultPrompts[id] };
-            },
-        );
-    }
 </script>
 
 <div class="na-page-stack na-settings-ai">
@@ -119,7 +110,7 @@
                     <div class="na-settings-ai__footer">
                         <span>{i18n?.settingAiPromptHint || "Describe the goal, decision criteria, and things the model should avoid."}</span>
                         <code>{(aiPrompts[feature.id] || "").length}/12000</code>
-                        <button type="button" class="b3-button b3-button--text" on:click={() => resetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button>
+                        <button type="button" class="b3-button b3-button--text" on:click={() => onResetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button>
                     </div>
                     <details class="na-settings-ai__runtime">
                         <summary>{i18n?.settingAiRuntimePreview || "View fixed parts of the actual request (read-only)"}</summary>

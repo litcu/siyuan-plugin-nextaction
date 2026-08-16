@@ -15,10 +15,8 @@
     export let startPreviewDays: number;
     export let weightSum: number;
     export let rebuilding = false;
-    export let rebuildingParents = false;
     export let onResetPriority: () => void;
     export let onRebuildCache: () => void;
-    export let onRebuildParents: () => void;
 </script>
 
 <div class="na-page-stack na-settings-advanced">
@@ -49,7 +47,6 @@
     <NaSection icon="iconRefresh" title={i18n?.settingMaintenance || "Maintenance"} description={i18n?.settingMaintenanceDesc || "These actions execute immediately and are not part of the Save operation."}>
         <div class="na-settings-advanced__maintenance">
             <div><div><strong>{i18n?.rebuildCache || "Rebuild cache"}</strong><span>{i18n?.rebuildCacheDesc || "Reload all task data from the database"}</span></div><button type="button" class="b3-button" on:click={onRebuildCache} disabled={rebuilding}>{rebuilding ? "…" : (i18n?.run || "Run")}</button></div>
-            <div><div><strong>{i18n?.rebuildParents || "Repair parent relationships"}</strong><span>{i18n?.rebuildParentsDesc || "Check and fix task hierarchy relationships"}</span></div><button type="button" class="b3-button" on:click={onRebuildParents} disabled={rebuildingParents}>{rebuildingParents ? "…" : (i18n?.run || "Run")}</button></div>
         </div>
     </NaSection>
 </div>
