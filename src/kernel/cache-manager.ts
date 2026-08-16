@@ -19,12 +19,14 @@ export class CacheManager {
     private childrenByParent: Map<string, Set<string>>;
     private dependentsByDependency: Map<string, Set<string>>;
     private pendingAffectedIds: Set<string>;
+    private pendingRelationshipChangedIds: Set<string>;
 
     constructor(private readonly api: SiyuanApiPort) {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();
         this.pendingAffectedIds = new Set();
+        this.pendingRelationshipChangedIds = new Set();
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
@@ -273,11 +275,18 @@ export class CacheManager {
         return affectedIds;
     }
 
+    consumeRelationshipChangedIds(): string[] {
+        const changedIds = [...this.pendingRelationshipChangedIds];
+        this.pendingRelationshipChangedIds.clear();
+        return changedIds;
+    }
+
     private replaceCache(nextCache: Record<string, TaskCacheEntry>): void {
         this.cache = nextCache;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();
         this.pendingAffectedIds.clear();
+        this.pendingRelationshipChangedIds.clear();
 
         for (const entry of Object.values(this.cache)) {
             this.addToRelationshipIndexes(entry);
@@ -313,7 +322,11 @@ export class CacheManager {
     private syncParentEntry(parentId: string): void {
         if (!parentId) return;
         const parent = this.cache[parentId];
-        if (parent) parent.childIds = this.childIdsFor(parentId);
+        if (!parent) return;
+        const childIds = this.childIdsFor(parentId);
+        if (parent.childIds.length === childIds.length && parent.childIds.every((childId, index) => childId === childIds[index])) return;
+        parent.childIds = childIds;
+        this.pendingRelationshipChangedIds.add(parentId);
     }
 
     private markRelationshipImpact(blockId: string, ...parentIds: Array<string | undefined>): void {

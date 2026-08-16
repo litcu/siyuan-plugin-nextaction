@@ -192,8 +192,9 @@ export class TaskRepository {
 
     publishChanges(): void {
         try {
+            const relationshipChanges = this.cacheManager.consumeRelationshipChangedIds();
             const derivedChanges = this.derivedState.reconcile(this.cacheManager.consumeAffectedIds());
-            for (const blockId of derivedChanges) {
+            for (const blockId of new Set([...relationshipChanges, ...derivedChanges])) {
                 if (!this.pendingDirectChanges.has(blockId)) {
                     this.changePublisher.addPendingChange(blockId, "update");
                 }

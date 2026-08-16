@@ -6,64 +6,12 @@ import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
-import { countReviewAttentionTasks } from "../../shared/review";
-
-function deriveContexts(allTasks: TaskCacheEntry[]): string[] {
-    const contextSet = new Set<string>();
-    for (const t of allTasks) {
-        if (t.context) {
-            for (const c of t.context.split("|")) {
-                const trimmed = c.trim();
-                if (trimmed) contextSet.add(trimmed);
-            }
-        }
-    }
-    return Array.from(contextSet);
-}
-
-function deriveTags(allTasks: TaskCacheEntry[]): string[] {
-    const tagSet = new Set<string>();
-    for (const t of allTasks) {
-        if (t.tags) {
-            for (const tag of t.tags.split("|")) {
-                const trimmed = tag.trim();
-                if (trimmed) tagSet.add(trimmed);
-            }
-        }
-    }
-    return Array.from(tagSet);
-}
-
-function deriveDoneCount(allTasks: TaskCacheEntry[]): number {
-    let count = 0;
-    for (const t of allTasks) {
-        if (t.status === "done") count++;
-    }
-    return count;
-}
-
-function deriveProjectReminders(allTasks: TaskCacheEntry[]): TaskCacheEntry[] {
-    const taskMap = new Map<string, TaskCacheEntry>();
-    for (const t of allTasks) {
-        taskMap.set(t.blockId, t);
-    }
-    const reminders: TaskCacheEntry[] = [];
-    for (const entry of allTasks) {
-        if (entry.taskType !== "2") continue;
-        if (entry.status === "done") continue;
-        if (entry.childIds.length === 0) continue;
-        const allDone = entry.childIds.every(id => {
-            const child = taskMap.get(id);
-            return child && child.status === "done";
-        });
-        if (allDone) reminders.push(entry);
-    }
-    return reminders;
-}
-
-function deriveReviewDueCount(allTasks: TaskCacheEntry[]): number {
-    return countReviewAttentionTasks(allTasks);
-}
+import {
+    buildTaskCollection,
+    isTaskChangeSetV2,
+    isTaskSnapshotV2,
+    reduceTaskChanges,
+} from "./task-sync-reducer";
 
 interface TaskState {
     allTasks: TaskCacheEntry[];
@@ -102,7 +50,7 @@ const DEFAULT_FILTERS: Record<string, FilterState> = {
     [VIEW_REVIEW]: { ...DEFAULT_FILTER_STATE },
 };
 
-function createTaskStore() {
+export function createTaskStore() {
     const { subscribe, set, update } = writable<TaskState>({
         allTasks: [],
         loading: false,
@@ -131,8 +79,15 @@ function createTaskStore() {
     let bridge: KernelBridge | null = null;
     let loadSeq = 0;
     let completedLoadSeq = 0;
-    let refreshAfterNotificationTimer: ReturnType<typeof setTimeout> | null = null;
+    let v1RefreshTimer: ReturnType<typeof setTimeout> | null = null;
     let completedReloadTimer: ReturnType<typeof setTimeout> | null = null;
+    let syncMode: "unknown" | "v1" | "v2" = "unknown";
+    let syncStreamId = "";
+    let syncRevision = 0;
+    let handshakeInProgress = false;
+    let queuedV1Notifications: TaskChangeNotification[] = [];
+    let queuedV2Notifications: unknown[] = [];
+    let v1NotificationChain = Promise.resolve();
 
     function getCurrentState(): TaskState {
         let currentState!: TaskState;
@@ -210,6 +165,126 @@ function createTaskStore() {
         }, 0);
     }
 
+    function commitTaskChanges(upserts: TaskCacheEntry[], deletedBlockIds: string[]): void {
+        let completedChanged = false;
+        update((state) => {
+            const reduction = reduceTaskChanges(state, { upserts, deletedBlockIds });
+            completedChanged = reduction.completedChanged;
+            return { ...state, ...reduction.collection, loading: false, error: null };
+        });
+        if (completedChanged) invalidateCompletedPage(true);
+    }
+
+    function scheduleV1Refresh(): void {
+        if (v1RefreshTimer) clearTimeout(v1RefreshTimer);
+        v1RefreshTimer = setTimeout(() => {
+            v1RefreshTimer = null;
+            void loadTasks();
+        }, 2000);
+    }
+
+    async function applyV1Notification(notification: TaskChangeNotification): Promise<void> {
+        if (!bridge) return;
+        const deletedBlockIds = notification.changedBlockIds.filter(blockId => notification.changeTypes[blockId] === "delete");
+        const upsertIds = notification.changedBlockIds.filter(blockId => notification.changeTypes[blockId] !== "delete");
+        const entries = await Promise.all(upsertIds.map(blockId => bridge!.getTask(blockId)));
+        commitTaskChanges(entries.filter((entry): entry is TaskCacheEntry => Boolean(entry)), deletedBlockIds);
+        scheduleV1Refresh();
+    }
+
+    function requestV2Recovery(): void {
+        if (syncMode === "v1") syncMode = "unknown";
+        void loadTasks();
+    }
+
+    function applyV2Notification(value: unknown): void {
+        if (!isTaskChangeSetV2(value)) {
+            requestV2Recovery();
+            return;
+        }
+        const notification = value;
+        if (notification.streamId !== syncStreamId) {
+            requestV2Recovery();
+            return;
+        }
+        if (notification.revision <= syncRevision) return;
+        if (notification.type === "reset" || notification.fromRevision !== syncRevision) {
+            requestV2Recovery();
+            return;
+        }
+        try {
+            commitTaskChanges(notification.upserts, notification.deletedBlockIds);
+            syncRevision = notification.revision;
+        } catch (error: unknown) {
+            console.error("[NextAction] apply V2 task changes failed:", error);
+            requestV2Recovery();
+        }
+    }
+
+    async function loadTasks(): Promise<void> {
+        if (!bridge) return;
+        const seq = ++loadSeq;
+        const currentState = getCurrentState();
+        if (currentState.allTasks.length === 0) {
+            update(state => ({ ...state, loading: true, error: null }));
+        }
+        handshakeInProgress = true;
+
+        try {
+            if (syncMode !== "v1") {
+                let rawSnapshot: unknown;
+                try {
+                    rawSnapshot = await bridge.getTaskSnapshotV2();
+                } catch (error: unknown) {
+                    if (syncMode === "v2") throw error;
+                    syncMode = "v1";
+                }
+
+                if (rawSnapshot !== undefined) {
+                    if (!isTaskSnapshotV2(rawSnapshot)) {
+                        rawSnapshot = await bridge.getTaskSnapshotV2();
+                    }
+                    if (!isTaskSnapshotV2(rawSnapshot)) throw new Error("Invalid task snapshot V2 payload");
+                    if (seq !== loadSeq) return;
+
+                    const collection = buildTaskCollection(rawSnapshot.tasks);
+                    syncMode = "v2";
+                    syncStreamId = rawSnapshot.streamId;
+                    syncRevision = rawSnapshot.revision;
+                    update(state => ({ ...state, ...collection, loading: false, error: null }));
+                    handshakeInProgress = false;
+                    queuedV1Notifications = [];
+                    const queued = queuedV2Notifications;
+                    queuedV2Notifications = [];
+                    for (const notification of queued) applyV2Notification(notification);
+                    if (getCurrentState().showCompleted) invalidateCompletedPage(true);
+                    return;
+                }
+            }
+
+            const allTasks = await bridge.getAllTasks();
+            if (seq !== loadSeq) return;
+            const collection = buildTaskCollection(allTasks);
+            syncMode = "v1";
+            update(state => ({ ...state, ...collection, loading: false, error: null }));
+            handshakeInProgress = false;
+            queuedV2Notifications = [];
+            const queued = queuedV1Notifications;
+            queuedV1Notifications = [];
+            for (const notification of queued) {
+                v1NotificationChain = v1NotificationChain.then(() => applyV1Notification(notification));
+            }
+            if (getCurrentState().showCompleted) invalidateCompletedPage(true);
+        } catch (error: unknown) {
+            console.error("[NextAction] loadTasks failed:", error);
+            if (seq !== loadSeq) return;
+            const message = error instanceof Error ? error.message : String(error);
+            update(state => ({ ...state, loading: false, error: message }));
+        } finally {
+            if (seq === loadSeq) handshakeInProgress = false;
+        }
+    }
+
     return {
         subscribe,
         setBridge(b: KernelBridge) {
@@ -244,36 +319,7 @@ function createTaskStore() {
             update(s => ({ ...s, myDayState }));
         },
 
-        async loadTasks() {
-            if (!bridge) return;
-            const seq = ++loadSeq;
-            const currentState: TaskState = await new Promise((resolve) => {
-                subscribe((s) => resolve(s))();
-            });
-            const isFirstLoad = currentState.allTasks.length === 0;
-            if (isFirstLoad) {
-                update((s) => ({ ...s, loading: true, error: null }));
-            }
-            try {
-                // Always load full dataset — Next Action filtering is done locally
-                // using the `blocked` field computed by the kernel.
-                const allTasks = await bridge.getAllTasks();
-                const doneCount = deriveDoneCount(allTasks);
-                const contexts = deriveContexts(allTasks);
-                const tags = deriveTags(allTasks);
-                const projectReminders = deriveProjectReminders(allTasks);
-                const reviewDueCount = deriveReviewDueCount(allTasks);
-
-                if (seq !== loadSeq) return;
-
-                update((s) => ({ ...s, allTasks, contexts, tags, loading: false, doneCount, projectReminders, reviewDueCount }));
-                if (getCurrentState().showCompleted) invalidateCompletedPage(true);
-            } catch (e: any) {
-                console.error("[NextAction] loadTasks failed:", e);
-                if (seq !== loadSeq) return;
-                update((s) => ({ ...s, loading: false, error: e.message }));
-            }
-        },
+        loadTasks,
 
         getFilteredTasks(viewId: string): TaskCacheEntry[] {
             const currentState = getCurrentState();
@@ -321,67 +367,11 @@ function createTaskStore() {
         },
 
         applyUpdate(entry: TaskCacheEntry) {
-            let completedEntryChanged = false;
-            update((s) => {
-                const idx = s.allTasks.findIndex((t) => t.blockId === entry.blockId);
-                const allTasks = [...s.allTasks];
-                const wasDone = idx >= 0 && allTasks[idx].status === "done";
-                const isDone = entry.status === "done";
-                completedEntryChanged = wasDone || isDone;
-
-                if (idx >= 0) {
-                    // Maintain childIds: if parentId changed, update old parent and new parent
-                    const oldEntry = allTasks[idx];
-                    if (oldEntry.parentId !== entry.parentId) {
-                        // Remove from old parent's childIds
-                        if (oldEntry.parentId) {
-                            const oldParent = allTasks.find(t => t.blockId === oldEntry.parentId);
-                            if (oldParent) {
-                                oldParent.childIds = oldParent.childIds.filter(id => id !== entry.blockId);
-                            }
-                        }
-                        // Add to new parent's childIds
-                        if (entry.parentId) {
-                            const newParent = allTasks.find(t => t.blockId === entry.parentId);
-                            if (newParent && !newParent.childIds.includes(entry.blockId)) {
-                                newParent.childIds = [...newParent.childIds, entry.blockId];
-                            }
-                        }
-                    }
-                    allTasks[idx] = entry;
-                } else {
-                    allTasks.push(entry);
-                }
-
-                return {
-                    ...s,
-                    allTasks,
-                    doneCount: deriveDoneCount(allTasks),
-                    contexts: deriveContexts(allTasks),
-                    tags: deriveTags(allTasks),
-                    projectReminders: deriveProjectReminders(allTasks),
-                    reviewDueCount: deriveReviewDueCount(allTasks),
-                };
-            });
-            if (completedEntryChanged) invalidateCompletedPage(true);
+            commitTaskChanges([entry], []);
         },
 
         applyRemove(blockId: string) {
-            let removedCompletedTask = false;
-            update((s) => {
-                removedCompletedTask = s.allTasks.some((task) => task.blockId === blockId && task.status === "done");
-                const allTasks = s.allTasks.filter((t) => t.blockId !== blockId);
-                return {
-                    ...s,
-                    allTasks,
-                    doneCount: deriveDoneCount(allTasks),
-                    contexts: deriveContexts(allTasks),
-                    tags: deriveTags(allTasks),
-                    projectReminders: deriveProjectReminders(allTasks),
-                    reviewDueCount: deriveReviewDueCount(allTasks),
-                };
-            });
-            if (removedCompletedTask) invalidateCompletedPage(true);
+            commitTaskChanges([], [blockId]);
         },
 
         setActiveView(view: string) {
@@ -412,90 +402,49 @@ function createTaskStore() {
         },
 
         applyChangeNotification(notification: TaskChangeNotification) {
-            if (!bridge) return;
-            for (const blockId of notification.changedBlockIds) {
-                const type = notification.changeTypes[blockId];
-                if (type === "delete") {
-                    let removedCompletedTask = false;
-                    update((s) => {
-                        removedCompletedTask = s.allTasks.some((task) => task.blockId === blockId && task.status === "done");
-                        let allTasks = s.allTasks.filter((t) => t.blockId !== blockId);
-                        // Clean up dangling childIds references to the deleted blockId
-                        allTasks = allTasks.map(t => {
-                            if (t.childIds && t.childIds.includes(blockId)) {
-                                return { ...t, childIds: t.childIds.filter(id => id !== blockId) };
-                            }
-                            return t;
-                        });
-                        return {
-                            ...s,
-                            allTasks,
-                            doneCount: deriveDoneCount(allTasks),
-                            contexts: deriveContexts(allTasks),
-                            tags: deriveTags(allTasks),
-                            projectReminders: deriveProjectReminders(allTasks),
-                            reviewDueCount: deriveReviewDueCount(allTasks),
-                        };
-                    });
-                    if (removedCompletedTask) invalidateCompletedPage(true);
-                } else {
-                    void bridge.getTask(blockId).then((entry) => {
-                        if (!entry) return;
-                        let completedEntryChanged = false;
-                        update((s) => {
-                            const idx = s.allTasks.findIndex((t) => t.blockId === blockId);
-                            const allTasks = [...s.allTasks];
-                            const wasDone = idx >= 0 && allTasks[idx].status === "done";
-                            const isDone = entry.status === "done";
-                            completedEntryChanged = wasDone || isDone;
-
-                            if (idx >= 0) {
-                                const oldEntry = allTasks[idx];
-                                // Maintain childIds when parentId changes
-                                if (oldEntry.parentId !== entry.parentId) {
-                                    if (oldEntry.parentId) {
-                                        const oldParent = allTasks.find(t => t.blockId === oldEntry.parentId);
-                                        if (oldParent) {
-                                            oldParent.childIds = oldParent.childIds.filter(id => id !== entry.blockId);
-                                        }
-                                    }
-                                    if (entry.parentId) {
-                                        const newParent = allTasks.find(t => t.blockId === entry.parentId);
-                                        if (newParent && !newParent.childIds.includes(entry.blockId)) {
-                                            newParent.childIds = [...newParent.childIds, entry.blockId];
-                                        }
-                                    }
-                                }
-                                allTasks[idx] = entry;
-                            } else {
-                                allTasks.push(entry);
-                            }
-
-                            return {
-                                ...s,
-                                allTasks,
-                                doneCount: deriveDoneCount(allTasks),
-                                contexts: deriveContexts(allTasks),
-                                tags: deriveTags(allTasks),
-                                projectReminders: deriveProjectReminders(allTasks),
-                                reviewDueCount: deriveReviewDueCount(allTasks),
-                            };
-                        });
-                        if (completedEntryChanged) invalidateCompletedPage(true);
-                    });
-                }
+            if (syncMode === "v2") return;
+            if (handshakeInProgress || syncMode === "unknown") {
+                queuedV1Notifications.push(notification);
+                return;
             }
+            v1NotificationChain = v1NotificationChain.then(() => applyV1Notification(notification));
+        },
 
-            // Schedule a debounced full refresh. Incremental updates only patch
-            // the directly changed entries, but status changes can indirectly
-            // affect other tasks' `blocked` state (e.g. completing a dependency
-            // unblocks dependents). The full refresh corrects any stale `blocked`
-            // values and also fixes parent childIds that may be out of sync.
-            if (refreshAfterNotificationTimer) clearTimeout(refreshAfterNotificationTimer);
-            refreshAfterNotificationTimer = setTimeout(() => {
-                refreshAfterNotificationTimer = null;
-                void this.loadTasks();
-            }, 2000);
+        applyChangeSetV2(notification: unknown) {
+            if (handshakeInProgress || syncMode === "unknown") {
+                queuedV2Notifications.push(notification);
+                if (!handshakeInProgress) void loadTasks();
+                return;
+            }
+            if (syncMode === "v1") {
+                queuedV2Notifications.push(notification);
+                requestV2Recovery();
+                return;
+            }
+            applyV2Notification(notification);
+        },
+
+        resetSync() {
+            syncMode = "unknown";
+            syncStreamId = "";
+            syncRevision = 0;
+            queuedV1Notifications = [];
+            queuedV2Notifications = [];
+            if (v1RefreshTimer) {
+                clearTimeout(v1RefreshTimer);
+                v1RefreshTimer = null;
+            }
+        },
+
+        disposeSync() {
+            loadSeq++;
+            handshakeInProgress = false;
+            queuedV1Notifications = [];
+            queuedV2Notifications = [];
+            if (v1RefreshTimer) clearTimeout(v1RefreshTimer);
+            if (completedReloadTimer) clearTimeout(completedReloadTimer);
+            v1RefreshTimer = null;
+            completedReloadTimer = null;
         },
     };
 }
