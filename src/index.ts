@@ -13,6 +13,8 @@ import { toI18nKey } from "./frontend/utils";
 import { initAiFeatureService, runAiDecomposeTask, runAiExtractTasks } from "./frontend/ai/ai-feature-service";
 import { openReminderSettingsDialog } from "./frontend/dialogs/task-property-dialogs";
 import { RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "./shared/constants";
+import { assertBlockId } from "./shared/block-id";
+import { sql } from "./shared/sql";
 
 const TAB_TYPE = "nextaction_tab";
 const DOCK_TYPE = "nextaction_dock";
@@ -71,7 +73,7 @@ export default class NextActionPlugin extends Plugin {
 
     private openTaskPanel(): void {
         if (this.isMobile) return;
-        openTab({
+        void openTab({
             app: this.app,
             custom: {
                 id: this.name + TAB_TYPE,
@@ -87,7 +89,7 @@ export default class NextActionPlugin extends Plugin {
         try {
             await this.doConvertToTask(blockId, undefined, taskType);
             showMessage(`[NextAction] ${taskType === "2" ? this.i18n.convertToProjectSuccess : this.i18n.convertToTaskSuccess}`);
-            taskStore.loadTasks();
+            void taskStore.loadTasks();
         } catch (e: any) {
             showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
         }
@@ -102,7 +104,7 @@ export default class NextActionPlugin extends Plugin {
                 .replace("{converted}", String(result.converted))
                 .replace("{skipped}", String(result.skipped));
             showMessage(`[NextAction] ${msg}`);
-            taskStore.loadTasks();
+            void taskStore.loadTasks();
         } catch (e: any) {
             showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
         }
@@ -175,7 +177,7 @@ export default class NextActionPlugin extends Plugin {
     private async runRefreshCommand(): Promise<void> {
         try {
             await this.bridge.recalcAllOrders();
-            taskStore.loadTasks();
+            void taskStore.loadTasks();
             showMessage(`[NextAction] ${this.i18n.refreshTasks} ✓`);
         } catch (e: any) {
             showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
@@ -310,7 +312,7 @@ export default class NextActionPlugin extends Plugin {
                 ? (this.i18n.projectProperties || 'Project Properties')
                 : (this.i18n.taskProperties || 'Task Properties'),
             click: () => {
-                this.openTaskDetailDialog(blockId);
+                void this.openTaskDetailDialog(blockId);
             },
         });
 
@@ -450,6 +452,7 @@ export default class NextActionPlugin extends Plugin {
      * Convert a block to a task. Tries kernel RPC first, falls back to direct SiYuan API.
      */
     private async doConvertToTask(blockId: string, cleanTitle?: string, taskType: string = "1"): Promise<any> {
+        blockId = assertBlockId(blockId);
         try {
             const result = await this.bridge.convertToTask(blockId, cleanTitle, taskType);
             return result;
@@ -465,7 +468,7 @@ export default class NextActionPlugin extends Plugin {
                     const typeResp = await fetch("/api/query/sql", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ stmt: `SELECT type FROM blocks WHERE id = '${blockId}' LIMIT 1` }),
+                        body: JSON.stringify({ stmt: sql`SELECT type FROM blocks WHERE id = ${blockId} LIMIT 1` }),
                     });
                     const typeResult = await typeResp.json();
                     const blockType = typeResult?.data?.[0]?.type || "";
@@ -520,11 +523,11 @@ export default class NextActionPlugin extends Plugin {
         this.addTab({
             type: TAB_TYPE,
             init() {
-                const container = this.element;
+                const container = (this as unknown as { element: HTMLElement }).element;
                 container.style.width = "100%";
                 container.style.height = "100%";
                 container.classList.add("fn__flex");
-                import("./frontend/components/NextActionApp.svelte").then(({ default: NextActionApp }) => {
+                void import("./frontend/components/NextActionApp.svelte").then(({ default: NextActionApp }) => {
                     const app = new NextActionApp({
                         target: container,
                         props: {
@@ -560,14 +563,14 @@ export default class NextActionPlugin extends Plugin {
             update() {
             },
             init() {
-                const container = this.element;
+                const container = (this as unknown as { element: HTMLElement }).element;
                 container.style.width = "100%";
                 container.style.height = "100%";
                 container.classList.add("nextaction");
                 const componentImport = pluginRef.isMobile
                     ? import("./frontend/components/MobileDockHost.svelte")
                     : import("./frontend/components/DockSidebar.svelte");
-                componentImport.then(({ default: DockComponent }) => {
+                void componentImport.then(({ default: DockComponent }) => {
                     const dock = new DockComponent({
                         target: container,
                         props: {
@@ -607,7 +610,7 @@ export default class NextActionPlugin extends Plugin {
                     try {
                         await this.doConvertToTask(blockId, cleanTitle);
                         showMessage(`[NextAction] ${this.i18n.convertToTaskSuccess}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         console.error("[NextAction] convertToTask error:", e);
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
@@ -629,7 +632,7 @@ export default class NextActionPlugin extends Plugin {
                     try {
                         await this.doConvertToTask(blockId, cleanTitle, "2");
                         showMessage(`[NextAction] ${this.i18n.convertToProjectSuccess}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         console.error("[NextAction] convertToProject error:", e);
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
@@ -654,7 +657,7 @@ export default class NextActionPlugin extends Plugin {
                             .replace("{converted}", String(result.converted))
                             .replace("{skipped}", String(result.skipped));
                         showMessage(`[NextAction] ${msg}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         console.error("[NextAction] convertToTaskWithChildren error:", e);
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
@@ -688,7 +691,7 @@ export default class NextActionPlugin extends Plugin {
         });
 
         // Initialize reminder store
-        initReminderStore(this);
+        void initReminderStore(this);
 
         // Mount NotificationHost portal for reminder popups
         this.notificationHost = new NotificationHost({
@@ -742,7 +745,7 @@ export default class NextActionPlugin extends Plugin {
                         }
                     }
                     if (ok > 0) showMessage(`[NextAction] ${this.i18n.convertToTaskSuccess}`);
-                    taskStore.loadTasks();
+                    void taskStore.loadTasks();
                 },
             });
             detail.menu.addItem({
@@ -762,7 +765,7 @@ export default class NextActionPlugin extends Plugin {
                         }
                     }
                     if (ok > 0) showMessage(`[NextAction] ${this.i18n.convertToProjectSuccess}`);
-                    taskStore.loadTasks();
+                    void taskStore.loadTasks();
                 },
             });
             detail.menu.addItem({
@@ -783,7 +786,7 @@ export default class NextActionPlugin extends Plugin {
                             }
                         }
                     }
-                    taskStore.loadTasks();
+                    void taskStore.loadTasks();
                 },
             });
         };
@@ -805,7 +808,7 @@ export default class NextActionPlugin extends Plugin {
                     try {
                         await this.doConvertToTask(docId);
                         showMessage(`[NextAction] ${this.i18n.convertToTaskSuccess}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
                     }
@@ -818,7 +821,7 @@ export default class NextActionPlugin extends Plugin {
                     try {
                         await this.doConvertToTask(docId, undefined, "2");
                         showMessage(`[NextAction] ${this.i18n.convertToProjectSuccess}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
                     }
@@ -834,7 +837,7 @@ export default class NextActionPlugin extends Plugin {
                             .replace("{converted}", String(result.converted))
                             .replace("{skipped}", String(result.skipped));
                         showMessage(`[NextAction] ${msg}`);
-                        taskStore.loadTasks();
+                        void taskStore.loadTasks();
                     } catch (e: any) {
                         showMessage(`[NextAction] ${formatRpcError(e, this.i18n)}`);
                     }
@@ -872,37 +875,37 @@ export default class NextActionPlugin extends Plugin {
             langKey: "convertToTask",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToTask}`,
             hotkey: "",
-            callback: () => { this.runConvertCommand(); },
-            editorCallback: (protyle: any) => { this.runConvertCommand(protyle); },
-            globalCallback: () => { this.runConvertCommand(); },
+            callback: () => { void this.runConvertCommand(); },
+            editorCallback: (protyle: any) => { void this.runConvertCommand(protyle); },
+            globalCallback: () => { void this.runConvertCommand(); },
         });
 
         this.addCommand({
             langKey: "refreshTasks",
             langText: `[${this.i18n.pluginName}] ${this.i18n.refreshTasks}`,
             hotkey: "",
-            callback: () => { this.runRefreshCommand(); },
-            globalCallback: () => { this.runRefreshCommand(); },
-            editorCallback: () => { this.runRefreshCommand(); },
-            dockCallback: () => { this.runRefreshCommand(); },
+            callback: () => { void this.runRefreshCommand(); },
+            globalCallback: () => { void this.runRefreshCommand(); },
+            editorCallback: () => { void this.runRefreshCommand(); },
+            dockCallback: () => { void this.runRefreshCommand(); },
         });
 
         this.addCommand({
             langKey: "convertToProject",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToProject}`,
             hotkey: "",
-            callback: () => { this.runConvertCommand(undefined, "2"); },
-            editorCallback: (protyle: any) => { this.runConvertCommand(protyle, "2"); },
-            globalCallback: () => { this.runConvertCommand(undefined, "2"); },
+            callback: () => { void this.runConvertCommand(undefined, "2"); },
+            editorCallback: (protyle: any) => { void this.runConvertCommand(protyle, "2"); },
+            globalCallback: () => { void this.runConvertCommand(undefined, "2"); },
         });
 
         this.addCommand({
             langKey: "convertToTaskWithChildren",
             langText: `[${this.i18n.pluginName}] ${this.i18n.convertToTaskWithChildren}`,
             hotkey: "",
-            callback: () => { this.runConvertWithChildrenCommand(); },
-            editorCallback: (protyle: any) => { this.runConvertWithChildrenCommand(protyle); },
-            globalCallback: () => { this.runConvertWithChildrenCommand(); },
+            callback: () => { void this.runConvertWithChildrenCommand(); },
+            editorCallback: (protyle: any) => { void this.runConvertWithChildrenCommand(protyle); },
+            globalCallback: () => { void this.runConvertWithChildrenCommand(); },
         });
 
         if (!this.isMobile) {
@@ -923,15 +926,15 @@ export default class NextActionPlugin extends Plugin {
             hotkey: "",
             callback: () => {
                 const blockId = this.getCommandBlockId();
-                if (blockId) runAiExtractTasks([blockId]);
+                if (blockId) void runAiExtractTasks([blockId]);
             },
             editorCallback: (protyle: any) => {
                 const blockId = this.getCommandBlockId(protyle);
-                if (blockId) runAiExtractTasks([blockId]);
+                if (blockId) void runAiExtractTasks([blockId]);
             },
             globalCallback: () => {
                 const blockId = this.getCommandBlockId();
-                if (blockId) runAiExtractTasks([blockId]);
+                if (blockId) void runAiExtractTasks([blockId]);
             },
         });
     }
@@ -991,7 +994,7 @@ export default class NextActionPlugin extends Plugin {
         }
         (containerEl as HTMLElement).style.cssText += "height:100%;min-height:0;overflow:hidden;flex:1;";
 
-        import("./frontend/components/SettingsPanel.svelte").then(({ default: SettingsPanel }) => {
+        void import("./frontend/components/SettingsPanel.svelte").then(({ default: SettingsPanel }) => {
             const comp = new SettingsPanel({
                 target: containerEl as HTMLElement,
                 props: {
@@ -1001,7 +1004,7 @@ export default class NextActionPlugin extends Plugin {
                         try {
                             await plugin.bridge.recalcAllOrders();
                             taskStore.applySettingsUpdate(settings);
-                            taskStore.loadTasks();
+                            void taskStore.loadTasks();
                             showMessage(`[NextAction] ${i18n.settingsSaved || "Settings saved"}`);
                         } catch (e: any) {
                             showMessage(`[NextAction] ${formatRpcError(e, i18n)}`);

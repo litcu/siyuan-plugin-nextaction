@@ -118,11 +118,11 @@
     });
     $: dirty = !!savedDraftKey && draftKey !== savedDraftKey;
     $: noticeMessage = dateError || depError || customFieldError || saveError || repeatDateError;
-    $: noticeTone = dateError || depError || customFieldError || saveError
+    $: noticeTone = (dateError || depError || customFieldError || saveError
         ? "error"
         : repeatDateError
             ? "warning"
-            : "info";
+            : "info") as "error" | "warning" | "info";
     $: statusLabel = saveState === "saving"
         ? (i18n?.saving || "Saving...")
         : saveState === "pending"
@@ -132,7 +132,7 @@
                 : saveState === "error"
                     ? (i18n?.saveFailed || "Save failed")
                     : (i18n?.[toI18nKey("status", status)] || status);
-    $: statusTone = saveState === "error" ? "error" : saveState === "pending" ? "warning" : "default";
+    $: statusTone = (saveState === "error" ? "error" : saveState === "pending" ? "warning" : "default") as "error" | "warning" | "default";
     $: relationSummary = [
         childTasks.length ? (i18n?.subtaskCount || "{n} subtasks").replace("{n}", String(childTasks.length)) : "",
         depends.length ? (i18n?.dependencyCount || "{n} dependencies").replace("{n}", String(depends.length)) : "",
@@ -299,12 +299,6 @@
                     "na-review-date": reviewDate || "",
                     ...customAttrs,
                 });
-                if (updated?._rpcError) {
-                    if (updated._rpcError.code === -32007) depError = i18n?.depCycleDetected || "Dependency cycle detected";
-                    saveError = formatRpcError(updated, i18n);
-                    saveState = "error";
-                    return false;
-                }
                 task = updated;
                 onSave?.(updated);
                 if (currentBlockId === savingBlockId && draftKey === savingDraftKey) {

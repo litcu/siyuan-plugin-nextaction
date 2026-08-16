@@ -222,7 +222,7 @@
 <svelte:window on:click={closeDropdown} on:resize={handleViewportChange} />
 
 <div class="na-search-select" bind:this={containerEl}>
-    <div class="na-search-select__box" on:mousedown={handleBoxMousedown} on:click={handleBoxClick}>
+    <div class="na-search-select__box" role="combobox" aria-controls="na-search-select-options" aria-expanded={dropdownOpen} tabindex="0" on:mousedown={handleBoxMousedown} on:click={handleBoxClick} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") handleBoxClick(); }}>
         {#if !multi && selected}
             <span class="na-search-select__selected">{selectedLabel || String(selected)}</span>
             <button class="na-search-select__clear b3-tooltips b3-tooltips__n" on:click|stopPropagation={clearAndReopen} aria-label={clearLabel}>
@@ -265,22 +265,26 @@
             class="na-search-select__dropdown"
             class:na-search-select__dropdown--fixed={fixedDropdown}
             style={fixedDropdown ? dropdownStyle : ""}
+            id="na-search-select-options"
+            role="listbox"
+            tabindex="-1"
             on:click|stopPropagation
+            on:keydown|stopPropagation
         >
             {#each filteredResults as item}
-                <div class="na-search-select__option" on:click={() => selectItem(item)}>
+                <button type="button" class="na-search-select__option" on:click={() => selectItem(item)}>
                     {item.label}
-                </div>
+                </button>
             {/each}
             {#each filteredOptions as option}
-                <div class="na-search-select__option" on:click={() => selectOption(option)}>
+                <button type="button" class="na-search-select__option" on:click={() => selectOption(option)}>
                     {option}
-                </div>
+                </button>
             {/each}
             {#if allowCreate && multi && input.trim() && !selectedArray.includes(input.trim()) && !filteredOptions.includes(input.trim()) && filteredResults.length === 0}
-                <div class="na-search-select__option na-search-select__option--create" on:click={() => selectItem({ id: input.trim(), label: input.trim() })}>
+                <button type="button" class="na-search-select__option na-search-select__option--create" on:click={() => selectItem({ id: input.trim(), label: input.trim() })}>
                     + {input.trim()}
-                </div>
+                </button>
             {/if}
             {#if filteredResults.length === 0 && filteredOptions.length === 0}
                 <div class="na-search-select__empty">
@@ -418,9 +422,11 @@
         border-radius: 8px;
         max-height: 200px;
         overflow-y: auto;
+        overflow-x: hidden;
         box-shadow: var(--b3-dialog-shadow);
         margin-top: 4px;
-        padding: 4px 0;
+        padding: 4px;
+        box-sizing: border-box;
     }
 
     .na-search-select__dropdown--fixed {
@@ -431,14 +437,29 @@
     }
 
     .na-search-select__option {
-        padding: 6px 12px;
+        display: block;
+        width: 100%;
+        min-height: 30px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 6px 8px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        font: inherit;
         font-size: 12px;
+        line-height: 1.4;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
         color: var(--b3-theme-on-background);
         cursor: pointer;
-        transition: background 0.1s;
+        transition: background-color 0.1s, color 0.1s;
 
-        &:hover {
-            background: var(--b3-theme-surface-light);
+        &:hover,
+        &:focus-visible {
+            outline: 0;
+            background: var(--b3-list-hover);
         }
     }
 

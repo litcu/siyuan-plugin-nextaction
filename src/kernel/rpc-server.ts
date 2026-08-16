@@ -1,4 +1,4 @@
-import { TaskService } from "./task-service";
+import { type TaskService } from "./task-service";
 import { getSiyuan, rpcError, errorToRpcError } from "./utils";
 import {
     RPC_ERROR_INVALID_PARAMS,
@@ -6,6 +6,7 @@ import {
 import type { MyDayState, ReviewData } from "../shared/types";
 import type { PluginSettings } from "../shared/settings";
 import type { AiProposalService } from "./ai-proposal-service";
+import type { RpcMethodName } from "../shared/rpc-methods";
 
 interface RpcResult {
     _rpcError?: { code: number; message: string };
@@ -26,10 +27,13 @@ export interface RpcServerHooks {
 }
 
 export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHooks = {}): void {
-    const siyuan = getSiyuan();
+    const siyuan = getSiyuan() as {
+        rpc: { bind(method: RpcMethodName, handler: (...params: any[]) => unknown): void };
+    };
 
     siyuan.rpc.bind("echo", async (...params: any[]) => {
-        return params;
+        const payload = params[0];
+        return Array.isArray(payload?.params) ? payload.params : params;
     });
 
     siyuan.rpc.bind("convertToTask", async (...params: any[]) => {

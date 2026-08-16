@@ -111,7 +111,10 @@
     class:na-task-card--someday={isSomeday}
     class:selected={selected}
     style="--na-task-card-accent: {cardAccentColor}"
+    role="button"
+    tabindex="0"
     on:click={() => { if (onSelect) onSelect(task); }}
+    on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect?.(task); }}
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
     <div class="na-task-card__content">
@@ -119,7 +122,10 @@
         <div
             class="na-task-card__body"
             class:na-task-card__body--metadata-empty={!hasCardMetadata}
+            role="button"
+            tabindex="0"
             on:click|stopPropagation={() => onEdit(task)}
+            on:keydown|stopPropagation={(event) => { if (event.key === "Enter" || event.key === " ") onEdit(task); }}
         >
             <div class="na-task-card__title-row">
                 {#if task.taskType === "2"}

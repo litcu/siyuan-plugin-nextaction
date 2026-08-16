@@ -90,7 +90,7 @@ export function createDragHandler(config: DragConfig) {
         try { (e.target as HTMLElement).releasePointerCapture?.(pointerId); } catch {}
         if (!isDragging) { dragBlockId = null; return; }
         const target = getDropTarget(e);
-        if (target) config.onReorder(dragBlockId!, target.parentId, target.afterId);
+        if (target) void config.onReorder(dragBlockId!, target.parentId, target.afterId);
         endDrag();
     }
 

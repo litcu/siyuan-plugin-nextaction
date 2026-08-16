@@ -311,9 +311,9 @@
                         </section>
                     </div>
                 {:else if mode === "hierarchy"}
-                    <div class="na-project-tree">
+                    <div class="na-project-tree" role="list">
                         {#each projectTreeModel?.rows || [] as row (row.task.blockId)}
-                            <div class="na-project-tree__row" style="padding-left: {row.depth * 18}px" draggable="true" on:dragstart={(event) => handleDragStart(row.task, event)} on:dragend={handleDragEnd}>
+                            <div class="na-project-tree__row" style="padding-left: {row.depth * 18}px" role="listitem" draggable="true" on:dragstart={(event) => handleDragStart(row.task, event)} on:dragend={handleDragEnd}>
                                 <TaskCard
                                     task={row.task}
                                     selected={row.task.blockId === selectedTaskId}
@@ -334,11 +334,11 @@
                 {:else if mode === "board"}
                     <div class="na-project-board">
                         {#each statuses as status}
-                            <section class="na-project-board__column" class:drop-active={dropStatus === status} on:dragover|preventDefault={() => dropStatus = status} on:dragleave={() => dropStatus = ""} on:drop|preventDefault={() => handleDrop(status)}>
+                            <section class="na-project-board__column" role="list" class:drop-active={dropStatus === status} on:dragover|preventDefault={() => dropStatus = status} on:dragleave={() => dropStatus = ""} on:drop|preventDefault={() => handleDrop(status)}>
                                 <header><span>{statusLabel(status)}</span><span>{boardTasks.filter(task => task.status === status).length}</span></header>
                                 <div class="na-project-board__cards">
                                     {#each boardTasks.filter(task => task.status === status).sort((a, b) => a.sort - b.sort) as task (task.blockId)}
-                                        <div class="na-project-board__card" draggable="true" on:dragstart={(event) => handleDragStart(task, event)} on:dragend={handleDragEnd} on:dragover|preventDefault={() => dropStatus = status} on:drop|preventDefault|stopPropagation={() => handleDrop(status, task.blockId)}>
+                                        <div class="na-project-board__card" role="listitem" draggable="true" on:dragstart={(event) => handleDragStart(task, event)} on:dragend={handleDragEnd} on:dragover|preventDefault={() => dropStatus = status} on:drop|preventDefault|stopPropagation={() => handleDrop(status, task.blockId)}>
                                             <TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} isRoot={false} />
                                         </div>
                                     {/each}

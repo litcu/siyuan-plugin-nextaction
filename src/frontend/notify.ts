@@ -1,49 +1,5 @@
 import { showMessage } from "siyuan";
-import { RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT, RPC_ERROR_INTERNAL } from "../shared/constants";
-
-/**
- * Map from kernel error message patterns to i18n keys.
- * Used when the error has no specific code or the code is generic.
- */
-const ERROR_MESSAGE_MAP: [RegExp, string][] = [
-    [/cannot depend on ancestor/i, "errDepAncestor"],
-    [/due date must not be earlier than start/i, "dueBeforeStart"],
-    [/invalid repeat freq/i, "errInvalidRepeatFreq"],
-    [/invalid repeat interval/i, "errInvalidRepeatInterval"],
-    [/invalid repeat from/i, "errInvalidRepeatFrom"],
-    [/repeat task requires a start or due date/i, "repeatNeedsDate"],
-    [/repeat series is paused/i, "errRepeatSeriesPaused"],
-    [/repeat series has ended/i, "errRepeatSeriesEnded"],
-    [/invalid repeat/i, "errInvalidRepeatJson"],
-    [/invalid status/i, "errInvalidStatus"],
-    [/schedule start and schedule end must both/i, "errScheduleBothOrNone"],
-    [/schedule minutes out of range/i, "errScheduleOutOfRange"],
-    [/schedule duration too short/i, "errScheduleTooShort"],
-    [/schedule duration too long/i, "errScheduleTooLong"],
-    [/task .* not found in my day/i, "errMyDayTaskNotFound"],
-    [/project cannot be child/i, "errProjectAsChild"],
-    [/errNotTextBlock/i, "errNotTextBlock"],
-    [/errProjectRequiresDocument/i, "errProjectRequiresDocument"],
-    [/circular reference/i, "errCircularRef"],
-    [/kernel not ready/i, "errNotReady"],
-    [/task not found/i, "errTaskNotFound"],
-    [/write lock timeout/i, "errWriteTimeout"],
-];
-
-/**
- * Map from RPC error codes to i18n keys.
- */
-const ERROR_CODE_MAP: Record<number, string> = {
-    [RPC_ERROR_INVALID_PARAMS]: "errInvalidParams",
-    [RPC_ERROR_TASK_NOT_FOUND]: "errTaskNotFound",
-    [RPC_ERROR_CIRCULAR_REF]: "errCircularRef",
-    [RPC_ERROR_DEP_CYCLE]: "errDepCycle",
-    [RPC_ERROR_NOT_TEXT_BLOCK]: "errNotTextBlock",
-    [RPC_ERROR_PROJECT_REQUIRES_DOCUMENT]: "errProjectRequiresDocument",
-    [RPC_ERROR_NOT_READY]: "errNotReady",
-    [RPC_ERROR_TIMEOUT]: "errWriteTimeout",
-    [RPC_ERROR_INTERNAL]: "errInvalidParams",
-};
+export { formatError, formatRpcError } from "./error-format";
 
 /**
  * Show an error notification to the user.
@@ -58,42 +14,6 @@ export function notifyError(message: string): void {
  */
 export function notifyInfo(message: string): void {
     showMessage(`[NextAction] ${message}`, 3000, "info");
-}
-
-/**
- * Extract a user-friendly error message from an RPC error or generic error.
- */
-export function formatError(e: any): string {
-    if (e?.code && e?.message) {
-        return e.message;
-    }
-    if (e?.message) {
-        return e.message;
-    }
-    return String(e);
-}
-
-/**
- * Format an RPC error with i18n translation.
- * Tries specific message pattern matching first, then error code mapping.
- * Falls back to the raw error message.
- */
-export function formatRpcError(e: any, i18n: any): string {
-    const msg = e?.message || e?._rpcError?.message || String(e);
-    if (typeof msg === "string") {
-        for (const [pattern, key] of ERROR_MESSAGE_MAP) {
-            if (pattern.test(msg)) {
-                return i18n?.[key] || msg;
-            }
-        }
-    }
-    // Fall back to the generic error-code translation.
-    const code = e?.code || e?._rpcError?.code;
-    if (code && ERROR_CODE_MAP[code]) {
-        const key = ERROR_CODE_MAP[code];
-        return i18n?.[key] || msg || key;
-    }
-    return msg;
 }
 
 /**

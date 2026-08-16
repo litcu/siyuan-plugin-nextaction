@@ -1,5 +1,8 @@
-<script lang="ts">
+<script context="module" lang="ts">
     export type MetricTone = "default" | "primary" | "info" | "success" | "warning" | "danger";
+</script>
+
+<script lang="ts">
     export let items: { value: string | number; label: string; tone?: MetricTone }[] = [];
     export let variant: "chip" | "card" = "chip";
 </script>

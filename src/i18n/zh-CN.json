@@ -487,6 +487,7 @@
     "clearSelection": "清除选择",
     "removeSelection": "移除选择",
     "errInvalidParams": "参数无效",
+    "errInternal": "内部错误",
     "errNotTextBlock": "只能将文本块转为任务",
     "errProjectRequiresDocument": "只有文档块才能转换为项目",
     "errTaskNotFound": "任务未找到",

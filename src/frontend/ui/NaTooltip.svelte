@@ -94,10 +94,13 @@
   class:na-tooltip--fill={fill}
   class:na-tooltip--block={block}
   bind:this={triggerEl}
+  role="button"
+  tabindex="0"
   on:mouseenter={handleMouseEnter}
   on:mousemove={handleMouseMove}
   on:mouseleave={handleMouseLeave}
   on:click={handleClick}
+  on:keydown={(event) => { if (event.key === "Escape") handleClick(); }}
   on:focusin={handleFocusIn}
   on:focusout={handleMouseLeave}
 >

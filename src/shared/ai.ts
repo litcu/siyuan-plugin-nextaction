@@ -1,4 +1,5 @@
-import { ALL_STATUSES, PRIORITY_WEIGHTS, TASK_TYPE_PROJECT, TASK_TYPE_TASK } from "./constants.ts";
+import { ALL_STATUSES, PRIORITY_WEIGHTS, TASK_TYPE_PROJECT, TASK_TYPE_TASK } from "./constants";
+import { isBlockId } from "./block-id";
 
 export type AiFeatureId = "extractTasks" | "decomposeTask" | "planMyDay" | "review";
 
@@ -94,7 +95,6 @@ export function completeAiReviewGroups(
     return proposal;
 }
 
-const BLOCK_ID_RE = /^\d{14}-[a-z0-9]{7}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 const PRIORITIES = new Set(Object.keys(PRIORITY_WEIGHTS));
 
@@ -167,10 +167,10 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
     if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default", "child", "source_child"].includes(proposal.target.type)) {
         errors.push("target.type is invalid");
     }
-    if (proposal.target?.type === "document" && !BLOCK_ID_RE.test(proposal.target.documentId || "")) {
+    if (proposal.target?.type === "document" && !isBlockId(proposal.target.documentId || "")) {
         errors.push("target.documentId is required for document target");
     }
-    if (proposal.target?.type === "child" && !BLOCK_ID_RE.test(proposal.target.parentBlockId || "")) {
+    if (proposal.target?.type === "child" && !isBlockId(proposal.target.parentBlockId || "")) {
         errors.push("target.parentBlockId is required for child target");
     }
 
@@ -196,9 +196,9 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
                 })),
             };
             for (const group of proposal.review.groups) {
-                for (const id of group.blockIds) if (!BLOCK_ID_RE.test(id)) errors.push("review group contains invalid block ID");
+                for (const id of group.blockIds) if (!isBlockId(id)) errors.push("review group contains invalid block ID");
             }
-            for (const action of proposal.review.actions) if (!BLOCK_ID_RE.test(action.blockId)) errors.push("review action contains invalid block ID");
+            for (const action of proposal.review.actions) if (!isBlockId(action.blockId)) errors.push("review action contains invalid block ID");
         }
         return { proposal, errors };
     }
@@ -210,7 +210,7 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             reason: typeof item?.reason === "string" ? item.reason : "",
         }));
         if (proposal.myDay.length > 100) errors.push("myDay must contain at most 100 items");
-        for (const item of proposal.myDay) if (!BLOCK_ID_RE.test(item.blockId)) errors.push("myDay contains invalid block ID");
+        for (const item of proposal.myDay) if (!isBlockId(item.blockId)) errors.push("myDay contains invalid block ID");
         return { proposal, errors };
     }
 
@@ -235,8 +235,8 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             reason: typeof task?.reason === "string" ? task.reason : undefined,
         };
         if (!item.title || item.title.length > 512) errors.push(`tasks[${index}].title must contain 1-512 characters`);
-        if (item.sourceBlockId && !BLOCK_ID_RE.test(item.sourceBlockId)) errors.push(`tasks[${index}].sourceBlockId is invalid`);
-        if (item.parentId && !BLOCK_ID_RE.test(item.parentId)) errors.push(`tasks[${index}].parentId is invalid`);
+        if (item.sourceBlockId && !isBlockId(item.sourceBlockId)) errors.push(`tasks[${index}].sourceBlockId is invalid`);
+        if (item.parentId && !isBlockId(item.parentId)) errors.push(`tasks[${index}].parentId is invalid`);
         if (item.status && !ALL_STATUSES.includes(item.status as any)) errors.push(`tasks[${index}].status is invalid`);
         if (item.priority && !PRIORITIES.has(item.priority)) errors.push(`tasks[${index}].priority is invalid`);
         for (const field of ["importance", "effort"] as const) {

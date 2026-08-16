@@ -116,7 +116,7 @@
     });
 </script>
 
-<div class="na-timeline-column" bind:this={containerEl}
+<div class="na-timeline-column" bind:this={containerEl} role="region" aria-label={i18n?.timelineMode || "Timeline"}
     on:dragover={handleDragOver}
     on:dragleave={handleDragLeave}
     on:drop={handleDrop}

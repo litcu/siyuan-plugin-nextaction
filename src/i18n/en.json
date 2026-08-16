@@ -487,6 +487,7 @@
     "clearSelection": "Clear selection",
     "removeSelection": "Remove selection",
     "errInvalidParams": "Invalid parameters",
+    "errInternal": "Internal error",
     "errNotTextBlock": "Only text blocks can be converted to tasks",
     "errProjectRequiresDocument": "Only document blocks can be converted to projects",
     "errTaskNotFound": "Task not found",

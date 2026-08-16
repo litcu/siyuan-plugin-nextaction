@@ -1,8 +1,7 @@
-import { openTab } from "siyuan";
-import { Menu } from "siyuan";
+import { Menu, openTab } from "siyuan";
 import { STATUS_LIST } from "./constants";
 import type { KernelBridge } from "./kernel-bridge";
-import type { TaskCacheEntry } from "../../shared/types";
+import type { TaskCacheEntry } from "../shared/types";
 import { notifyError, notifyInfo, formatRpcError } from "./notify";
 
 /**
@@ -11,7 +10,7 @@ import { notifyError, notifyInfo, formatRpcError } from "./notify";
 export async function jumpToBlock(blockId: string): Promise<void> {
     const app = (window as any).siyuan?.ws?.app;
     if (!app) return;
-    openTab({
+    await openTab({
         app,
         doc: {
             id: blockId,
@@ -64,4 +63,3 @@ export async function showStatusMenu(
         menu.open({ x: event.clientX, y: event.clientY });
     });
 }
-

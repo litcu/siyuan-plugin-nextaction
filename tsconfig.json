@@ -1,24 +1,5 @@
 {
-  "compilerOptions": {
-    "target": "ES6",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": ".",
-    "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@kernel/*": ["src/kernel/*"],
-      "@frontend/*": ["src/frontend/*"]
-    }
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "vendor"]
+    "extends": "./tsconfig.base.json",
+    "include": ["src/**/*.ts", "src/**/*.svelte"],
+    "exclude": ["node_modules", "dist", "dev", "vendor"]
 }

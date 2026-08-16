@@ -9,7 +9,7 @@ const VERSION_PATTERN = /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
 
 export function createUnreleasedSection() {
     const categories = CHANGELOG_CATEGORIES.map((category) => `### ${category}`).join("\n\n");
-    return `${UNRELEASED_HEADING}\n\n<!-- 在下面至少一个分类中填写以 \"- \" 开头的更新内容。 -->\n\n${categories}`;
+    return `${UNRELEASED_HEADING}\n\n<!-- 在下面至少一个分类中填写以 "- " 开头的更新内容。 -->\n\n${categories}`;
 }
 
 function normalizeVersion(version) {

@@ -1,12 +1,17 @@
-import { TaskChangeNotification } from "../shared/types";
+import { type TaskChangeNotification } from "../shared/types";
 import { BROADCAST_DEBOUNCE_MS } from "../shared/constants";
-import { getSiyuan } from "./utils";
+import type { SiyuanApiPort } from "./siyuan-api";
+
+export interface TaskChangePublisher {
+    addPendingChange(blockId: string, type: "create" | "update" | "delete"): void;
+    broadcastChanges(): void;
+}
 
 export class SyncEngine {
-    private debounceTimer: any | null = null;
+    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingChanges: Record<string, "create" | "update" | "delete">;
 
-    constructor() {
+    constructor(private readonly api: SiyuanApiPort) {
         this.pendingChanges = Object.create(null) as Record<string, "create" | "update" | "delete">;
     }
 
@@ -59,15 +64,14 @@ export class SyncEngine {
             };
 
             try {
-                const siyuan = getSiyuan();
-                if (siyuan && siyuan.rpc) {
-                    siyuan.rpc.broadcast("tasksChanged", notification);
+                const broadcast = this.api.broadcast("tasksChanged", notification);
+                if (broadcast) {
+                    void broadcast.catch((error: unknown) => {
+                        void this.api.log("error", "broadcastChanges error: " + String(error));
+                    });
                 }
-            } catch (e: any) {
-                const siyuan = getSiyuan();
-                if (siyuan && siyuan.logger) {
-                    siyuan.logger.error("broadcastChanges error: " + String(e));
-                }
+            } catch (error: unknown) {
+                void this.api.log("error", "broadcastChanges error: " + String(error));
             }
         }, BROADCAST_DEBOUNCE_MS);
     }

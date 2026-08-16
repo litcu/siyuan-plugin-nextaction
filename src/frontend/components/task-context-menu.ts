@@ -1,6 +1,6 @@
 import { Menu, confirm } from "siyuan";
 import type { TaskCacheEntry } from "../../shared/types";
-import { KernelBridge } from "../kernel-bridge";
+import { type KernelBridge } from "../kernel-bridge";
 import { normalizePriority, STATUS_LIST, PRIORITY_LIST } from "../constants";
 import { toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";

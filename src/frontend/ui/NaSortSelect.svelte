@@ -66,7 +66,8 @@
     {#if open}
         <div class="na-sort-select__panel">
             {#each options as opt (opt.value)}
-                <div
+                <button
+                    type="button"
                     class="na-sort-select__option"
                     class:na-sort-select__option--active={opt.value === selected}
                     on:click={() => selectOption(opt.value)}
@@ -77,7 +78,7 @@
                             <path d="M2 6l3 3 5-5" />
                         </svg>
                     {/if}
-                </div>
+                </button>
             {/each}
         </div>
     {/if}

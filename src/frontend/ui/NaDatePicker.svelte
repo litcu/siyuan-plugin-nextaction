@@ -51,6 +51,18 @@
     const ITEM_H = 22;
     const SNAP_DELAY = 80;
 
+    function stopInteractionPropagation(node: HTMLElement) {
+        const stop = (event: Event) => event.stopPropagation();
+        node.addEventListener("click", stop);
+        node.addEventListener("keydown", stop);
+        return {
+            destroy() {
+                node.removeEventListener("click", stop);
+                node.removeEventListener("keydown", stop);
+            },
+        };
+    }
+
     $: today = getToday();
     $: if (!inputFocused && value !== syncedValue) syncInputFromValue();
     $: calendarDays = buildCalendarDays(viewYear, viewMonth);
@@ -439,7 +451,7 @@
     {#if inputError}<div class="na-date-picker__error" role="alert">{inputError}</div>{/if}
 
     {#if open}
-        <div use:portal={fixedDropdown} bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" on:click|stopPropagation>
+        <div use:portal={fixedDropdown} use:stopInteractionPropagation bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" role="application" tabindex="-1" aria-label={i18n?.dueDate || "Calendar"}>
             <!-- Calendar -->
             <div class="na-date-picker__header">
                 <button class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n" on:click={prevMonth} aria-label={previousMonthLabel}>

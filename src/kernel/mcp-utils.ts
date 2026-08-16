@@ -19,15 +19,24 @@ import {
     ATTR_TAGS,
     ATTR_TASK,
     ALL_STATUSES,
-} from "../shared/constants.ts";
+} from "../shared/constants";
 import {
     decodeCustomFieldValue,
     encodeCustomFieldValue,
     isCustomFieldApplicable,
     type CustomFieldDef,
-} from "../shared/custom-fields.ts";
-import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat.ts";
-import type { ReminderItem, TaskCacheEntry } from "../shared/types.ts";
+    type CustomFieldInput,
+} from "../shared/custom-fields";
+import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat";
+import type { ReminderItem, TaskCacheEntry } from "../shared/types";
+import { BLOCK_ID_SOURCE, extractBlockId, isBlockId } from "../shared/block-id";
+
+const PARAGRAPH_ID_BEFORE_TYPE_RE = new RegExp(
+    `data-node-id=["'](${BLOCK_ID_SOURCE})["'][^>]*data-type=["']NodeParagraph["']`,
+);
+const PARAGRAPH_TYPE_BEFORE_ID_RE = new RegExp(
+    `data-type=["']NodeParagraph["'][^>]*data-node-id=["'](${BLOCK_ID_SOURCE})["']`,
+);
 
 export const READ_MCP_TOOL_NAMES = [
     "get_task_metadata",
@@ -142,7 +151,6 @@ export interface McpTaskPatch {
     customFields?: Record<string, unknown>;
 }
 
-const BLOCK_ID_RE = /^\d{14}-[a-z0-9]{7}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 const PRIORITIES = new Set(["critical", "high", "medium", "low", "veryLow", "none"]);
 const PATCH_KEYS = new Set([
@@ -398,12 +406,13 @@ export function buildTaskAttrsFromMcpPatch(
         attrs[ATTR_NOTE] = patch.note || "";
     }
     if (patch.parentId !== undefined) {
-        if (patch.parentId !== null && !BLOCK_ID_RE.test(patch.parentId)) throw new Error("parentId is invalid");
-        attrs[ATTR_PARENT] = patch.parentId || "";
+        const parentId = patch.parentId === null ? "" : extractBlockId(patch.parentId);
+        if (patch.parentId !== null && !parentId) throw new Error("parentId is invalid");
+        attrs[ATTR_PARENT] = parentId;
     }
     if (patch.dependencyIds !== undefined) {
-        const ids = uniqueStrings(patch.dependencyIds, "dependencyIds");
-        if (ids.some(id => !BLOCK_ID_RE.test(id))) throw new Error("dependencyIds contains invalid block ID");
+        const ids = [...new Set(uniqueStrings(patch.dependencyIds, "dependencyIds").map(extractBlockId))];
+        if (ids.some(id => !id)) throw new Error("dependencyIds contains invalid block ID");
         attrs[ATTR_DEPENDS] = ids.join("|");
     }
     if (patch.dependencyMode !== undefined) {
@@ -440,20 +449,14 @@ export function buildTaskAttrsFromMcpPatch(
             const field = fields.find(item => item.key === key && item.status === "active");
             if (!field) throw new Error(`Unknown or archived custom field: ${key}`);
             if (!isCustomFieldApplicable(field, task, taskMap)) throw new Error(`Custom field is not applicable: ${key}`);
-            attrs[ATTR_EXT_PREFIX + key] = value === null ? "" : encodeCustomFieldValue(field, value);
+            attrs[ATTR_EXT_PREFIX + key] = value == null ? "" : encodeCustomFieldValue(field, value as CustomFieldInput);
         }
     }
     if (Object.keys(attrs).length === 0) throw new Error("update_tasks patch must contain at least one attribute field");
     return attrs;
 }
 
-export function extractBlockId(value: unknown): string {
-    if (typeof value !== "string") return "";
-    const trimmed = value.trim();
-    if (BLOCK_ID_RE.test(trimmed)) return trimmed;
-    const match = trimmed.match(/siyuan:\/\/blocks\/(\d{14}-[a-z0-9]{7})/i);
-    return match && BLOCK_ID_RE.test(match[1].toLowerCase()) ? match[1].toLowerCase() : "";
-}
+export { extractBlockId } from "../shared/block-id";
 
 export function extractDocumentIdFromPath(value: unknown): string {
     if (typeof value !== "string") return "";
@@ -479,22 +482,22 @@ export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
         const operations = transaction && typeof transaction === "object" ? (transaction as any).doOperations : null;
         if (!Array.isArray(operations)) continue;
         for (const operation of operations) {
-            if (operation?.action !== "insert" || typeof operation.id !== "string") continue;
+            if (operation?.action !== "insert" || !isBlockId(operation.id)) continue;
             const dom = typeof operation.data === "string" ? operation.data : "";
             const typeMatch = dom.match(/data-type=["']([^"']+)["']/i);
-            const paragraphMatch = dom.match(/data-node-id=["'](\d{14}-[a-z0-9]{7})["'][^>]*data-type=["']NodeParagraph["']/i)
-                || dom.match(/data-type=["']NodeParagraph["'][^>]*data-node-id=["'](\d{14}-[a-z0-9]{7})["']/i);
+            const paragraphMatch = dom.match(PARAGRAPH_ID_BEFORE_TYPE_RE)
+                || dom.match(PARAGRAPH_TYPE_BEFORE_ID_RE);
             if (paragraphMatch?.[1] && paragraphMatch[1] !== operation.id) {
                 return {
                     id: paragraphMatch[1],
-                    parentId: typeof operation.parentID === "string" ? operation.parentID : "",
+                    parentId: isBlockId(operation.parentID) ? operation.parentID : "",
                     nodeType: "NodeParagraph",
                     rootId: operation.id,
                 };
             }
             return {
                 id: operation.id,
-                parentId: typeof operation.parentID === "string" ? operation.parentID : "",
+                parentId: isBlockId(operation.parentID) ? operation.parentID : "",
                 nodeType: typeMatch?.[1] || "",
             };
         }

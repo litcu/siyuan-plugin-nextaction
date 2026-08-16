@@ -1,4 +1,4 @@
-import { TaskCacheEntry } from "../shared/types";
+import { type TaskCacheEntry } from "../shared/types";
 import { ATTR_DEPENDS, ATTR_PARENT, ATTR_SEQUENTIAL, ATTR_STATUS } from "../shared/constants";
 import { DEFAULT_PRIORITY_ENGINE, type PriorityEngineSettings } from "../shared/settings";
 

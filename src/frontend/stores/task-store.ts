@@ -1,10 +1,9 @@
 import { writable, derived } from "svelte/store";
 import type { TaskCacheEntry, TaskChangeNotification, MyDayState, PluginSettings } from "../../shared/types";
-import { KernelBridge } from "../kernel-bridge";
-import { VIEW_NEXT_ACTION, VIEW_ALL_TASKS, VIEW_BY_PROJECT, VIEW_SOMEDAY, VIEW_WAITING, VIEW_MY_DAY, VIEW_REVIEW } from "../constants";
+import { type KernelBridge } from "../kernel-bridge";
+import { STATUS_LIST, VIEW_NEXT_ACTION, VIEW_ALL_TASKS, VIEW_BY_PROJECT, VIEW_SOMEDAY, VIEW_WAITING, VIEW_MY_DAY, VIEW_REVIEW } from "../constants";
 import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
-import { STATUS_LIST } from "../constants";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
 import { countReviewAttentionTasks } from "../../shared/review";
@@ -440,7 +439,7 @@ function createTaskStore() {
                     });
                     if (removedCompletedTask) invalidateCompletedPage(true);
                 } else {
-                    bridge.getTask(blockId).then((entry) => {
+                    void bridge.getTask(blockId).then((entry) => {
                         if (!entry) return;
                         let completedEntryChanged = false;
                         update((s) => {
@@ -495,7 +494,7 @@ function createTaskStore() {
             if (refreshAfterNotificationTimer) clearTimeout(refreshAfterNotificationTimer);
             refreshAfterNotificationTimer = setTimeout(() => {
                 refreshAfterNotificationTimer = null;
-                this.loadTasks();
+                void this.loadTasks();
             }, 2000);
         },
     };

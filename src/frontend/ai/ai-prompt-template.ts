@@ -1,4 +1,5 @@
 import type { AiFeatureId } from "../../shared/ai";
+import { isBlockId } from "../../shared/block-id";
 
 export interface AiPromptVariableContext {
     feature: AiFeatureId;
@@ -31,7 +32,6 @@ export const AI_PROMPT_VARIABLES = [
 
 type VariableName = typeof AI_PROMPT_VARIABLES[number];
 const VARIABLE_SET = new Set<string>(AI_PROMPT_VARIABLES);
-const BLOCK_ID_RE = /^\d{14}-[a-z0-9]{7}$/;
 const MAX_EXPLICIT_BLOCKS = 8;
 
 function localDateParts(): { date: string; time: string; timezone: string } {
@@ -94,7 +94,7 @@ export function renderAiPromptTemplate(template: string, input: AiPromptVariable
         const blockMatch = expression.match(/^block\s*:\s*(.+)$/i);
         if (blockMatch) {
             const blockId = blockMatch[1].trim().toLowerCase();
-            if (!BLOCK_ID_RE.test(blockId)) return `[block：无效的思源块 ID ${blockId}]`;
+            if (!isBlockId(blockId)) return `[block：无效的思源块 ID ${blockId}]`;
             if (!blockIds.includes(blockId) && blockIds.length >= MAX_EXPLICIT_BLOCKS) {
                 return `[block：最多引用 ${MAX_EXPLICIT_BLOCKS} 个指定块，已忽略 ${blockId}]`;
             }

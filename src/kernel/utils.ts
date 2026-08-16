@@ -1,34 +1,20 @@
-import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../shared/constants";
-import { SiyuanApiResponse } from "./types";
+import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, ATTR_PARENT, ATTR_DEPENDS, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../shared/constants";
+import { isBlockId, isBlockIdPipe } from "../shared/block-id";
+import { getDefaultSiyuanApi, ProductionSiyuanApi, setDefaultSiyuanApi } from "./siyuan-api";
 
 let siyuanRef: any = null;
 
 export function setSiyuan(siyuan: any): void {
     siyuanRef = siyuan;
+    setDefaultSiyuanApi(new ProductionSiyuanApi(siyuan));
 }
 
 export function getSiyuan(): any {
     return siyuanRef;
 }
 
-export async function siyuanFetch<T = any>(path: string, body: object = {}): Promise<T> {
-    if (!siyuanRef) {
-        throw new Error("SiYuan API not initialized");
-    }
-    const resp = await siyuanRef.client.fetch(path, {
-        method: "POST",
-        body: JSON.stringify(body),
-    });
-    let result: SiyuanApiResponse;
-    try {
-        result = await resp.json();
-    } catch (e: any) {
-        throw new Error(`SiYuan API returned non-JSON response for ${path}: ${e.message || e}`);
-    }
-    if (result.code !== 0) {
-        throw new Error(`API error ${result.code}: ${result.msg}`);
-    }
-    return result.data as T;
+export async function siyuanFetch<T = any>(path: `/${string}`, body: object = {}): Promise<T> {
+    return getDefaultSiyuanApi().request<T>(path, body);
 }
 
 export function attrToNumber(value: string | undefined | null, defaultVal: number): number {
@@ -63,6 +49,12 @@ export function validateTaskAttrs(attrs: Record<string, string>): string | null 
         }
         if (typeof attrs[key] !== "string") {
             return `Invalid attribute value for ${key}: must be string`;
+        }
+        if (key === ATTR_PARENT && attrs[key] !== "" && !isBlockId(attrs[key])) {
+            return `Invalid attribute value for ${key}: must be a raw SiYuan block ID`;
+        }
+        if (key === ATTR_DEPENDS && !isBlockIdPipe(attrs[key])) {
+            return `Invalid attribute value for ${key}: must contain raw SiYuan block IDs`;
         }
         if (key === ATTR_REMINDER) {
             const val = attrs[key];

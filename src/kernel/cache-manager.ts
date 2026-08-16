@@ -1,7 +1,9 @@
-import { TaskCacheEntry } from "../shared/types";
+import { type TaskCacheEntry } from "../shared/types";
 import { ATTR_PARENT, ATTR_STATUS, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_CONTEXT, ATTR_TASK, ATTR_EFFORT, ATTR_IMPORTANCE, ATTR_DEPENDS, ATTR_DEP_MODE, ATTR_SEQUENTIAL, ATTR_REPEAT, ATTR_REPEAT_STATE, ATTR_SORT, ATTR_COMPLETED, ATTR_NOTE, ATTR_CREATED, ATTR_TAGS, ATTR_REVIEW_INTERVAL, ATTR_REVIEW_DATE, ATTR_REMINDER, ATTR_EXT_PREFIX } from "../shared/constants";
 import { DEFAULT_SETTINGS } from "../shared/settings";
-import { siyuanFetch, attrToNumber, cleanSlashFromTitle, getSiyuan } from "./utils";
+import { attrToNumber, cleanSlashFromTitle } from "./utils";
+import { sql } from "../shared/sql";
+import type { SiyuanApiPort } from "./siyuan-api";
 import { calculateOrder, getBlockedReason } from "./priority-engine";
 
 interface SqlRow {
@@ -15,7 +17,7 @@ export class CacheManager {
     private cache: Record<string, TaskCacheEntry>;
     private lastSyncTime: string;
 
-    constructor() {
+    constructor(private readonly api: SiyuanApiPort) {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
         this.lastSyncTime = "";
     }
@@ -27,10 +29,8 @@ export class CacheManager {
         const rows: SqlRow[] = [];
         let lastBlockId = "";
         for (;;) {
-            const escapedLastBlockId = lastBlockId.replace(/'/g, "''");
-            const cursorCondition = lastBlockId ? ` AND b.id > '${escapedLastBlockId}'` : "";
-            const page: SqlRow[] = await siyuanFetch("/api/query/sql", {
-                stmt: `SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
+            const stmt = lastBlockId
+                ? sql`SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
                     FROM blocks b
                     INNER JOIN attributes a
                       ON a.block_id = b.id
@@ -38,9 +38,18 @@ export class CacheManager {
                     WHERE a.value IS NOT NULL
                       AND a.value != ''
                       AND b.type IN ('p', 'h', 'd')
-                      ${cursorCondition}
-                    ORDER BY b.id`,
-            });
+                      AND b.id > ${lastBlockId}
+                    ORDER BY b.id`
+                : `SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
+                    FROM blocks b
+                    INNER JOIN attributes a
+                      ON a.block_id = b.id
+                     AND a.name = 'custom-na-task'
+                    WHERE a.value IS NOT NULL
+                      AND a.value != ''
+                      AND b.type IN ('p', 'h', 'd')
+                    ORDER BY b.id`;
+            const page = await this.api.query<SqlRow>(stmt);
             if (!page || page.length === 0) break;
             rows.push(...page);
             const nextBlockId = page[page.length - 1].id;
@@ -60,10 +69,7 @@ export class CacheManager {
         // This API reads from the in-memory IAL cache (always up-to-date) and
         // returns {blockId: {key: value, ...}} — one call instead of N calls.
         const ids = rows.map((r) => r.id);
-        const batchResult: Record<string, Record<string, string>> = await siyuanFetch(
-            "/api/attr/batchGetBlockAttrs",
-            { ids },
-        );
+        const batchResult = await this.api.batchGetBlockAttrs(ids);
 
         // Build a title lookup from SQL rows
         const titleMap: Record<string, string> = Object.create(null) as Record<string, string>;
@@ -78,10 +84,7 @@ export class CacheManager {
             const row = rows[i];
             const attrs = batchResult[row.id];
             if (!attrs) {
-                const siyuan = getSiyuan();
-                if (siyuan?.logger) {
-                    siyuan.logger.warn(`Cache load: batchGetBlockAttrs missing attrs for block ${row.id}, skipping`);
-                }
+                void this.api.log("warn", `Cache load: batchGetBlockAttrs missing attrs for block ${row.id}, skipping`);
                 continue;
             }
 
@@ -266,22 +269,19 @@ export class CacheManager {
      */
     async verifyIntegrity(): Promise<number> {
         try {
-            const rows: Array<{ count: number }> = await siyuanFetch("/api/query/sql", {
-                stmt: `SELECT COUNT(DISTINCT a.block_id) as count
+            const rows = await this.api.query<{ count: number }>(
+                `SELECT COUNT(DISTINCT a.block_id) as count
                     FROM attributes a
                     INNER JOIN blocks b ON b.id = a.block_id
                     WHERE a.name = 'custom-na-task'
                       AND a.value IS NOT NULL
                       AND a.value != ''
                       AND b.type IN ('p', 'h', 'd')`,
-            });
+            );
             const dbCount = (rows && rows.length > 0) ? rows[0].count : 0;
             const cacheCount = Object.keys(this.cache).length;
             if (dbCount !== cacheCount) {
-                const siyuan = getSiyuan();
-                if (siyuan?.logger) {
-                    siyuan.logger.warn(`Cache integrity check: DB has ${dbCount} tasks, cache has ${cacheCount}. Rebuilding...`);
-                }
+                void this.api.log("warn", `Cache integrity check: DB has ${dbCount} tasks, cache has ${cacheCount}. Rebuilding...`);
                 return Math.abs(dbCount - cacheCount);
             }
             return 0;

@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings 
 import { McpToolManager } from "./kernel/mcp-tool-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
+import { ProductionSiyuanApi } from "./kernel/siyuan-api";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -31,18 +32,19 @@ class NextActionKernelPlugin {
         await logger.info("onload: NextAction kernel plugin loaded");
 
         setSiyuan(this.siyuan);
+        const api = new ProductionSiyuanApi(this.siyuan);
         this.mutex = new Mutex();
-        this.cacheManager = new CacheManager();
-        this.syncEngine = new SyncEngine();
+        this.cacheManager = new CacheManager(api);
+        this.syncEngine = new SyncEngine(api);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
-        this.taskService = new TaskService(this.cacheManager, this.mutex, this.syncEngine, myDayManager);
+        this.taskService = new TaskService(this.cacheManager, this.mutex, this.syncEngine, myDayManager, api);
         const loadedSettings = await this.loadSettings();
         const appliedSettings = this.taskService.updateSettings(loadedSettings);
         if ("_rpcError" in appliedSettings) {
             await logger.warn("onload: saved settings invalid, using defaults: " + appliedSettings._rpcError.message);
             this.taskService.updateSettings(DEFAULT_SETTINGS);
         }
-        this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings());
+        this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings(), api);
         const aiProposalService = new AiProposalService(
             this.taskService,
             this.mcpToolManager.createTaskForPlugin.bind(this.mcpToolManager),
@@ -63,18 +65,18 @@ class NextActionKernelPlugin {
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
-        this.cacheManager.loadAll().then(async () => {
+        void this.cacheManager.loadAll().then(async () => {
             const mismatches = await this.cacheManager.verifyIntegrity();
             if (mismatches > 0) {
-                logger.warn("onload: cache integrity check found " + mismatches + " mismatches, rebuilding...");
+                await logger.warn("onload: cache integrity check found " + mismatches + " mismatches, rebuilding...");
                 await this.cacheManager.rebuild();
             }
             this.isReady = true;
             await myDayManager.load();
             this.taskService.setIsReady(true);
-            logger.info("onload: cache loaded, task service ready");
-        }).catch((e: any) => {
-            logger.error("onload: failed to load cache: " + String(e));
+            await logger.info("onload: cache loaded, task service ready");
+        }).catch(async (e: any) => {
+            await logger.error("onload: failed to load cache: " + String(e));
         });
     }
 

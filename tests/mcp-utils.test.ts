@@ -178,7 +178,8 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
 });
 
 test("块 ID、插入结果和 Markdown 标题解析安全", () => {
-    assert.equal(extractBlockId("siyuan://blocks/20260802120000-abcdefg?focus=1"), "20260802120000-abcdefg");
+    assert.equal(extractBlockId("siyuan://blocks/20260802120000-abcdefg"), "20260802120000-abcdefg");
+    assert.equal(extractBlockId("siyuan://blocks/20260802120000-abcdefg?focus=1"), "");
     assert.equal(extractBlockId("bad-id"), "");
     assert.equal(extractDocumentIdFromPath("/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
     assert.equal(extractDocumentIdFromPath("/parent/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
@@ -189,13 +190,13 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
             doOperations: [{
                 action: "insert",
                 id: "20260802120000-abcdefg",
-                parentID: "20260802119999-parent",
+                parentID: "20260802119999-parentx",
                 data: '<div data-node-id="20260802120000-abcdefg" data-type="NodeParagraph"><div>Call Alice</div></div>',
             }],
         }]),
         {
             id: "20260802120000-abcdefg",
-            parentId: "20260802119999-parent",
+            parentId: "20260802119999-parentx",
             nodeType: "NodeParagraph",
         },
     );
@@ -204,13 +205,13 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
             doOperations: [{
                 action: "insert",
                 id: "20260802120000-listabc",
-                parentID: "20260802119999-parent",
+                parentID: "20260802119999-parentx",
                 data: '<div data-node-id="20260802120000-listabc" data-type="NodeList"><div data-node-id="20260802120001-childaa" data-type="NodeParagraph"><div>Child</div></div></div>',
             }],
         }]),
         {
             id: "20260802120001-childaa",
-            parentId: "20260802119999-parent",
+            parentId: "20260802119999-parentx",
             nodeType: "NodeParagraph",
             rootId: "20260802120000-listabc",
         },

@@ -69,8 +69,8 @@ test("项目树范围覆盖项目本身和全部后代", () => {
 
 test("字段定义校验拒绝大写、下划线和重复 Key", () => {
     const invalid = field("text", { key: "Bad_Key" });
-    assert.match(validateCustomFieldDefinitions([invalid]), /lowercase/);
-    assert.match(validateCustomFieldDefinitions([field("text"), field("text", { id: "other", key: "test-text" })]), /unique/);
+    assert.match(validateCustomFieldDefinitions([invalid]) ?? "", /lowercase/);
+    assert.match(validateCustomFieldDefinitions([field("text"), field("text", { id: "other", key: "test-text" })]) ?? "", /unique/);
 });
 
 test("孤立字段清理兼容完整属性名", () => {

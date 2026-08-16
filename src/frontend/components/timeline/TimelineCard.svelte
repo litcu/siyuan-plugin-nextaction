@@ -154,6 +154,12 @@
                 .catch((err) => notifyError(formatRpcError(err, i18n)));
         }
     }
+
+    function handleCardKeydown(event: KeyboardEvent): void {
+        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+            onContextMenu(task, new MouseEvent("contextmenu"));
+        }
+    }
 </script>
 
 <div
@@ -164,10 +170,13 @@
     class:na-timeline-card--minimal={isMinimal}
     class:na-timeline-card--done={isDone}
     style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityColor};"
+    role="button"
+    tabindex="0"
     on:pointerdown={(e) => handlePointerDown(e, "move")}
     on:pointermove={handlePointerMove}
     on:pointerup={handlePointerUp}
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
+    on:keydown={handleCardKeydown}
 >
     <div
         class="na-timeline-card__handle na-timeline-card__handle--top"

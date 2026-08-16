@@ -14,6 +14,9 @@
     export let isDropTarget: boolean = false;
     export let horizontal: boolean = false;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    export let onDragOver: (event: DragEvent) => void = () => {};
+    export let onDragLeave: (event: DragEvent) => void = () => {};
+    export let onDrop: (event: DragEvent) => void | Promise<void> = () => {};
 
     function handleDragStart(e: DragEvent, blockId: string) {
         if (!e.dataTransfer) return;
@@ -28,10 +31,12 @@
                 e.dataTransfer.dropEffect = "move";
             }
         }
+        onDragOver(e);
     }
 
     function handleDrop(e: DragEvent) {
         e.preventDefault();
+        void onDrop(e);
     }
 
     function handleClick(e: MouseEvent, task: TaskCacheEntry, entry: MyDayTaskEntry) {
@@ -46,6 +51,13 @@
                 taskStore.applyMyDayUpdate(newState);
             },
         }, isMyDayEntryDone(entry, task.status));
+    }
+
+    function handleCardKeydown(event: KeyboardEvent, task: TaskCacheEntry, entry: MyDayTaskEntry): void {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleClick(new MouseEvent("click"), task, entry);
+        }
     }
 
     function parseLocalDateOnly(value: string): Date {
@@ -82,9 +94,12 @@
 
 <div
     class="na-unscheduled"
+    role="region"
+    aria-label={i18n?.unscheduled || "Unscheduled"}
     class:na-unscheduled--drop-target={isDropTarget}
     class:na-unscheduled--horizontal={horizontal}
     on:dragover={handleDragOver}
+    on:dragleave={onDragLeave}
     on:drop={handleDrop}
 >
     <div class="na-unscheduled__header">
@@ -108,8 +123,11 @@
                         class:na-unscheduled-card--done={isMyDayEntryDone(entry, task.status)}
                         style="--na-unscheduled-card-accent: {priorityColor};"
                         draggable="true"
+                        role="button"
+                        tabindex="0"
                         on:dragstart={(e) => handleDragStart(e, entry.blockId)}
                         on:click={(e) => handleClick(e, task, entry)}
+                        on:keydown={(event) => handleCardKeydown(event, task, entry)}
                         on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
                     >
                         <span class="na-unscheduled-card__accent"></span>

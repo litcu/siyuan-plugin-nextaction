@@ -9,10 +9,19 @@
     $: borderColor = color;
 </script>
 
-<span
-    class="na-priority-dot b3-tooltips b3-tooltips__n"
-    style="background-color: {color}; border-color: {borderColor}"
-    on:click={onclick}
-    aria-label={onclick ? (i18n?.markComplete || "Mark done") : (i18n?.[toI18nKey("priority", displayPriority)] || displayPriority)}
-></span>
+{#if onclick}
+    <button
+        type="button"
+        class="na-priority-dot b3-tooltips b3-tooltips__n"
+        style="background-color: {color}; border-color: {borderColor}"
+        on:click={onclick}
+        aria-label={i18n?.markComplete || "Mark done"}
+    ></button>
+{:else}
+    <span
+        class="na-priority-dot b3-tooltips b3-tooltips__n"
+        style="background-color: {color}; border-color: {borderColor}"
+        aria-label={i18n?.[toI18nKey("priority", displayPriority)] || displayPriority}
+    ></span>
+{/if}
 

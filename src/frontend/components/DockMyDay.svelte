@@ -90,6 +90,11 @@
         e.dataTransfer.effectAllowed = "move";
     }
 
+    function handleUnscheduledClick(event: MouseEvent, task: TaskCacheEntry): void {
+        if ((event.target as HTMLElement | null)?.closest("button")) return;
+        onEdit(task);
+    }
+
     async function handleRemoveFromMyDay(blockId: string) {
         try {
             const newState = await bridge.removeTaskFromMyDay(blockId);
@@ -153,13 +158,16 @@
                                 class:na-dock-myday__unscheduled-item--low={normalizePriority(task.priority) === "low"}
                                 class:na-dock-myday__unscheduled-item--none={normalizePriority(task.priority) === "none"}
                                 draggable="true"
+                                role="button"
+                                tabindex="0"
                                 on:dragstart={(e) => handleDragStart(e, entry.blockId)}
-                                on:click={() => onEdit(task)}
+                                on:click={(event) => handleUnscheduledClick(event, task)}
+                                on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") onEdit(task); }}
                                 on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
                             >
                                 <span class="na-dock-myday__unscheduled-accent"></span>
                                 <span class="na-dock-myday__unscheduled-name">{task.title || (i18n?.untitled || "(untitled)")}</span>
-                                <span on:click|stopPropagation><NaIconButton compact symbol="iconClose" label={i18n?.removeFromMyDay || "Remove from My Day"} tone="danger" on:click={() => handleRemoveFromMyDay(entry.blockId)} /></span>
+                                <span><NaIconButton compact symbol="iconClose" label={i18n?.removeFromMyDay || "Remove from My Day"} tone="danger" on:click={() => handleRemoveFromMyDay(entry.blockId)} /></span>
                             </div>
                         {/if}
                     {/each}

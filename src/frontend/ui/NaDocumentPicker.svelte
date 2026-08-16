@@ -1,12 +1,4 @@
-<script lang="ts">
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
-    import type { KernelBridge } from "../kernel-bridge";
-    import { portal } from "../utils/portal";
-    import { getCurrentUiZIndex } from "../utils/layer";
-    import NaIcon from "./NaIcon.svelte";
-    import NaIconButton from "./NaIconButton.svelte";
-    import NaSearchInput from "./NaSearchInput.svelte";
-
+<script context="module" lang="ts">
     export interface DocumentSelection {
         id: string;
         title: string;
@@ -15,6 +7,16 @@
         path: string;
         icon: string;
     }
+</script>
+
+<script lang="ts">
+    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import type { KernelBridge } from "../kernel-bridge";
+    import { portal } from "../utils/portal";
+    import { getCurrentUiZIndex } from "../utils/layer";
+    import NaIcon from "./NaIcon.svelte";
+    import NaIconButton from "./NaIconButton.svelte";
+    import NaSearchInput from "./NaSearchInput.svelte";
 
     type DocumentItem = {
         id: string;
@@ -187,7 +189,10 @@
             style={fixedDropdown ? dropdownStyle : ""}
             aria-busy={loading}
             aria-live="polite"
+            role="listbox"
+            tabindex="-1"
             on:click|stopPropagation
+            on:keydown|stopPropagation
         >
             {#if loading}
                 <div class="na-document-picker__state">{i18n?.loading || "Loading..."}</div>

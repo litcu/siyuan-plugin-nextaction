@@ -1,0 +1,15 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "types": ["svelte"]
+    },
+    "include": [
+        "src/index.ts",
+        "src/frontend/**/*.ts",
+        "src/frontend/**/*.svelte",
+        "src/shared/**/*.ts",
+        "src/**/*.d.ts"
+    ],
+    "exclude": ["node_modules", "dist", "dev", "vendor", "src/kernel/**", "src/kernel.ts"]
+}

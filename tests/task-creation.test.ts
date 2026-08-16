@@ -29,14 +29,14 @@ test("任务创建设置限制最近目标并保留命名预设", () => {
 });
 
 test("任务创建设置拒绝非法目标和重复预设 ID", () => {
-    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "nowhere", format: "paragraph" } as any] }), /invalid target/);
-    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "inbox", format: "list" } as any] }), /invalid target/);
+    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "nowhere", format: "paragraph" } as any] }) ?? "", /invalid target/);
+    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "inbox", format: "list" } as any] }) ?? "", /invalid target/);
     assert.match(validateTaskCreationSettings({
         presets: [
             { id: "same", name: "A", target: { type: "inbox", format: "paragraph" } },
             { id: "same", name: "B", target: { type: "inbox", format: "document" } },
         ],
-    }), /unique/);
+    }) ?? "", /unique/);
 });
 
 test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值", () => {

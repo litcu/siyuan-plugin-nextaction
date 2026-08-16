@@ -1,30 +1,48 @@
 /**
- * Kernel RPC automated test script
- * Usage: node scripts/test-kernel.js [baseURL]
+ * Kernel RPC integration test.
+ *
+ * Creates one uniquely named document in an open notebook and removes it in
+ * finally. Existing user documents are never selected or modified.
+ *
+ * Usage: SIYUAN_API_TOKEN=<token> node scripts/test-kernel.js [baseURL]
  * Default baseURL: http://127.0.0.1:6806
  */
 const baseURL = process.argv[2] || "http://127.0.0.1:6806";
+const apiToken = process.env.SIYUAN_API_TOKEN || "";
+const pluginName = "siyuan-plugin-nextaction";
+
+function requestHeaders() {
+    return {
+        "Content-Type": "application/json",
+        ...(apiToken ? { Authorization: `Token ${apiToken}` } : {}),
+    };
+}
 
 let passed = 0;
 let failed = 0;
-let testBlockId = "";
+let testDocumentId = "";
 
-async function siyuanAPI(path, body) {
-    const resp = await fetch(baseURL + path, {
+async function siyuanAPI(path, body = {}) {
+    const response = await fetch(baseURL + path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: requestHeaders(),
         body: JSON.stringify(body),
     });
-    return resp.json();
+    const result = await response.json();
+    if (!response.ok || (typeof result.code === "number" && result.code !== 0)) {
+        throw new Error(`SiYuan API failed [${path}]: ${result.msg || response.statusText}`);
+    }
+    return result.data;
 }
 
-async function rpc(method, params) {
-    return siyuanAPI("/api/plugin/rpc/nextaction", {
-        jsonrpc: "2.0",
-        method,
-        params: [params],
-        id: 1,
+async function rpc(method, params = {}) {
+    const response = await fetch(`${baseURL}/api/plugin/rpc/${pluginName}`, {
+        method: "POST",
+        headers: requestHeaders(),
+        body: JSON.stringify({ jsonrpc: "2.0", method, params: [params], id: 1 }),
     });
+    if (!response.ok) throw new Error(`RPC HTTP failure [${method}]: ${response.status}`);
+    return response.json();
 }
 
 function assert(condition, testName, detail) {
@@ -33,197 +51,163 @@ function assert(condition, testName, detail) {
         console.log(`  ✓ ${testName}`);
     } else {
         failed++;
-        console.log(`  ✗ ${testName}${detail ? " — " + detail : ""}`);
+        console.log(`  ✗ ${testName}${detail ? ` — ${detail}` : ""}`);
     }
 }
 
-async function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
+function sleep(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function localDateAfter(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function waitForIndexedBlock(blockId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows[0]?.id === blockId) return;
+        await sleep(250);
+    }
+    throw new Error(`Temporary document was not indexed in time: ${blockId}`);
+}
+
+async function waitForTaskAttributeIndex(blockId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT value FROM attributes WHERE block_id = '${blockId.replace(/'/g, "''")}' AND name = 'custom-na-task' AND value != '' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows.length > 0) return;
+        await sleep(250);
+    }
+    throw new Error(`Temporary task attributes were not indexed in time: ${blockId}`);
+}
+
+async function createTemporaryDocument() {
+    const notebooks = await siyuanAPI("/api/notebook/lsNotebooks");
+    const notebook = notebooks?.notebooks?.find(item => !item.closed);
+    if (!notebook?.id) throw new Error("No open notebook is available for the integration test");
+
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const title = `NextAction Stage 1 Test ${unique}`;
+    const id = await siyuanAPI("/api/filetree/createDocWithMd", {
+        notebook: notebook.id,
+        path: `/${title}`,
+        markdown: `# ${title}`,
+    });
+    if (typeof id !== "string" || !/^\d{14}-[0-9a-z]{7}$/.test(id)) {
+        throw new Error(`SiYuan returned an invalid temporary document ID: ${String(id)}`);
+    }
+    testDocumentId = id;
+    await waitForIndexedBlock(id);
+    return { id, title };
+}
+
+async function removeTemporaryDocument() {
+    if (!testDocumentId) return;
+    try {
+        await siyuanAPI("/api/filetree/removeDocByID", { id: testDocumentId });
+        console.log(`\nCleanup: removed temporary document ${testDocumentId}`);
+    } catch (error) {
+        failed++;
+        console.error(`\nCleanup failed for ${testDocumentId}:`, error);
+    } finally {
+        testDocumentId = "";
+    }
+}
+
+async function runTests() {
+    console.log("\nNextAction Kernel RPC Integration Test");
+    console.log(`Target: ${baseURL}\n`);
+
+    console.log("\n--- echo ---");
+    const echo = await rpc("echo", { params: ["hello", 42] });
+    if (echo.error) throw new Error(`NextAction plugin RPC is unavailable: ${echo.error.message || JSON.stringify(echo.error)}`);
+    assert(JSON.stringify(echo.result) === JSON.stringify(["hello", 42]), "echo preserves array parameters", JSON.stringify(echo.result));
+
+    const temporary = await createTemporaryDocument();
+    console.log(`Setup: created temporary document ${temporary.id}`);
+    const blockUri = `siyuan://blocks/${temporary.id}`;
+
+    console.log("\n--- raw/URI input contract ---");
+    const uriRejected = await rpc("getTask", { blockId: blockUri });
+    assert(uriRejected.result?._rpcError?.code === -32001, "internal RPC rejects block URI", JSON.stringify(uriRejected.result));
+    const mcpResolved = await rpc("resolveMcpDocumentTarget", { value: blockUri });
+    assert(mcpResolved.result?.id === temporary.id, "MCP document resolver accepts and normalizes block URI", JSON.stringify(mcpResolved.result));
+
+    console.log("\n--- convertToTask ---");
+    const converted = await rpc("convertToTask", { blockId: temporary.id });
+    assert(!converted.error && !converted.result?._rpcError, "convertToTask succeeds", JSON.stringify(converted));
+    assert(converted.result?.blockId === temporary.id, "converted block ID matches");
+    assert(converted.result?.status === "inbox", "default status is inbox", converted.result?.status);
+    assert(converted.result?.priority === "medium", "default priority is medium", converted.result?.priority);
+
+    const uriConvert = await rpc("convertToTask", { blockId: blockUri });
+    assert(uriConvert.result?._rpcError?.code === -32001, "convertToTask rejects URI without mutating the task", JSON.stringify(uriConvert.result));
+
+    console.log("\n--- updateTask/getTask/getNextActions ---");
+    const due = localDateAfter(2);
+    const updated = await rpc("updateTask", {
+        blockId: temporary.id,
+        attrs: {
+            "na-status": "todo",
+            "na-importance": "7",
+            "na-priority": "high",
+            "na-context": "阶段一集成测试",
+            "na-due": due,
+        },
+    });
+    assert(!updated.error && !updated.result?._rpcError, "updateTask succeeds", JSON.stringify(updated));
+    assert(updated.result?.status === "todo" && updated.result?.priority === "high", "authoritative update is returned");
+    assert(updated.result?.due === due, "due date is updated", updated.result?.due);
+
+    const rawTask = await rpc("getTask", { blockId: temporary.id });
+    assert(rawTask.result?.blockId === temporary.id, "getTask accepts raw ID and returns cached task");
+    const nextActions = await rpc("getNextActions");
+    assert(Array.isArray(nextActions.result) && nextActions.result.some(item => item.blockId === temporary.id), "updated task is a next action");
+
+    console.log("\n--- repeat rule ---");
+    const repeated = await rpc("setRepeatRule", {
+        blockId: temporary.id,
+        rule: { version: 2, frequency: "day", interval: 1 },
+    });
+    assert(!repeated.error && !repeated.result?._rpcError, "setRepeatRule succeeds", JSON.stringify(repeated));
+    assert(Boolean(repeated.result?.repeat && repeated.result?.repeatState), "repeat rule and state are returned");
+
+    console.log("\n--- cache rebuild ---");
+    await waitForTaskAttributeIndex(temporary.id);
+    const rebuilt = await rpc("rebuildCache");
+    assert(rebuilt.result?.success === true, "rebuildCache succeeds", JSON.stringify(rebuilt.result));
+    const afterRebuild = await rpc("getTask", { blockId: temporary.id });
+    assert(afterRebuild.result?.blockId === temporary.id, "task survives authoritative cache rebuild");
+
+    console.log("\n--- removeTask ---");
+    const removed = await rpc("removeTask", { blockId: temporary.id });
+    assert(removed.result?.success === true, "removeTask succeeds", JSON.stringify(removed.result));
+    const afterRemove = await rpc("getTask", { blockId: temporary.id });
+    assert(afterRemove.result == null, "removed task is absent from cache", JSON.stringify(afterRemove.result));
+
+    const attrs = await siyuanAPI("/api/attr/getBlockAttrs", { id: temporary.id });
+    assert(!attrs?.["custom-na-task"], "task marker is cleared authoritatively");
 }
 
 async function main() {
-    console.log(`\nNextAction Kernel RPC Test`);
-    console.log(`Target: ${baseURL}\n`);
-
-    // Step 1: Find a document block to use for testing
-    console.log("Setup: finding a test document block...");
-    const docsResult = await siyuanAPI("/api/query/sql", {
-        stmt: "SELECT id, content FROM blocks WHERE type='d' LIMIT 1",
-    });
-    if (!docsResult.data || docsResult.data.length === 0) {
-        console.log("  ✗ No document blocks found, aborting");
-        process.exit(1);
-    }
-    testBlockId = docsResult.data[0].id;
-    console.log(`  Using block: ${testBlockId}\n`);
-
-    // Step 2: Clean up — remove any existing task attributes
-    console.log("Cleanup: removing existing task attributes...");
-    await siyuanAPI("/api/attr/setBlockAttrs", {
-        id: testBlockId,
-        attrs: {
-            "custom-na-task": "",
-            "custom-na-status": "",
-            "custom-na-priority": "",
-            "custom-na-importance": "",
-            "custom-na-effort": "",
-            "custom-na-due": "",
-            "custom-na-start": "",
-            "custom-na-context": "",
-            "custom-na-parent": "",
-        },
-    });
-    await sleep(500);
-
-    // Step 3: Test echo
-    console.log("\n--- echo ---");
-    {
-        const r = await rpc("echo", ["hello", 42]);
-        const result = r.result;
-        // echo returns params as-is; SiYuan wraps params array, so result is [["hello",42]]
-        assert(result !== undefined && result !== null, "echo returns non-null result", JSON.stringify(result));
+    try {
+        await runTests();
+    } catch (error) {
+        failed++;
+        console.error("Integration test error:", error);
+    } finally {
+        await removeTemporaryDocument();
     }
 
-    // Step 4: Test convertToTask
-    console.log("\n--- convertToTask ---");
-    {
-        const r = await rpc("convertToTask", { blockId: testBlockId });
-        assert(!r.error, "no RPC error", r.error?.data);
-        const entry = r.result;
-        if (entry && entry._rpcError) {
-            assert(false, "convertToTask failed", entry._rpcError.message);
-        } else {
-            assert(entry && entry.blockId === testBlockId, "blockId matches");
-            assert(entry && entry.status === "todo", "status is todo", entry?.status);
-            assert(entry && entry.priority === "none", "priority is none", entry?.priority);
-            assert(entry && entry.importance === 4, "importance is 4", String(entry?.importance));
-            assert(entry && entry.effort === 4, "effort is 4", String(entry?.effort));
-            assert(entry && entry.order > 0, "order > 0", String(entry?.order));
-            assert(entry && entry.title !== "", "title is not empty", `"${entry?.title}"`);
-        }
-    }
-
-    // Step 5: Test getTask
-    console.log("\n--- getTask ---");
-    {
-        const r = await rpc("getTask", { blockId: testBlockId });
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(r.result && r.result.blockId === testBlockId, "found task in cache");
-        assert(r.result && r.result.title !== "", "title preserved in cache", `"${r.result?.title}"`);
-    }
-
-    // Step 6: Test getAllTasks
-    console.log("\n--- getAllTasks ---");
-    {
-        const r = await rpc("getAllTasks", {});
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(Array.isArray(r.result) && r.result.length >= 1, "at least 1 task returned", `count: ${r.result?.length}`);
-    }
-
-    // Step 7: Test getNextActions
-    console.log("\n--- getNextActions ---");
-    {
-        const r = await rpc("getNextActions", {});
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(Array.isArray(r.result) && r.result.length >= 1, "at least 1 next action returned");
-    }
-
-    // Step 8: Test updateTask (using na-* short keys)
-    console.log("\n--- updateTask ---");
-    {
-        const r = await rpc("updateTask", {
-            blockId: testBlockId,
-            attrs: {
-                "na-importance": "7",
-                "na-priority": "high",
-                "na-context": "办公室",
-                "na-due": "2026-07-03",
-            },
-        });
-        assert(!r.error, "no RPC error", r.error?.data);
-        const entry = r.result;
-        if (entry && entry._rpcError) {
-            assert(false, "updateTask failed", entry._rpcError.message);
-        } else {
-            assert(entry && entry.importance === 7, "importance updated to 7", String(entry?.importance));
-            assert(entry && entry.priority === "high", "priority updated to high", entry?.priority);
-            assert(entry && entry.context === "办公室", "context updated", entry?.context);
-            assert(entry && entry.due === "2026-07-03", "due date updated", entry?.due);
-            assert(entry && entry.title !== "", "title preserved after update", `"${entry?.title}"`);
-            assert(entry && entry.order > 120, "order increased after boosting importance/priority", String(entry?.order));
-        }
-    }
-
-    // Step 9: Test getContexts
-    console.log("\n--- getContexts ---");
-    {
-        const r = await rpc("getContexts", {});
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(Array.isArray(r.result) && r.result.includes("办公室"), "办公室 context found", JSON.stringify(r.result));
-    }
-
-    // Step 10: Test recalcAllOrders
-    console.log("\n--- recalcAllOrders ---");
-    {
-        const r = await rpc("recalcAllOrders", {});
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(r.result && r.result.success === true, "success returned");
-    }
-
-    // Step 11: Test rebuildCache
-    console.log("\n--- rebuildCache ---");
-    {
-        const r = await rpc("rebuildCache", {});
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(r.result && r.result.success === true, "success returned");
-
-        // Verify cache still has the task after rebuild
-        const r2 = await rpc("getTask", { blockId: testBlockId });
-        assert(r2.result && r2.result.blockId === testBlockId, "task found after rebuild");
-    }
-
-    // Step 12: Wait and verify sync engine doesn't delete cache
-    console.log("\n--- sync engine stability (waiting 8s) ---");
-    {
-        await sleep(8000);
-        const r = await rpc("getTask", { blockId: testBlockId });
-        assert(!r.error, "no RPC error after sync", r.error?.data);
-        assert(r.result && r.result.blockId === testBlockId, "task still in cache after sync cycle");
-    }
-
-    // Step 13: Test removeTask
-    console.log("\n--- removeTask ---");
-    {
-        const r = await rpc("removeTask", { blockId: testBlockId });
-        assert(!r.error, "no RPC error", r.error?.data);
-        assert(r.result && r.result.success === true, "success returned");
-
-        const r2 = await rpc("getTask", { blockId: testBlockId });
-        assert(r2.result === null || r2.result === undefined, "task removed from cache", JSON.stringify(r2.result));
-    }
-
-    // Step 14: Test error handling
-    console.log("\n--- error handling ---");
-    {
-        const r = await rpc("convertToTask", {});
-        assert(r.result && r.result._rpcError, "missing blockId returns rpcError", JSON.stringify(r.result));
-
-        const r2 = await rpc("updateTask", { blockId: "nonexistent", attrs: "invalid" });
-        assert(r2.result && r2.result._rpcError, "invalid attrs returns rpcError", JSON.stringify(r2.result));
-    }
-
-    // Summary
-    console.log("\n" + "=".repeat(40));
+    console.log("\n" + "=".repeat(48));
     console.log(`Results: ${passed} passed, ${failed} failed, ${passed + failed} total`);
-    if (failed > 0) {
-        console.log("\nSome tests failed!");
-        process.exit(1);
-    } else {
-        console.log("\nAll tests passed!");
-    }
+    process.exitCode = failed > 0 ? 1 : 0;
 }
 
-main().catch((e) => {
-    console.error("Test script error:", e);
-    process.exit(1);
-});
+void main();

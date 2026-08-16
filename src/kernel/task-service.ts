@@ -1,4 +1,4 @@
-import { TaskCacheEntry, StatisticsResult, StatisticsSummary, StatisticsDistribution, StatisticsContextItem, StatisticsProjectStatus, ReviewData, CompletedTasksPage } from "../shared/types";
+import { type TaskCacheEntry, type StatisticsResult, type StatisticsSummary, StatisticsDistribution, StatisticsContextItem, StatisticsProjectStatus, type ReviewData, type CompletedTasksPage, type MyDayState } from "../shared/types";
 import { paginateCompletedTasks, type CompletedTasksPageOptions } from "../shared/task-pagination";
 import {
     ATTR_TASK,
@@ -33,11 +33,15 @@ import {
     RPC_ERROR_TIMEOUT,
     WRITE_LOCK_TIMEOUT_MS,
     ALL_STATUSES,
+    ATTR_EXT_PREFIX,
 } from "../shared/constants";
-import { CacheManager } from "./cache-manager";
-import { Mutex } from "./mutex";
-import { SyncEngine } from "./sync-engine";
-import { siyuanFetch, getSiyuan, attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle, errorToRpcError } from "./utils";
+import { type CacheManager } from "./cache-manager";
+import { type Mutex } from "./mutex";
+import type { TaskChangePublisher } from "./sync-engine";
+import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle, errorToRpcError } from "./utils";
+import { assertBlockId } from "../shared/block-id";
+import { sql } from "../shared/sql";
+import type { SiyuanApiPort } from "./siyuan-api";
 import { calculateOrder, isNextActionCandidate, sortTasks, getBlockedReason, updatePriorityConfig, getSequentialBroadcastIds } from "./priority-engine";
 import {
     advanceRepeatState,
@@ -51,9 +55,6 @@ import {
 import type { PluginSettings } from "../shared/settings";
 import { DEFAULT_SETTINGS, validateSettings, mergeSettings } from "../shared/settings";
 import { encodeCustomFieldValue, isCustomFieldApplicable, validateCustomFieldDefinition, type CustomFieldDef } from "../shared/custom-fields";
-import { MyDayManager } from "./my-day-manager";
-import type { MyDayState } from "../shared/types";
-import { ATTR_EXT_PREFIX } from "../shared/constants";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
 
@@ -71,15 +72,33 @@ export interface ConvertToTaskOptions {
     parentIdHint?: string;
 }
 
+export interface MyDayTaskPort {
+    updateSettings(settings: PluginSettings): void;
+    getState(): Promise<MyDayState>;
+    addTask(blockId: string): Promise<MyDayState>;
+    removeTask(blockId: string): Promise<MyDayState>;
+    reorderTask(blockId: string, afterId?: string): Promise<MyDayState>;
+    setSchedule(blockId: string, start: number | null, end: number | null): Promise<MyDayState>;
+    removeSchedule(blockId: string): Promise<MyDayState>;
+    markTaskCompleted(blockId: string, completedAt: number): Promise<MyDayState>;
+    clearTaskCompleted(blockId: string): Promise<MyDayState>;
+}
+
 export class TaskService {
     private cacheManager: CacheManager;
     private mutex: Mutex;
-    private syncEngine: SyncEngine;
-    private myDayManager: MyDayManager;
+    private syncEngine: TaskChangePublisher;
+    private myDayManager: MyDayTaskPort;
     private isReady: boolean;
     private settings: PluginSettings;
 
-    constructor(cacheManager: CacheManager, mutex: Mutex, syncEngine: SyncEngine, myDayManager: MyDayManager) {
+    constructor(
+        cacheManager: CacheManager,
+        mutex: Mutex,
+        syncEngine: TaskChangePublisher,
+        myDayManager: MyDayTaskPort,
+        private readonly api: SiyuanApiPort,
+    ) {
         this.cacheManager = cacheManager;
         this.mutex = mutex;
         this.syncEngine = syncEngine;
@@ -141,9 +160,9 @@ export class TaskService {
     private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
         const attempts = waitForIndex ? 20 : 1;
         for (let attempt = 0; attempt < attempts; attempt++) {
-            const rows: Array<{ type?: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT type FROM blocks WHERE id = '" + blockId + "' LIMIT 1",
-            });
+            const rows = await this.api.query<{ type?: string }>(
+                sql`SELECT type FROM blocks WHERE id = ${blockId} LIMIT 1`,
+            );
             const blockType = rows?.[0]?.type || "";
             if (blockType || attempt === attempts - 1) return blockType;
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -178,7 +197,7 @@ export class TaskService {
             return { id: blockId, type: blockType };
         }
         if (blockType === "i") {
-            const children = await siyuanFetch<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", { id: blockId });
+            const children = await this.api.request<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", { id: blockId });
             const textChild = Array.isArray(children)
                 ? children.find(child => child?.id && (child.type === "p" || child.type === "h"))
                 : undefined;
@@ -196,11 +215,8 @@ export class TaskService {
         taskType: string = "1",
         options: ConvertToTaskOptions = {},
     ): Promise<TaskCacheEntry> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
+        if (options.parentIdHint) assertBlockId(options.parentIdHint, "parentIdHint");
         this.checkReady();
 
         if (taskType !== "1" && taskType !== "2") {
@@ -232,9 +248,7 @@ export class TaskService {
         const title = cleanTitle || await this.fetchBlockTitle(blockId);
 
         // Check if already a task
-        const existingAttrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-            id: blockId,
-        });
+        const existingAttrs = await this.api.getBlockAttrs(blockId);
         const hintedParentId = options.parentIdHint
             ? await this.findTaskParentHint(options.parentIdHint, blockId)
             : "";
@@ -245,10 +259,7 @@ export class TaskService {
                 // Already a task — update task type if it differs (e.g. task → project)
                 const currentType = existingAttrs[ATTR_TASK];
                 if (taskType !== currentType) {
-                    await siyuanFetch("/api/attr/setBlockAttrs", {
-                        id: blockId,
-                        attrs: { [ATTR_TASK]: taskType },
-                    });
+                    await this.api.setBlockAttrs(blockId, { [ATTR_TASK]: taskType });
                     existingAttrs[ATTR_TASK] = taskType;
                 }
 
@@ -264,10 +275,7 @@ export class TaskService {
                     } catch (_e: any) { /* ignore */ }
 
                     if (ancestorId) {
-                        await siyuanFetch("/api/attr/setBlockAttrs", {
-                            id: blockId,
-                            attrs: { [ATTR_PARENT]: ancestorId },
-                        });
+                        await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: ancestorId });
                         existingAttrs[ATTR_PARENT] = ancestorId;
                     }
                 }
@@ -335,10 +343,7 @@ export class TaskService {
                 if (!existingAttrs[ATTR_DUE] && parsedDates.due) defaultAttrs[ATTR_DUE] = parsedDates.due.value;
             }
 
-            await siyuanFetch("/api/attr/setBlockAttrs", {
-                id: blockId,
-                attrs: defaultAttrs,
-            });
+            await this.api.setBlockAttrs(blockId, defaultAttrs);
 
             // Find ancestor task to set na-parent
             let parentTaskId = "";
@@ -349,18 +354,12 @@ export class TaskService {
             }
 
             if (parentTaskId !== "") {
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_PARENT]: parentTaskId },
-                });
+                await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: parentTaskId });
 
                 // 设置默认 na-sort：排在父任务下现有子任务末尾
                 const siblings = this.cacheManager.getByParent(parentTaskId);
                 const maxSort = siblings.reduce((max, s) => Math.max(max, s.sort), -1);
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000) },
-                });
+                await this.api.setBlockAttrs(blockId, { [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000) });
             }
 
             // Find descendant tasks and update their na-parent
@@ -371,9 +370,7 @@ export class TaskService {
             }
 
             // Re-fetch attrs after all updates
-            const finalAttrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-                id: blockId,
-            });
+            const finalAttrs = await this.api.getBlockAttrs(blockId);
 
             const entry = this.buildEntryFromAttrs(blockId, finalAttrs);
             entry.title = title;
@@ -397,11 +394,7 @@ export class TaskService {
      * Parent relationships are derived from the list nesting hierarchy.
      */
     async convertToTaskWithChildren(blockId: string, cleanTitle?: string, taskType: string = "1"): Promise<{ converted: number; skipped: number }> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
         this.checkReady();
 
         if (taskType !== "1" && taskType !== "2") {
@@ -426,9 +419,9 @@ export class TaskService {
         // descendant paragraphs. List/list-item blocks must not receive task attrs.
         // Otherwise, just convert the block itself.
         let rootContainerId = "";
-        const blockRows: Array<{ id: string; type: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT id, type FROM blocks WHERE id = '" + blockId + "'",
-        });
+        const blockRows = await this.api.query<{ id: string; type: string }>(
+            sql`SELECT id, type FROM blocks WHERE id = ${blockId}`,
+        );
         const blockType = (blockRows && blockRows.length > 0) ? blockRows[0].type : "";
         if (blockType === "i") {
             // blockId is a list item — use it as root
@@ -445,17 +438,17 @@ export class TaskService {
         let paragraphIds: string[];
         if (rootContainerId) {
             // Direct paragraph children of the container
-            const directRows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT id FROM blocks WHERE parent_id = '" + rootContainerId + "' AND type = 'p'",
-            });
+            const directRows = await this.api.query<{ id: string }>(
+                sql`SELECT id FROM blocks WHERE parent_id = ${rootContainerId} AND type = 'p'`,
+            );
             // All paragraphs in the full subtree (excluding container blocks)
-            const rows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "WITH RECURSIVE descendants(id, parent_id, type) AS ("
-                    + "SELECT id, parent_id, type FROM blocks WHERE parent_id = '" + rootContainerId + "' "
-                    + "UNION ALL "
-                    + "SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id"
-                    + ") SELECT id FROM descendants WHERE type = 'p'",
-            });
+            const rows = await this.api.query<{ id: string }>(
+                sql`WITH RECURSIVE descendants(id, parent_id, type) AS (
+                    SELECT id, parent_id, type FROM blocks WHERE parent_id = ${rootContainerId}
+                    UNION ALL
+                    SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id
+                ) SELECT id FROM descendants WHERE type = 'p'`,
+            );
             const allIds = new Set((rows || []).map(r => r.id));
             for (const r of (directRows || [])) {
                 allIds.add(r.id);
@@ -464,13 +457,13 @@ export class TaskService {
         } else if (blockType === "d") {
             // Document block — collect all paragraphs in the document
             const rootId = blockRows[0].id;
-            const rows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "WITH RECURSIVE descendants(id, parent_id, type) AS ("
-                    + "SELECT id, parent_id, type FROM blocks WHERE parent_id = '" + rootId + "' "
-                    + "UNION ALL "
-                    + "SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id"
-                    + ") SELECT id FROM descendants WHERE type = 'p'",
-            });
+            const rows = await this.api.query<{ id: string }>(
+                sql`WITH RECURSIVE descendants(id, parent_id, type) AS (
+                    SELECT id, parent_id, type FROM blocks WHERE parent_id = ${rootId}
+                    UNION ALL
+                    SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id
+                ) SELECT id FROM descendants WHERE type = 'p'`,
+            );
             paragraphIds = (rows || []).map(r => r.id);
         } else {
             // Not in a list — just convert the block itself (only if it's a paragraph)
@@ -484,9 +477,7 @@ export class TaskService {
         if (paragraphIds.length === 0) return { converted: 0, skipped: 0 };
 
         // Batch check which paragraphs are already tasks
-        const attrResults: Record<string, Record<string, string>> = await siyuanFetch("/api/attr/batchGetBlockAttrs", {
-            ids: paragraphIds,
-        });
+        const attrResults = await this.api.batchGetBlockAttrs(paragraphIds);
 
         const lock = await this.acquireWithTimeout();
         let converted = 0;
@@ -529,18 +520,13 @@ export class TaskService {
                     defaultAttrs[ATTR_SORT] = String(maxSort < 0 ? 0 : maxSort + 10000);
                 }
 
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: pid,
-                    attrs: defaultAttrs,
-                });
+                await this.api.setBlockAttrs(pid, defaultAttrs);
 
                 try {
                     await this.updateDescendantParents(pid);
                 } catch (_e: any) { /* ignore */ }
 
-                const finalAttrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-                    id: pid,
-                });
+                const finalAttrs = await this.api.getBlockAttrs(pid);
                 const entry = this.buildEntryFromAttrs(pid, finalAttrs);
                 entry.title = effectiveTitle;
                 entry.order = calculateOrder(entry, this.cacheManager.getCache());
@@ -562,11 +548,7 @@ export class TaskService {
     }
 
     async removeTask(blockId: string): Promise<void> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
         this.checkReady();
 
         const entry = this.cacheManager.get(blockId);
@@ -583,10 +565,7 @@ export class TaskService {
             for (let i = 0; i < entry.childIds.length; i++) {
                 const childId = entry.childIds[i];
                 try {
-                    await siyuanFetch("/api/attr/setBlockAttrs", {
-                        id: childId,
-                        attrs: { [ATTR_PARENT]: grandParentId || "" },
-                    });
+                    await this.api.setBlockAttrs(childId, { [ATTR_PARENT]: grandParentId || "" });
 
                     // Update cache for child
                     const childEntry = this.cacheManager.get(childId);
@@ -598,10 +577,7 @@ export class TaskService {
                             if (gp && gp.childIds.indexOf(childId) === -1) {
                                 gp.childIds.push(childId);
                             } else if (!gp) {
-                                const siyuan = getSiyuan();
-                                if (siyuan?.logger) {
-                                    siyuan.logger.warn(`removeTask: grandparent ${grandParentId} not in cache, child ${childId} parentId points to non-cached entry`);
-                                }
+                                void this.api.log("warn", `removeTask: grandparent ${grandParentId} not in cache, child ${childId} parentId points to non-cached entry`);
                             }
                         }
                         this.syncEngine.addPendingChange(childId, "update");
@@ -643,19 +619,17 @@ export class TaskService {
                 }
             }
 
-            await siyuanFetch("/api/attr/setBlockAttrs", {
-                id: blockId,
-                attrs: clearAttrs,
-            });
+            await this.api.setBlockAttrs(blockId, clearAttrs);
+            const confirmedAttrs = await this.api.getBlockAttrs(blockId);
+            if (confirmedAttrs[ATTR_TASK]) {
+                throw new Error(`Failed to clear task attributes for ${blockId}`);
+            }
 
             // Remove from My Day if present
             try {
                 await this.myDayManager.removeTask(blockId);
             } catch (e: any) {
-                const siyuan = getSiyuan();
-                if (siyuan?.logger) {
-                    siyuan.logger.warn(`removeTask: failed to remove from MyDay: ${e.message || e}`);
-                }
+                void this.api.log("warn", `removeTask: failed to remove from MyDay: ${e.message || e}`);
             }
 
             // Remove from cache
@@ -670,11 +644,7 @@ export class TaskService {
     }
 
     async updateTask(blockId: string, rawAttrs: Record<string, string>): Promise<TaskCacheEntry> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
 
         // Normalize na-* keys to custom-na-* for convenience
         const attrs: Record<string, string> = {};
@@ -707,7 +677,7 @@ export class TaskService {
         // consistent SQL type index.
         let existingAttrsForValidation: Record<string, string> | null = null;
         if (!cachedTask) {
-            existingAttrsForValidation = await siyuanFetch("/api/attr/getBlockAttrs", { id: blockId });
+            existingAttrsForValidation = await this.api.getBlockAttrs(blockId);
         }
         // Cache entries can only come from the filtered p/h/d discovery query or
         // convertToTask's validated target. Reuse that invariant for immediate
@@ -829,10 +799,7 @@ export class TaskService {
                         }
                         const parentEntry = this.cacheManager.get(currentId);
                         if (!parentEntry) {
-                            const siyuan = getSiyuan();
-                            if (siyuan?.logger) {
-                                siyuan.logger.warn(`Circular ref check: parent ${currentId} not in cache, skipping`);
-                            }
+                            void this.api.log("warn", `Circular ref check: parent ${currentId} not in cache, skipping`);
                             break;
                         }
                         currentId = parentEntry.parentId;
@@ -842,10 +809,7 @@ export class TaskService {
             }
 
             // Update attributes in SiYuan
-            await siyuanFetch("/api/attr/setBlockAttrs", {
-                id: blockId,
-                attrs: attrs,
-            });
+            await this.api.setBlockAttrs(blockId, attrs);
 
             // 自动追加完成时间：status 变为 done 时（不是已经是 done）
             let existing = previousEntry;
@@ -854,29 +818,22 @@ export class TaskService {
                 const completedAt = Date.now();
                 const now = new Date(completedAt).toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss UTC
                 const newCompleted = existingCompleted ? existingCompleted + "|" + now : now;
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_COMPLETED]: newCompleted },
-                });
+                await this.api.setBlockAttrs(blockId, { [ATTR_COMPLETED]: newCompleted });
                 try {
                     await this.myDayManager.markTaskCompleted(blockId, completedAt);
                 } catch (e: any) {
-                    const siyuan = getSiyuan();
-                    siyuan?.logger?.warn(`updateTask: failed to mark My Day completion: ${e.message || e}`);
+                    void this.api.log("warn", `updateTask: failed to mark My Day completion: ${e.message || e}`);
                 }
             } else if (attrs[ATTR_STATUS] !== undefined && attrs[ATTR_STATUS] !== "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
                 } catch (e: any) {
-                    const siyuan = getSiyuan();
-                    siyuan?.logger?.warn(`updateTask: failed to clear My Day completion: ${e.message || e}`);
+                    void this.api.log("warn", `updateTask: failed to clear My Day completion: ${e.message || e}`);
                 }
             }
 
             // Re-fetch full attrs
-            const fullAttrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-                id: blockId,
-            });
+            const fullAttrs = await this.api.getBlockAttrs(blockId);
 
             // Build updated entry
             existing = this.cacheManager.get(blockId);
@@ -924,16 +881,15 @@ export class TaskService {
                     if (advanced.state.currentStart) repeatAttrs[ATTR_START] = advanced.state.currentStart;
                 }
 
-                await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs: repeatAttrs });
+                await this.api.setBlockAttrs(blockId, repeatAttrs);
                 if (!advanced.ended && advanced.state.status === "active") {
                     try {
                         await this.myDayManager.clearTaskCompleted(blockId);
                     } catch (e: any) {
-                        const siyuan = getSiyuan();
-                        siyuan?.logger?.warn(`updateTask: failed to clear My Day completion after repeat advancement: ${e.message || e}`);
+                        void this.api.log("warn", `updateTask: failed to clear My Day completion after repeat advancement: ${e.message || e}`);
                     }
                 }
-                const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+                const finalAttrs = await this.api.getBlockAttrs(blockId);
                 const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
                 this.cacheWithRecalculatedOrder(finalEntry);
             }
@@ -943,11 +899,8 @@ export class TaskService {
                 const td3 = new Date();
                 const today = `${td3.getFullYear()}-${String(td3.getMonth() + 1).padStart(2, "0")}-${String(td3.getDate()).padStart(2, "0")}`;
                 const nextReviewDate = this.addDays(today, updatedEntry.reviewInterval);
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_REVIEW_DATE]: nextReviewDate },
-                });
-                const reviewAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+                await this.api.setBlockAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
+                const reviewAttrs = await this.api.getBlockAttrs(blockId);
                 const reviewEntry = this.buildEntryFromAttrs(blockId, reviewAttrs, this.cacheManager.get(blockId)!);
                 this.cacheManager.set(reviewEntry);
             }
@@ -958,7 +911,7 @@ export class TaskService {
             // Broadcast entries whose blocked status changed as a side-effect of this update.
             const broadcastEntry = this.cacheManager.get(blockId);
             const affectedIds = getSequentialBroadcastIds(
-                blockId, attrs, broadcastEntry, previousEntry ?? null, this.cacheManager.getCache(),
+                blockId, attrs, broadcastEntry ?? null, previousEntry ?? null, this.cacheManager.getCache(),
             );
             for (let i = 0; i < affectedIds.length; i++) {
                 this.syncEngine.addPendingChange(affectedIds[i], "update");
@@ -977,11 +930,7 @@ export class TaskService {
     }
 
     async updateTaskTitle(blockId: string, rawTitle: string): Promise<TaskCacheEntry> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
         const title = typeof rawTitle === "string" ? rawTitle.replace(/[\r\n]+/g, " ").trim() : "";
         if (!title || title.length > 512) {
             const err: any = new Error("title must contain 1-512 characters");
@@ -1007,10 +956,10 @@ export class TaskService {
         const lock = await this.acquireWithTimeout();
         try {
             if (blockType === "d") {
-                await siyuanFetch("/api/filetree/renameDocByID", { id: blockId, title });
+                await this.api.request("/api/filetree/renameDocByID", { id: blockId, title });
             } else {
                 const markdown = title.replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1");
-                await siyuanFetch("/api/block/updateBlock", { id: blockId, dataType: "markdown", data: markdown });
+                await this.api.request("/api/block/updateBlock", { id: blockId, dataType: "markdown", data: markdown });
             }
             existing.title = title;
             this.syncEngine.addPendingChange(blockId, "update");
@@ -1022,11 +971,7 @@ export class TaskService {
     }
 
     async setRepeatRule(blockId: string, rawRule: unknown): Promise<TaskCacheEntry> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
         const rule = normalizeRepeatRule(rawRule);
         if (!rule) {
             const err: any = new Error("Invalid repeat rule");
@@ -1055,9 +1000,9 @@ export class TaskService {
                 [ATTR_REPEAT_STATE]: JSON.stringify(state),
             };
             if (entry.status === "done") attrs[ATTR_STATUS] = "todo";
-            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+            await this.api.setBlockAttrs(blockId, attrs);
 
-            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalAttrs = await this.api.getBlockAttrs(blockId);
             const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
@@ -1070,11 +1015,7 @@ export class TaskService {
     }
 
     async skipRepeatOccurrence(blockId: string): Promise<TaskCacheEntry> {
-        if (!blockId) {
-            const err: any = new Error("blockId is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
-        }
+        blockId = assertBlockId(blockId);
         this.checkReady();
 
         const lock = await this.acquireWithTimeout();
@@ -1107,14 +1048,14 @@ export class TaskService {
                 if (advanced.state.currentDue) attrs[ATTR_DUE] = advanced.state.currentDue;
                 if (advanced.state.currentStart) attrs[ATTR_START] = advanced.state.currentStart;
             }
-            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+            await this.api.setBlockAttrs(blockId, attrs);
             try {
                 await this.myDayManager.clearTaskCompleted(blockId);
             } catch (e: any) {
-                getSiyuan()?.logger?.warn(`skipRepeatOccurrence: failed to clear My Day completion: ${e.message || e}`);
+                void this.api.log("warn", `skipRepeatOccurrence: failed to clear My Day completion: ${e.message || e}`);
             }
 
-            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalAttrs = await this.api.getBlockAttrs(blockId);
             const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
@@ -1127,8 +1068,9 @@ export class TaskService {
     }
 
     async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
-        if (!blockId || typeof paused !== "boolean") {
-            const err: any = new Error("blockId and paused are required");
+        blockId = assertBlockId(blockId);
+        if (typeof paused !== "boolean") {
+            const err: any = new Error("paused is required");
             err.code = RPC_ERROR_INVALID_PARAMS;
             throw err;
         }
@@ -1164,17 +1106,16 @@ export class TaskService {
                 if (nextState.currentDue) attrs[ATTR_DUE] = nextState.currentDue;
                 if (nextState.currentStart) attrs[ATTR_START] = nextState.currentStart;
             }
-            await siyuanFetch("/api/attr/setBlockAttrs", { id: blockId, attrs });
+            await this.api.setBlockAttrs(blockId, attrs);
             if (!paused && entry.status === "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
                 } catch (e: any) {
-                    const siyuan = getSiyuan();
-                    siyuan?.logger?.warn(`setRepeatPaused: failed to clear My Day completion: ${e.message || e}`);
+                    void this.api.log("warn", `setRepeatPaused: failed to clear My Day completion: ${e.message || e}`);
                 }
             }
 
-            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalAttrs = await this.api.getBlockAttrs(blockId);
             const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
@@ -1260,10 +1201,7 @@ export class TaskService {
             if (entry.parentId === correctParent) continue;
 
             // Update the block attribute
-            await siyuanFetch("/api/attr/setBlockAttrs", {
-                id: entry.blockId,
-                attrs: { [ATTR_PARENT]: correctParent },
-            });
+            await this.api.setBlockAttrs(entry.blockId, { [ATTR_PARENT]: correctParent });
 
             // Update cache via set() which maintains childIds reverse index.
             // Must create a new object so set() can see the old vs new parentId.
@@ -1324,9 +1262,9 @@ export class TaskService {
         // Case 5: sibling paragraph — same list item parent
         // Query both blocks' parent_id from the blocks table; if they share
         // the same list item as parent, they are peers, not parent-child.
-        const rows: Array<{ id: string; parent_id: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT id, parent_id FROM blocks WHERE id IN ('" + entry.blockId + "', '" + pid + "')",
-        });
+        const rows = await this.api.query<{ id: string; parent_id: string }>(
+            sql`SELECT id, parent_id FROM blocks WHERE id IN (${entry.blockId}, ${pid})`,
+        );
         if (rows && rows.length === 2) {
             const myParent = rows.find((r) => r.id === entry.blockId)?.parent_id;
             const theirParent = rows.find((r) => r.id === pid)?.parent_id;
@@ -1337,6 +1275,9 @@ export class TaskService {
     }
 
     async reorderTask(blockId: string, newParentId?: string, afterId?: string): Promise<any> {
+        blockId = assertBlockId(blockId);
+        if (newParentId) assertBlockId(newParentId, "newParentId");
+        if (afterId) assertBlockId(afterId, "afterId");
         if (!this.isReady) return { _rpcError: { code: RPC_ERROR_NOT_READY, message: "Kernel not ready" } };
 
         const entry = this.cacheManager.get(blockId);
@@ -1368,10 +1309,7 @@ export class TaskService {
         try {
             // 更新 na-parent
             if (newParentId !== undefined && newParentId !== entry.parentId) {
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_PARENT]: newParentId ?? "" },
-                });
+                await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: newParentId ?? "" });
             }
 
             // 获取目标位置的兄弟列表（排除被拖任务自身）
@@ -1421,14 +1359,8 @@ export class TaskService {
                     siblings[i].sort = sort;
                 }
                 await Promise.all(siblings.map(s =>
-                    siyuanFetch("/api/attr/setBlockAttrs", {
-                        id: s.blockId,
-                        attrs: { [ATTR_SORT]: String(s.sort) },
-                    }).catch((e: any) => {
-                        const siyuan = getSiyuan();
-                        if (siyuan?.logger) {
-                            siyuan.logger.warn(`reorderTask: failed to setBlockAttrs for ${s.blockId}: ${e.message || e}`);
-                        }
+                    this.api.setBlockAttrs(s.blockId, { [ATTR_SORT]: String(s.sort) }).catch((e: any) => {
+                        void this.api.log("warn", `reorderTask: failed to setBlockAttrs for ${s.blockId}: ${e.message || e}`);
                     })
                 ));
                 // 更新缓存中的 sort
@@ -1439,12 +1371,9 @@ export class TaskService {
                 newSort = insertIndex * step;
             }
 
-            await siyuanFetch("/api/attr/setBlockAttrs", {
-                id: blockId,
-                attrs: { [ATTR_SORT]: String(newSort) },
-            });
+            await this.api.setBlockAttrs(blockId, { [ATTR_SORT]: String(newSort) });
 
-            const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+            const finalAttrs = await this.api.getBlockAttrs(blockId);
             const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
             this.cacheManager.set(finalEntry);
             this.cacheManager.recalcBlockedStatus();
@@ -1474,6 +1403,7 @@ export class TaskService {
     // ---- Read operations ----
 
     getTask(blockId: string): TaskCacheEntry | null {
+        blockId = assertBlockId(blockId);
         const entry = this.cacheManager.get(blockId);
         return entry || null;
     }
@@ -1551,6 +1481,7 @@ export class TaskService {
     }
 
     getTasksByParent(parentBlockId: string): TaskCacheEntry[] {
+        parentBlockId = assertBlockId(parentBlockId, "parentBlockId");
         return this.cacheManager.getByParent(parentBlockId);
     }
 
@@ -1864,6 +1795,7 @@ export class TaskService {
     async markTaskReviewed(blockIds: string[]): Promise<TaskCacheEntry[]> {
         this.checkReady();
         if (!blockIds || blockIds.length === 0) return [];
+        blockIds = blockIds.map((blockId, index) => assertBlockId(blockId, `blockIds[${index}]`));
 
         const lock = await this.acquireWithTimeout();
         try {
@@ -1876,12 +1808,9 @@ export class TaskService {
                 if (!entry || entry.reviewInterval <= 0) continue;
 
                 const nextReviewDate = this.addDays(today, entry.reviewInterval);
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: blockId,
-                    attrs: { [ATTR_REVIEW_DATE]: nextReviewDate },
-                });
+                await this.api.setBlockAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
 
-                const finalAttrs = await siyuanFetch<Record<string, string>>("/api/attr/getBlockAttrs", { id: blockId });
+                const finalAttrs = await this.api.getBlockAttrs(blockId);
                 const updated = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
                 this.cacheManager.set(updated);
                 this.syncEngine.addPendingChange(blockId, "update");
@@ -1901,26 +1830,32 @@ export class TaskService {
     }
 
     async addTaskToMyDay(blockId: string): Promise<MyDayState> {
+        blockId = assertBlockId(blockId);
         this.checkReady();
         return this.myDayManager.addTask(blockId);
     }
 
     async removeTaskFromMyDay(blockId: string): Promise<MyDayState> {
+        blockId = assertBlockId(blockId);
         this.checkReady();
         return this.myDayManager.removeTask(blockId);
     }
 
     async reorderMyDayTask(blockId: string, afterId?: string): Promise<MyDayState> {
+        blockId = assertBlockId(blockId);
+        if (afterId) assertBlockId(afterId, "afterId");
         this.checkReady();
         return this.myDayManager.reorderTask(blockId, afterId);
     }
 
     async setMyDaySchedule(blockId: string, start: number | null, end: number | null): Promise<MyDayState> {
+        blockId = assertBlockId(blockId);
         this.checkReady();
         return this.myDayManager.setSchedule(blockId, start, end);
     }
 
     async removeMyDaySchedule(blockId: string): Promise<MyDayState> {
+        blockId = assertBlockId(blockId);
         this.checkReady();
         return this.myDayManager.removeSchedule(blockId);
     }
@@ -2022,9 +1957,9 @@ export class TaskService {
 
     private async fetchBlockTitle(blockId: string): Promise<string> {
         try {
-            const rows: Array<{ content: string }> = await siyuanFetch("/api/query/sql", {
-                stmt: "SELECT content FROM blocks WHERE id = '" + blockId + "'",
-            });
+            const rows = await this.api.query<{ content: string }>(
+                sql`SELECT content FROM blocks WHERE id = ${blockId}`,
+            );
             if (rows && rows.length > 0 && rows[0].content) {
                 let title = rows[0].content.substring(0, 100);
                 // Strip slash command text that may not have been synced yet
@@ -2072,14 +2007,14 @@ export class TaskService {
         try {
             const blockAttrs = targets.map(entry => ({ id: entry.blockId, attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" } }));
             try {
-                await siyuanFetch("/api/attr/batchSetBlockAttrs", { blockAttrs });
+                await this.api.batchSetBlockAttrs(blockAttrs);
                 clearedIds.push(...targets.map(entry => entry.blockId));
             } catch (_batchError: any) {
                 // The endpoint is available in current kernels but is not present in all older API documents.
                 // Fall back to idempotent single-block writes so partial failures are observable.
                 for (const entry of targets) {
                     try {
-                        await siyuanFetch("/api/attr/setBlockAttrs", { id: entry.blockId, attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" } });
+                        await this.api.setBlockAttrs(entry.blockId, { [ATTR_EXT_PREFIX + fieldKey]: "" });
                         clearedIds.push(entry.blockId);
                     } catch (_singleError: any) {
                         failedBlockIds.push(entry.blockId);
@@ -2159,7 +2094,7 @@ export class TaskService {
 
     private async findTaskParentHint(parentId: string, blockId: string): Promise<string> {
         if (!parentId || parentId === blockId) return "";
-        const attrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", { id: parentId });
+        const attrs = await this.api.getBlockAttrs(parentId);
         return attrs[ATTR_TASK] ? parentId : "";
     }
 
@@ -2167,13 +2102,13 @@ export class TaskService {
         // Use a recursive CTE to fetch the entire ancestor chain in one SQL call,
         // then walk it in memory. Include the starting block itself so we can
         // read its parent_id as the entry point for the upward walk.
-        const rows: Array<{ id: string; parent_id: string; type: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "WITH RECURSIVE ancestors(id, parent_id, type) AS ("
-                + "SELECT id, parent_id, type FROM blocks WHERE id = '" + blockId + "' "
-                + "UNION ALL "
-                + "SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id"
-                + ") SELECT id, parent_id, type FROM ancestors",
-        });
+        const rows = await this.api.query<{ id: string; parent_id: string; type: string }>(
+            sql`WITH RECURSIVE ancestors(id, parent_id, type) AS (
+                SELECT id, parent_id, type FROM blocks WHERE id = ${blockId}
+                UNION ALL
+                SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id
+            ) SELECT id, parent_id, type FROM ancestors`,
+        );
 
         if (!rows || rows.length === 0) return "";
 
@@ -2202,9 +2137,7 @@ export class TaskService {
             const ancestorId = ancestor.id;
 
             // Check if this ancestor itself is a task (works for paragraphs, list items, and document blocks)
-            const attrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-                id: ancestorId,
-            });
+            const attrs = await this.api.getBlockAttrs(ancestorId);
             if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
                 return ancestorId;
             }
@@ -2232,21 +2165,16 @@ export class TaskService {
      * @param excludeId A blockId to skip (typically the block we just came from).
      */
     private async findTaskParagraphInListItem(listItemId: string, excludeId?: string): Promise<string> {
-        let stmt = "SELECT id FROM blocks WHERE parent_id = '" + listItemId + "' AND type = 'p'";
-        if (excludeId) {
-            stmt += " AND id != '" + excludeId + "'";
-        }
+        const stmt = excludeId
+            ? sql`SELECT id FROM blocks WHERE parent_id = ${listItemId} AND type = 'p' AND id != ${excludeId}`
+            : sql`SELECT id FROM blocks WHERE parent_id = ${listItemId} AND type = 'p'`;
 
-        const rows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: stmt,
-        });
+        const rows = await this.api.query<{ id: string }>(stmt);
 
         if (!rows || rows.length === 0) return "";
 
         for (let i = 0; i < rows.length; i++) {
-            const attrs: Record<string, string> = await siyuanFetch("/api/attr/getBlockAttrs", {
-                id: rows[i].id,
-            });
+            const attrs = await this.api.getBlockAttrs(rows[i].id);
             if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
                 return rows[i].id;
             }
@@ -2263,12 +2191,13 @@ export class TaskService {
 
         // Find all task paragraphs nested under this list item (1 level deep).
         // Structure: NodeListItem → NodeList → NodeListItem → NodeParagraph (has na-task)
-        const rows: Array<{ id: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "SELECT p.id FROM blocks p WHERE p.type = 'p' AND p.parent_id IN ("
-                + "SELECT li.id FROM blocks li WHERE li.type = 'i' AND li.parent_id IN ("
-                + "SELECT nl.id FROM blocks nl WHERE nl.type = 'l' AND nl.parent_id = '" + listItemId + "'"
-                + ")) AND EXISTS (SELECT 1 FROM attributes a WHERE a.block_id = p.id AND a.name = 'custom-na-task' AND a.value IS NOT NULL AND a.value != '')",
-        });
+        const rows = await this.api.query<{ id: string }>(
+            sql`SELECT p.id FROM blocks p WHERE p.type = 'p' AND p.parent_id IN (
+                SELECT li.id FROM blocks li WHERE li.type = 'i' AND li.parent_id IN (
+                    SELECT nl.id FROM blocks nl WHERE nl.type = 'l' AND nl.parent_id = ${listItemId}
+                )
+            ) AND EXISTS (SELECT 1 FROM attributes a WHERE a.block_id = p.id AND a.name = 'custom-na-task' AND a.value IS NOT NULL AND a.value != '')`,
+        );
 
         if (!rows || rows.length === 0) return;
 
@@ -2277,10 +2206,7 @@ export class TaskService {
             const childEntry = this.cacheManager.get(childId);
 
             if (childEntry && (!childEntry.parentId || childEntry.parentId === "")) {
-                await siyuanFetch("/api/attr/setBlockAttrs", {
-                    id: childId,
-                    attrs: { [ATTR_PARENT]: blockId },
-                });
+                await this.api.setBlockAttrs(childId, { [ATTR_PARENT]: blockId });
                 // Update parentId
                 childEntry.parentId = blockId;
                 // Add to new parent's childIds
@@ -2308,13 +2234,13 @@ export class TaskService {
         // Use recursive CTE to fetch ancestor chain in one call.
         // Include the starting block itself so we can read its parent_id as the
         // entry point for the upward walk.
-        const rows: Array<{ id: string; parent_id: string; type: string }> = await siyuanFetch("/api/query/sql", {
-            stmt: "WITH RECURSIVE ancestors(id, parent_id, type) AS ("
-                + "SELECT id, parent_id, type FROM blocks WHERE id = '" + blockId + "' "
-                + "UNION ALL "
-                + "SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id"
-                + ") SELECT id, parent_id, type FROM ancestors",
-        });
+        const rows = await this.api.query<{ id: string; parent_id: string; type: string }>(
+            sql`WITH RECURSIVE ancestors(id, parent_id, type) AS (
+                SELECT id, parent_id, type FROM blocks WHERE id = ${blockId}
+                UNION ALL
+                SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id
+            ) SELECT id, parent_id, type FROM ancestors`,
+        );
 
         if (!rows || rows.length === 0) return "";
 

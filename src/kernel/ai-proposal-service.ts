@@ -1,7 +1,7 @@
-import type { AiProposal, AiProposedTask, AiWriteTarget } from "../shared/ai.ts";
-import { validateAiProposal } from "../shared/ai.ts";
-import { ATTR_DEPENDS, ATTR_PARENT } from "../shared/constants.ts";
-import type { MyDayState, TaskCacheEntry } from "../shared/types.ts";
+import type { AiProposal, AiProposedTask, AiWriteTarget } from "../shared/ai";
+import { validateAiProposal } from "../shared/ai";
+import { ATTR_DEPENDS, ATTR_PARENT } from "../shared/constants";
+import type { MyDayState, TaskCacheEntry } from "../shared/types";
 import type { TaskService } from "./task-service";
 
 export interface AiProposalApplyResult {

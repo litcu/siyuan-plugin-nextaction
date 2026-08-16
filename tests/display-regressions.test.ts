@@ -62,6 +62,21 @@ test("公共 Tooltip 使用 Portal、主题样式和统一定位", () => {
     assert.match(tooltipSource, /z-index:\$\{getCurrentUiZIndex\(\)\}/);
 });
 
+test("搜索选择器下拉项使用等宽主题菜单样式", () => {
+    const dropdownRule = searchSelectSource.match(/\.na-search-select__dropdown\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? "";
+    const optionRule = searchSelectSource.match(/\.na-search-select__option\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? "";
+
+    assert.match(dropdownRule, /overflow-x:\s*hidden/);
+    assert.match(optionRule, /display:\s*block/);
+    assert.match(optionRule, /width:\s*100%/);
+    assert.match(optionRule, /box-sizing:\s*border-box/);
+    assert.match(optionRule, /border:\s*0/);
+    assert.match(optionRule, /background:\s*transparent/);
+    assert.match(optionRule, /text-align:\s*left/);
+    assert.match(optionRule, /overflow-wrap:\s*anywhere/);
+    assert.match(searchSelectSource, /&:focus-visible[\s\S]*background:\s*var\(--b3-list-hover\)/);
+});
+
 test("设置界面将内置 AI 重命名为 AI 功能", () => {
     assert.equal(zh.settingAi, "AI 功能");
     assert.equal(zh.settingAiPromptTitle, "AI 功能提示词");

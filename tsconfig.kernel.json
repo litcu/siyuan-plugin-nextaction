@@ -1,0 +1,8 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": ["node"]
+    },
+    "include": ["src/kernel.ts", "src/kernel/**/*.ts", "src/shared/**/*.ts", "src/**/*.d.ts"],
+    "exclude": ["node_modules", "dist", "dev", "vendor", "src/frontend/**", "src/index.ts"]
+}

@@ -256,6 +256,7 @@
             myDayResetHour,
             myDayDefaultViewMode,
             myDayDefaultDuration,
+            lastReviewAt: current.lastReviewAt,
             customFields: [...customFields],
             reminderSettings: {
                 enabled: reminderEnabled,

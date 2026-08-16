@@ -78,9 +78,9 @@
                 {onContextMenu}
                 horizontal={true}
                 isDropTarget={dropTargetActive}
-                on:dragover={handleDragOver}
-                on:dragleave={handleDragLeave}
-                on:drop={handleDropOnUnscheduled}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDropOnUnscheduled}
             />
         </div>
         <div class="na-timeline-view__bottom">
@@ -103,9 +103,9 @@
                 {i18n}
                 {onContextMenu}
                 isDropTarget={dropTargetActive}
-                on:dragover={handleDragOver}
-                on:dragleave={handleDragLeave}
-                on:drop={handleDropOnUnscheduled}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDropOnUnscheduled}
             />
         </div>
         <div class="na-timeline-view__right">

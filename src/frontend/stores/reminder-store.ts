@@ -408,7 +408,7 @@ export function dismissReminder(dedupKey: string): void {
 
     const currentQueue = get(notificationQueue);
     pendingReminderCount.set(currentQueue.filter((r) => !r.dismissed).length);
-    saveDismissed();
+    void saveDismissed();
 }
 
 export function dismissAllReminders(): void {
@@ -420,7 +420,7 @@ export function dismissAllReminders(): void {
             dismissed[key] = now;
         }
     }
-    saveDismissed();
+    void saveDismissed();
 
     notificationQueue.update((q) =>
         q.map((r) => ({ ...r, dismissed: true }))

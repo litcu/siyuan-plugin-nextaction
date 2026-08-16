@@ -28,11 +28,11 @@ test("MCP 设置支持部分合并且不丢失既有目标", () => {
 
 test("MCP 设置校验拒绝非法目标类型和非布尔权限", () => {
     assert.match(
-        validateMcpSettings({ defaultCreateTarget: "somewhere" as any }),
+        validateMcpSettings({ defaultCreateTarget: "somewhere" as any }) ?? "",
         /defaultCreateTarget/,
     );
     assert.match(
-        validateMcpSettings({ allowWrite: "yes" as any }),
+        validateMcpSettings({ allowWrite: "yes" as any }) ?? "",
         /allowWrite/,
     );
 });

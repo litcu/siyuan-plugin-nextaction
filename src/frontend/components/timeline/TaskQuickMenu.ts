@@ -1,10 +1,9 @@
 import { Menu } from "siyuan";
-import type { TaskCacheEntry } from "../../../shared/types";
+import type { MyDayState, TaskCacheEntry } from "../../../shared/types";
 import type { KernelBridge } from "../../kernel-bridge";
 import { normalizePriority, PRIORITY_LIST } from "../../constants";
 import { toI18nKey } from "../../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../../notify";
-import type { MyDayState } from "../../../shared/types";
 
 interface QuickMenuCallbacks {
     onScheduleRemoved: (newState: MyDayState) => void;

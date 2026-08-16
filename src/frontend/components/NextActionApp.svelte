@@ -124,14 +124,20 @@
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
         const inMyDay = $taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false;
-        const callbacks: any = {
-            onUpdated: (updated) => {
+        const callbacks: {
+            onUpdated: (updated: TaskCacheEntry) => void;
+            onRemoved: (blockId: string) => void;
+            onEdit: (task: TaskCacheEntry) => void;
+            onMyDayToggle?: (blockId: string, isInMyDay: boolean) => Promise<void>;
+            onReminderEdit?: (blockId: string) => void;
+        } = {
+            onUpdated: (updated: TaskCacheEntry) => {
                 taskStore.applyUpdate(updated);
                 if (selectedTask && selectedTask.blockId === updated.blockId) {
                     selectedTask = updated;
                 }
             },
-            onRemoved: (blockId) => {
+            onRemoved: (blockId: string) => {
                 taskStore.applyRemove(blockId);
                 if (selectedTask && selectedTask.blockId === blockId) {
                     selectedTask = null;

@@ -314,15 +314,15 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
 
 export function mergeSettings(base: PluginSettings, override: Partial<PluginSettings>): PluginSettings {
     const migratedFields = migrateCustomFieldDefs(override.customFields ?? base.customFields).fields;
-    const incomingPrompts = override.aiSettings?.prompts ?? {};
+    const incomingPrompts: Partial<Record<AiFeatureId, string>> = override.aiSettings?.prompts ?? {};
     const mergedPrompts = { ...base.aiSettings.prompts, ...incomingPrompts };
     for (const feature of Object.keys(LEGACY_AI_PROMPTS) as AiFeatureId[]) {
         if (incomingPrompts[feature] === LEGACY_AI_PROMPTS[feature]) {
             mergedPrompts[feature] = DEFAULT_AI_SETTINGS.prompts[feature];
         }
     }
-    const legacyMcp = override.mcpSettings || {};
-    const incomingTaskCreation = override.taskCreationSettings || {};
+    const legacyMcp: Partial<McpSettings> = override.mcpSettings || {};
+    const incomingTaskCreation: Partial<TaskCreationSettings> = override.taskCreationSettings || {};
     const migratedTaskCreation = {
         ...incomingTaskCreation,
         // Older versions stored these values under mcpSettings. Prefer the new

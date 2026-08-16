@@ -69,7 +69,7 @@
                 </button>
             </div>
             {#each options as opt (opt.value)}
-                <label class="na-filter-dropdown__option" on:click|stopPropagation={() => toggleOption(opt.value)}>
+                <label class="na-filter-dropdown__option">
                     <input type="checkbox" class="na-filter-dropdown__sr-only" checked={selected.includes(opt.value)} on:change|stopPropagation={() => toggleOption(opt.value)} />
                     <span class="na-filter-dropdown__checkbox" class:na-filter-dropdown__checkbox--checked={selected.includes(opt.value)}>
                         {#if selected.includes(opt.value)}

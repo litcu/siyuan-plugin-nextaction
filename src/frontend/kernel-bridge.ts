@@ -3,6 +3,8 @@ import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
+import type { RpcMethodName } from "../shared/rpc-methods";
+import { assertBlockId } from "../shared/block-id";
 
 interface RpcError {
     code: number;
@@ -29,7 +31,7 @@ export class KernelBridge {
         this.plugin = plugin;
     }
 
-    private async call<T>(method: string, params?: Record<string, any>): Promise<T> {
+    private async call<T>(method: RpcMethodName, params?: Record<string, any>): Promise<T> {
         const result = await this.plugin.kernel.rpc.call[method](params || {});
         if (hasRpcError(result)) {
             throw new RpcCallError(result._rpcError.code, result._rpcError.message);
@@ -37,36 +39,40 @@ export class KernelBridge {
         return result as T;
     }
 
+    async echo(params: unknown[] = []): Promise<unknown[]> {
+        return this.call("echo", { params });
+    }
+
     async convertToTask(blockId: string, cleanTitle?: string, taskType?: string): Promise<TaskCacheEntry> {
-        return this.call("convertToTask", { blockId, cleanTitle, taskType });
+        return this.call("convertToTask", { blockId: assertBlockId(blockId), cleanTitle, taskType });
     }
 
     async convertToTaskWithChildren(blockId: string, cleanTitle?: string, taskType?: string): Promise<{ converted: number; skipped: number }> {
-        return this.call("convertToTaskWithChildren", { blockId, cleanTitle, taskType });
+        return this.call("convertToTaskWithChildren", { blockId: assertBlockId(blockId), cleanTitle, taskType });
     }
 
     async removeTask(blockId: string): Promise<void> {
-        await this.call("removeTask", { blockId });
+        await this.call("removeTask", { blockId: assertBlockId(blockId) });
     }
 
     async updateTask(blockId: string, attrs: Record<string, string>): Promise<TaskCacheEntry> {
-        return this.call("updateTask", { blockId, attrs });
+        return this.call("updateTask", { blockId: assertBlockId(blockId), attrs });
     }
 
     async setRepeatRule(blockId: string, rule: RepeatRuleV2): Promise<TaskCacheEntry> {
-        return this.call("setRepeatRule", { blockId, rule });
+        return this.call("setRepeatRule", { blockId: assertBlockId(blockId), rule });
     }
 
     async skipRepeatOccurrence(blockId: string): Promise<TaskCacheEntry> {
-        return this.call("skipRepeatOccurrence", { blockId });
+        return this.call("skipRepeatOccurrence", { blockId: assertBlockId(blockId) });
     }
 
     async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
-        return this.call("setRepeatPaused", { blockId, paused });
+        return this.call("setRepeatPaused", { blockId: assertBlockId(blockId), paused });
     }
 
     async getTask(blockId: string): Promise<TaskCacheEntry | null> {
-        return this.call("getTask", { blockId });
+        return this.call("getTask", { blockId: assertBlockId(blockId) });
     }
 
     async getNextActions(): Promise<TaskCacheEntry[]> {
@@ -82,7 +88,7 @@ export class KernelBridge {
     }
 
     async getTasksByParent(parentBlockId: string): Promise<TaskCacheEntry[]> {
-        return this.call("getTasksByParent", { parentBlockId });
+        return this.call("getTasksByParent", { parentBlockId: assertBlockId(parentBlockId, "parentBlockId") });
     }
 
     async recalcAllOrders(): Promise<void> {
@@ -116,11 +122,15 @@ export class KernelBridge {
     }
 
     async reorderTask(blockId: string, parentId?: string, afterId?: string): Promise<TaskCacheEntry> {
-        return this.call("reorderTask", { blockId, parentId: parentId ?? null, afterId: afterId ?? null });
+        return this.call("reorderTask", {
+            blockId: assertBlockId(blockId),
+            parentId: parentId ? assertBlockId(parentId, "parentId") : null,
+            afterId: afterId ? assertBlockId(afterId, "afterId") : null,
+        });
     }
 
     async convertToProject(blockId: string, cleanTitle?: string): Promise<TaskCacheEntry> {
-        return this.call("convertToTask", { blockId, cleanTitle, taskType: "2" });
+        return this.call("convertToTask", { blockId: assertBlockId(blockId), cleanTitle, taskType: "2" });
     }
 
     async getStatistics(period: "week" | "month" = "week"): Promise<StatisticsResult> {
@@ -188,23 +198,26 @@ export class KernelBridge {
     }
 
     async addTaskToMyDay(blockId: string): Promise<MyDayState> {
-        return this.call("addTaskToMyDay", { blockId });
+        return this.call("addTaskToMyDay", { blockId: assertBlockId(blockId) });
     }
 
     async removeTaskFromMyDay(blockId: string): Promise<MyDayState> {
-        return this.call("removeTaskFromMyDay", { blockId });
+        return this.call("removeTaskFromMyDay", { blockId: assertBlockId(blockId) });
     }
 
     async reorderMyDayTask(blockId: string, afterId?: string): Promise<MyDayState> {
-        return this.call("reorderMyDayTask", { blockId, afterId: afterId ?? null });
+        return this.call("reorderMyDayTask", {
+            blockId: assertBlockId(blockId),
+            afterId: afterId ? assertBlockId(afterId, "afterId") : null,
+        });
     }
 
     async setMyDaySchedule(blockId: string, start: number | null, end: number | null): Promise<MyDayState> {
-        return this.call("setMyDaySchedule", { blockId, start, end });
+        return this.call("setMyDaySchedule", { blockId: assertBlockId(blockId), start, end });
     }
 
     async removeMyDaySchedule(blockId: string): Promise<MyDayState> {
-        return this.call("removeMyDaySchedule", { blockId });
+        return this.call("removeMyDaySchedule", { blockId: assertBlockId(blockId) });
     }
 
     async getReviewData(): Promise<ReviewData> {
@@ -216,7 +229,9 @@ export class KernelBridge {
     }
 
     async markTaskReviewed(blockIds: string[]): Promise<TaskCacheEntry[]> {
-        return this.call("markTaskReviewed", { blockIds });
+        return this.call("markTaskReviewed", {
+            blockIds: blockIds.map((blockId, index) => assertBlockId(blockId, `blockIds[${index}]`)),
+        });
     }
 
     bindTasksChanged(handler: (notification: TaskChangeNotification) => void): void {

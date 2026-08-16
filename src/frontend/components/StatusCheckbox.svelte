@@ -3,7 +3,8 @@
     export let onclick: ((e: MouseEvent) => void) | undefined = undefined;
 </script>
 
-<span
+<button
+    type="button"
     class="na-status-checkbox"
     class:na-status-checkbox--inbox={status === "inbox"}
     class:na-status-checkbox--doing={status === "doing"}
@@ -12,4 +13,5 @@
     class:na-status-checkbox--done={status === "done"}
     on:click|stopPropagation={(e) => { if (onclick) onclick(e); }}
     on:pointerdown|stopPropagation
-></span>
+    aria-label={status}
+></button>
