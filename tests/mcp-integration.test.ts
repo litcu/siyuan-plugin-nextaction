@@ -18,6 +18,10 @@ const aiSettingsPageSource = readFileSync(
     new URL("../src/frontend/components/settings/AiSettingsPage.svelte", import.meta.url),
     "utf8",
 );
+const settingsPanelSource = readFileSync(
+    new URL("../src/frontend/components/SettingsPanel.svelte", import.meta.url),
+    "utf8",
+);
 
 test("MCP 工具通过思源 Agent capability 注册并保留插件来源和完整名称", () => {
     assert.match(capabilitySource, /agentApi\.registerCapability/);
@@ -108,5 +112,7 @@ test("设置页提供四个内置 AI 功能的提示词编辑器", () => {
     assert.match(aiSettingsPageSource, /review/);
     assert.match(aiSettingsPageSource, /aiPrompts\[feature\.id\]/);
     assert.match(aiSettingsPageSource, /maxlength="12000"/);
-    assert.match(aiSettingsPageSource, /resetPrompt/);
+    assert.match(aiSettingsPageSource, /onResetPrompt\(feature\.id\)/);
+    assert.match(settingsPanelSource, /handleResetAiPrompt/);
+    assert.match(settingsPanelSource, /requestDraftAction/);
 });
