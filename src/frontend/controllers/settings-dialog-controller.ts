@@ -68,7 +68,7 @@ export class SettingsDialogController {
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 component.requestClose();
-            }, { capture: true, once: true });
+            }, { capture: true });
         }).catch((error: unknown) => {
             dialog.destroy();
             notifyOperationError(error, this.i18n);
