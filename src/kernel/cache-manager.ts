@@ -17,11 +17,13 @@ export type BatchTaskAttributeReader = (blockIds: string[]) => Promise<Record<st
 
 export class CacheManager {
     private cache: Record<string, TaskCacheEntry>;
-    private lastSyncTime: string;
+    private childrenByParent: Map<string, Set<string>>;
+    private dependentsByDependency: Map<string, Set<string>>;
 
     constructor(private readonly api: SiyuanApiPort) {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
-        this.lastSyncTime = "";
+        this.childrenByParent = new Map();
+        this.dependentsByDependency = new Map();
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
@@ -62,8 +64,7 @@ export class CacheManager {
         }
 
         if (!rows || rows.length === 0) {
-            this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
-            this.lastSyncTime = "";
+            this.replaceCache(Object.create(null) as Record<string, TaskCacheEntry>);
             return;
         }
 
@@ -80,8 +81,6 @@ export class CacheManager {
         }
 
         const newCache: Record<string, TaskCacheEntry> = Object.create(null) as Record<string, TaskCacheEntry>;
-        let maxUpdated = "";
-
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const attrs = batchResult[row.id];
@@ -130,44 +129,27 @@ export class CacheManager {
             entry.order = calculateOrder(entry);
             newCache[entry.blockId] = entry;
 
-            if (row.updated > maxUpdated) {
-                maxUpdated = row.updated;
-            }
         }
 
-        // Step 3: Build childIds reverse index
-        const allIds = Object.keys(newCache);
-        for (let i = 0; i < allIds.length; i++) {
-            const entry = newCache[allIds[i]];
-            if (entry.parentId !== "") {
-                const parent = newCache[entry.parentId];
-                if (parent) {
-                    parent.childIds.push(entry.blockId);
-                }
-            }
-        }
+        // Step 3: Atomically replace the primary cache and relationship indexes.
+        this.replaceCache(newCache);
+        const allIds = Object.keys(this.cache);
 
         // Step 3.1: Propagate child order to project parents
         for (let i = 0; i < allIds.length; i++) {
-            const entry = newCache[allIds[i]];
+            const entry = this.cache[allIds[i]];
             if (entry.taskType === "2") {
-                entry.order = calculateOrder(entry, newCache);
+                entry.order = calculateOrder(entry, this.cache);
             }
         }
 
         // Step 3.5: Compute blocked status for all entries
         for (let i = 0; i < allIds.length; i++) {
-            const entry = newCache[allIds[i]];
-            const reason = getBlockedReason(entry, newCache);
+            const entry = this.cache[allIds[i]];
+            const reason = getBlockedReason(entry, this.cache);
             entry.blocked = reason !== "";
             entry.blockedReason = reason;
         }
-
-        // Step 4: Record lastSyncTime
-        this.lastSyncTime = maxUpdated;
-
-        // Replace cache (migration reads from this.cache, so set it first)
-        this.cache = newCache;
 
         // na-sort 迁移：为 sort=-1 的现有子任务分配间距编号
         this.migrateSortValues();
@@ -202,65 +184,52 @@ export class CacheManager {
     }
 
     getByParent(parentId: string): TaskCacheEntry[] {
+        const childIds = this.childrenByParent.get(parentId);
+        if (!childIds) return [];
         const result: TaskCacheEntry[] = [];
-        const keys = Object.keys(this.cache);
-        for (let i = 0; i < keys.length; i++) {
-            const entry = this.cache[keys[i]];
-            if (entry.parentId === parentId) {
-                result.push(entry);
-            }
+        for (const childId of childIds) {
+            const child = this.cache[childId];
+            if (child) result.push(child);
+        }
+        return result;
+    }
+
+    getDependents(dependencyId: string): TaskCacheEntry[] {
+        const dependentIds = this.dependentsByDependency.get(dependencyId);
+        if (!dependentIds) return [];
+        const result: TaskCacheEntry[] = [];
+        for (const dependentId of dependentIds) {
+            const dependent = this.cache[dependentId];
+            if (dependent) result.push(dependent);
         }
         return result;
     }
 
     set(entry: TaskCacheEntry): void {
         const existing = this.cache[entry.blockId];
-        const oldParentId = existing ? existing.parentId : "";
-        const newParentId = entry.parentId;
+        const oldParentId = existing?.parentId || "";
+        this.removeFromRelationshipIndexes(existing);
 
-        if (oldParentId !== "" && oldParentId !== newParentId) {
-            const oldParent = this.cache[oldParentId];
-            if (oldParent) {
-                const idx = oldParent.childIds.indexOf(entry.blockId);
-                if (idx !== -1) {
-                    oldParent.childIds.splice(idx, 1);
-                }
-            }
-        }
+        const stored = entry;
+        stored.childIds = this.childIdsFor(entry.blockId);
+        this.cache[entry.blockId] = stored;
+        this.addToRelationshipIndexes(stored);
 
-        if (newParentId !== "") {
-            const newParent = this.cache[newParentId];
-            if (newParent) {
-                const idx = newParent.childIds.indexOf(entry.blockId);
-                if (idx === -1) {
-                    newParent.childIds.push(entry.blockId);
-                }
-            }
-        }
-
-        this.cache[entry.blockId] = entry;
+        this.syncParentEntry(oldParentId);
+        this.syncParentEntry(stored.parentId);
+        this.syncParentEntry(stored.blockId);
     }
 
     remove(blockId: string): void {
         const entry = this.cache[blockId];
         if (!entry) return;
 
-        if (entry.parentId !== "") {
-            const parent = this.cache[entry.parentId];
-            if (parent) {
-                const idx = parent.childIds.indexOf(blockId);
-                if (idx !== -1) {
-                    parent.childIds.splice(idx, 1);
-                }
-            }
-        }
-
+        this.removeFromRelationshipIndexes(entry);
         delete this.cache[blockId];
+        this.syncParentEntry(entry.parentId);
     }
 
     async rebuild(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
-        this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
-        this.lastSyncTime = "";
         await this.loadAll(readTaskAttributes);
     }
 
@@ -292,14 +261,6 @@ export class CacheManager {
         }
     }
 
-    getLastSyncTime(): string {
-        return this.lastSyncTime;
-    }
-
-    setLastSyncTime(time: string): void {
-        this.lastSyncTime = time;
-    }
-
     size(): number {
         return Object.keys(this.cache).length;
     }
@@ -329,5 +290,63 @@ export class CacheManager {
             entry.blocked = reason !== "";
             entry.blockedReason = reason;
         }
+    }
+
+    private replaceCache(nextCache: Record<string, TaskCacheEntry>): void {
+        this.cache = nextCache;
+        this.childrenByParent = new Map();
+        this.dependentsByDependency = new Map();
+
+        for (const entry of Object.values(this.cache)) {
+            this.addToRelationshipIndexes(entry);
+        }
+        for (const entry of Object.values(this.cache)) {
+            entry.childIds = this.childIdsFor(entry.blockId);
+        }
+    }
+
+    private addToRelationshipIndexes(entry: TaskCacheEntry): void {
+        if (entry.parentId) this.addIndexValue(this.childrenByParent, entry.parentId, entry.blockId);
+        for (const dependencyId of this.dependencyIds(entry)) {
+            this.addIndexValue(this.dependentsByDependency, dependencyId, entry.blockId);
+        }
+    }
+
+    private removeFromRelationshipIndexes(entry: TaskCacheEntry | undefined): void {
+        if (!entry) return;
+        if (entry.parentId) this.removeIndexValue(this.childrenByParent, entry.parentId, entry.blockId);
+        for (const dependencyId of this.dependencyIds(entry)) {
+            this.removeIndexValue(this.dependentsByDependency, dependencyId, entry.blockId);
+        }
+    }
+
+    private dependencyIds(entry: TaskCacheEntry): string[] {
+        return entry.depends ? [...new Set(entry.depends.split("|").filter(Boolean))] : [];
+    }
+
+    private childIdsFor(parentId: string): string[] {
+        return [...(this.childrenByParent.get(parentId) || [])];
+    }
+
+    private syncParentEntry(parentId: string): void {
+        if (!parentId) return;
+        const parent = this.cache[parentId];
+        if (parent) parent.childIds = this.childIdsFor(parentId);
+    }
+
+    private addIndexValue(index: Map<string, Set<string>>, key: string, value: string): void {
+        let values = index.get(key);
+        if (!values) {
+            values = new Set();
+            index.set(key, values);
+        }
+        values.add(value);
+    }
+
+    private removeIndexValue(index: Map<string, Set<string>>, key: string, value: string): void {
+        const values = index.get(key);
+        if (!values) return;
+        values.delete(value);
+        if (values.size === 0) index.delete(key);
     }
 }
