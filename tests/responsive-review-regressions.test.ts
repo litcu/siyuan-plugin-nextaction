@@ -70,7 +70,7 @@ test("回顾清单完成时间有默认值并参与设置合并", () => {
 test("回顾清单通过独立 RPC 记录完成时间并在视图中展示", () => {
     assert.match(typesSource, /interface ReviewData[\s\S]*lastReviewAt:\s*string/);
     assert.match(bridgeSource, /async completeReview\(\): Promise<ReviewData>/);
-    assert.match(rpcSource, /rpc\.bind\("completeReview"/);
+    assert.match(rpcSource, /completeReview:\s*\(\)\s*=>/);
     assert.match(kernelSource, /completeReview:\s*this\.completeReview\.bind\(this\)/);
     assert.match(kernelSource, /lastReviewAt:\s*new Date\(\)\.toISOString\(\)/);
     assert.match(reviewViewSource, /handleCompleteReview/);

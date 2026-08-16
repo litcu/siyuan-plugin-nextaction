@@ -27,7 +27,7 @@ test("重复状态属性进入共享常量和全量缓存加载", () => {
 
 test("内核 RPC 与前端桥接暴露三项系列操作", () => {
     for (const method of ["setRepeatRule", "skipRepeatOccurrence", "setRepeatPaused"]) {
-        assert.match(rpcSource, new RegExp(`rpc\\.bind\\("${method}"`));
+        assert.match(rpcSource, new RegExp(`${method}:`));
         assert.match(bridgeSource, new RegExp(`call\\("${method}"`));
     }
 });
@@ -42,7 +42,7 @@ test("完成推进清除我的一天完成状态，并广播重开后的最终�
     assert.match(section, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
     assert.match(section, /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/);
     assert.match(section, /cacheWithRecalculatedOrder\(finalEntry\)/);
-    assert.match(section, /syncEngine\.broadcastChanges\(\)/);
+    assert.match(section, /repository\.publishChanges\(\)/);
 });
 
 test("跳过只推进系列状态，不写完成历史，并保留在我的一天", () => {
@@ -52,7 +52,7 @@ test("跳过只推进系列状态，不写完成历史，并保留在我的一�
     assert.match(section, /myDayManager\.clearTaskCompleted\(blockId\)/);
     assert.doesNotMatch(section, /myDayManager\.removeTask\(blockId\)/);
     assert.match(section, /cacheWithRecalculatedOrder\(finalEntry\)/);
-    assert.match(section, /syncEngine\.broadcastChanges\(\)/);
+    assert.match(section, /repository\.publishChanges\(\)/);
 });
 
 test("暂停恢复写回状态，恢复已完成任务时重开同一块", () => {
@@ -61,5 +61,5 @@ test("暂停恢复写回状态，恢复已完成任务时重开同一块", () =>
     assert.match(section, /!paused && entry\.status === "done"/);
     assert.match(section, /attrs\[ATTR_STATUS\] = "todo"/);
     assert.match(section, /!paused && entry\.status === "done"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/);
-    assert.match(section, /syncEngine\.broadcastChanges\(\)/);
+    assert.match(section, /repository\.publishChanges\(\)/);
 });

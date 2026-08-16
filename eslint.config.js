@@ -65,4 +65,18 @@ export default tseslint.config(
             "@typescript-eslint/no-misused-promises": "off",
         },
     },
+    {
+        files: [
+            "src/shared/rpc-methods.ts",
+            "src/kernel/rpc-server.ts",
+            "src/kernel/task-repository.ts",
+            "src/kernel/task-service.ts",
+            "src/frontend/kernel-bridge.ts",
+            "src/frontend/error-format.ts",
+            "src/frontend/notify.ts",
+        ],
+        rules: {
+            "@typescript-eslint/no-explicit-any": "error",
+        },
+    },
 );

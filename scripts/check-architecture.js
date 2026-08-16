@@ -37,25 +37,25 @@ for (const [path, source] of textByFile) {
     }
 }
 
-const frontendWrites = [...textByFile]
+const frontendTaskFallbacks = [...textByFile]
     .filter(([path]) => projectPath(path).startsWith("src/frontend/") || projectPath(path) === "src/index.ts")
-    .flatMap(([path, source]) => [...source.matchAll(/\/api\/attr\/setBlockAttrs/g)].map(() => projectPath(path)));
-if (frontendWrites.length !== 1 || frontendWrites[0] !== "src/index.ts") {
-    failures.push(`frontend task-write fallback whitelist expected exactly src/index.ts once, found: ${frontendWrites.join(", ") || "none"}`);
+    .flatMap(([path, source]) => [...source.matchAll(/\/api\/(?:attr\/(?:getBlockAttrs|setBlockAttrs|batchGetBlockAttrs|batchSetBlockAttrs)|query\/sql)/g)].map(() => projectPath(path)));
+if (frontendTaskFallbacks.length !== 0) {
+    failures.push(`frontend task fallback endpoints are forbidden, found: ${frontendTaskFallbacks.join(", ")}`);
 }
 
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
-    if (name === "src/kernel/task-service.ts" || name === "src/kernel/siyuan-api.ts") continue;
-    if (/\.(?:setBlockAttrs|batchSetBlockAttrs)\s*\(/.test(source)) {
-        failures.push(`${name}: task attribute writes must be routed through TaskService`);
+    if (name === "src/kernel/task-repository.ts" || name === "src/kernel/siyuan-api.ts") continue;
+    if (/\b(?:this\.)?api\.(?:getBlockAttrs|batchGetBlockAttrs|setBlockAttrs|batchSetBlockAttrs)\s*\(/.test(source)) {
+        failures.push(`${name}: task attribute access must be routed through TaskRepository`);
     }
 }
 
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
-    if (name === "src/kernel/siyuan-api.ts" || name === "src/index.ts") continue;
-    if (source.includes("/api/attr/setBlockAttrs") || source.includes("/api/attr/batchSetBlockAttrs")) {
+    if (name === "src/kernel/siyuan-api.ts") continue;
+    if (/\/api\/attr\/(?:getBlockAttrs|setBlockAttrs|batchGetBlockAttrs|batchSetBlockAttrs)/.test(source)) {
         failures.push(`${name}: low-level task attribute endpoints belong in the production API adapter`);
     }
     if (name.startsWith("src/kernel/") && source.includes("/api/query/sql")) {
@@ -91,21 +91,30 @@ for (const [path, source] of textByFile) {
 }
 
 const methodsSource = readFileSync(join(sourceRoot, "shared", "rpc-methods.ts"), "utf8");
-const declaredList = [...methodsSource.matchAll(/"([A-Za-z][A-Za-z0-9]+)"/g)].map(match => match[1]);
+const declaredList = [...methodsSource.matchAll(/^ {4}([A-Za-z][A-Za-z0-9]+): defineRpc/gm)].map(match => match[1]);
 const declared = new Set(declaredList);
 const serverSource = readFileSync(join(sourceRoot, "kernel", "rpc-server.ts"), "utf8");
 const bridgeSource = readFileSync(join(sourceRoot, "frontend", "kernel-bridge.ts"), "utf8");
-const bound = new Set([...serverSource.matchAll(/\.bind\("([A-Za-z][A-Za-z0-9]+)"/g)].map(match => match[1]));
+const handled = new Set([...serverSource.matchAll(/^ {8}([A-Za-z][A-Za-z0-9]+):/gm)].map(match => match[1]));
 const called = new Set([...bridgeSource.matchAll(/this\.call(?:<[^>]+>)?\("([A-Za-z][A-Za-z0-9]+)"/g)].map(match => match[1]));
-if (declaredList.length !== 45 || declared.size !== 45) {
-    failures.push(`RPC method manifest must contain exactly 45 unique methods, found ${declaredList.length}/${declared.size}`);
+if (declaredList.length !== declared.size || declared.size === 0) {
+    failures.push(`RPC contract must contain unique methods, found ${declaredList.length}/${declared.size}`);
 }
 for (const method of declared) {
-    if (!bound.has(method)) failures.push(`RPC method ${method} is declared but not bound by the server`);
+    if (!handled.has(method)) failures.push(`RPC method ${method} is declared but has no server handler`);
     if (!called.has(method)) failures.push(`RPC method ${method} is declared but has no KernelBridge call`);
 }
-for (const method of bound) if (!declared.has(method)) failures.push(`RPC server binds undeclared method ${method}`);
+for (const method of handled) if (!declared.has(method)) failures.push(`RPC server handles undeclared method ${method}`);
 for (const method of called) if (!declared.has(method)) failures.push(`KernelBridge calls undeclared method ${method}`);
+if (!serverSource.includes("for (const method of RPC_METHOD_NAMES)")) failures.push("RPC server must bind methods from the shared contract");
+if ([...serverSource.matchAll(/\bcatch\s*\(/g)].length !== 1) failures.push("RPC server must use one shared exception boundary");
+
+const rpcResultDefinitions = [...textByFile]
+    .filter(([, source]) => /(?:interface|type)\s+RpcResult\b/.test(source))
+    .map(([path]) => projectPath(path));
+if (rpcResultDefinitions.length !== 1 || rpcResultDefinitions[0] !== "src/shared/rpc-methods.ts") {
+    failures.push(`RpcResult must have one shared definition, found: ${rpcResultDefinitions.join(", ") || "none"}`);
+}
 
 if (failures.length) {
     console.error(failures.map(message => `- ${message}`).join("\n"));

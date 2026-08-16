@@ -54,13 +54,13 @@ test("任务服务将状态纳入项目排序字段并移除 done 专用分支",
 });
 
 test("updateTask 在广播前登记顺序副作用任务", () => {
-    assert.match(updateSection, /const affectedIds = getSequentialBroadcastIds\([\s\S]*?syncEngine\.broadcastChanges\(\)/);
+    assert.match(updateSection, /const affectedIds = getSequentialBroadcastIds\([\s\S]*?repository\.publishChanges\(\)/);
     assert.match(updateSection, /for \(let i = 0; i < affectedIds\.length; i\+\+\)/);
-    assert.match(updateSection, /addPendingChange\(affectedIds\[i\], "update"\)/);
+    assert.match(updateSection, /recordChange\(affectedIds\[i\], "update"\)/);
 });
 
 test("reorderTask 在顺序父任务中广播全部兄弟", () => {
     assert.match(reorderSection, /if \(parentId\)/);
     assert.match(reorderSection, /if \(parentEntry && parentEntry\.sequential\)/);
-    assert.match(reorderSection, /addPendingChange\(parentEntry\.childIds\[i\], "update"\)/);
+    assert.match(reorderSection, /recordChange\(parentEntry\.childIds\[i\], "update"\)/);
 });

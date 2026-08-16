@@ -42,12 +42,15 @@ test("任务创建设置拒绝非法目标和重复预设 ID", () => {
 test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值", () => {
     const kernel = source("../src/kernel.ts");
     const rpc = source("../src/kernel/rpc-server.ts");
+    const contract = source("../src/shared/rpc-methods.ts");
     const bridge = source("../src/frontend/kernel-bridge.ts");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
     const dialogHost = source("../src/frontend/dialogs/create-task-dialog.ts");
 
     assert.match(kernel, /createTask:\s*\(input\)\s*=>\s*this\.mcpToolManager\.createTaskForPlugin\(input\)/);
-    assert.match(rpc, /rpc\.bind\("createTask"/);
+    assert.match(contract, /createTask:\s*defineRpc/);
+    assert.match(rpc, /createTask:\s*\(input\)\s*=>\s*hooks\.createTask/);
+    assert.match(rpc, /for \(const method of RPC_METHOD_NAMES\)/);
     assert.match(bridge, /createTask\(input:\s*CreateTaskInput\)/);
     assert.match(dialog, /bridge\.createTask\(input\)/);
     assert.match(dialog, /bridge\.getTask\(result\.task\.id\)/);

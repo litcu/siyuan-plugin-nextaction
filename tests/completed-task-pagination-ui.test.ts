@@ -12,7 +12,8 @@ test("completed task pagination is wired through RPC and bridge", () => {
     const store = read("src/frontend/stores/task-store.ts");
     const view = read("src/frontend/components/AllTasksView.svelte");
 
-    assert.match(rpc, /bind\("getCompletedTasksPage"/);
+    assert.match(rpc, /getCompletedTasksPage:\s*\(params\)\s*=>/);
+    assert.match(rpc, /for \(const method of RPC_METHOD_NAMES\)/);
     assert.match(bridge, /getCompletedTasksPage\(/);
     assert.match(store, /completedLoadSeq/);
     assert.match(store, /completedPageSize/);
