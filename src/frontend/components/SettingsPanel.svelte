@@ -7,7 +7,7 @@
     import { migrateCustomFieldDefs } from "../../shared/custom-fields";
     import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS, validateSettings } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
-    import { formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
+    import { formatOperationError, formatRpcError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
     import NaIcon from "../ui/NaIcon.svelte";
@@ -102,7 +102,6 @@
     onMount(async () => {
         try {
             const rawSettings = await bridge.getSettings();
-            if (rawSettings?._rpcError) throw rawSettings._rpcError;
             const settings: PluginSettings = {
                 ...DEFAULT_SETTINGS,
                 ...(rawSettings || {}),
@@ -298,17 +297,13 @@
         saving = true;
         try {
             const result = await bridge.updateSettings(settings);
-            if (result?._rpcError) {
-                error = formatRpcError(result._rpcError, i18n);
-                return;
-            }
             await onSave(result);
             current = result;
             savedSignature = JSON.stringify(buildSettings());
             draftSignature = savedSignature;
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("[NextAction] saveSettings failed:", e);
-            error = formatRpcError(e, i18n);
+            error = formatOperationError(e, i18n);
         } finally {
             saving = false;
         }

@@ -3,9 +3,9 @@ import type { AiFeatureId, AiProposal } from "../../shared/ai";
 import { completeAiReviewGroups, parseAiJson, validateAiProposal } from "../../shared/ai";
 import type { TaskCacheEntry, ReviewData } from "../../shared/types";
 import { DEFAULT_AI_SETTINGS } from "../../shared/settings";
-import type { KernelBridge } from "../kernel-bridge";
+import { RpcCallError, type KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
-import { notifyError, notifyInfo } from "../notify";
+import { formatRpcError, notifyError, notifyInfo } from "../notify";
 import { get } from "svelte/store";
 import { renderAiPromptTemplate } from "./ai-prompt-template";
 
@@ -16,6 +16,16 @@ interface AiServiceHost {
 }
 
 let host: AiServiceHost | null = null;
+
+function notifyAiError(error: unknown, i18n: Record<string, string> | null | undefined): void {
+    if (error instanceof AiRawResponseError) {
+        showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
+    } else if (error instanceof RpcCallError) {
+        notifyError(formatRpcError(error, i18n));
+    } else {
+        notifyError(error instanceof Error ? error.message : String(error));
+    }
+}
 const MAX_MY_DAY_CANDIDATES = 40;
 // 回顾是最容易把大量上下文发送给模型的功能。限制条目并压缩字段，
 // 避免请求体过大导致首 token 等待过久。
@@ -399,10 +409,9 @@ export async function runAiExtractTasks(blockIds: string[]): Promise<void> {
             childFromSource,
             onDone: () => taskStore.loadTasks(),
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[NextAction] AI extract failed:", error);
-        if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
-        else notifyError(error?.message || String(error));
+        notifyAiError(error, i18n);
     }
 }
 
@@ -437,10 +446,9 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
             childParentTitle: childAvailable ? task.title : "",
             onDone: () => taskStore.loadTasks(),
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[NextAction] AI decompose failed:", error);
-        if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
-        else notifyError(error?.message || String(error));
+        notifyAiError(error, i18n);
     }
 }
 
@@ -469,10 +477,9 @@ export async function runAiPlanMyDay(): Promise<void> {
             onDone: () => taskStore.loadMyDay(),
             myDayOnly: true,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[NextAction] AI My Day planning failed:", error);
-        if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
-        else notifyError(error?.message || String(error));
+        notifyAiError(error, i18n);
     }
 }
 
@@ -496,10 +503,9 @@ export async function runAiReview(): Promise<void> {
         }
         const reviewTasks = Array.from(reviewTaskMap.values());
         await openComponent(i18n?.aiReview || "智能回顾", () => import("../components/AiReviewDialog.svelte"), { proposal, bridge, i18n, reviewTasks });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[NextAction] AI review failed:", error);
-        if (error instanceof AiRawResponseError) showRawAiResponse(i18n?.ai || "AI", error.raw, error.details);
-        else notifyError(error?.message || String(error));
+        notifyAiError(error, i18n);
     }
 }
 

@@ -28,13 +28,14 @@ test("任务属性目标只允许文本块和文档块", () => {
 
 test("缓存尚未同步时，已有任务属性仍可更新", () => {
     assert.match(taskServiceSource, /let existingAttrsForValidation: Record<string, string> \| null = null;/);
-    assert.match(taskServiceSource, /existingAttrsForValidation = await this\.api\.getBlockAttrs\(blockId\);/);
+    assert.match(taskServiceSource, /existingAttrsForValidation = await this\.repository\.getBlockAttrs\(blockId\);/);
     assert.match(taskServiceSource, /const hasExistingTaskAttrs = !!existingAttrsForValidation\?\.\[ATTR_TASK\];/);
     assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)/);
 });
 
-test("内核错误码和前端直连回退路径均覆盖项目校验", () => {
+test("内核错误码覆盖项目校验且前端不再保留直连回退", () => {
     assert.match(constantsSource, /RPC_ERROR_PROJECT_REQUIRES_DOCUMENT = -32009/);
-    assert.match(frontendSource, /if \(taskType === "2"\)/);
-    assert.match(frontendSource, /blockType !== "d"/);
+    assert.doesNotMatch(frontendSource, /\/api\/attr\//);
+    assert.doesNotMatch(frontendSource, /\/api\/query\/sql/);
+    assert.match(frontendSource, /return this\.bridge\.convertToTask\(blockId, cleanTitle, taskType\)/);
 });

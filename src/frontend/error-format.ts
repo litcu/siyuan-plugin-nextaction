@@ -47,7 +47,7 @@ const ERROR_CODE_MAP: Record<number, string> = {
     [RPC_ERROR_INTERNAL]: "errInternal",
 };
 
-type I18nRecord = Record<string, string> | null | undefined;
+export type I18nRecord = Record<string, string> | null | undefined;
 
 export function formatError(error: unknown): string {
     if (error instanceof Error) return error.message;
@@ -67,4 +67,16 @@ export function formatRpcError(error: unknown, i18n: I18nRecord): string {
     const code = Number(record?.code ?? nested?.code);
     const key = ERROR_CODE_MAP[code];
     return key ? (i18n?.[key] || message || key) : message;
+}
+
+export function formatOperationError(error: unknown, i18n: I18nRecord): string {
+    const record = error && typeof error === "object" ? error as Record<string, unknown> : null;
+    if (record?.kind === "transport") {
+        return i18n?.errTransport || "Unable to reach the kernel service. Please retry.";
+    }
+    if (record?.name === "RpcCallError" || typeof record?.code === "number" || record?._rpcError) {
+        return formatRpcError(error, i18n);
+    }
+    if (error instanceof Error && error.message) return error.message;
+    return i18n?.errInternal || "Operation failed";
 }

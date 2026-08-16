@@ -35,7 +35,7 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
     assert.match(panel, /await onSave\(result\);[\s\S]*savedSignature = JSON\.stringify\(buildSettings\(\)\);[\s\S]*draftSignature = savedSignature/);
     assert.match(panel, /i18n\?\.save \|\| "Save"/);
-    assert.match(indexSource, /showMessage\(`\[NextAction\] \$\{i18n\.settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*\} catch/);
+    assert.match(indexSource, /notifyInfo\(i18n\.settingsSaved \|\| "Settings saved"\);\s*\n\s*\} catch/);
     assert.doesNotMatch(indexSource, /settingsSaved \|\| "Settings saved"\}`\);\s*\n\s*dialog\.destroy\(\);/);
     assert.match(panel, /export function requestClose\(\)/);
     assert.match(indexSource, /\.b3-dialog__scrim/);

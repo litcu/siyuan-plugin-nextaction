@@ -6,7 +6,7 @@
     import type { CreateTaskDestinationType, CreateTaskFormat, CreateTaskInput } from "../../shared/task-creation";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { taskStore } from "../stores/task-store";
-    import { formatRpcError, notifyInfo } from "../notify";
+    import { formatOperationError, notifyInfo } from "../notify";
     import { toI18nKey } from "../utils";
     import NaButton from "../ui/NaButton.svelte";
     import NaAccordion from "../ui/NaAccordion.svelte";
@@ -145,8 +145,8 @@
             for (const warning of result.warnings || []) notifyInfo(warning);
             onCreated?.(createdTask);
             dialog?.destroy?.();
-        } catch (cause: any) {
-            error = formatRpcError(cause, i18n);
+        } catch (cause: unknown) {
+            error = formatOperationError(cause, i18n);
         } finally {
             busy = false;
         }

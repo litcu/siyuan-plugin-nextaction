@@ -1,5 +1,6 @@
 import { showMessage } from "siyuan";
-export { formatError, formatRpcError } from "./error-format";
+import { formatOperationError, type I18nRecord } from "./error-format";
+export { formatError, formatOperationError, formatRpcError } from "./error-format";
 
 /**
  * Show an error notification to the user.
@@ -14,6 +15,11 @@ export function notifyError(message: string): void {
  */
 export function notifyInfo(message: string): void {
     showMessage(`[NextAction] ${message}`, 3000, "info");
+}
+
+/** Route user-initiated operation failures without conflating RPC, transport and domain errors. */
+export function notifyOperationError(error: unknown, i18n: I18nRecord): void {
+    notifyError(formatOperationError(error, i18n));
 }
 
 /**
@@ -38,7 +44,7 @@ const VALIDATION_MESSAGE_MAP: [RegExp, string][] = [
 /**
  * Translate a validateSettings error message using i18n.
  */
-export function formatValidationError(msg: string, i18n: any): string {
+export function formatValidationError(msg: string, i18n: I18nRecord): string {
     for (const [pattern, key] of VALIDATION_MESSAGE_MAP) {
         if (pattern.test(msg)) {
             return i18n?.[key] || msg;
