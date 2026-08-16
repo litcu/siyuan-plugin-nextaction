@@ -22,6 +22,7 @@ test("completed task pagination is wired through RPC and bridge", () => {
     assert.match(view, /setCompletedPage/);
     assert.match(view, /class="na-completed-tasks"/);
     assert.match(view, /\.na-completed-tasks \{ flex: 0 0 auto;/);
-    assert.match(read("src/index.scss"), /\.na-all-tasks__item \{[\s\S]*?flex: 0 0 auto;/);
-    assert.doesNotMatch(read("src/index.scss"), /\.na-all-tasks__item \{[\s\S]*?content-visibility:/);
+    const styles = read("src/frontend/styles/components.scss");
+    assert.match(styles, /\.na-all-tasks__item \{[\s\S]*?flex: 0 0 auto;/);
+    assert.doesNotMatch(styles, /\.na-all-tasks__item \{[\s\S]*?content-visibility:/);
 });

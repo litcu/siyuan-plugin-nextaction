@@ -9,7 +9,10 @@ const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
 const app = source("../src/frontend/components/NextActionApp.svelte");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
 const stateController = source("../src/frontend/controllers/task-detail-controller.ts");
-const stylesheet = source("../src/index.scss");
+const stylesheet = [
+    "../src/frontend/styles/app-shell.scss",
+    "../src/frontend/styles/components.scss",
+].map(source).join("\n");
 const propertyRow = source("../src/frontend/ui/NaPropertyRow.svelte");
 const propertySection = source("../src/frontend/ui/NaPropertySection.svelte");
 const tokens = source("../src/frontend/ui/tokens.scss");

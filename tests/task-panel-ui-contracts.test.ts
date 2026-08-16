@@ -10,18 +10,24 @@ const listViews = [
     "AllTasksView.svelte",
     "InboxView.svelte",
     "NextActionView.svelte",
-    "ProjectView.svelte",
     "SomedayView.svelte",
     "WaitingView.svelte",
 ];
 
-test("六个任务列表视图统一使用公共视图、筛选和列表骨架", () => {
+test("五个任务列表视图统一使用公共视图、筛选和列表骨架", () => {
     for (const file of listViews) {
         const view = source(`../src/frontend/components/${file}`);
         assert.match(view, /NaViewShell/, file);
         assert.match(view, /NaTaskFilterBar/, file);
         assert.match(view, /NaTaskList/, file);
         assert.doesNotMatch(view, /SearchFilterBar|na-search-filter-bar/, file);
+    }
+
+    const projectView = source("../src/frontend/components/ProjectView.svelte");
+    assert.match(projectView, /NaViewShell/);
+    assert.match(projectView, /NaTaskFilterBar/);
+    for (const mode of ["ProjectOverviewMode", "ProjectHierarchyMode", "ProjectBoardMode", "ProjectPlanMode", "GanttView"]) {
+        assert.match(projectView, new RegExp(mode), mode);
     }
 });
 
@@ -106,6 +112,10 @@ test("公共按钮、工具栏和折叠区覆盖加载、操作插槽及合法�
 test("旧筛选栏和未接入的 Dock 提醒组件已删除", () => {
     assert.equal(existsSync(new URL("../src/frontend/components/SearchFilterBar.svelte", import.meta.url)), false);
     assert.equal(existsSync(new URL("../src/frontend/components/DockReminder.svelte", import.meta.url)), false);
-    const styles = source("../src/index.scss");
+    const styles = [
+        "../src/frontend/styles/app-shell.scss",
+        "../src/frontend/styles/components.scss",
+        "../src/frontend/styles/host-integration.scss",
+    ].map(source).join("\n");
     assert.doesNotMatch(styles, /na-search-filter-bar|na-view__list|na-project-reminders/);
 });

@@ -18,7 +18,10 @@ const rpcSource = source("../src/kernel/rpc-server.ts");
 const kernelSource = source("../src/kernel.ts");
 const typesSource = source("../src/shared/types.ts");
 const settingsSource = source("../src/shared/settings.ts");
-const stylesheetSource = source("../src/index.scss");
+const stylesheetSource = [
+    "../src/frontend/styles/app-shell.scss",
+    "../src/frontend/styles/components.scss",
+].map(source).join("\n");
 const iconButtonSource = source("../src/frontend/ui/NaIconButton.svelte");
 const navItemSource = source("../src/frontend/ui/NaNavItem.svelte");
 const zhI18nSource = source("../src/i18n/zh-CN.json");

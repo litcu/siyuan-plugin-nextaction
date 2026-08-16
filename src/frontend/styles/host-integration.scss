@@ -1,0 +1,417 @@
+.na-ai-dialog.b3-dialog,
+.na-ai-dialog {
+    --na-ai-dialog-bg: var(--b3-theme-background);
+}
+
+.na-ai-dialog .b3-dialog__body {
+    padding: 0 !important;
+    overflow: auto;
+    background: var(--na-ai-dialog-bg);
+}
+
+.na-ai-dialog .b3-dialog__container {
+    width: 520px !important;
+    max-width: calc(100vw - 32px);
+    overflow: hidden;
+    border: 1px solid var(--na-color-divider);
+    border-radius: 10px;
+}
+
+.na-ai-dialog .b3-dialog__header {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 16px;
+    line-height: 1.2;
+    border-bottom: 1px solid var(--na-color-divider);
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-background);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.na-ai-dialog .b3-dialog__header::before {
+    width: 7px;
+    height: 7px;
+    margin-right: 9px;
+    border-radius: 50%;
+    background: var(--b3-theme-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 13%, transparent);
+    content: "";
+    flex: 0 0 7px;
+}
+
+.na-ai-dialog .b3-dialog__header {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.na-ai-dialog .b3-dialog__container {
+    max-height: min(680px, calc(100vh - 40px));
+}
+
+.na-ai-dialog .na-ai-dialog-host {
+    max-height: none;
+    overflow: visible;
+}
+
+.na-ai-dialog .na-ai-proposal,
+.na-ai-dialog .na-ai-review {
+    padding: 20px 22px 16px;
+    font-size: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__intro,
+.na-ai-dialog .na-ai-review__intro {
+    padding: 0 0 11px;
+}
+
+.na-ai-dialog .na-ai-proposal h3,
+.na-ai-dialog .na-ai-review h3 {
+    margin: 4px 0 0;
+    font-size: 15px;
+    line-height: 1.35;
+    font-weight: 650;
+}
+
+.na-ai-dialog .na-ai-proposal__list {
+    max-height: min(330px, 45vh);
+}
+
+.na-ai-dialog .na-ai-review__groups {
+    max-height: none;
+}
+
+.na-ai-dialog .na-ai-proposal__row {
+    min-height: 42px;
+    padding: 8px 9px;
+    gap: 8px;
+    border-radius: 7px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy {
+    gap: 2px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy strong {
+    font-size: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__row-copy small {
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__section-title {
+    margin: 12px 2px 6px;
+    font-size: 10px;
+}
+
+.na-ai-dialog .na-ai-proposal__target {
+    margin: 12px 2px 0;
+    gap: 5px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__target select,
+.na-ai-dialog .na-ai-proposal__target input {
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-proposal__actions,
+.na-ai-dialog .na-ai-review__footer {
+    padding-top: 12px;
+}
+
+.na-ai-dialog .na-ai-proposal__actions .na-button,
+.na-ai-dialog .na-ai-review__footer .na-button {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.na-ai-dialog .na-ai-review__groups {
+    padding-top: 0;
+    gap: 10px;
+}
+
+.na-ai-dialog .na-ai-review__group {
+    padding: 13px 14px 12px;
+    border-radius: 11px;
+}
+
+.na-ai-dialog .na-ai-review__group p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.na-ai-dialog .na-ai-review__actions-list {
+    margin-top: 18px;
+}
+
+.na-ai-dialog .na-ai-review__action {
+    padding: 11px 12px 11px 10px;
+    font-size: 12px;
+}
+
+// 编辑器中任务块状态图标 — 与面板 StatusCheckbox 视觉一致
+.protyle-wysiwyg [data-node-id][custom-na-task] {
+    position: relative;
+    padding-left: 26px;
+
+    &::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid var(--na-text-secondary);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        box-sizing: border-box;
+    }
+
+    &[custom-na-status="doing"]::before {
+        border-color: var(--na-color-doing);
+        background: linear-gradient(135deg, var(--na-color-doing) 50%, transparent 50%);
+    }
+
+    &[custom-na-status="inbox"]::before {
+        border-color: var(--na-color-inbox);
+    }
+
+    &[custom-na-status="inbox"]::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        width: 0;
+        height: 0;
+        border-left: 2.5px solid transparent;
+        border-right: 2.5px solid transparent;
+        border-top: 3.5px solid var(--na-color-inbox);
+        transform: translate(-50%, -1px);
+        pointer-events: none;
+    }
+
+    &[custom-na-status="waiting"]::before {
+        border-color: var(--na-color-waiting);
+        border-style: dashed;
+        border-width: 2px;
+    }
+
+    &[custom-na-status="someday"]::before {
+        content: "···";
+        border-color: var(--na-color-someday);
+        color: var(--na-color-someday);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &[custom-na-status="done"]::before {
+        background: var(--na-color-done);
+        border-color: var(--na-color-done);
+    }
+
+    &[custom-na-status="done"] {
+        opacity: 0.55;
+        text-decoration: line-through;
+    }
+}
+
+// ===================================================================
+// Notification Host & Card (reminder popup)
+// ===================================================================
+
+// Notification styles live outside .nextaction, so they use SiYuan globals directly.
+
+.na-notification-host {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    // SiYuan dialogs start at 10; reminders remain visible above workspaces but below windows.
+    z-index: 9;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+
+    &__overflow {
+        pointer-events: auto;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--b3-theme-on-surface);
+        background: var(--b3-theme-surface);
+        border: 1px solid var(--b3-border-color);
+        border-radius: 8px;
+        padding: 6px 12px;
+        box-shadow: var(--b3-dialog-shadow);
+    }
+
+    &__dismiss-all {
+        pointer-events: auto;
+        width: 100%;
+        padding: 4px 8px;
+        font-size: 11px;
+        color: var(--b3-theme-primary);
+        background: var(--b3-theme-surface-light);
+        border: 1px solid var(--b3-border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: var(--b3-theme-surface-lighter);
+        }
+    }
+}
+
+.na-notification-card {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
+    background: var(--b3-theme-surface);
+    border: 1px solid var(--b3-border-color);
+    border-radius: 8px;
+    box-shadow: var(--b3-dialog-shadow);
+    overflow: hidden;
+    min-width: 240px;
+    max-width: 320px;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+    }
+
+    &__type {
+        display: inline-block;
+        padding: 1px 6px;
+        font-size: 10px;
+        font-weight: 500;
+        border-radius: 6px;
+        line-height: 1.4;
+
+        &--due {
+            color: var(--b3-card-error-color);
+            background: color-mix(in srgb, var(--b3-card-error-color) 12%, var(--b3-theme-surface));
+        }
+
+        &--review {
+            color: var(--b3-card-info-color);
+            background: color-mix(in srgb, var(--b3-card-info-color) 12%, var(--b3-theme-surface));
+        }
+
+        &--absolute {
+            color: var(--b3-card-warning-color);
+            background: color-mix(in srgb, var(--b3-card-warning-color) 14%, var(--b3-theme-surface));
+        }
+
+        &--summary {
+            color: var(--b3-theme-primary);
+            background: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
+        }
+    }
+
+    &__close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: var(--b3-theme-on-surface-light);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.15s ease, color 0.15s ease;
+        flex-shrink: 0;
+
+        &:hover {
+            background: var(--b3-theme-surface-light);
+            color: var(--b3-theme-on-surface);
+        }
+    }
+
+    &__title {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--b3-theme-on-surface);
+        cursor: pointer;
+        line-height: 1.4;
+        word-break: break-word;
+
+        &:hover {
+            color: var(--b3-theme-primary);
+        }
+    }
+
+    &__summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding-top: 2px;
+    }
+
+    &__summary-item {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        border-radius: 10px;
+        line-height: 1.5;
+        white-space: nowrap;
+
+        &--overdue {
+            color: var(--b3-card-error-color);
+            background: color-mix(in srgb, var(--b3-card-error-color) 12%, var(--b3-theme-surface));
+        }
+
+        &--due-today {
+            color: var(--b3-card-warning-color);
+            background: color-mix(in srgb, var(--b3-card-warning-color) 12%, var(--b3-theme-surface));
+        }
+
+        &--starting-today {
+            color: var(--b3-card-success-color);
+            background: color-mix(in srgb, var(--b3-card-success-color) 12%, var(--b3-theme-surface));
+        }
+
+        &--next-action {
+            color: var(--b3-theme-primary);
+            background: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
+        }
+
+        &--waiting {
+            color: var(--b3-card-info-color);
+            background: color-mix(in srgb, var(--b3-card-info-color) 12%, var(--b3-theme-surface));
+        }
+    }
+
+    &__message {
+        font-size: 11px;
+        color: var(--b3-theme-on-surface-light);
+        line-height: 1.4;
+    }
+}

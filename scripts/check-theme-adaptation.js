@@ -1,9 +1,15 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
+const GLOBAL_STYLE_FILES = [
+  "src/frontend/styles/app-shell.scss",
+  "src/frontend/styles/components.scss",
+  "src/frontend/styles/host-integration.scss",
+];
+const readGlobalStyles = () => GLOBAL_STYLE_FILES.map(read).join("\n");
 
 const TASK_THEME_FILES = [
-  "src/index.scss",
+  ...GLOBAL_STYLE_FILES,
   "src/frontend/components/NavRail.svelte",
   "src/frontend/components/AllTasksView.svelte",
   "src/frontend/components/InboxView.svelte",
@@ -59,7 +65,7 @@ const checks = [
   {
     name: "notification styles use global SiYuan colors for accent states",
     run() {
-      const styles = read("src/index.scss");
+      const styles = read("src/frontend/styles/host-integration.scss");
       const notificationBlock = styles.slice(styles.indexOf(".na-notification-host"));
       return !notificationBlock.includes("var(--na-accent");
     },
@@ -171,7 +177,7 @@ const checks = [
   {
     name: "legacy task detail and popup visual layers were removed",
     run() {
-      const styles = read("src/index.scss");
+      const styles = readGlobalStyles();
       return !styles.includes(".na-detail__")
         && !styles.includes(".na-reminder-popup")
         && !styles.includes(".na-app__detail-pane")

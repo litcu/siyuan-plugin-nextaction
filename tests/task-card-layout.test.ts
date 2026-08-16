@@ -7,7 +7,7 @@ const taskCardSource = readFileSync(
     "utf8",
 );
 const stylesheetSource = readFileSync(
-    new URL("../src/index.scss", import.meta.url),
+    new URL("../src/frontend/styles/components.scss", import.meta.url),
     "utf8",
 );
 

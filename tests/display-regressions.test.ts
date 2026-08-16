@@ -12,7 +12,11 @@ const primitivesSource = read("../src/frontend/ui/primitives.scss");
 const datePickerSource = read("../src/frontend/ui/NaDatePicker.svelte");
 const searchSelectSource = read("../src/frontend/ui/NaSearchSelect.svelte");
 const dragHandlerSource = read("../src/frontend/components/drag-handler.ts");
-const stylesheetSource = read("../src/index.scss");
+const stylesheetSource = [
+    "../src/frontend/styles/app-shell.scss",
+    "../src/frontend/styles/components.scss",
+    "../src/frontend/styles/host-integration.scss",
+].map(read).join("\n");
 const zh = JSON.parse(read("../src/i18n/zh-CN.json"));
 const en = JSON.parse(read("../src/i18n/en.json"));
 

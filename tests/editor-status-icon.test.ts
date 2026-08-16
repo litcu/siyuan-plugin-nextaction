@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const source = readFileSync(new URL("../src/index.scss", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/frontend/styles/host-integration.scss", import.meta.url), "utf8");
 const tokens = readFileSync(new URL("../src/frontend/ui/tokens.scss", import.meta.url), "utf8");
 const start = source.indexOf(".protyle-wysiwyg [data-node-id][custom-na-task]");
-const end = source.indexOf(".na-task-card--project", start);
+const end = source.indexOf("// Notification Host & Card", start);
 const editorIconStyles = source.slice(start, end);
 
 test("editor task status markers match the panel circular checkbox", () => {
