@@ -37,7 +37,7 @@ Type one slash command on any block:
 /ntask
 ```
 
-That block is now a task. A status circle appears beside it, and the task lands in **Inbox**. Open the dock panel and switch to **Next Actions** — you will see it alongside everything else you can do right now, sorted by computed priority.
+That block is now a task. A status circle appears beside it, and the task lands in **Inbox**. On desktop or browser-desktop, use the top-bar button to open the full NextAction tab; the 300 px dock remains a compact entry. Switch to **Next Actions** to see what you can do now, sorted by computed priority.
 
 <!-- screenshot -->
 
@@ -67,9 +67,15 @@ Download the `siyuan-plugin-nextaction` folder from a [release](https://github.c
 
 1. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
 2. Click the status circle beside the block to set status, priority, or open task details.
-3. Open the dock panel — **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
+3. Open the full panel from the top bar on desktop/browser-desktop, or enter it from the dock on browser-mobile. **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
 
 That is enough to start. Importance, review intervals, reminders, dependencies, and custom fields can wait until your task list needs them.
+
+### Panel entry points
+
+- **Desktop and browser-desktop:** the top-bar button opens the complete workspace in a tab. The right-side 300 px dock is a compact place for quick capture and focus lists, including at narrower widths.
+- **Browser-mobile:** open the dock first, then use its full-panel action. `MobileDockHost` keeps the compact dock and full workspace as two explicit levels, with a back action and safe-area-aware layout.
+- **Native iOS/Android:** the current plugin manifest does not declare a native mobile backend. Native mobile support is therefore outside the documented support and validation scope.
 
 <details>
 <summary><b>Capture commands</b> — more ways to create tasks and projects</summary>
