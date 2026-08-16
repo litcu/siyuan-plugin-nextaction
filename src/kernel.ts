@@ -4,6 +4,7 @@ import { Mutex } from "./kernel/mutex";
 import { CacheManager } from "./kernel/cache-manager";
 import { SyncEngine } from "./kernel/sync-engine";
 import { TaskService } from "./kernel/task-service";
+import { TaskRepository } from "./kernel/task-repository";
 import { registerRpcMethods } from "./kernel/rpc-server";
 import { MyDayManager } from "./kernel/my-day-manager";
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "./shared/settings";
@@ -11,6 +12,7 @@ import { McpToolManager } from "./kernel/mcp-tool-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
 import { ProductionSiyuanApi } from "./kernel/siyuan-api";
+import { RpcContractError } from "./shared/rpc-methods";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -37,11 +39,14 @@ class NextActionKernelPlugin {
         this.cacheManager = new CacheManager(api);
         this.syncEngine = new SyncEngine(api);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
-        this.taskService = new TaskService(this.cacheManager, this.mutex, this.syncEngine, myDayManager, api);
+        const taskRepository = new TaskRepository(api, this.cacheManager, this.mutex, this.syncEngine, DEFAULT_SETTINGS);
+        this.taskService = new TaskService(this.cacheManager, taskRepository, myDayManager, api);
         const loadedSettings = await this.loadSettings();
-        const appliedSettings = this.taskService.updateSettings(loadedSettings);
-        if ("_rpcError" in appliedSettings) {
-            await logger.warn("onload: saved settings invalid, using defaults: " + appliedSettings._rpcError.message);
+        try {
+            this.taskService.updateSettings(loadedSettings);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            await logger.warn("onload: saved settings invalid, using defaults: " + message);
             this.taskService.updateSettings(DEFAULT_SETTINGS);
         }
         this.mcpToolManager = new McpToolManager(this.siyuan, this.taskService, this.taskService.getSettings(), api);
@@ -65,18 +70,18 @@ class NextActionKernelPlugin {
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
-        void this.cacheManager.loadAll().then(async () => {
+        void this.taskService.loadCache().then(async () => {
             const mismatches = await this.cacheManager.verifyIntegrity();
             if (mismatches > 0) {
                 await logger.warn("onload: cache integrity check found " + mismatches + " mismatches, rebuilding...");
-                await this.cacheManager.rebuild();
+                await this.taskService.rebuildCache();
             }
             this.isReady = true;
             await myDayManager.load();
             this.taskService.setIsReady(true);
             await logger.info("onload: cache loaded, task service ready");
-        }).catch(async (e: any) => {
-            await logger.error("onload: failed to load cache: " + String(e));
+        }).catch(async (error: unknown) => {
+            await logger.error("onload: failed to load cache: " + String(error));
         });
     }
 
@@ -105,22 +110,20 @@ class NextActionKernelPlugin {
         return mergeSettings(DEFAULT_SETTINGS, {});
     }
 
-    private async updateSettings(partial: Partial<PluginSettings>): Promise<PluginSettings | { _rpcError: { code: number; message: string } }> {
+    private async updateSettings(partial: Partial<PluginSettings>): Promise<PluginSettings> {
         const current = this.taskService.getSettings();
         const next = mergeSettings(current, partial);
         const validationError = validateSettings(next);
-        if (validationError) return { _rpcError: { code: -32001, message: validationError } };
+        if (validationError) throw new RpcContractError(validationError);
         await this.mcpToolManager.validateSettings(next);
         await this.siyuan.storage.put("settings.json", JSON.stringify(next));
         const applied = this.taskService.updateSettings(next);
-        if ("_rpcError" in applied) return applied;
         await this.mcpToolManager.reconcile(applied);
         return applied;
     }
 
-    private async completeReview(): Promise<ReviewData | { _rpcError: { code: number; message: string } }> {
+    private async completeReview(): Promise<ReviewData> {
         const applied = await this.updateSettings({ lastReviewAt: new Date().toISOString() });
-        if ("_rpcError" in applied) return applied;
         return this.taskService.getReviewData();
     }
 }

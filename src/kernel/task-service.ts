@@ -30,15 +30,11 @@ import {
     RPC_ERROR_NOT_TEXT_BLOCK,
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
     RPC_ERROR_NOT_READY,
-    RPC_ERROR_TIMEOUT,
-    WRITE_LOCK_TIMEOUT_MS,
     ALL_STATUSES,
     ATTR_EXT_PREFIX,
 } from "../shared/constants";
 import { type CacheManager } from "./cache-manager";
-import { type Mutex } from "./mutex";
-import type { TaskChangePublisher } from "./sync-engine";
-import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle, errorToRpcError } from "./utils";
+import { numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
 import { assertBlockId } from "../shared/block-id";
 import { sql } from "../shared/sql";
 import type { SiyuanApiPort } from "./siyuan-api";
@@ -57,10 +53,18 @@ import { DEFAULT_SETTINGS, validateSettings, mergeSettings } from "../shared/set
 import { encodeCustomFieldValue, isCustomFieldApplicable, validateCustomFieldDefinition, type CustomFieldDef } from "../shared/custom-fields";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
+import { RpcContractError } from "../shared/rpc-methods";
+import type { TaskRepository } from "./task-repository";
 
 function localActionDate(date: Date = new Date()): string {
     const pad = (value: number) => String(value).padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function codedError(message: string, code: number): Error & { code: number } {
+    const error = new Error(message) as Error & { code: number };
+    error.code = code;
+    return error;
 }
 
 export interface ConvertToTaskOptions {
@@ -86,22 +90,19 @@ export interface MyDayTaskPort {
 
 export class TaskService {
     private cacheManager: CacheManager;
-    private mutex: Mutex;
-    private syncEngine: TaskChangePublisher;
+    private repository: TaskRepository;
     private myDayManager: MyDayTaskPort;
     private isReady: boolean;
     private settings: PluginSettings;
 
     constructor(
         cacheManager: CacheManager,
-        mutex: Mutex,
-        syncEngine: TaskChangePublisher,
+        repository: TaskRepository,
         myDayManager: MyDayTaskPort,
         private readonly api: SiyuanApiPort,
     ) {
         this.cacheManager = cacheManager;
-        this.mutex = mutex;
-        this.syncEngine = syncEngine;
+        this.repository = repository;
         this.myDayManager = myDayManager;
         this.isReady = false;
         this.settings = { ...DEFAULT_SETTINGS };
@@ -117,39 +118,13 @@ export class TaskService {
 
     private checkReady(): void {
         if (!this.isReady) {
-            const err: any = new Error("Task service is not ready");
-            err.code = RPC_ERROR_NOT_READY;
-            throw err;
-        }
-    }
-
-    private async acquireWithTimeout(): Promise<{ release: () => void }> {
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
-        const { promise: acquirePromise, cancel: cancelAcquire } = this.mutex.acquire();
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => {
-                const err: any = new Error("Write lock timeout");
-                err.code = RPC_ERROR_TIMEOUT;
-                reject(err);
-            }, WRITE_LOCK_TIMEOUT_MS);
-        });
-        try {
-            const lock = await Promise.race([acquirePromise, timeoutPromise]);
-            if (timeoutId !== null) clearTimeout(timeoutId);
-            return lock;
-        } catch (e) {
-            if (timeoutId !== null) clearTimeout(timeoutId);
-            // Cancel the pending acquire. If the lock was already handed to us
-            // (resolve called before we could cancel), release it immediately.
-            cancelAcquire();
-            acquirePromise.then(lock => lock.release(), () => {});
-            throw e;
+            throw codedError("Task service is not ready", RPC_ERROR_NOT_READY);
         }
     }
 
     private cacheWithRecalculatedOrder(entry: TaskCacheEntry): void {
         entry.order = calculateOrder(entry, this.cacheManager.getCache());
-        this.cacheManager.set(entry);
+        this.repository.cache(entry);
         if (!entry.parentId) return;
         const parentEntry = this.cacheManager.get(entry.parentId);
         if (parentEntry?.taskType === "2") {
@@ -172,17 +147,13 @@ export class TaskService {
 
     private assertProjectBlockType(taskType: string, blockType: string): void {
         if (taskType === "2" && blockType !== "d") {
-            const err: any = new Error("errProjectRequiresDocument");
-            err.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
-            throw err;
+            throw codedError("errProjectRequiresDocument", RPC_ERROR_PROJECT_REQUIRES_DOCUMENT);
         }
     }
 
     private assertTaskAttributeBlockType(blockType: string): void {
         if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
-            const err: any = new Error("errNotTextBlock");
-            err.code = RPC_ERROR_NOT_TEXT_BLOCK;
-            throw err;
+            throw codedError("errNotTextBlock", RPC_ERROR_NOT_TEXT_BLOCK);
         }
     }
 
@@ -220,9 +191,7 @@ export class TaskService {
         this.checkReady();
 
         if (taskType !== "1" && taskType !== "2") {
-            const err: any = new Error("Invalid task type: " + taskType);
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("Invalid task type: " + taskType, RPC_ERROR_INVALID_PARAMS);
         }
 
         // Newly inserted blocks are already present in SiYuan's block tree when
@@ -248,18 +217,18 @@ export class TaskService {
         const title = cleanTitle || await this.fetchBlockTitle(blockId);
 
         // Check if already a task
-        const existingAttrs = await this.api.getBlockAttrs(blockId);
+        const existingAttrs = await this.repository.getBlockAttrs(blockId);
         const hintedParentId = options.parentIdHint
             ? await this.findTaskParentHint(options.parentIdHint, blockId)
             : "";
 
         if (existingAttrs[ATTR_TASK] && existingAttrs[ATTR_TASK] !== "") {
-            const lock = await this.acquireWithTimeout();
+            const lock = await this.repository.acquireWithTimeout();
             try {
                 // Already a task — update task type if it differs (e.g. task → project)
                 const currentType = existingAttrs[ATTR_TASK];
                 if (taskType !== currentType) {
-                    await this.api.setBlockAttrs(blockId, { [ATTR_TASK]: taskType });
+                    Object.assign(existingAttrs, await this.repository.writeAttrs(blockId, { [ATTR_TASK]: taskType }));
                     existingAttrs[ATTR_TASK] = taskType;
                 }
 
@@ -272,10 +241,10 @@ export class TaskService {
                     let ancestorId = "";
                     try {
                         ancestorId = hintedParentId || await this.findAncestorTask(blockId);
-                    } catch (_e: any) { /* ignore */ }
+                    } catch (_error: unknown) { /* ignore */ }
 
                     if (ancestorId) {
-                        await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: ancestorId });
+                        Object.assign(existingAttrs, await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: ancestorId }));
                         existingAttrs[ATTR_PARENT] = ancestorId;
                     }
                 }
@@ -304,30 +273,29 @@ export class TaskService {
                             newParent.childIds.push(blockId);
                         }
                         // Broadcast na-parent change
-                        this.syncEngine.addPendingChange(blockId, "update");
-                        this.syncEngine.broadcastChanges();
+                        this.repository.recordChange(blockId, "update");
                     }
                     if (taskType !== currentType) {
                         cached.taskType = taskType;
-                        this.syncEngine.addPendingChange(blockId, "update");
-                        this.syncEngine.broadcastChanges();
+                        this.repository.recordChange(blockId, "update");
                     }
+                    this.repository.cache(cached);
+                    this.repository.publishChanges();
                     return cached;
                 }
 
                 // Not in cache (e.g. missed by sync), build and store
-                const entry = this.buildEntryFromAttrs(blockId, existingAttrs);
-                entry.title = title;
-                this.cacheManager.set(entry);
-                this.syncEngine.addPendingChange(blockId, "create");
-                this.syncEngine.broadcastChanges();
+                const entry = this.repository.buildEntry(blockId, existingAttrs, undefined, title);
+                this.repository.cache(entry);
+                this.repository.recordChange(blockId, "create");
+                this.repository.publishChanges();
                 return entry;
             } finally {
                 lock.release();
             }
         }
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             // Set default task attributes
             const defaultAttrs: Record<string, string> = {};
@@ -343,43 +311,39 @@ export class TaskService {
                 if (!existingAttrs[ATTR_DUE] && parsedDates.due) defaultAttrs[ATTR_DUE] = parsedDates.due.value;
             }
 
-            await this.api.setBlockAttrs(blockId, defaultAttrs);
+            let finalAttrs = await this.repository.writeAttrs(blockId, defaultAttrs);
 
             // Find ancestor task to set na-parent
             let parentTaskId = "";
             try {
                 parentTaskId = hintedParentId || await this.findAncestorTask(blockId);
-            } catch (_e: any) {
+            } catch (_error: unknown) {
                 // Ignore errors in finding ancestor
             }
 
             if (parentTaskId !== "") {
-                await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: parentTaskId });
+                finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: parentTaskId });
 
                 // 设置默认 na-sort：排在父任务下现有子任务末尾
                 const siblings = this.cacheManager.getByParent(parentTaskId);
                 const maxSort = siblings.reduce((max, s) => Math.max(max, s.sort), -1);
-                await this.api.setBlockAttrs(blockId, { [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000) });
+                finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000) });
             }
 
             // Find descendant tasks and update their na-parent
             try {
                 await this.updateDescendantParents(blockId);
-            } catch (_e: any) {
+            } catch (_error: unknown) {
                 // Ignore errors in updating descendants
             }
 
-            // Re-fetch attrs after all updates
-            const finalAttrs = await this.api.getBlockAttrs(blockId);
-
-            const entry = this.buildEntryFromAttrs(blockId, finalAttrs);
-            entry.title = title;
+            const entry = this.repository.buildEntry(blockId, finalAttrs, undefined, title);
             entry.order = calculateOrder(entry, this.cacheManager.getCache());
-            this.cacheManager.set(entry);
+            this.repository.cache(entry);
             this.cacheManager.recalcBlockedStatus();
 
-            this.syncEngine.addPendingChange(blockId, "create");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "create");
+            this.repository.publishChanges();
 
             return entry;
         } finally {
@@ -398,18 +362,14 @@ export class TaskService {
         this.checkReady();
 
         if (taskType !== "1" && taskType !== "2") {
-            const err: any = new Error("Invalid task type: " + taskType);
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("Invalid task type: " + taskType, RPC_ERROR_INVALID_PARAMS);
         }
 
         // This endpoint converts a subtree into ordinary tasks. Projects have
         // a separate single-document conversion path and must not be created
         // implicitly on descendant paragraph blocks.
         if (taskType === "2") {
-            const err: any = new Error("errProjectRequiresDocument");
-            err.code = RPC_ERROR_PROJECT_REQUIRES_DOCUMENT;
-            throw err;
+            throw codedError("errProjectRequiresDocument", RPC_ERROR_PROJECT_REQUIRES_DOCUMENT);
         }
 
         // Determine the root container for subtree collection.
@@ -477,9 +437,9 @@ export class TaskService {
         if (paragraphIds.length === 0) return { converted: 0, skipped: 0 };
 
         // Batch check which paragraphs are already tasks
-        const attrResults = await this.api.batchGetBlockAttrs(paragraphIds);
+        const attrResults = await this.repository.batchGetBlockAttrs(paragraphIds);
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         let converted = 0;
         let skipped = 0;
         const semanticDateReference = new Date();
@@ -511,7 +471,7 @@ export class TaskService {
                 let parentTaskId = "";
                 try {
                     parentTaskId = await this.findAncestorTask(pid);
-                } catch (_e: any) { /* ignore */ }
+                } catch (_error: unknown) { /* ignore */ }
 
                 if (parentTaskId !== "") {
                     defaultAttrs[ATTR_PARENT] = parentTaskId;
@@ -520,25 +480,23 @@ export class TaskService {
                     defaultAttrs[ATTR_SORT] = String(maxSort < 0 ? 0 : maxSort + 10000);
                 }
 
-                await this.api.setBlockAttrs(pid, defaultAttrs);
+                const finalAttrs = await this.repository.writeAttrs(pid, defaultAttrs);
 
                 try {
                     await this.updateDescendantParents(pid);
-                } catch (_e: any) { /* ignore */ }
+                } catch (_error: unknown) { /* ignore */ }
 
-                const finalAttrs = await this.api.getBlockAttrs(pid);
-                const entry = this.buildEntryFromAttrs(pid, finalAttrs);
-                entry.title = effectiveTitle;
+                const entry = this.repository.buildEntry(pid, finalAttrs, undefined, effectiveTitle);
                 entry.order = calculateOrder(entry, this.cacheManager.getCache());
-                this.cacheManager.set(entry);
+                this.repository.cache(entry);
 
-                this.syncEngine.addPendingChange(pid, "create");
+                this.repository.recordChange(pid, "create");
                 converted++;
             }
 
             if (converted > 0) {
                 this.cacheManager.recalcBlockedStatus();
-                this.syncEngine.broadcastChanges();
+                this.repository.publishChanges();
             }
         } finally {
             lock.release();
@@ -553,24 +511,23 @@ export class TaskService {
 
         const entry = this.cacheManager.get(blockId);
         if (!entry) {
-            const err: any = new Error("Task not found: " + blockId);
-            err.code = RPC_ERROR_TASK_NOT_FOUND;
-            throw err;
+            throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
         }
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             // Re-point child tasks' na-parent to this entry's parentId
             const grandParentId = entry.parentId;
             for (let i = 0; i < entry.childIds.length; i++) {
                 const childId = entry.childIds[i];
                 try {
-                    await this.api.setBlockAttrs(childId, { [ATTR_PARENT]: grandParentId || "" });
+                    const childAttrs = await this.repository.writeAttrs(childId, { [ATTR_PARENT]: grandParentId || "" });
 
                     // Update cache for child
                     const childEntry = this.cacheManager.get(childId);
                     if (childEntry) {
-                        childEntry.parentId = grandParentId;
+                        const confirmedChild = this.repository.buildEntry(childId, childAttrs, childEntry);
+                        this.repository.cache(confirmedChild);
                         // Update grandparent's childIds
                         if (grandParentId !== "") {
                             const gp = this.cacheManager.get(grandParentId);
@@ -580,9 +537,9 @@ export class TaskService {
                                 void this.api.log("warn", `removeTask: grandparent ${grandParentId} not in cache, child ${childId} parentId points to non-cached entry`);
                             }
                         }
-                        this.syncEngine.addPendingChange(childId, "update");
+                        this.repository.recordChange(childId, "update");
                     }
-                } catch (_e: any) {
+                } catch (_error: unknown) {
                     // Continue with other children even if one fails
                 }
             }
@@ -619,8 +576,7 @@ export class TaskService {
                 }
             }
 
-            await this.api.setBlockAttrs(blockId, clearAttrs);
-            const confirmedAttrs = await this.api.getBlockAttrs(blockId);
+            const confirmedAttrs = await this.repository.writeAttrs(blockId, clearAttrs);
             if (confirmedAttrs[ATTR_TASK]) {
                 throw new Error(`Failed to clear task attributes for ${blockId}`);
             }
@@ -628,16 +584,16 @@ export class TaskService {
             // Remove from My Day if present
             try {
                 await this.myDayManager.removeTask(blockId);
-            } catch (e: any) {
-                void this.api.log("warn", `removeTask: failed to remove from MyDay: ${e.message || e}`);
+            } catch (error: unknown) {
+                void this.api.log("warn", `removeTask: failed to remove from MyDay: ${error instanceof Error ? error.message : String(error)}`);
             }
 
             // Remove from cache
-            this.cacheManager.remove(blockId);
+            this.repository.removeFromCache(blockId);
             this.cacheManager.recalcBlockedStatus();
 
-            this.syncEngine.addPendingChange(blockId, "delete");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "delete");
+            this.repository.publishChanges();
         } finally {
             lock.release();
         }
@@ -657,15 +613,11 @@ export class TaskService {
         }
         const validationError = validateTaskAttrs(attrs);
         if (validationError) {
-            const err: any = new Error(validationError);
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError(validationError, RPC_ERROR_INVALID_PARAMS);
         }
 
         if (attrs[ATTR_TASK] !== undefined && attrs[ATTR_TASK] !== "" && attrs[ATTR_TASK] !== "1" && attrs[ATTR_TASK] !== "2") {
-            const err: any = new Error("Invalid task type: " + attrs[ATTR_TASK]);
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("Invalid task type: " + attrs[ATTR_TASK], RPC_ERROR_INVALID_PARAMS);
         }
 
         this.checkReady();
@@ -677,7 +629,7 @@ export class TaskService {
         // consistent SQL type index.
         let existingAttrsForValidation: Record<string, string> | null = null;
         if (!cachedTask) {
-            existingAttrsForValidation = await this.api.getBlockAttrs(blockId);
+            existingAttrsForValidation = await this.repository.getBlockAttrs(blockId);
         }
         // Cache entries can only come from the filtered p/h/d discovery query or
         // convertToTask's validated target. Reuse that invariant for immediate
@@ -701,31 +653,23 @@ export class TaskService {
                 }
             }
             if (!statusValid) {
-                const err: any = new Error("Invalid status: " + statusVal);
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Invalid status: " + statusVal, RPC_ERROR_INVALID_PARAMS);
             }
         }
 
         const customAttrError = this.validateCustomExtensionAttrs(blockId, attrs);
         if (customAttrError) {
-            const err: any = new Error(customAttrError);
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError(customAttrError, RPC_ERROR_INVALID_PARAMS);
         }
 
         // 依赖环路检测
         const dependsAttr = attrs[ATTR_DEPENDS];
         if (dependsAttr !== undefined && this.detectDependencyCycle(blockId, dependsAttr)) {
-            const err: any = new Error("Dependency cycle detected");
-            err.code = RPC_ERROR_DEP_CYCLE;
-            throw err;
+            throw codedError("Dependency cycle detected", RPC_ERROR_DEP_CYCLE);
         }
         // 依赖不能指向父/祖宗任务
         if (dependsAttr !== undefined && this.detectDependencyOnAncestor(blockId, dependsAttr)) {
-            const err: any = new Error("Cannot depend on ancestor task");
-            err.code = RPC_ERROR_DEP_CYCLE;
-            throw err;
+            throw codedError("Cannot depend on ancestor task", RPC_ERROR_DEP_CYCLE);
         }
         // 顺序约束矛盾检测（警告，不阻止）
         const hasSequentialConflict = dependsAttr !== undefined && this.checkSequentialConflict(blockId, dependsAttr);
@@ -741,9 +685,7 @@ export class TaskService {
                 const startDate = new Date(effectiveStart.includes("T") ? effectiveStart : effectiveStart + "T00:00");
                 const dueDate = new Date(effectiveDue.includes("T") ? effectiveDue : effectiveDue + "T23:59");
                 if (dueDate < startDate) {
-                    const err: any = new Error("Due date must not be earlier than start date");
-                    err.code = RPC_ERROR_INVALID_PARAMS;
-                    throw err;
+                    throw codedError("Due date must not be earlier than start date", RPC_ERROR_INVALID_PARAMS);
                 }
             }
         }
@@ -752,15 +694,13 @@ export class TaskService {
         const repeatAttr = attrs[ATTR_REPEAT];
         if (repeatAttr !== undefined && repeatAttr !== "") {
             if (!parseRepeatRule(repeatAttr)) {
-                const err: any = new Error("Invalid repeat rule");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Invalid repeat rule", RPC_ERROR_INVALID_PARAMS);
             }
         } else if (repeatAttr === "") {
             attrs[ATTR_REPEAT_STATE] = "";
         }
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const previousEntry = this.cacheManager.get(blockId);
             let preparedRepeat: { rule: RepeatRuleV2; state: RepeatStateV1 } | null = null;
@@ -769,17 +709,13 @@ export class TaskService {
                 if (effectiveRepeat) {
                     const rule = parseRepeatRule(effectiveRepeat);
                     if (!rule) {
-                        const err: any = new Error("Invalid repeat rule");
-                        err.code = RPC_ERROR_INVALID_PARAMS;
-                        throw err;
+                        throw codedError("Invalid repeat rule", RPC_ERROR_INVALID_PARAMS);
                     }
                     const effectiveStart = attrs[ATTR_START] !== undefined ? attrs[ATTR_START] : previousEntry.start;
                     const effectiveDue = attrs[ATTR_DUE] !== undefined ? attrs[ATTR_DUE] : previousEntry.due;
                     const state = parseRepeatState(previousEntry.repeatState) || createRepeatState(rule, effectiveStart, effectiveDue);
                     if (!state) {
-                        const err: any = new Error("Repeat task requires a start or due date");
-                        err.code = RPC_ERROR_INVALID_PARAMS;
-                        throw err;
+                        throw codedError("Repeat task requires a start or due date", RPC_ERROR_INVALID_PARAMS);
                     }
                     preparedRepeat = { rule, state };
                 }
@@ -793,9 +729,7 @@ export class TaskService {
                     let depth = 0;
                     while (currentId !== "" && depth < 100) {
                         if (currentId === blockId) {
-                            const err: any = new Error("Circular reference detected");
-                            err.code = RPC_ERROR_CIRCULAR_REF;
-                            throw err;
+                            throw codedError("Circular reference detected", RPC_ERROR_CIRCULAR_REF);
                         }
                         const parentEntry = this.cacheManager.get(currentId);
                         if (!parentEntry) {
@@ -809,7 +743,7 @@ export class TaskService {
             }
 
             // Update attributes in SiYuan
-            await this.api.setBlockAttrs(blockId, attrs);
+            let fullAttrs = await this.repository.writeAttrs(blockId, attrs);
 
             // 自动追加完成时间：status 变为 done 时（不是已经是 done）
             let existing = previousEntry;
@@ -818,26 +752,23 @@ export class TaskService {
                 const completedAt = Date.now();
                 const now = new Date(completedAt).toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss UTC
                 const newCompleted = existingCompleted ? existingCompleted + "|" + now : now;
-                await this.api.setBlockAttrs(blockId, { [ATTR_COMPLETED]: newCompleted });
+                fullAttrs = await this.repository.writeAttrs(blockId, { [ATTR_COMPLETED]: newCompleted });
                 try {
                     await this.myDayManager.markTaskCompleted(blockId, completedAt);
-                } catch (e: any) {
-                    void this.api.log("warn", `updateTask: failed to mark My Day completion: ${e.message || e}`);
+                } catch (error: unknown) {
+                    void this.api.log("warn", `updateTask: failed to mark My Day completion: ${error instanceof Error ? error.message : String(error)}`);
                 }
             } else if (attrs[ATTR_STATUS] !== undefined && attrs[ATTR_STATUS] !== "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
-                } catch (e: any) {
-                    void this.api.log("warn", `updateTask: failed to clear My Day completion: ${e.message || e}`);
+                } catch (error: unknown) {
+                    void this.api.log("warn", `updateTask: failed to clear My Day completion: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
 
-            // Re-fetch full attrs
-            const fullAttrs = await this.api.getBlockAttrs(blockId);
-
             // Build updated entry
             existing = this.cacheManager.get(blockId);
-            const entry = this.buildEntryFromAttrs(blockId, fullAttrs, existing);
+            const entry = this.repository.buildEntry(blockId, fullAttrs, existing);
 
             // Fill missing title
             if (!entry.title) {
@@ -857,7 +788,7 @@ export class TaskService {
                 entry.order = calculateOrder(entry, this.cacheManager.getCache());
             }
 
-            this.cacheManager.set(entry);
+            this.repository.cache(entry);
 
             // Recalculate parent project order (propagation) when child order may have changed
             if (entry.parentId !== "" && needRecalcOrder) {
@@ -881,16 +812,15 @@ export class TaskService {
                     if (advanced.state.currentStart) repeatAttrs[ATTR_START] = advanced.state.currentStart;
                 }
 
-                await this.api.setBlockAttrs(blockId, repeatAttrs);
+                const finalAttrs = await this.repository.writeAttrs(blockId, repeatAttrs);
                 if (!advanced.ended && advanced.state.status === "active") {
                     try {
                         await this.myDayManager.clearTaskCompleted(blockId);
-                    } catch (e: any) {
-                        void this.api.log("warn", `updateTask: failed to clear My Day completion after repeat advancement: ${e.message || e}`);
+                    } catch (error: unknown) {
+                        void this.api.log("warn", `updateTask: failed to clear My Day completion after repeat advancement: ${error instanceof Error ? error.message : String(error)}`);
                     }
                 }
-                const finalAttrs = await this.api.getBlockAttrs(blockId);
-                const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, updatedEntry);
+                const finalEntry = this.repository.buildEntry(blockId, finalAttrs, updatedEntry);
                 this.cacheWithRecalculatedOrder(finalEntry);
             }
 
@@ -899,14 +829,13 @@ export class TaskService {
                 const td3 = new Date();
                 const today = `${td3.getFullYear()}-${String(td3.getMonth() + 1).padStart(2, "0")}-${String(td3.getDate()).padStart(2, "0")}`;
                 const nextReviewDate = this.addDays(today, updatedEntry.reviewInterval);
-                await this.api.setBlockAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
-                const reviewAttrs = await this.api.getBlockAttrs(blockId);
-                const reviewEntry = this.buildEntryFromAttrs(blockId, reviewAttrs, this.cacheManager.get(blockId)!);
-                this.cacheManager.set(reviewEntry);
+                const reviewAttrs = await this.repository.writeAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
+                const reviewEntry = this.repository.buildEntry(blockId, reviewAttrs, this.cacheManager.get(blockId)!);
+                this.repository.cache(reviewEntry);
             }
 
             this.cacheManager.recalcBlockedStatus();
-            this.syncEngine.addPendingChange(blockId, "update");
+            this.repository.recordChange(blockId, "update");
 
             // Broadcast entries whose blocked status changed as a side-effect of this update.
             const broadcastEntry = this.cacheManager.get(blockId);
@@ -914,10 +843,10 @@ export class TaskService {
                 blockId, attrs, broadcastEntry ?? null, previousEntry ?? null, this.cacheManager.getCache(),
             );
             for (let i = 0; i < affectedIds.length; i++) {
-                this.syncEngine.addPendingChange(affectedIds[i], "update");
+                this.repository.recordChange(affectedIds[i], "update");
             }
 
-            this.syncEngine.broadcastChanges();
+            this.repository.publishChanges();
 
             const result = this.cacheManager.get(blockId)!;
             if (hasSequentialConflict) {
@@ -933,27 +862,21 @@ export class TaskService {
         blockId = assertBlockId(blockId);
         const title = typeof rawTitle === "string" ? rawTitle.replace(/[\r\n]+/g, " ").trim() : "";
         if (!title || title.length > 512) {
-            const err: any = new Error("title must contain 1-512 characters");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("title must contain 1-512 characters", RPC_ERROR_INVALID_PARAMS);
         }
         this.checkReady();
         const existing = this.cacheManager.get(blockId);
         if (!existing) {
-            const err: any = new Error("Task not found: " + blockId);
-            err.code = RPC_ERROR_TASK_NOT_FOUND;
-            throw err;
+            throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
         }
         // MCP may rename a task immediately after create_tasks returns, before
         // SiYuan's asynchronous SQL index exposes the newly inserted block.
         const blockType = await this.getBlockType(blockId, true);
         if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
-            const err: any = new Error("Only paragraph, heading, or document tasks can be renamed");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("Only paragraph, heading, or document tasks can be renamed", RPC_ERROR_INVALID_PARAMS);
         }
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             if (blockType === "d") {
                 await this.api.request("/api/filetree/renameDocByID", { id: blockId, title });
@@ -962,8 +885,8 @@ export class TaskService {
                 await this.api.request("/api/block/updateBlock", { id: blockId, dataType: "markdown", data: markdown });
             }
             existing.title = title;
-            this.syncEngine.addPendingChange(blockId, "update");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "update");
+            this.repository.publishChanges();
             return existing;
         } finally {
             lock.release();
@@ -974,25 +897,19 @@ export class TaskService {
         blockId = assertBlockId(blockId);
         const rule = normalizeRepeatRule(rawRule);
         if (!rule) {
-            const err: any = new Error("Invalid repeat rule");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("Invalid repeat rule", RPC_ERROR_INVALID_PARAMS);
         }
         this.checkReady();
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
-                const err: any = new Error("Task not found");
-                err.code = RPC_ERROR_TASK_NOT_FOUND;
-                throw err;
+                throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
             }
             const state = createRepeatState(rule, entry.start, entry.due);
             if (!state) {
-                const err: any = new Error("Repeat task requires a start or due date");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Repeat task requires a start or due date", RPC_ERROR_INVALID_PARAMS);
             }
 
             const attrs: Record<string, string> = {
@@ -1000,14 +917,12 @@ export class TaskService {
                 [ATTR_REPEAT_STATE]: JSON.stringify(state),
             };
             if (entry.status === "done") attrs[ATTR_STATUS] = "todo";
-            await this.api.setBlockAttrs(blockId, attrs);
-
-            const finalAttrs = await this.api.getBlockAttrs(blockId);
-            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            const finalAttrs = await this.repository.writeAttrs(blockId, attrs);
+            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
-            this.syncEngine.addPendingChange(blockId, "update");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "update");
+            this.repository.publishChanges();
             return finalEntry;
         } finally {
             lock.release();
@@ -1018,25 +933,19 @@ export class TaskService {
         blockId = assertBlockId(blockId);
         this.checkReady();
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
-                const err: any = new Error("Task not found");
-                err.code = RPC_ERROR_TASK_NOT_FOUND;
-                throw err;
+                throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
             }
             const rule = parseRepeatRule(entry.repeat);
             const state = rule && (parseRepeatState(entry.repeatState) || createRepeatState(rule, entry.start, entry.due));
             if (!rule || !state) {
-                const err: any = new Error("Invalid repeat rule or state");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Invalid repeat rule or state", RPC_ERROR_INVALID_PARAMS);
             }
             if (state.status !== "active") {
-                const err: any = new Error(state.status === "paused" ? "Repeat series is paused" : "Repeat series has ended");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError(state.status === "paused" ? "Repeat series is paused" : "Repeat series has ended", RPC_ERROR_INVALID_PARAMS);
             }
 
             const advanced = advanceRepeatState(rule, state, localActionDate(), "skip");
@@ -1048,19 +957,18 @@ export class TaskService {
                 if (advanced.state.currentDue) attrs[ATTR_DUE] = advanced.state.currentDue;
                 if (advanced.state.currentStart) attrs[ATTR_START] = advanced.state.currentStart;
             }
-            await this.api.setBlockAttrs(blockId, attrs);
+            const finalAttrs = await this.repository.writeAttrs(blockId, attrs);
             try {
                 await this.myDayManager.clearTaskCompleted(blockId);
-            } catch (e: any) {
-                void this.api.log("warn", `skipRepeatOccurrence: failed to clear My Day completion: ${e.message || e}`);
+            } catch (error: unknown) {
+                void this.api.log("warn", `skipRepeatOccurrence: failed to clear My Day completion: ${error instanceof Error ? error.message : String(error)}`);
             }
 
-            const finalAttrs = await this.api.getBlockAttrs(blockId);
-            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
-            this.syncEngine.addPendingChange(blockId, "update");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "update");
+            this.repository.publishChanges();
             return finalEntry;
         } finally {
             lock.release();
@@ -1070,31 +978,23 @@ export class TaskService {
     async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
         blockId = assertBlockId(blockId);
         if (typeof paused !== "boolean") {
-            const err: any = new Error("paused is required");
-            err.code = RPC_ERROR_INVALID_PARAMS;
-            throw err;
+            throw codedError("paused is required", RPC_ERROR_INVALID_PARAMS);
         }
         this.checkReady();
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
-                const err: any = new Error("Task not found");
-                err.code = RPC_ERROR_TASK_NOT_FOUND;
-                throw err;
+                throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
             }
             const rule = parseRepeatRule(entry.repeat);
             const state = rule && (parseRepeatState(entry.repeatState) || createRepeatState(rule, entry.start, entry.due));
             if (!rule || !state) {
-                const err: any = new Error("Invalid repeat rule or state");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Invalid repeat rule or state", RPC_ERROR_INVALID_PARAMS);
             }
             if (!paused && state.status === "ended") {
-                const err: any = new Error("Repeat series has ended; edit the rule to restart it");
-                err.code = RPC_ERROR_INVALID_PARAMS;
-                throw err;
+                throw codedError("Repeat series has ended; edit the rule to restart it", RPC_ERROR_INVALID_PARAMS);
             }
 
             const nextState: RepeatStateV1 = { ...state, status: paused ? "paused" : "active" };
@@ -1106,21 +1006,20 @@ export class TaskService {
                 if (nextState.currentDue) attrs[ATTR_DUE] = nextState.currentDue;
                 if (nextState.currentStart) attrs[ATTR_START] = nextState.currentStart;
             }
-            await this.api.setBlockAttrs(blockId, attrs);
+            const finalAttrs = await this.repository.writeAttrs(blockId, attrs);
             if (!paused && entry.status === "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
-                } catch (e: any) {
-                    void this.api.log("warn", `setRepeatPaused: failed to clear My Day completion: ${e.message || e}`);
+                } catch (error: unknown) {
+                    void this.api.log("warn", `setRepeatPaused: failed to clear My Day completion: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
 
-            const finalAttrs = await this.api.getBlockAttrs(blockId);
-            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
+            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
             this.cacheWithRecalculatedOrder(finalEntry);
             this.cacheManager.recalcBlockedStatus();
-            this.syncEngine.addPendingChange(blockId, "update");
-            this.syncEngine.broadcastChanges();
+            this.repository.recordChange(blockId, "update");
+            this.repository.publishChanges();
             return finalEntry;
         } finally {
             lock.release();
@@ -1194,19 +1093,19 @@ export class TaskService {
             let ancestorId = "";
             try {
                 ancestorId = await this.findAncestorTask(entry.blockId);
-            } catch (_e: any) { /* ignore */ }
+            } catch (_error: unknown) { /* ignore */ }
 
             const correctParent = ancestorId || "";
 
             if (entry.parentId === correctParent) continue;
 
             // Update the block attribute
-            await this.api.setBlockAttrs(entry.blockId, { [ATTR_PARENT]: correctParent });
+            const confirmedAttrs = await this.repository.writeAttrs(entry.blockId, { [ATTR_PARENT]: correctParent });
 
             // Update cache via set() which maintains childIds reverse index.
             // Must create a new object so set() can see the old vs new parentId.
-            const updated = Object.assign({}, entry, { parentId: correctParent });
-            this.cacheManager.set(updated);
+            const updated = this.repository.buildEntry(entry.blockId, confirmedAttrs, entry);
+            this.repository.cache(updated);
             fixedIds.push(entry.blockId);
             fixed++;
 
@@ -1218,9 +1117,9 @@ export class TaskService {
         if (fixed > 0) {
             this.cacheManager.recalcBlockedStatus();
             for (const id of fixedIds) {
-                this.syncEngine.addPendingChange(id, "update");
+                this.repository.recordChange(id, "update");
             }
-            this.syncEngine.broadcastChanges();
+            this.repository.publishChanges();
         }
 
         return fixed;
@@ -1274,14 +1173,18 @@ export class TaskService {
         return false;
     }
 
-    async reorderTask(blockId: string, newParentId?: string, afterId?: string): Promise<any> {
+    async reorderTask(blockId: string, newParentId?: string, afterId?: string): Promise<TaskCacheEntry> {
         blockId = assertBlockId(blockId);
         if (newParentId) assertBlockId(newParentId, "newParentId");
         if (afterId) assertBlockId(afterId, "afterId");
-        if (!this.isReady) return { _rpcError: { code: RPC_ERROR_NOT_READY, message: "Kernel not ready" } };
+        this.checkReady();
 
         const entry = this.cacheManager.get(blockId);
-        if (!entry) return { _rpcError: { code: RPC_ERROR_TASK_NOT_FOUND, message: "Task not found" } };
+        if (!entry) {
+            const error = new Error("Task not found") as Error & { code: number };
+            error.code = RPC_ERROR_TASK_NOT_FOUND;
+            throw error;
+        }
 
         const parentId = newParentId !== undefined ? newParentId : entry.parentId;
 
@@ -1290,7 +1193,11 @@ export class TaskService {
             let current: string | undefined = parentId;
             const visited = new Set<string>();
             while (current && !visited.has(current)) {
-                if (current === blockId) return { _rpcError: { code: RPC_ERROR_CIRCULAR_REF, message: "Circular reference" } };
+                if (current === blockId) {
+                    const error = new Error("Circular reference") as Error & { code: number };
+                    error.code = RPC_ERROR_CIRCULAR_REF;
+                    throw error;
+                }
                 visited.add(current);
                 const parentEntry = this.cacheManager.get(current);
                 current = parentEntry?.parentId;
@@ -1301,15 +1208,17 @@ export class TaskService {
         if (entry.taskType === "2" && parentId) {
             const parentEntry = this.cacheManager.get(parentId);
             if (parentEntry && parentEntry.taskType === "1") {
-                return { _rpcError: { code: RPC_ERROR_INVALID_PARAMS, message: "Project cannot be child of task" } };
+                const error = new Error("Project cannot be child of task") as Error & { code: number };
+                error.code = RPC_ERROR_INVALID_PARAMS;
+                throw error;
             }
         }
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             // 更新 na-parent
             if (newParentId !== undefined && newParentId !== entry.parentId) {
-                await this.api.setBlockAttrs(blockId, { [ATTR_PARENT]: newParentId ?? "" });
+                await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: newParentId ?? "" });
             }
 
             // 获取目标位置的兄弟列表（排除被拖任务自身）
@@ -1358,11 +1267,16 @@ export class TaskService {
                     const sort = i < insertIndex ? i * step : (i + 1) * step;
                     siblings[i].sort = sort;
                 }
-                await Promise.all(siblings.map(s =>
-                    this.api.setBlockAttrs(s.blockId, { [ATTR_SORT]: String(s.sort) }).catch((e: any) => {
-                        void this.api.log("warn", `reorderTask: failed to setBlockAttrs for ${s.blockId}: ${e.message || e}`);
-                    })
-                ));
+                for (const sibling of siblings) {
+                    try {
+                        const siblingAttrs = await this.repository.writeAttrs(sibling.blockId, { [ATTR_SORT]: String(sibling.sort) });
+                        const cachedSibling = this.cacheManager.get(sibling.blockId);
+                        if (cachedSibling) this.repository.cache(this.repository.buildEntry(sibling.blockId, siblingAttrs, cachedSibling));
+                    } catch (error: unknown) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        void this.api.log("warn", `reorderTask: failed to write sort for ${sibling.blockId}: ${message}`);
+                    }
+                }
                 // 更新缓存中的 sort
                 for (const s of siblings) {
                     const cached = this.cacheManager.get(s.blockId);
@@ -1371,13 +1285,11 @@ export class TaskService {
                 newSort = insertIndex * step;
             }
 
-            await this.api.setBlockAttrs(blockId, { [ATTR_SORT]: String(newSort) });
-
-            const finalAttrs = await this.api.getBlockAttrs(blockId);
-            const finalEntry = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
-            this.cacheManager.set(finalEntry);
+            const finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_SORT]: String(newSort) });
+            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
+            this.repository.cache(finalEntry);
             this.cacheManager.recalcBlockedStatus();
-            this.syncEngine.addPendingChange(blockId, "update");
+            this.repository.recordChange(blockId, "update");
 
             // In a sequential parent, reordering changes which siblings are blocked.
             if (parentId) {
@@ -1385,16 +1297,14 @@ export class TaskService {
                 if (parentEntry && parentEntry.sequential) {
                     for (let i = 0; i < parentEntry.childIds.length; i++) {
                         if (parentEntry.childIds[i] !== blockId) {
-                            this.syncEngine.addPendingChange(parentEntry.childIds[i], "update");
+                            this.repository.recordChange(parentEntry.childIds[i], "update");
                         }
                     }
                 }
             }
 
-            this.syncEngine.broadcastChanges();
+            this.repository.publishChanges();
             return finalEntry;
-        } catch (e: any) {
-            return errorToRpcError(e);
         } finally {
             lock.release();
         }
@@ -1504,7 +1414,11 @@ export class TaskService {
     }
 
     async rebuildCache(): Promise<void> {
-        await this.cacheManager.rebuild();
+        await this.cacheManager.rebuild(blockIds => this.repository.batchGetBlockAttrs(blockIds));
+    }
+
+    async loadCache(): Promise<void> {
+        await this.cacheManager.loadAll(blockIds => this.repository.batchGetBlockAttrs(blockIds));
     }
 
     getContexts(): string[] {
@@ -1547,7 +1461,7 @@ export class TaskService {
         return Object.keys(tagSet);
     }
 
-    updateSettings(partial: Partial<PluginSettings>): PluginSettings | { _rpcError: { code: number; message: string } } {
+    updateSettings(partial: Partial<PluginSettings>): PluginSettings {
         const normalized: Partial<PluginSettings> = {
             ...partial,
             customFieldSchemaVersion: 2,
@@ -1555,13 +1469,14 @@ export class TaskService {
         };
         const error = validateSettings(normalized);
         if (error) {
-            return { _rpcError: { code: RPC_ERROR_INVALID_PARAMS, message: error } };
+            throw new RpcContractError(error);
         }
         this.settings = mergeSettings(this.settings, normalized);
         // Propagate priority engine params
         if (partial.priorityEngine) {
             updatePriorityConfig(partial.priorityEngine);
         }
+        this.repository.updateSettings(this.settings);
         this.myDayManager.updateSettings(this.settings);
         return this.settings;
     }
@@ -1797,7 +1712,7 @@ export class TaskService {
         if (!blockIds || blockIds.length === 0) return [];
         blockIds = blockIds.map((blockId, index) => assertBlockId(blockId, `blockIds[${index}]`));
 
-        const lock = await this.acquireWithTimeout();
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const results: TaskCacheEntry[] = [];
             const td4 = new Date();
@@ -1808,16 +1723,14 @@ export class TaskService {
                 if (!entry || entry.reviewInterval <= 0) continue;
 
                 const nextReviewDate = this.addDays(today, entry.reviewInterval);
-                await this.api.setBlockAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
-
-                const finalAttrs = await this.api.getBlockAttrs(blockId);
-                const updated = this.buildEntryFromAttrs(blockId, finalAttrs, entry);
-                this.cacheManager.set(updated);
-                this.syncEngine.addPendingChange(blockId, "update");
+                const finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
+                const updated = this.repository.buildEntry(blockId, finalAttrs, entry);
+                this.repository.cache(updated);
+                this.repository.recordChange(blockId, "update");
                 results.push(updated);
             }
 
-            this.syncEngine.broadcastChanges();
+            this.repository.publishChanges();
             return results;
         } finally {
             lock.release();
@@ -1966,7 +1879,7 @@ export class TaskService {
                 title = cleanSlashFromTitle(title);
                 return title;
             }
-        } catch (_e: any) {
+        } catch (_error: unknown) {
             // Ignore
         }
         return "";
@@ -1990,8 +1903,8 @@ export class TaskService {
             if (entry && !isCustomFieldApplicable(field, entry, taskMap)) return `Custom field is not applicable to task: ${fieldKey}`;
             try {
                 encodeCustomFieldValue(field, rawValue);
-            } catch (error: any) {
-                return `${fieldKey}: ${error.message || error}`;
+            } catch (error: unknown) {
+                return `${fieldKey}: ${error instanceof Error ? error.message : String(error)}`;
             }
         }
         return null;
@@ -2001,100 +1914,28 @@ export class TaskService {
         this.checkReady();
         const targets = this.cacheManager.getAll().filter(entry => Object.prototype.hasOwnProperty.call(entry.customFields || {}, fieldKey));
         if (targets.length === 0) return { cleared: 0, failedBlockIds: [] };
-        const lock = await this.acquireWithTimeout();
-        const failedBlockIds: string[] = [];
-        const clearedIds: string[] = [];
+        const lock = await this.repository.acquireWithTimeout();
         try {
             const blockAttrs = targets.map(entry => ({ id: entry.blockId, attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" } }));
-            try {
-                await this.api.batchSetBlockAttrs(blockAttrs);
-                clearedIds.push(...targets.map(entry => entry.blockId));
-            } catch (_batchError: any) {
-                // The endpoint is available in current kernels but is not present in all older API documents.
-                // Fall back to idempotent single-block writes so partial failures are observable.
-                for (const entry of targets) {
-                    try {
-                        await this.api.setBlockAttrs(entry.blockId, { [ATTR_EXT_PREFIX + fieldKey]: "" });
-                        clearedIds.push(entry.blockId);
-                    } catch (_singleError: any) {
-                        failedBlockIds.push(entry.blockId);
-                    }
-                }
-            }
+            const result = await this.repository.batchWriteAttrs(blockAttrs);
+            const clearedIds = Object.keys(result.attrsByBlockId);
             for (const blockId of clearedIds) {
                 const entry = this.cacheManager.get(blockId);
                 if (!entry) continue;
-                const next = { ...entry, customFields: { ...entry.customFields } };
-                delete next.customFields[fieldKey];
-                this.cacheManager.set(next);
-                this.syncEngine.addPendingChange(blockId, "update");
+                const attrs = result.attrsByBlockId[blockId];
+                this.repository.cache(this.repository.buildEntry(blockId, attrs, entry));
+                this.repository.recordChange(blockId, "update");
             }
-            if (clearedIds.length > 0) this.syncEngine.broadcastChanges();
-            return { cleared: clearedIds.length, failedBlockIds };
+            if (clearedIds.length > 0) this.repository.publishChanges();
+            return { cleared: clearedIds.length, failedBlockIds: result.failedBlockIds };
         } finally {
             lock.release();
         }
     }
 
-    private buildEntryFromAttrs(
-        blockId: string,
-        attrs: Record<string, string>,
-        existing?: TaskCacheEntry,
-    ): TaskCacheEntry {
-        const parentId = attrs[ATTR_PARENT] || "";
-
-        const entry: TaskCacheEntry = {
-            blockId: blockId,
-            parentId: parentId,
-            status: attrs[ATTR_STATUS] || "todo",
-            priority: attrs[ATTR_PRIORITY] || "medium",
-            importance: attrToNumber(attrs[ATTR_IMPORTANCE], this.settings.defaultImportance),
-            effort: attrToNumber(attrs[ATTR_EFFORT], this.settings.defaultEffort),
-            due: attrs[ATTR_DUE] || "",
-            start: attrs[ATTR_START] || "",
-            context: attrs[ATTR_CONTEXT] || "",
-            depends: attrs[ATTR_DEPENDS] || "",
-            depMode: attrs[ATTR_DEP_MODE] || "all",
-            sequential: attrs[ATTR_SEQUENTIAL] === "1",
-            repeat: attrs[ATTR_REPEAT] || "",
-            repeatState: attrs[ATTR_REPEAT_STATE] || "",
-            sort: attrToNumber(attrs[ATTR_SORT], -1),
-            completed: attrs[ATTR_COMPLETED] || "",
-            note: attrs[ATTR_NOTE] || "",
-            created: attrs[ATTR_CREATED] || "",
-            tags: attrs[ATTR_TAGS] || "",
-            reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
-            reviewDate: attrs[ATTR_REVIEW_DATE] || "",
-            reminder: attrs[ATTR_REMINDER] || "",
-            customFields: this.extractCustomFieldsFromAttrs(attrs),
-            blocked: false,
-            blockedReason: "",
-            taskType: attrs[ATTR_TASK] || "1",
-            order: 0,
-            childIds: existing ? existing.childIds : [],
-            title: existing ? existing.title : "",
-        };
-
-        entry.order = calculateOrder(entry, this.cacheManager.getCache());
-        return entry;
-    }
-
-    private extractCustomFieldsFromAttrs(attrs: Record<string, string>): Record<string, string> {
-        const result: Record<string, string> = Object.create(null) as Record<string, string>;
-        for (const key of Object.keys(attrs)) {
-            if (key.startsWith(ATTR_EXT_PREFIX)) {
-                const fieldKey = key.slice(ATTR_EXT_PREFIX.length);
-                if (fieldKey && attrs[key]) {
-                    result[fieldKey] = attrs[key];
-                }
-            }
-        }
-        return result;
-    }
-
     private async findTaskParentHint(parentId: string, blockId: string): Promise<string> {
         if (!parentId || parentId === blockId) return "";
-        const attrs = await this.api.getBlockAttrs(parentId);
+        const attrs = await this.repository.getBlockAttrs(parentId);
         return attrs[ATTR_TASK] ? parentId : "";
     }
 
@@ -2113,7 +1954,7 @@ export class TaskService {
         if (!rows || rows.length === 0) return "";
 
         // Build a lookup by id
-        const byId: Record<string, { id: string; parent_id: string; type: string }> = Object.create(null) as any;
+        const byId = Object.create(null) as Record<string, { id: string; parent_id: string; type: string }>;
         for (let i = 0; i < rows.length; i++) {
             byId[rows[i].id] = rows[i];
         }
@@ -2137,7 +1978,7 @@ export class TaskService {
             const ancestorId = ancestor.id;
 
             // Check if this ancestor itself is a task (works for paragraphs, list items, and document blocks)
-            const attrs = await this.api.getBlockAttrs(ancestorId);
+            const attrs = await this.repository.getBlockAttrs(ancestorId);
             if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
                 return ancestorId;
             }
@@ -2174,7 +2015,7 @@ export class TaskService {
         if (!rows || rows.length === 0) return "";
 
         for (let i = 0; i < rows.length; i++) {
-            const attrs = await this.api.getBlockAttrs(rows[i].id);
+            const attrs = await this.repository.getBlockAttrs(rows[i].id);
             if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
                 return rows[i].id;
             }
@@ -2206,18 +2047,17 @@ export class TaskService {
             const childEntry = this.cacheManager.get(childId);
 
             if (childEntry && (!childEntry.parentId || childEntry.parentId === "")) {
-                await this.api.setBlockAttrs(childId, { [ATTR_PARENT]: blockId });
+                const attrs = await this.repository.writeAttrs(childId, { [ATTR_PARENT]: blockId });
                 // Update parentId
-                childEntry.parentId = blockId;
+                this.repository.cache(this.repository.buildEntry(childId, attrs, childEntry));
                 // Add to new parent's childIds
                 const newParent = this.cacheManager.get(blockId);
                 if (newParent && newParent.childIds.indexOf(childId) === -1) {
                     newParent.childIds.push(childId);
                 }
-                this.syncEngine.addPendingChange(childId, "update");
+                this.repository.recordChange(childId, "update");
             }
         }
-        this.syncEngine.broadcastChanges();
     }
 
     private addDays(dateStr: string, days: number): string {
@@ -2244,7 +2084,7 @@ export class TaskService {
 
         if (!rows || rows.length === 0) return "";
 
-        const byId: Record<string, { id: string; parent_id: string; type: string }> = Object.create(null) as any;
+        const byId = Object.create(null) as Record<string, { id: string; parent_id: string; type: string }>;
         for (let i = 0; i < rows.length; i++) {
             byId[rows[i].id] = rows[i];
         }

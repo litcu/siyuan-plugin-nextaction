@@ -3,6 +3,7 @@ import { validateAiProposal } from "../shared/ai";
 import { ATTR_DEPENDS, ATTR_PARENT } from "../shared/constants";
 import type { MyDayState, TaskCacheEntry } from "../shared/types";
 import type { TaskService } from "./task-service";
+import type { CreateTaskDestination, CreateTaskInput } from "../shared/task-creation";
 
 export interface AiProposalApplyResult {
     feature: AiProposal["feature"];
@@ -12,7 +13,7 @@ export interface AiProposalApplyResult {
     warnings: string[];
 }
 
-type CreateTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
+type CreateTaskHandler = (input: CreateTaskInput & { status?: string; fields?: Record<string, unknown> }) => Promise<{ task: any; warnings?: string[] }>;
 type ConvertTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
 
 export class AiProposalService {
@@ -77,7 +78,7 @@ export class AiProposalService {
                 continue;
             }
 
-            const destination = target.type === "document" || target.type === "current_document" || target.type === "source_document"
+            const destination: CreateTaskDestination | undefined = target.type === "document" || target.type === "current_document" || target.type === "source_document"
                 ? { type: "document", documentId: target.documentId }
                 : target.type === "child"
                     ? { type: "block", parentBlockId: target.parentBlockId }

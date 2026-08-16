@@ -1,19 +1,22 @@
 import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, ATTR_PARENT, ATTR_DEPENDS, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../shared/constants";
 import { isBlockId, isBlockIdPipe } from "../shared/block-id";
+import type { RpcFailure } from "../shared/rpc-methods";
 import { getDefaultSiyuanApi, ProductionSiyuanApi, setDefaultSiyuanApi } from "./siyuan-api";
+import type * as kernel from "siyuan/kernel";
 
-let siyuanRef: any = null;
+let siyuanRef: kernel.ISiyuan | null = null;
 
-export function setSiyuan(siyuan: any): void {
+export function setSiyuan(siyuan: kernel.ISiyuan): void {
     siyuanRef = siyuan;
     setDefaultSiyuanApi(new ProductionSiyuanApi(siyuan));
 }
 
-export function getSiyuan(): any {
+export function getSiyuan(): kernel.ISiyuan {
+    if (!siyuanRef) throw new Error("SiYuan kernel API is not initialized");
     return siyuanRef;
 }
 
-export async function siyuanFetch<T = any>(path: `/${string}`, body: object = {}): Promise<T> {
+export async function siyuanFetch<T = unknown>(path: `/${string}`, body: object = {}): Promise<T> {
     return getDefaultSiyuanApi().request<T>(path, body);
 }
 
@@ -113,18 +116,19 @@ const KNOWN_ERROR_CODES = new Set([
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
 ]);
 
-interface RpcResult {
-    _rpcError?: { code: number; message: string };
-    [key: string]: any;
-}
-
-export function rpcError(code: number, message: string): RpcResult {
+export function rpcError(code: number, message: string): RpcFailure {
     return { _rpcError: { code, message } };
 }
 
-export function errorToRpcError(e: any): RpcResult {
-    const code = (e && typeof e.code === "number" && KNOWN_ERROR_CODES.has(e.code))
-        ? e.code
+export function errorToRpcError(error: unknown): RpcFailure {
+    const candidate = error && typeof error === "object"
+        ? error as { code?: unknown; message?: unknown }
+        : null;
+    const code = (typeof candidate?.code === "number" && KNOWN_ERROR_CODES.has(candidate.code))
+        ? candidate.code
         : RPC_ERROR_INTERNAL;
-    return rpcError(code, String(e.message || e));
+    const message = code === RPC_ERROR_INTERNAL
+        ? "Internal error"
+        : String(candidate?.message || error);
+    return rpcError(code, message);
 }

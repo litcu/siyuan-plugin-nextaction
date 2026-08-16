@@ -3,12 +3,29 @@ import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
-import type { RpcMethodName } from "../shared/rpc-methods";
+import type {
+    RpcChildTargetResult,
+    RpcMcpDocumentListItem,
+    RpcMcpDocumentTarget,
+    RpcMcpNotebookTarget,
+    RpcMcpStatus,
+    RpcMethodName,
+    RpcParams,
+    RpcReturn,
+} from "../shared/rpc-methods";
+import { isRpcFailure } from "../shared/rpc-methods";
 import { assertBlockId } from "../shared/block-id";
+import { RPC_ERROR_NOT_READY } from "../shared/constants";
 
-interface RpcError {
-    code: number;
-    message: string;
+interface KernelRpcHost {
+    kernel: {
+        state: { code: number; description?: string };
+        rpc: {
+            call: Record<string, (params?: unknown) => Promise<unknown>>;
+            bind: (method: string, handler: (...params: unknown[]) => void) => void;
+            unbind: (method: string, handler: (...params: unknown[]) => void) => void;
+        };
+    };
 }
 
 export class RpcCallError extends Error {
@@ -20,23 +37,40 @@ export class RpcCallError extends Error {
     }
 }
 
-function hasRpcError(result: any): result is { _rpcError: RpcError } {
-    return result && typeof result === "object" && result._rpcError;
+export class RpcTransportError extends Error {
+    readonly kind = "transport";
+
+    constructor(message: string, options?: { cause?: unknown }) {
+        super(message);
+        this.name = "RpcTransportError";
+        if (options && "cause" in options) {
+            (this as Error & { cause?: unknown }).cause = options.cause;
+        }
+    }
 }
 
 export class KernelBridge {
-    private plugin: any;
+    private readonly plugin: KernelRpcHost;
 
-    constructor(plugin: any) {
+    constructor(plugin: KernelRpcHost) {
         this.plugin = plugin;
     }
 
-    private async call<T>(method: RpcMethodName, params?: Record<string, any>): Promise<T> {
-        const result = await this.plugin.kernel.rpc.call[method](params || {});
-        if (hasRpcError(result)) {
+    private async call<Method extends RpcMethodName>(method: Method, params: RpcParams<Method>): Promise<RpcReturn<Method>> {
+        if (this.plugin.kernel.state.code !== 2) {
+            throw new RpcCallError(RPC_ERROR_NOT_READY, "Kernel not ready");
+        }
+        let result: unknown;
+        try {
+            result = await this.plugin.kernel.rpc.call[method](params);
+        } catch (cause: unknown) {
+            const message = cause instanceof Error ? cause.message : String(cause);
+            throw new RpcTransportError(message || "Kernel RPC transport failed", { cause });
+        }
+        if (isRpcFailure(result)) {
             throw new RpcCallError(result._rpcError.code, result._rpcError.message);
         }
-        return result as T;
+        return result as RpcReturn<Method>;
     }
 
     async echo(params: unknown[] = []): Promise<unknown[]> {
@@ -100,7 +134,7 @@ export class KernelBridge {
     }
 
     async rebuildParentRelationships(): Promise<number> {
-        const result = await this.call<{ fixed: number }>("rebuildParentRelationships", {});
+        const result = await this.call("rebuildParentRelationships", {});
         return result.fixed;
     }
 
@@ -113,7 +147,7 @@ export class KernelBridge {
     }
 
     async getDoneTaskCount(): Promise<number> {
-        const result = await this.call<{ count: number }>("getDoneTaskCount", {});
+        const result = await this.call("getDoneTaskCount", {});
         return result.count;
     }
 
@@ -153,31 +187,31 @@ export class KernelBridge {
         return this.call("applyAiProposal", { proposal });
     }
 
-    async getMcpStatus(): Promise<any> {
+    async getMcpStatus(): Promise<RpcMcpStatus> {
         return this.call("getMcpStatus", {});
     }
 
-    async listMcpTargetNotebooks(): Promise<Array<{ id: string; name: string; icon: string }>> {
+    async listMcpTargetNotebooks(): Promise<RpcMcpNotebookTarget[]> {
         return this.call("listMcpTargetNotebooks", {});
     }
 
-    async listMcpTargetDocuments(notebookId: string, path = "/"): Promise<{ notebookId: string; path: string; items: Array<{ id: string; title: string; notebookId: string; path: string; icon: string; hasChildren: boolean }> }> {
+    async listMcpTargetDocuments(notebookId: string, path = "/"): Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }> {
         return this.call("listMcpTargetDocuments", { notebookId, path });
     }
 
-    async searchMcpTargetDocuments(query: string): Promise<Array<{ id: string; title: string; notebookId: string; notebookName?: string; path: string; icon: string; hasChildren: boolean }>> {
+    async searchMcpTargetDocuments(query: string): Promise<RpcMcpDocumentListItem[]> {
         return this.call("searchMcpTargetDocuments", { query });
     }
 
     async createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
-        return this.call("createTask", input as unknown as Record<string, any>);
+        return this.call("createTask", input);
     }
 
-    async resolveMcpDocumentTarget(value: string): Promise<{ id: string; title: string; notebookId: string; path?: string; icon?: string }> {
+    async resolveMcpDocumentTarget(value: string): Promise<RpcMcpDocumentTarget> {
         return this.call("resolveMcpDocumentTarget", { value });
     }
 
-    async resolveChildTarget(value: string): Promise<{ available: boolean; parentBlockId: string; containerId?: string; containerType?: string; reason?: string }> {
+    async resolveChildTarget(value: string): Promise<RpcChildTargetResult> {
         return this.call("resolveChildTarget", { value });
     }
 
@@ -235,12 +269,12 @@ export class KernelBridge {
     }
 
     bindTasksChanged(handler: (notification: TaskChangeNotification) => void): void {
-        this.plugin.kernel.rpc.bind("tasksChanged", (...params: any[]) => {
+        this.plugin.kernel.rpc.bind("tasksChanged", (...params: unknown[]) => {
             handler(params[0] as TaskChangeNotification);
         });
     }
 
-    unbindTasksChanged(handler: (...params: any[]) => void): void {
+    unbindTasksChanged(handler: (...params: unknown[]) => void): void {
         this.plugin.kernel.rpc.unbind("tasksChanged", handler);
     }
 }

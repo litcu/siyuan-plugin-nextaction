@@ -13,6 +13,8 @@ interface SqlRow {
     updated: string;
 }
 
+export type BatchTaskAttributeReader = (blockIds: string[]) => Promise<Record<string, Record<string, string>>>;
+
 export class CacheManager {
     private cache: Record<string, TaskCacheEntry>;
     private lastSyncTime: string;
@@ -22,7 +24,7 @@ export class CacheManager {
         this.lastSyncTime = "";
     }
 
-    async loadAll(): Promise<void> {
+    async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
         // Step 1: Query na-task block IDs in stable cursor pages. There is no
         // explicit LIMIT so SiYuan applies its current search-result limit to
         // every request. Continue after the last ID until no rows remain.
@@ -69,7 +71,7 @@ export class CacheManager {
         // This API reads from the in-memory IAL cache (always up-to-date) and
         // returns {blockId: {key: value, ...}} — one call instead of N calls.
         const ids = rows.map((r) => r.id);
-        const batchResult = await this.api.batchGetBlockAttrs(ids);
+        const batchResult = await readTaskAttributes(ids);
 
         // Build a title lookup from SQL rows
         const titleMap: Record<string, string> = Object.create(null) as Record<string, string>;
@@ -256,10 +258,10 @@ export class CacheManager {
         delete this.cache[blockId];
     }
 
-    async rebuild(): Promise<void> {
+    async rebuild(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
         this.lastSyncTime = "";
-        await this.loadAll();
+        await this.loadAll(readTaskAttributes);
     }
 
     /**

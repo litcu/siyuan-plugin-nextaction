@@ -11,6 +11,7 @@ import type { MyDayState, TaskCacheEntry } from "../shared/types";
 import {
     CREATE_TASK_DESTINATION_TYPES,
     CREATE_TASK_FORMATS,
+    type CreateTaskInput,
     type CreateTaskFormat,
 } from "../shared/task-creation";
 import { type TaskService } from "./task-service";
@@ -68,6 +69,8 @@ export interface McpDocumentTarget {
 }
 
 export interface McpDocumentListItem extends McpDocumentTarget {
+    path: string;
+    icon: string;
     hasChildren: boolean;
 }
 
@@ -832,7 +835,7 @@ export class McpToolManager {
         return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
     }
 
-    async createTaskForPlugin(input: Record<string, any>) {
+    async createTaskForPlugin(input: CreateTaskInput) {
         return this.createTask(input);
     }
 
@@ -929,7 +932,7 @@ export class McpToolManager {
         }
     }
 
-    private async createTask(input: Record<string, any>) {
+    private async createTask(input: CreateTaskInput) {
         if (typeof input.title !== "string") throw new McpToolError("INVALID_INPUT", "title is required");
         const title = input.title.replace(/[\r\n]+/g, " ").trim();
         if (!title || title.length > 512) throw new McpToolError("INVALID_INPUT", "title must contain 1-512 characters");

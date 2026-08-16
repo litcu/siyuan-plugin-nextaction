@@ -1,511 +1,149 @@
-import { type TaskService } from "./task-service";
-import { getSiyuan, rpcError, errorToRpcError } from "./utils";
-import {
-    RPC_ERROR_INVALID_PARAMS,
-} from "../shared/constants";
-import type { MyDayState, ReviewData } from "../shared/types";
-import type { PluginSettings } from "../shared/settings";
+import { RPC_ERROR_INTERNAL } from "../shared/constants";
 import type { AiProposalService } from "./ai-proposal-service";
-import type { RpcMethodName } from "../shared/rpc-methods";
-
-interface RpcResult {
-    _rpcError?: { code: number; message: string };
-    [key: string]: any;
-}
+import type { TaskService } from "./task-service";
+import type {
+    RpcChildTargetResult,
+    RpcContract,
+    RpcMcpDocumentListItem,
+    RpcMcpDocumentTarget,
+    RpcMcpNotebookTarget,
+    RpcMcpStatus,
+    RpcMethodName,
+    RpcParams,
+    RpcResult,
+    RpcReturn,
+} from "../shared/rpc-methods";
+import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rpc-methods";
+import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
+import type { PluginSettings } from "../shared/settings";
+import type { ReviewData } from "../shared/types";
+import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
-    updateSettings?: (settings: Partial<PluginSettings>) => Promise<PluginSettings | RpcResult>;
-    completeReview?: () => Promise<ReviewData | RpcResult>;
-    getMcpStatus?: () => any;
-    listMcpTargetNotebooks?: () => Promise<any>;
-    listMcpTargetDocuments?: (notebookId: string, path: string) => Promise<any>;
-    searchMcpTargetDocuments?: (query: string) => Promise<any>;
-    resolveMcpDocumentTarget?: (value: unknown) => Promise<any>;
-    resolveChildTarget?: (value: unknown) => Promise<any>;
-    createTask?: (input: Record<string, any>) => Promise<any>;
+    updateSettings?: (settings: Partial<PluginSettings>) => Promise<PluginSettings>;
+    completeReview?: () => Promise<ReviewData>;
+    getMcpStatus?: () => RpcMcpStatus;
+    listMcpTargetNotebooks?: () => Promise<RpcMcpNotebookTarget[]>;
+    listMcpTargetDocuments?: (notebookId: string, path: string) => Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }>;
+    searchMcpTargetDocuments?: (query: string) => Promise<RpcMcpDocumentListItem[]>;
+    resolveMcpDocumentTarget?: (value: unknown) => Promise<RpcMcpDocumentTarget>;
+    resolveChildTarget?: (value: unknown) => Promise<RpcChildTargetResult>;
+    createTask?: (input: CreateTaskInput) => Promise<CreateTaskResult>;
     aiProposalService?: AiProposalService;
 }
 
+type MaybePromise<T> = T | Promise<T>;
+type RpcHandlerMap = {
+    [Method in RpcMethodName]: (params: RpcParams<Method>) => MaybePromise<RpcReturn<Method>>;
+};
+
+function unavailable(name: string): never {
+    throw new RpcContractError(`${name} is unavailable`);
+}
+
+function formatUnknownError(error: unknown): string {
+    if (error instanceof Error) return error.stack || error.message;
+    return String(error);
+}
+
+function rawParams(method: RpcMethodName, args: unknown[]): unknown {
+    if (method !== "echo") return args[0];
+    const first = args[0];
+    if (first && typeof first === "object" && !Array.isArray(first) && "params" in first) return first;
+    return { params: args };
+}
+
+function bindRpcMethod<Method extends RpcMethodName>(
+    method: Method,
+    handler: RpcHandlerMap[Method],
+): void {
+    const siyuan = getSiyuan();
+    void siyuan.rpc.bind(method, async (...args: unknown[]): Promise<RpcResult<RpcReturn<Method>>> => {
+        try {
+            const params = parseRpcParams(method, rawParams(method, args));
+            return await handler(params);
+        } catch (error: unknown) {
+            const failure = errorToRpcError(error);
+            if (failure._rpcError.code === RPC_ERROR_INTERNAL) {
+                await siyuan.logger.error(`RPC ${method} failed: ${formatUnknownError(error)}`);
+            }
+            return failure;
+        }
+    });
+}
+
 export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHooks = {}): void {
-    const siyuan = getSiyuan() as {
-        rpc: { bind(method: RpcMethodName, handler: (...params: any[]) => unknown): void };
-    };
-
-    siyuan.rpc.bind("echo", async (...params: any[]) => {
-        const payload = params[0];
-        return Array.isArray(payload?.params) ? payload.params : params;
-    });
-
-    siyuan.rpc.bind("convertToTask", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.convertToTask(p.blockId, p.cleanTitle, p.taskType || "1");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("convertToTaskWithChildren", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.convertToTaskWithChildren(p.blockId, p.cleanTitle, p.taskType || "1");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("removeTask", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            await taskService.removeTask(p.blockId);
+    const handlers: RpcHandlerMap = {
+        echo: ({ params }) => params,
+        convertToTask: ({ blockId, cleanTitle, taskType }) => taskService.convertToTask(blockId, cleanTitle, taskType || "1"),
+        convertToTaskWithChildren: ({ blockId, cleanTitle, taskType }) => taskService.convertToTaskWithChildren(blockId, cleanTitle, taskType || "1"),
+        removeTask: async ({ blockId }) => {
+            await taskService.removeTask(blockId);
             return { success: true };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("updateTask", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        if (!p.attrs || typeof p.attrs !== "object") {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "attrs is required and must be an object");
-        }
-        try {
-            const result = await taskService.updateTask(p.blockId, p.attrs);
-            return result;
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("setRepeatRule", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId || !p.rule || typeof p.rule !== "object") {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId and rule are required");
-        }
-        try {
-            return await taskService.setRepeatRule(p.blockId, p.rule);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("skipRepeatOccurrence", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        try {
-            return await taskService.skipRepeatOccurrence(p.blockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("setRepeatPaused", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId || typeof p.paused !== "boolean") {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId and paused are required");
-        }
-        try {
-            return await taskService.setRepeatPaused(p.blockId, p.paused);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getTask", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return taskService.getTask(p.blockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getNextActions", async (..._params: any[]) => {
-        try {
-            return taskService.getNextActions();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getAllTasks", async (...params: any[]) => {
-        const p = params[0] || {};
-        try {
-            return taskService.getAllTasks({
-                status: p.status,
-                sortBy: p.sortBy,
-            });
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getCompletedTasksPage", async (...params: any[]) => {
-        const p = params[0] || {};
-        try {
-            return taskService.getCompletedTasksPage({
-                page: p.page,
-                pageSize: p.pageSize,
-                sortBy: p.sortBy,
-                sortAsc: p.sortAsc,
-            });
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getTasksByParent", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.parentBlockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "parentBlockId is required");
-        }
-        try {
-            return taskService.getTasksByParent(p.parentBlockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("recalcAllOrders", async (..._params: any[]) => {
-        try {
+        },
+        updateTask: ({ blockId, attrs }) => taskService.updateTask(blockId, attrs),
+        setRepeatRule: ({ blockId, rule }) => taskService.setRepeatRule(blockId, rule),
+        skipRepeatOccurrence: ({ blockId }) => taskService.skipRepeatOccurrence(blockId),
+        setRepeatPaused: ({ blockId, paused }) => taskService.setRepeatPaused(blockId, paused),
+        getTask: ({ blockId }) => taskService.getTask(blockId),
+        getNextActions: () => taskService.getNextActions(),
+        getAllTasks: ({ status, sortBy }) => taskService.getAllTasks({ status, sortBy }),
+        getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
+        getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),
+        recalcAllOrders: async () => {
             await taskService.recalcAllOrders();
             return { success: true };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("rebuildCache", async (..._params: any[]) => {
-        try {
+        },
+        rebuildCache: async () => {
             await taskService.rebuildCache();
             return { success: true };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
+        },
+        getDoneTaskCount: () => ({ count: taskService.getDoneTaskCount() }),
+        getContexts: () => taskService.getContexts(),
+        getTags: () => taskService.getTags(),
+        rebuildParentRelationships: async () => ({ fixed: await taskService.rebuildParentRelationships() }),
+        getProjectReminders: () => taskService.getProjectReminders(),
+        reorderTask: ({ blockId, parentId, afterId }) => taskService.reorderTask(blockId, parentId ?? undefined, afterId ?? undefined),
+        getStatistics: ({ period }) => taskService.getStatistics(period || "week"),
+        updateSettings: ({ settings }) => hooks.updateSettings ? hooks.updateSettings(settings) : Promise.resolve(taskService.updateSettings(settings)),
+        getSettings: () => taskService.getSettings(),
+        validateAiProposal: ({ proposal }) => hooks.aiProposalService
+            ? hooks.aiProposalService.validate(proposal)
+            : unavailable("AI proposal service"),
+        applyAiProposal: ({ proposal }) => hooks.aiProposalService
+            ? hooks.aiProposalService.apply(proposal)
+            : unavailable("AI proposal service"),
+        getMcpStatus: () => hooks.getMcpStatus ? hooks.getMcpStatus() : ({
+            supported: false,
+            enabled: false,
+            allowWrite: false,
+            endpoint: "/mcp",
+            tools: [],
+            lastError: "MCP manager is unavailable",
+        }),
+        listMcpTargetNotebooks: () => hooks.listMcpTargetNotebooks ? hooks.listMcpTargetNotebooks() : Promise.resolve([]),
+        listMcpTargetDocuments: ({ notebookId, path }) => hooks.listMcpTargetDocuments
+            ? hooks.listMcpTargetDocuments(notebookId, path || "/")
+            : unavailable("MCP manager"),
+        searchMcpTargetDocuments: ({ query }) => hooks.searchMcpTargetDocuments ? hooks.searchMcpTargetDocuments(query) : Promise.resolve([]),
+        resolveMcpDocumentTarget: ({ value }) => hooks.resolveMcpDocumentTarget ? hooks.resolveMcpDocumentTarget(value) : unavailable("MCP manager"),
+        resolveChildTarget: ({ value }) => hooks.resolveChildTarget ? hooks.resolveChildTarget(value) : unavailable("MCP manager"),
+        createTask: (input) => hooks.createTask ? hooks.createTask(input) : unavailable("MCP manager"),
+        getCustomFieldDiagnostics: () => taskService.getCustomFieldDiagnostics(),
+        purgeCustomField: ({ fieldId }) => taskService.purgeCustomField(fieldId),
+        purgeOrphanCustomField: ({ key }) => taskService.purgeOrphanCustomField(key),
+        getMyDay: () => taskService.getMyDay(),
+        addTaskToMyDay: ({ blockId }) => taskService.addTaskToMyDay(blockId),
+        removeTaskFromMyDay: ({ blockId }) => taskService.removeTaskFromMyDay(blockId),
+        reorderMyDayTask: ({ blockId, afterId }) => taskService.reorderMyDayTask(blockId, afterId ?? undefined),
+        setMyDaySchedule: ({ blockId, start, end }) => taskService.setMyDaySchedule(blockId, start, end),
+        removeMyDaySchedule: ({ blockId }) => taskService.removeMyDaySchedule(blockId),
+        getReviewData: () => taskService.getReviewData(),
+        completeReview: () => hooks.completeReview ? hooks.completeReview() : unavailable("completeReview"),
+        markTaskReviewed: ({ blockIds }) => taskService.markTaskReviewed(blockIds),
+    } satisfies { [Method in keyof RpcContract]: RpcHandlerMap[Method] };
 
-    siyuan.rpc.bind("getDoneTaskCount", async (..._params: any[]) => {
-        try {
-            return { count: taskService.getDoneTaskCount() };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getContexts", async (..._params: any[]) => {
-        try {
-            return taskService.getContexts();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getTags", async (..._params: any[]) => {
-        try {
-            return taskService.getTags();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("rebuildParentRelationships", async (..._params: any[]) => {
-        try {
-            const fixed = await taskService.rebuildParentRelationships();
-            return { fixed };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getProjectReminders", async () => {
-        try {
-            return taskService.getProjectReminders();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("reorderTask", async (p: any) => {
-        if (!p.blockId) return rpcError(RPC_ERROR_INVALID_PARAMS, "Missing blockId");
-        try {
-            const result = await taskService.reorderTask(p.blockId, p.parentId ?? undefined, p.afterId ?? undefined);
-            return result;
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getStatistics", async (...params: any[]) => {
-        const p = params[0] || {};
-        try {
-            return taskService.getStatistics(p.period || "week");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("updateSettings", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.settings || typeof p.settings !== "object") {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "settings is required and must be an object");
-        }
-        try {
-            return hooks.updateSettings
-                ? await hooks.updateSettings(p.settings)
-                : taskService.updateSettings(p.settings);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getSettings", async (..._params: any[]) => {
-        try {
-            return taskService.getSettings();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("validateAiProposal", async (...params: any[]) => {
-        if (!hooks.aiProposalService) return rpcError(RPC_ERROR_INVALID_PARAMS, "AI proposal service is unavailable");
-        try {
-            return hooks.aiProposalService.validate(params[0]?.proposal);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("applyAiProposal", async (...params: any[]) => {
-        if (!hooks.aiProposalService) return rpcError(RPC_ERROR_INVALID_PARAMS, "AI proposal service is unavailable");
-        try {
-            return await hooks.aiProposalService.apply(params[0]?.proposal);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getMcpStatus", async (..._params: any[]) => {
-        try {
-            return hooks.getMcpStatus ? hooks.getMcpStatus() : {
-                supported: false,
-                enabled: false,
-                allowWrite: false,
-                endpoint: "/mcp",
-                tools: [],
-                lastError: "MCP manager is unavailable",
-            };
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("listMcpTargetNotebooks", async (..._params: any[]) => {
-        try {
-            return hooks.listMcpTargetNotebooks ? await hooks.listMcpTargetNotebooks() : [];
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("listMcpTargetDocuments", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.notebookId) return rpcError(RPC_ERROR_INVALID_PARAMS, "notebookId is required");
-        try {
-            return hooks.listMcpTargetDocuments
-                ? await hooks.listMcpTargetDocuments(p.notebookId, p.path || "/")
-                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("searchMcpTargetDocuments", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.query || typeof p.query !== "string") return [];
-        try {
-            return hooks.searchMcpTargetDocuments
-                ? await hooks.searchMcpTargetDocuments(p.query)
-                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("resolveMcpDocumentTarget", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.value) return rpcError(RPC_ERROR_INVALID_PARAMS, "value is required");
-        try {
-            return hooks.resolveMcpDocumentTarget
-                ? await hooks.resolveMcpDocumentTarget(p.value)
-                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("resolveChildTarget", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.value) return rpcError(RPC_ERROR_INVALID_PARAMS, "value is required");
-        try {
-            return hooks.resolveChildTarget
-                ? await hooks.resolveChildTarget(p.value)
-                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("createTask", async (...params: any[]) => {
-        const input = params[0] || {};
-        try {
-            return hooks.createTask
-                ? await hooks.createTask(input)
-                : rpcError(RPC_ERROR_INVALID_PARAMS, "MCP manager is unavailable");
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getCustomFieldDiagnostics", async (..._params: any[]) => {
-        try {
-            return taskService.getCustomFieldDiagnostics();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("purgeCustomField", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.fieldId) return rpcError(RPC_ERROR_INVALID_PARAMS, "fieldId is required");
-        try {
-            return await taskService.purgeCustomField(p.fieldId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("purgeOrphanCustomField", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.key) return rpcError(RPC_ERROR_INVALID_PARAMS, "key is required");
-        try {
-            return await taskService.purgeOrphanCustomField(p.key);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getMyDay", async (..._params: any[]) => {
-        try {
-            return await taskService.getMyDay();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("addTaskToMyDay", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.addTaskToMyDay(p.blockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("removeTaskFromMyDay", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.removeTaskFromMyDay(p.blockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("reorderMyDayTask", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.reorderMyDayTask(p.blockId, p.afterId ?? undefined);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("setMyDaySchedule", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.setMyDaySchedule(p.blockId, p.start ?? null, p.end ?? null);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("removeMyDaySchedule", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockId) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockId is required");
-        }
-        try {
-            return await taskService.removeMyDaySchedule(p.blockId);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("getReviewData", async (..._params: any[]) => {
-        try {
-            return taskService.getReviewData();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("completeReview", async (..._params: any[]) => {
-        if (!hooks.completeReview) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "completeReview is unavailable");
-        }
-        try {
-            return await hooks.completeReview();
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
-    siyuan.rpc.bind("markTaskReviewed", async (...params: any[]) => {
-        const p = params[0] || {};
-        if (!p.blockIds || !Array.isArray(p.blockIds) || p.blockIds.length === 0) {
-            return rpcError(RPC_ERROR_INVALID_PARAMS, "blockIds is required and must be a non-empty array");
-        }
-        try {
-            return await taskService.markTaskReviewed(p.blockIds);
-        } catch (e: any) {
-            return errorToRpcError(e);
-        }
-    });
-
+    for (const method of RPC_METHOD_NAMES) {
+        bindRpcMethod(method, handlers[method]);
+    }
 }

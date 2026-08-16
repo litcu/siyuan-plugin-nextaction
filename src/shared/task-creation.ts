@@ -23,7 +23,7 @@ export interface CreateTaskInput {
 }
 
 export interface CreateTaskResult {
-    task: { id: string; title: string; [key: string]: unknown };
+    task: { id: string; title: string };
     destination: Record<string, unknown>;
     warnings: string[];
 }
