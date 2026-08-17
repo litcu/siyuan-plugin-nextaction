@@ -12,15 +12,12 @@ export const CUSTOM_FIELD_TYPES = [
     "url",
 ] as const;
 
-export type CustomFieldType = typeof CUSTOM_FIELD_TYPES[number];
+export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
 export type CustomFieldStatus = "active" | "archived";
 export type CustomFieldTaskType = "task" | "project";
 
 export type CustomFieldScope =
-    | { mode: "all" }
-    | { mode: "task" }
-    | { mode: "project" }
-    | { mode: "projectTree"; projectIds: string[] };
+    { mode: "all" } | { mode: "task" } | { mode: "project" } | { mode: "projectTree"; projectIds: string[] };
 
 export interface CustomFieldOption {
     id: string;
@@ -59,7 +56,11 @@ export function normalizeCustomFieldKey(key: string): string {
 }
 
 function stableId(seed: string): string {
-    const safe = seed.replace(/[^a-z0-9-]/gi, "-").toLowerCase().replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const safe = seed
+        .replace(/[^a-z0-9-]/gi, "-")
+        .toLowerCase()
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
     return `legacy-${safe || "field"}`;
 }
 
@@ -73,13 +74,25 @@ function normalizeOptions(raw: unknown): CustomFieldOption[] | undefined {
     const result: CustomFieldOption[] = [];
     for (let i = 0; i < raw.length; i++) {
         const item = raw[i];
-        const label = typeof item === "string" ? item.trim() : (item && typeof item === "object" && typeof (item as any).label === "string" ? (item as any).label.trim() : "");
+        const label =
+            typeof item === "string"
+                ? item.trim()
+                : item && typeof item === "object" && typeof (item as any).label === "string"
+                  ? (item as any).label.trim()
+                  : "";
         if (!label) continue;
-        const requestedId = item && typeof item === "object" && typeof (item as any).id === "string" ? (item as any).id : optionId(label, i);
+        const requestedId =
+            item && typeof item === "object" && typeof (item as any).id === "string"
+                ? (item as any).id
+                : optionId(label, i);
         const id = requestedId || optionId(label, i);
         if (seen.has(id)) continue;
         seen.add(id);
-        result.push({ id, label, status: item && typeof item === "object" && (item as any).status === "archived" ? "archived" : "active" });
+        result.push({
+            id,
+            label,
+            status: item && typeof item === "object" && (item as any).status === "archived" ? "archived" : "active",
+        });
     }
     return result;
 }
@@ -96,7 +109,12 @@ export function migrateCustomFieldDefs(raw: unknown): CustomFieldMigrationResult
         const normalizedKey = normalizeCustomFieldKey(originalKey);
         const valid = isValidCustomFieldKey(normalizedKey);
         const key = valid ? normalizedKey : stableId(originalKey);
-        const migrationIssue = valid && originalKey !== normalizedKey ? "legacy-key-normalized" : (!valid ? "invalid-legacy-key" : undefined);
+        const migrationIssue =
+            valid && originalKey !== normalizedKey
+                ? "legacy-key-normalized"
+                : !valid
+                  ? "invalid-legacy-key"
+                  : undefined;
         if (migrationIssue) issues.push(`${originalKey || "<empty>"}:${migrationIssue}`);
 
         const type = CUSTOM_FIELD_TYPES.includes(source.type) ? source.type : "text";
@@ -134,7 +152,12 @@ function normalizeScope(scope: unknown): CustomFieldScope {
     const value = scope as any;
     if (value.mode === "task" || value.mode === "project") return { mode: value.mode };
     if (value.mode === "projectTree") {
-        return { mode: "projectTree", projectIds: Array.isArray(value.projectIds) ? value.projectIds.filter((id: unknown): id is string => typeof id === "string" && !!id) : [] };
+        return {
+            mode: "projectTree",
+            projectIds: Array.isArray(value.projectIds)
+                ? value.projectIds.filter((id: unknown): id is string => typeof id === "string" && !!id)
+                : [],
+        };
     }
     return { mode: "all" };
 }
@@ -148,11 +171,13 @@ export function validateCustomFieldDefinition(field: CustomFieldDef): string | n
         if (!field.options || field.options.length === 0) return "select custom fields require at least one option";
         const ids = new Set<string>();
         for (const option of field.options) {
-            if (!option.id || ids.has(option.id) || !option.label.trim()) return "custom field options must have unique ids and labels";
+            if (!option.id || ids.has(option.id) || !option.label.trim())
+                return "custom field options must have unique ids and labels";
             ids.add(option.id);
         }
     }
-    if (field.scope.mode === "projectTree" && field.scope.projectIds.some(id => !id)) return "projectTree scope contains an invalid project id";
+    if (field.scope.mode === "projectTree" && field.scope.projectIds.some((id) => !id))
+        return "projectTree scope contains an invalid project id";
     return null;
 }
 
@@ -192,18 +217,24 @@ export function encodeCustomFieldValue(field: CustomFieldDef, input: CustomField
             return String(input);
         case "singleSelect": {
             const value = String(input);
-            if (!field.options?.some(option => option.id === value)) throw new Error("singleSelect value is not a valid option");
+            if (!field.options?.some((option) => option.id === value))
+                throw new Error("singleSelect value is not a valid option");
             return value;
         }
         case "multiSelect": {
             const values = Array.isArray(input) ? input.map(String) : JSON.parse(String(input));
-            if (!Array.isArray(values) || values.some(value => !field.options?.some(option => option.id === value))) throw new Error("multiSelect value contains an invalid option");
+            if (!Array.isArray(values) || values.some((value) => !field.options?.some((option) => option.id === value)))
+                throw new Error("multiSelect value contains an invalid option");
             return JSON.stringify([...new Set(values)]);
         }
         case "url": {
             const value = String(input).trim();
             const url = new URL(value);
-            if (!["http:", "https:", "siyuan:"].includes(url.protocol) || (url.protocol === "siyuan:" && !value.startsWith("siyuan://blocks/"))) throw new Error("url custom field only supports http(s) and siyuan block links");
+            if (
+                !["http:", "https:", "siyuan:"].includes(url.protocol) ||
+                (url.protocol === "siyuan:" && !value.startsWith("siyuan://blocks/"))
+            )
+                throw new Error("url custom field only supports http(s) and siyuan block links");
             return value;
         }
         case "textarea":
@@ -219,11 +250,18 @@ export function encodeCustomFieldValue(field: CustomFieldDef, input: CustomField
 export function decodeCustomFieldValue(field: CustomFieldDef, raw: string | undefined): CustomFieldInput {
     if (!raw) return null;
     switch (field.type) {
-        case "number": return Number(raw);
-        case "boolean": return raw === "1" || raw === "true";
+        case "number":
+            return Number(raw);
+        case "boolean":
+            return raw === "1" || raw === "true";
         case "multiSelect":
-            try { return JSON.parse(raw); } catch { return []; }
-        default: return raw;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return [];
+            }
+        default:
+            return raw;
     }
 }
 
@@ -231,12 +269,20 @@ export function formatCustomFieldValue(field: CustomFieldDef, raw: string | unde
     const value = decodeCustomFieldValue(field, raw);
     if (value === null || value === "") return "";
     if (field.type === "boolean") return value ? "Yes" : "No";
-    if (field.type === "singleSelect") return field.options?.find(option => option.id === value)?.label || String(value);
-    if (field.type === "multiSelect") return (value as string[]).map(id => field.options?.find(option => option.id === id)?.label || id).join(", ");
+    if (field.type === "singleSelect")
+        return field.options?.find((option) => option.id === value)?.label || String(value);
+    if (field.type === "multiSelect")
+        return (value as string[])
+            .map((id) => field.options?.find((option) => option.id === id)?.label || id)
+            .join(", ");
     return String(value);
 }
 
-export function isCustomFieldApplicable(field: CustomFieldDef, task: TaskCacheEntry, taskMap?: Map<string, TaskCacheEntry>): boolean {
+export function isCustomFieldApplicable(
+    field: CustomFieldDef,
+    task: TaskCacheEntry,
+    taskMap?: Map<string, TaskCacheEntry>,
+): boolean {
     if (field.status !== "active") return false;
     if (field.scope.mode === "all") return true;
     if (field.scope.mode === "task") return task.taskType !== "2";

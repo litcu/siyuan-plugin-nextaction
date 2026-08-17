@@ -3,7 +3,8 @@ import { isBlockId } from "./block-id";
 
 export type AiFeatureId = "extractTasks" | "decomposeTask" | "planMyDay" | "review";
 
-export type AiWriteTargetType = "original" | "source_document" | "current_document" | "document" | "mcp_default" | "child" | "source_child";
+export type AiWriteTargetType =
+    "original" | "source_document" | "current_document" | "document" | "mcp_default" | "child" | "source_child";
 
 export interface AiWriteTarget {
     type: AiWriteTargetType;
@@ -75,7 +76,7 @@ export function completeAiReviewGroups(
 ): AiProposal {
     if (proposal.feature !== "review" || !proposal.review) return proposal;
 
-    const aiGroups = new Map(proposal.review.groups.map(group => [group.key, group]));
+    const aiGroups = new Map(proposal.review.groups.map((group) => [group.key, group]));
     const knownKeys = new Set(Object.keys(sourceGroups));
     const groups = Object.entries(sourceGroups).map(([key, sourceIds]) => {
         const aiGroup = aiGroups.get(key);
@@ -110,11 +111,13 @@ function isValidDate(value: string): boolean {
     const date = new Date(0);
     date.setUTCFullYear(year, month - 1, day);
     date.setUTCHours(hour, minute, 0, 0);
-    return date.getUTCFullYear() === year
-        && date.getUTCMonth() === month - 1
-        && date.getUTCDate() === day
-        && date.getUTCHours() === hour
-        && date.getUTCMinutes() === minute;
+    return (
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day &&
+        date.getUTCHours() === hour &&
+        date.getUTCMinutes() === minute
+    );
 }
 
 function normalizeStringList(value: unknown, field: string, errors: string[]): string[] | undefined {
@@ -141,12 +144,13 @@ function normalizeStringList(value: unknown, field: string, errors: string[]): s
 function normalizeOptionalScale(value: unknown): number | undefined {
     // importance / effort 在 JSON 协议中允许使用 null 表示未知；
     // 其他非空值仍原样交给后续校验，以继续拒绝字符串、小数和越界数值。
-    return value === null || value === undefined ? undefined : value as number;
+    return value === null || value === undefined ? undefined : (value as number);
 }
 
 export function validateAiProposal(input: unknown): AiPlanValidationResult {
     const errors: string[] = [];
-    if (!isRecord(input)) return { proposal: { feature: "review", summary: "" }, errors: ["proposal must be an object"] };
+    if (!isRecord(input))
+        return { proposal: { feature: "review", summary: "" }, errors: ["proposal must be an object"] };
 
     const feature = input.feature;
     if (!["extractTasks", "decomposeTask", "planMyDay", "review"].includes(String(feature))) {
@@ -155,16 +159,32 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
     const proposal: AiProposal = {
         feature: (feature as AiFeatureId) || "review",
         summary: typeof input.summary === "string" ? input.summary.trim() : "",
-        target: isRecord(input.target) ? {
-            type: input.target.type as AiWriteTargetType,
-            documentId: typeof input.target.documentId === "string" ? input.target.documentId : undefined,
-            parentBlockId: typeof input.target.parentBlockId === "string" ? input.target.parentBlockId : undefined,
-        } : undefined,
-        warnings: Array.isArray(input.warnings) ? input.warnings.filter((item): item is string => typeof item === "string") : undefined,
+        target: isRecord(input.target)
+            ? {
+                  type: input.target.type as AiWriteTargetType,
+                  documentId: typeof input.target.documentId === "string" ? input.target.documentId : undefined,
+                  parentBlockId:
+                      typeof input.target.parentBlockId === "string" ? input.target.parentBlockId : undefined,
+              }
+            : undefined,
+        warnings: Array.isArray(input.warnings)
+            ? input.warnings.filter((item): item is string => typeof item === "string")
+            : undefined,
     };
     if (!proposal.summary || proposal.summary.length > 4000) errors.push("summary must contain 1-4000 characters");
 
-    if (proposal.target && !["original", "source_document", "current_document", "document", "mcp_default", "child", "source_child"].includes(proposal.target.type)) {
+    if (
+        proposal.target &&
+        ![
+            "original",
+            "source_document",
+            "current_document",
+            "document",
+            "mcp_default",
+            "child",
+            "source_child",
+        ].includes(proposal.target.type)
+    ) {
         errors.push("target.type is invalid");
     }
     if (proposal.target?.type === "document" && !isBlockId(proposal.target.documentId || "")) {
@@ -187,7 +207,9 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
                     key: typeof group?.key === "string" ? group.key : `group-${index + 1}`,
                     title: typeof group?.title === "string" ? group.title : "",
                     summary: typeof group?.summary === "string" ? group.summary : "",
-                    blockIds: Array.isArray(group?.blockIds) ? group.blockIds.filter((id: unknown): id is string => typeof id === "string") : [],
+                    blockIds: Array.isArray(group?.blockIds)
+                        ? group.blockIds.filter((id: unknown): id is string => typeof id === "string")
+                        : [],
                 })),
                 actions: actions.map((action: any) => ({
                     blockId: typeof action?.blockId === "string" ? action.blockId : "",
@@ -196,9 +218,11 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
                 })),
             };
             for (const group of proposal.review.groups) {
-                for (const id of group.blockIds) if (!isBlockId(id)) errors.push("review group contains invalid block ID");
+                for (const id of group.blockIds)
+                    if (!isBlockId(id)) errors.push("review group contains invalid block ID");
             }
-            for (const action of proposal.review.actions) if (!isBlockId(action.blockId)) errors.push("review action contains invalid block ID");
+            for (const action of proposal.review.actions)
+                if (!isBlockId(action.blockId)) errors.push("review action contains invalid block ID");
         }
         return { proposal, errors };
     }
@@ -221,34 +245,40 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             title: typeof task?.title === "string" ? task.title.trim() : "",
             kind: task?.kind === "project" ? "project" : "task",
             sourceBlockId: typeof task?.sourceBlockId === "string" ? task.sourceBlockId : undefined,
-            parentId: task?.parentId === null ? null : (typeof task?.parentId === "string" ? task.parentId : undefined),
-            dependsOnIndexes: Array.isArray(task?.dependsOnIndexes) ? task.dependsOnIndexes.filter((value: unknown): value is number => Number.isInteger(value)) : undefined,
+            parentId: task?.parentId === null ? null : typeof task?.parentId === "string" ? task.parentId : undefined,
+            dependsOnIndexes: Array.isArray(task?.dependsOnIndexes)
+                ? task.dependsOnIndexes.filter((value: unknown): value is number => Number.isInteger(value))
+                : undefined,
             status: typeof task?.status === "string" ? task.status : undefined,
             priority: typeof task?.priority === "string" ? task.priority : undefined,
             importance: normalizeOptionalScale(task?.importance),
             effort: normalizeOptionalScale(task?.effort),
-            start: task?.start === null ? null : (typeof task?.start === "string" ? task.start : undefined),
-            due: task?.due === null ? null : (typeof task?.due === "string" ? task.due : undefined),
+            start: task?.start === null ? null : typeof task?.start === "string" ? task.start : undefined,
+            due: task?.due === null ? null : typeof task?.due === "string" ? task.due : undefined,
             contexts: normalizeStringList(task?.contexts, `tasks[${index}].contexts`, errors),
             tags: normalizeStringList(task?.tags, `tasks[${index}].tags`, errors),
-            note: task?.note === null ? null : (typeof task?.note === "string" ? task.note : undefined),
+            note: task?.note === null ? null : typeof task?.note === "string" ? task.note : undefined,
             reason: typeof task?.reason === "string" ? task.reason : undefined,
         };
         if (!item.title || item.title.length > 512) errors.push(`tasks[${index}].title must contain 1-512 characters`);
-        if (item.sourceBlockId && !isBlockId(item.sourceBlockId)) errors.push(`tasks[${index}].sourceBlockId is invalid`);
+        if (item.sourceBlockId && !isBlockId(item.sourceBlockId))
+            errors.push(`tasks[${index}].sourceBlockId is invalid`);
         if (item.parentId && !isBlockId(item.parentId)) errors.push(`tasks[${index}].parentId is invalid`);
         if (item.status && !ALL_STATUSES.includes(item.status as any)) errors.push(`tasks[${index}].status is invalid`);
         if (item.priority && !PRIORITIES.has(item.priority)) errors.push(`tasks[${index}].priority is invalid`);
         for (const field of ["importance", "effort"] as const) {
             const value = item[field];
-            if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 7)) errors.push(`tasks[${index}].${field} must be integer 1-7`);
+            if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 7))
+                errors.push(`tasks[${index}].${field} must be integer 1-7`);
         }
         for (const field of ["start", "due"] as const) {
             const value = item[field];
             if (value && !isValidDate(value)) errors.push(`tasks[${index}].${field} is invalid`);
         }
         if (item.dependsOnIndexes) {
-            for (const dep of item.dependsOnIndexes) if (dep < 0 || dep >= rawTasks.length || dep === index) errors.push(`tasks[${index}].dependsOnIndexes contains invalid index`);
+            for (const dep of item.dependsOnIndexes)
+                if (dep < 0 || dep >= rawTasks.length || dep === index)
+                    errors.push(`tasks[${index}].dependsOnIndexes contains invalid index`);
         }
         return item;
     });
@@ -263,16 +293,22 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             if (!task.sourceBlockId) errors.push(`tasks[${index}].sourceBlockId is required for source_child target`);
         });
     }
-    if ((proposal.target?.type === "current_document" || proposal.target?.type === "source_document") && !proposal.target.documentId) {
+    if (
+        (proposal.target?.type === "current_document" || proposal.target?.type === "source_document") &&
+        !proposal.target.documentId
+    ) {
         errors.push("target.documentId is required for document-based target");
     }
 
     // Detect proposal-local dependency cycles.
-    const graph = proposal.tasks.map(task => task.dependsOnIndexes || []);
+    const graph = proposal.tasks.map((task) => task.dependsOnIndexes || []);
     const visiting = new Set<number>();
     const visited = new Set<number>();
     const visit = (index: number) => {
-        if (visiting.has(index)) { errors.push("tasks dependency cycle detected"); return; }
+        if (visiting.has(index)) {
+            errors.push("tasks dependency cycle detected");
+            return;
+        }
         if (visited.has(index)) return;
         visiting.add(index);
         for (const dep of graph[index]) visit(dep);
@@ -305,9 +341,15 @@ export function parseAiJson(text: string): unknown {
 
 function tryParseJson(candidate: string): unknown {
     const normalized = candidate.trim();
-    try { return JSON.parse(normalized); } catch {
+    try {
+        return JSON.parse(normalized);
+    } catch {
         // Models occasionally add a trailing comma even when asked for JSON.
-        try { return JSON.parse(normalized.replace(/,\s*([}\]])/g, "$1")); } catch { return null; }
+        try {
+            return JSON.parse(normalized.replace(/,\s*([}\]])/g, "$1"));
+        } catch {
+            return null;
+        }
     }
 }
 

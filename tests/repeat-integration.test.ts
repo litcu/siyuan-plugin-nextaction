@@ -39,9 +39,12 @@ test("完成推进清除我的一天完成状态，并广播重开后的最终�
         lifecycleSource.indexOf("async updateTaskTitle("),
     );
     assert.match(section, /\[ATTR_COMPLETED\]: newCompleted/);
-    assert.match(section, /advanceRepeatState\([\s\S]*"complete"\)/);
+    assert.match(section, /advanceRepeatState\([\s\S]*"complete",?\s*\)/);
     assert.match(section, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
-    assert.match(section, /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/);
+    assert.match(
+        section,
+        /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/,
+    );
     assert.match(section, /cacheConfirmedEntry\(finalEntry\)/);
     assert.match(section, /repository\.publishChanges\(\)/);
 });

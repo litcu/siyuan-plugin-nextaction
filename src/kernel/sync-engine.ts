@@ -1,9 +1,4 @@
-import type {
-    TaskCacheEntry,
-    TaskChangeNotification,
-    TaskChangeSetV2,
-    TaskSnapshotV2,
-} from "../shared/types";
+import type { TaskCacheEntry, TaskChangeNotification, TaskChangeSetV2, TaskSnapshotV2 } from "../shared/types";
 import { BROADCAST_DEBOUNCE_MS } from "../shared/constants";
 import type { SiyuanApiPort } from "./siyuan-api";
 
@@ -137,7 +132,10 @@ export class SyncEngine implements TaskChangePublisher {
         this.safeBroadcast("tasksChangedV2", notification);
     }
 
-    private safeBroadcast(name: "tasksChanged" | "tasksChangedV2", payload: TaskChangeNotification | TaskChangeSetV2): void {
+    private safeBroadcast(
+        name: "tasksChanged" | "tasksChangedV2",
+        payload: TaskChangeNotification | TaskChangeSetV2,
+    ): void {
         const operation = name === "tasksChanged" ? "broadcastChanges" : "tasksChangedV2";
         try {
             const broadcast = this.api.broadcast(name, payload);

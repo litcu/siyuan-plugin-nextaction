@@ -25,9 +25,18 @@ export function parseReminderItems(raw: string): ReminderItem[] {
         const items: ReminderItem[] = [];
         for (const item of parsed) {
             if (!item || typeof item !== "object") continue;
-            if (item.type === "relative" && typeof item.minutes === "number" && Number.isInteger(item.minutes) && item.minutes > 0) {
+            if (
+                item.type === "relative" &&
+                typeof item.minutes === "number" &&
+                Number.isInteger(item.minutes) &&
+                item.minutes > 0
+            ) {
                 items.push({ type: "relative", minutes: item.minutes });
-            } else if (item.type === "absolute" && typeof item.time === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)) {
+            } else if (
+                item.type === "absolute" &&
+                typeof item.time === "string" &&
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)
+            ) {
                 items.push({ type: "absolute", time: item.time });
             }
         }

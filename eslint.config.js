@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
 import svelte from "eslint-plugin-svelte";
 import tseslint from "typescript-eslint";
@@ -21,7 +22,12 @@ export default tseslint.config(
         languageOptions: {
             parser: tseslint.parser,
             parserOptions: {
-                project: ["./tsconfig.frontend.json", "./tsconfig.kernel.json", "./tsconfig.shared.json", "./tsconfig.tests.json"],
+                project: [
+                    "./tsconfig.frontend.json",
+                    "./tsconfig.kernel.json",
+                    "./tsconfig.shared.json",
+                    "./tsconfig.tests.json",
+                ],
                 tsconfigRootDir: import.meta.dirname,
             },
             globals: {
@@ -36,8 +42,8 @@ export default tseslint.config(
             "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
             "@typescript-eslint/no-explicit-any": "warn",
             "@typescript-eslint/no-floating-promises": "error",
-            "@typescript-eslint/no-misused-promises": ["error", { "checksVoidReturn": false }],
-            "@typescript-eslint/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
+            "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: false }],
+            "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
         },
     },
     ...svelte.configs.base,
@@ -79,4 +85,5 @@ export default tseslint.config(
             "@typescript-eslint/no-explicit-any": "error",
         },
     },
+    eslintConfigPrettier,
 );

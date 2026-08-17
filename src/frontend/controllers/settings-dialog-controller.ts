@@ -45,34 +45,40 @@ export class SettingsDialogController {
         }
         container.style.cssText += "height:100%;min-height:0;overflow:hidden;flex:1;";
 
-        void import("../components/SettingsPanel.svelte").then(({ default: SettingsPanel }) => {
-            const component = new SettingsPanel({
-                target: container,
-                props: {
-                    bridge: this.bridge,
-                    i18n: this.i18n,
-                    onSave: async (settings: PluginSettings) => {
-                        taskStore.applySettingsUpdate(settings);
-                        try {
-                            await this.bridge.recalcAllOrders();
-                            notifyInfo(this.i18n.settingsSaved || "Settings saved");
-                        } finally {
-                            void taskStore.loadTasks();
-                        }
+        void import("../components/SettingsPanel.svelte")
+            .then(({ default: SettingsPanel }) => {
+                const component = new SettingsPanel({
+                    target: container,
+                    props: {
+                        bridge: this.bridge,
+                        i18n: this.i18n,
+                        onSave: async (settings: PluginSettings) => {
+                            taskStore.applySettingsUpdate(settings);
+                            try {
+                                await this.bridge.recalcAllOrders();
+                                notifyInfo(this.i18n.settingsSaved || "Settings saved");
+                            } finally {
+                                void taskStore.loadTasks();
+                            }
+                        },
+                        onClose: () => dialog.destroy(),
                     },
-                    onClose: () => dialog.destroy(),
-                },
+                });
+                (dialog as Dialog & { _naSettings?: typeof component })._naSettings = component;
+                dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener(
+                    "click",
+                    (event) => {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        component.requestClose();
+                    },
+                    { capture: true },
+                );
+            })
+            .catch((error: unknown) => {
+                dialog.destroy();
+                notifyOperationError(error, this.i18n);
             });
-            (dialog as Dialog & { _naSettings?: typeof component })._naSettings = component;
-            dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                component.requestClose();
-            }, { capture: true });
-        }).catch((error: unknown) => {
-            dialog.destroy();
-            notifyOperationError(error, this.i18n);
-        });
     }
 
     dispose(): void {

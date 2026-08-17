@@ -2,11 +2,7 @@ import type * as kernel from "siyuan/kernel";
 import { ALL_STATUSES } from "../shared/constants";
 import type { PluginSettings } from "../shared/settings";
 import type { MyDayState, TaskCacheEntry } from "../shared/types";
-import {
-    CREATE_TASK_DESTINATION_TYPES,
-    CREATE_TASK_FORMATS,
-    type CreateTaskInput,
-} from "../shared/task-creation";
+import { CREATE_TASK_DESTINATION_TYPES, CREATE_TASK_FORMATS, type CreateTaskInput } from "../shared/task-creation";
 import { type TaskService } from "./task-service";
 import type { SiyuanApiPort } from "./siyuan-api";
 import { McpToolError, normalizeMcpToolError } from "./mcp-tool-error";
@@ -111,10 +107,18 @@ export class McpToolExecutor {
         this.settings = settings;
     }
 
-    async listTargetNotebooks() { return this.targets.listNotebooks(); }
-    async listTargetDocuments(notebookId: string, path = "/") { return this.targets.listDocuments(notebookId, path); }
-    async searchTargetDocuments(query: string) { return this.targets.searchDocuments(query); }
-    async resolveDocumentTarget(value: unknown) { return this.targets.resolveDocument(value); }
+    async listTargetNotebooks() {
+        return this.targets.listNotebooks();
+    }
+    async listTargetDocuments(notebookId: string, path = "/") {
+        return this.targets.listDocuments(notebookId, path);
+    }
+    async searchTargetDocuments(query: string) {
+        return this.targets.searchDocuments(query);
+    }
+    async resolveDocumentTarget(value: unknown) {
+        return this.targets.resolveDocument(value);
+    }
 
     async validateSettings(settings: PluginSettings): Promise<void> {
         return this.targets.validateSettings(settings);
@@ -134,11 +138,15 @@ export class McpToolExecutor {
                 }
                 this.taskService.assertReady();
                 const result = await handler(input || {});
-                await this.siyuan.logger.info(`MCP tool [${name}] success duration=${Date.now() - started}ms${this.affectedIds(result)}`);
+                await this.siyuan.logger.info(
+                    `MCP tool [${name}] success duration=${Date.now() - started}ms${this.affectedIds(result)}`,
+                );
                 return result;
             } catch (error: any) {
                 const normalized = this.normalizeError(error);
-                await this.siyuan.logger.warn(`MCP tool [${name}] failed duration=${Date.now() - started}ms error=${normalized.message}`);
+                await this.siyuan.logger.warn(
+                    `MCP tool [${name}] failed duration=${Date.now() - started}ms error=${normalized.message}`,
+                );
                 throw normalized;
             }
         };
@@ -178,7 +186,7 @@ export class McpToolExecutor {
     }
 
     private nextActionIds(): Set<string> {
-        return new Set(this.taskService.getNextActions().map(task => task.blockId));
+        return new Set(this.taskService.getNextActions().map((task) => task.blockId));
     }
 
     private dto(task: TaskCacheEntry, nextActionIds = this.nextActionIds()) {
@@ -200,7 +208,7 @@ export class McpToolExecutor {
                 patch,
                 this.fields(),
                 task,
-                new Map(all.map(item => [item.blockId, item])),
+                new Map(all.map((item) => [item.blockId, item])),
             );
         } catch (error: any) {
             throw new McpToolError("INVALID_INPUT", String(error?.message || error));
@@ -221,7 +229,9 @@ export class McpToolExecutor {
         return {
             get_task_metadata: {
                 title: "NextAction · Task metadata",
-                description: description("Get task enums, contexts, tags, custom fields, plugin version, permissions, and creation targets."),
+                description: description(
+                    "Get task enums, contexts, tags, custom fields, plugin version, permissions, and creation targets.",
+                ),
                 inputSchema: { type: "object", properties: {} },
                 handler: () => ({
                     plugin: { name: this.siyuan.plugin.name, version: this.siyuan.plugin.version, source: "plugin" },
@@ -236,17 +246,24 @@ export class McpToolExecutor {
             },
             search_tasks: {
                 title: "NextAction · Search tasks",
-                description: description("Search and filter tasks or projects. Results are paginated and limited to 100 items."),
+                description: description(
+                    "Search and filter tasks or projects. Results are paginated and limited to 100 items.",
+                ),
                 inputSchema: this.searchTasksSchema(),
                 handler: (input) => {
                     const nextIds = this.nextActionIds();
                     const page = searchTasksForMcp(this.allTasks(), input as McpSearchTasksInput);
-                    return { ...page, items: page.items.map(task => taskToMcpDto(task, this.fields(), nextIds.has(task.blockId))) };
+                    return {
+                        ...page,
+                        items: page.items.map((task) => taskToMcpDto(task, this.fields(), nextIds.has(task.blockId))),
+                    };
                 },
             },
             get_tasks: {
                 title: "NextAction · Get tasks",
-                description: description("Get 1-100 tasks by ID in input order. Parent and direct-child relations are optional."),
+                description: description(
+                    "Get 1-100 tasks by ID in input order. Parent and direct-child relations are optional.",
+                ),
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -276,20 +293,32 @@ export class McpToolExecutor {
                     let tasks = this.taskService.getNextActions();
                     if (Array.isArray(input.contexts) && input.contexts.length) {
                         const contexts = input.contexts.map(normalizeMcpContext).filter(Boolean);
-                        tasks = tasks.filter(task => task.context.split("|").map(normalizeMcpContext).some(value => contexts.includes(value)));
+                        tasks = tasks.filter((task) =>
+                            task.context
+                                .split("|")
+                                .map(normalizeMcpContext)
+                                .some((value) => contexts.includes(value)),
+                        );
                     }
                     if (Array.isArray(input.priorities) && input.priorities.length) {
-                        tasks = tasks.filter(task => input.priorities.includes(task.priority));
+                        tasks = tasks.filter((task) => input.priorities.includes(task.priority));
                     }
                     const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 20)));
-                    const ids = new Set(tasks.map(task => task.blockId));
-                    return { items: tasks.slice(0, limit).map(task => taskToMcpDto(task, this.fields(), ids.has(task.blockId))) };
+                    const ids = new Set(tasks.map((task) => task.blockId));
+                    return {
+                        items: tasks
+                            .slice(0, limit)
+                            .map((task) => taskToMcpDto(task, this.fields(), ids.has(task.blockId))),
+                    };
                 },
             },
             list_projects: {
                 title: "NextAction · Projects",
                 description: description("List projects with open descendant and next-action counts."),
-                inputSchema: { type: "object", properties: { includeCompleted: { type: "boolean" }, limit: { type: "number" } } },
+                inputSchema: {
+                    type: "object",
+                    properties: { includeCompleted: { type: "boolean" }, limit: { type: "number" } },
+                },
                 handler: (input) => this.listProjects(input),
             },
             get_my_day: {
@@ -300,12 +329,15 @@ export class McpToolExecutor {
             },
             get_review: {
                 title: "NextAction · Review",
-                description: description("Get GTD review groups: overdue, inbox, waiting, someday, active projects, and review-due tasks."),
+                description: description(
+                    "Get GTD review groups: overdue, inbox, waiting, someday, active projects, and review-due tasks.",
+                ),
                 inputSchema: { type: "object", properties: {} },
                 handler: () => {
                     const data = this.taskService.getReviewData();
                     const ids = this.nextActionIds();
-                    const map = (items: TaskCacheEntry[]) => items.map(item => taskToMcpDto(item, this.fields(), ids.has(item.blockId)));
+                    const map = (items: TaskCacheEntry[]) =>
+                        items.map((item) => taskToMcpDto(item, this.fields(), ids.has(item.blockId)));
                     return {
                         overdueTasks: map(data.overdueTasks),
                         nextActions: map(data.nextActions),
@@ -325,17 +357,28 @@ export class McpToolExecutor {
             },
             create_tasks: {
                 title: "NextAction · Create tasks",
-                description: description("Create 1-100 tasks or projects sequentially. Each item reports success or an error independently."),
+                description: description(
+                    "Create 1-100 tasks or projects sequentially. Each item reports success or an error independently.",
+                ),
                 inputSchema: {
                     type: "object",
-                    properties: { items: { type: "array", minItems: 1, maxItems: MAX_MCP_BATCH_SIZE, items: this.createTaskSchema() } },
+                    properties: {
+                        items: {
+                            type: "array",
+                            minItems: 1,
+                            maxItems: MAX_MCP_BATCH_SIZE,
+                            items: this.createTaskSchema(),
+                        },
+                    },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, item => this.createTask(item)),
+                handler: (input) => this.runBatch(input.items, (item) => this.createTask(item)),
             },
             update_tasks: {
                 title: "NextAction · Update tasks",
-                description: description("Update public fields on 1-100 tasks sequentially, including title, kind, status, repeat, and custom fields."),
+                description: description(
+                    "Update public fields on 1-100 tasks sequentially, including title, kind, status, repeat, and custom fields.",
+                ),
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -352,21 +395,30 @@ export class McpToolExecutor {
                     },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, item => this.updateTask(item)),
+                handler: (input) => this.runBatch(input.items, (item) => this.updateTask(item)),
             },
             delete_tasks: {
                 title: "NextAction · Delete tasks",
-                description: description("Remove the NextAction task identity from 1-100 blocks while preserving the original SiYuan block content."),
+                description: description(
+                    "Remove the NextAction task identity from 1-100 blocks while preserving the original SiYuan block content.",
+                ),
                 inputSchema: { type: "object", properties: { ids: this.taskIdsSchema() }, required: ["ids"] },
-                handler: (input) => this.runBatch(input.ids, async (value) => {
-                    const task = this.requireTask(value);
-                    await this.taskService.removeTask(task.blockId);
-                    return { id: task.blockId, removed: true, blockPreserved: true };
-                }, false),
+                handler: (input) =>
+                    this.runBatch(
+                        input.ids,
+                        async (value) => {
+                            const task = this.requireTask(value);
+                            await this.taskService.removeTask(task.blockId);
+                            return { id: task.blockId, removed: true, blockPreserved: true };
+                        },
+                        false,
+                    ),
             },
             convert_blocks_to_tasks: {
                 title: "NextAction · Convert blocks to tasks",
-                description: description("Convert 1-100 existing paragraph, heading, or document blocks to tasks or projects."),
+                description: description(
+                    "Convert 1-100 existing paragraph, heading, or document blocks to tasks or projects.",
+                ),
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -387,7 +439,7 @@ export class McpToolExecutor {
                     },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, item => this.convertBlock(item)),
+                handler: (input) => this.runBatch(input.items, (item) => this.convertBlock(item)),
             },
             update_my_day: {
                 title: "NextAction · Update My Day",
@@ -414,7 +466,7 @@ export class McpToolExecutor {
                     required: ["items"],
                 },
                 handler: async (input) => {
-                    const batch = await this.runBatch(input.items, item => this.setMyDay(item));
+                    const batch = await this.runBatch(input.items, (item) => this.setMyDay(item));
                     return { ...batch, myDay: await this.enrichMyDay(await this.taskService.getMyDay()) };
                 },
             },
@@ -422,11 +474,16 @@ export class McpToolExecutor {
                 title: "NextAction · Mark reviewed",
                 description: description("Mark one or more tasks as reviewed and calculate their next review date."),
                 inputSchema: { type: "object", properties: { ids: this.taskIdsSchema() }, required: ["ids"] },
-                handler: (input) => this.runBatch(input.ids, async (value) => {
-                    const task = this.requireTask(value);
-                    const [updated] = await this.taskService.markTaskReviewed([task.blockId]);
-                    return { task: this.dto(updated) };
-                }, false),
+                handler: (input) =>
+                    this.runBatch(
+                        input.ids,
+                        async (value) => {
+                            const task = this.requireTask(value);
+                            const [updated] = await this.taskService.markTaskReviewed([task.blockId]);
+                            return { task: this.dto(updated) };
+                        },
+                        false,
+                    ),
             },
         };
     }
@@ -443,10 +500,13 @@ export class McpToolExecutor {
                 tags: { type: "array", items: { type: "string" } },
                 parentId: ID_SCHEMA,
                 projectId: ID_SCHEMA,
-                startFrom: { type: "string" }, startTo: { type: "string" },
-                dueFrom: { type: "string" }, dueTo: { type: "string" },
+                startFrom: { type: "string" },
+                startTo: { type: "string" },
+                dueFrom: { type: "string" },
+                dueTo: { type: "string" },
                 sortBy: { type: "string", enum: ["order", "due", "importance", "priority", "created"] },
-                offset: { type: "number" }, limit: { type: "number" },
+                offset: { type: "number" },
+                limit: { type: "number" },
             },
         };
     }
@@ -456,7 +516,11 @@ export class McpToolExecutor {
             type: "object",
             properties: {
                 title: { type: "string", description: "Single-line plain text, 1-512 characters" },
-                kind: { type: "string", enum: ["task", "project"], description: "Projects are created as child documents under a document-class destination" },
+                kind: {
+                    type: "string",
+                    enum: ["task", "project"],
+                    description: "Projects are created as child documents under a document-class destination",
+                },
                 destination: {
                     type: "object",
                     properties: {
@@ -464,13 +528,22 @@ export class McpToolExecutor {
                         notebookId: { type: "string" },
                         documentId: ID_SCHEMA,
                         parentBlockId: ID_SCHEMA,
-                        format: { type: "string", enum: [...CREATE_TASK_FORMATS], description: "Task block form: paragraph or child document. Child block targets always use paragraph. Projects always create a document" },
+                        format: {
+                            type: "string",
+                            enum: [...CREATE_TASK_FORMATS],
+                            description:
+                                "Task block form: paragraph or child document. Child block targets always use paragraph. Projects always create a document",
+                        },
                     },
                     required: ["type"],
                 },
                 properties: { type: "object" },
                 addToMyDay: { type: "boolean" },
-                schedule: { type: "object", properties: { start: { type: "number" }, end: { type: "number" } }, required: ["start", "end"] },
+                schedule: {
+                    type: "object",
+                    properties: { start: { type: "number" }, end: { type: "number" } },
+                    required: ["start", "end"],
+                },
             },
             required: ["title"],
         };
@@ -497,7 +570,11 @@ export class McpToolExecutor {
         for (let index = 0; index < values.length; index++) {
             const item = values[index];
             if (requireObject && (!item || typeof item !== "object" || Array.isArray(item))) {
-                results.push({ index, success: false, error: { code: "INVALID_INPUT", message: "Batch item must be an object" } });
+                results.push({
+                    index,
+                    success: false,
+                    error: { code: "INVALID_INPUT", message: "Batch item must be an object" },
+                });
                 continue;
             }
             try {
@@ -514,7 +591,7 @@ export class McpToolExecutor {
                 });
             }
         }
-        const succeeded = results.filter(item => item.success).length;
+        const succeeded = results.filter((item) => item.success).length;
         return {
             total: results.length,
             succeeded,
@@ -525,33 +602,38 @@ export class McpToolExecutor {
 
     private async getTasks(input: Record<string, any>) {
         const relations = input.includeRelations === undefined ? [] : input.includeRelations;
-        if (!Array.isArray(relations) || relations.some(value => value !== "parent" && value !== "children")) {
+        if (!Array.isArray(relations) || relations.some((value) => value !== "parent" && value !== "children")) {
             throw new McpToolError("INVALID_INPUT", "includeRelations may only contain parent and children");
         }
         const includeParent = relations.includes("parent");
         const includeChildren = relations.includes("children");
         const nextIds = this.nextActionIds();
-        return this.runBatch(input.ids, (value) => {
-            const task = this.requireTask(value);
-            const result: Record<string, any> = {
-                task: taskToMcpDto(task, this.fields(), nextIds.has(task.blockId)),
-            };
-            if (includeParent) {
-                const parent = task.parentId ? this.taskService.getTask(task.parentId) : null;
-                result.parent = parent ? taskToMcpDto(parent, this.fields(), nextIds.has(parent.blockId)) : null;
-            }
-            if (includeChildren) {
-                result.children = this.taskService.getTasksByParent(task.blockId)
-                    .map(child => taskToMcpDto(child, this.fields(), nextIds.has(child.blockId)));
-            }
-            return result;
-        }, false);
+        return this.runBatch(
+            input.ids,
+            (value) => {
+                const task = this.requireTask(value);
+                const result: Record<string, any> = {
+                    task: taskToMcpDto(task, this.fields(), nextIds.has(task.blockId)),
+                };
+                if (includeParent) {
+                    const parent = task.parentId ? this.taskService.getTask(task.parentId) : null;
+                    result.parent = parent ? taskToMcpDto(parent, this.fields(), nextIds.has(parent.blockId)) : null;
+                }
+                if (includeChildren) {
+                    result.children = this.taskService
+                        .getTasksByParent(task.blockId)
+                        .map((child) => taskToMcpDto(child, this.fields(), nextIds.has(child.blockId)));
+                }
+                return result;
+            },
+            false,
+        );
     }
 
     private listProjects(input: Record<string, any>) {
         const all = this.allTasks();
         const nextIds = this.nextActionIds();
-        const map = new Map(all.map(task => [task.blockId, task]));
+        const map = new Map(all.map((task) => [task.blockId, task]));
         const belongs = (task: TaskCacheEntry, projectId: string) => {
             let current: TaskCacheEntry | undefined = task;
             const visited = new Set<string>();
@@ -563,14 +645,18 @@ export class McpToolExecutor {
             return false;
         };
         const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 50)));
-        const projects = all.filter(task => task.taskType === "2" && (input.includeCompleted || task.status !== "done")).slice(0, limit);
+        const projects = all
+            .filter((task) => task.taskType === "2" && (input.includeCompleted || task.status !== "done"))
+            .slice(0, limit);
         return {
-            items: projects.map(project => {
-                const descendants = all.filter(task => task.blockId !== project.blockId && belongs(task, project.blockId));
+            items: projects.map((project) => {
+                const descendants = all.filter(
+                    (task) => task.blockId !== project.blockId && belongs(task, project.blockId),
+                );
                 return {
                     project: taskToMcpDto(project, this.fields(), false),
-                    openDescendantCount: descendants.filter(task => task.status !== "done").length,
-                    nextActionCount: descendants.filter(task => nextIds.has(task.blockId)).length,
+                    openDescendantCount: descendants.filter((task) => task.status !== "done").length,
+                    nextActionCount: descendants.filter((task) => nextIds.has(task.blockId)).length,
                 };
             }),
         };
@@ -582,7 +668,7 @@ export class McpToolExecutor {
             schema: state.schema,
             dayKey: state.dayKey,
             updatedAt: state.updatedAt,
-            items: state.tasks.map(entry => {
+            items: state.tasks.map((entry) => {
                 const task = this.taskService.getTask(entry.blockId);
                 return {
                     ...entry,
@@ -629,7 +715,9 @@ export class McpToolExecutor {
     }
 
     private async convertBlock(input: Record<string, any>) {
-        const outcome = await this.creation.convertExisting(input, (task, properties) => this.applyTaskPatch(task, properties));
+        const outcome = await this.creation.convertExisting(input, (task, properties) =>
+            this.applyTaskPatch(task, properties),
+        );
         return this.adaptConvertedTaskOutcome(outcome);
     }
 
@@ -659,7 +747,10 @@ export class McpToolExecutor {
         }
         if (repeat !== undefined) {
             if (repeat === null) {
-                updated = await this.taskService.updateTask(updated.blockId, this.attrsFromPatch({ repeat: null }, updated));
+                updated = await this.taskService.updateTask(
+                    updated.blockId,
+                    this.attrsFromPatch({ repeat: null }, updated),
+                );
             } else {
                 updated = await this.taskService.setRepeatRule(updated.blockId, repeat);
             }
@@ -682,10 +773,11 @@ export class McpToolExecutor {
         else if (input.action === "schedule") {
             const schedule = this.validateSchedule({ start: input.start, end: input.end });
             const current = await this.taskService.getMyDay();
-            if (!current.tasks.some(item => item.blockId === task.blockId)) await this.taskService.addTaskToMyDay(task.blockId);
+            if (!current.tasks.some((item) => item.blockId === task.blockId))
+                await this.taskService.addTaskToMyDay(task.blockId);
             state = await this.taskService.setMyDaySchedule(task.blockId, schedule.start, schedule.end);
         } else throw new McpToolError("INVALID_INPUT", "action is invalid");
-        const entry = state.tasks.find(item => item.blockId === task.blockId) || null;
+        const entry = state.tasks.find((item) => item.blockId === task.blockId) || null;
         return { id: task.blockId, action: input.action, entry };
     }
 }

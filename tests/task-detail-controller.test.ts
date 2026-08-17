@@ -10,11 +10,36 @@ import {
 
 function task(blockId = "task", overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
-        blockId, parentId: "", status: "todo", priority: "medium", importance: 4, effort: 4,
-        due: "", start: "", context: "", taskType: "1", order: 0, childIds: [], title: blockId,
-        depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "", sort: 0,
-        completed: "", note: "", created: "", tags: "", blocked: false, blockedReason: "",
-        reviewInterval: 0, reviewDate: "", reminder: "", customFields: {}, ...overrides,
+        blockId,
+        parentId: "",
+        status: "todo",
+        priority: "medium",
+        importance: 4,
+        effort: 4,
+        due: "",
+        start: "",
+        context: "",
+        taskType: "1",
+        order: 0,
+        childIds: [],
+        title: blockId,
+        depends: "",
+        depMode: "all",
+        sequential: false,
+        repeat: "",
+        repeatState: "",
+        sort: 0,
+        completed: "",
+        note: "",
+        created: "",
+        tags: "",
+        blocked: false,
+        blockedReason: "",
+        reviewInterval: 0,
+        reviewDate: "",
+        reminder: "",
+        customFields: {},
+        ...overrides,
     };
 }
 
@@ -29,7 +54,10 @@ function deferred<T>() {
 }
 
 test("保存期间的新编辑排队且同一时刻只执行一个保存", async () => {
-    const saves: Array<{ draft: ReturnType<typeof taskToTaskDetailDraft>; result: ReturnType<typeof deferred<TaskCacheEntry>> }> = [];
+    const saves: Array<{
+        draft: ReturnType<typeof taskToTaskDetailDraft>;
+        result: ReturnType<typeof deferred<TaskCacheEntry>>;
+    }> = [];
     let active = 0;
     let maxActive = 0;
     const controller = new TaskDetailController(task(), {
@@ -54,13 +82,16 @@ test("保存期间的新编辑排队且同一时刻只执行一个保存", async
     controller.edit({ note: "second" });
     assert.equal(saves.length, 1);
     saves[0].result.resolve(task("task", { note: "first" }));
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(saves.length, 2);
     saves[1].result.resolve(task("task", { note: "second" }));
 
     assert.equal(await flushing, true);
     assert.equal(maxActive, 1);
-    assert.deepEqual(saves.map(save => save.draft.note), ["first", "second"]);
+    assert.deepEqual(
+        saves.map((save) => save.draft.note),
+        ["first", "second"],
+    );
     assert.equal(controller.snapshot.dirty, false);
     controller.dispose();
 });
@@ -74,7 +105,7 @@ test("保存失败保留草稿且下一次显式保存可以重试", async () =>
             if (attempts === 1) throw new Error("offline");
             return task("task", { note: draft.note });
         },
-        formatError: error => (error as Error).message,
+        formatError: (error) => (error as Error).message,
     });
     controller.edit({ note: "keep me" });
 
@@ -145,7 +176,7 @@ test("保存期间关闭会等待排队草稿完成后再作关闭决策", async
     controller.edit({ note: "second" });
     const closing = controller.requestClose();
     first.resolve(task("task", { note: "first" }));
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     second.resolve(task("task", { note: "second" }));
     assert.equal(await flushing, true);
     assert.equal(await closing, "close");
@@ -174,18 +205,45 @@ test("销毁只对非显式丢弃的脏草稿执行尽力保存", async () => {
 });
 
 test("任务详情载荷保持全部既有属性和自定义字段", () => {
-    const draft = taskToTaskDetailDraft(task("task", {
-        status: "doing", priority: "high", importance: 6, effort: 2,
-        due: "2026-08-20", start: "2026-08-17", context: "home|deep",
-        tags: "phase|five", parentId: "project", taskType: "1", depends: "a|b",
-        depMode: "any", sequential: true, note: "note", reviewInterval: 14,
-        reviewDate: "2026-08-30",
-    }));
+    const draft = taskToTaskDetailDraft(
+        task("task", {
+            status: "doing",
+            priority: "high",
+            importance: 6,
+            effort: 2,
+            due: "2026-08-20",
+            start: "2026-08-17",
+            context: "home|deep",
+            tags: "phase|five",
+            parentId: "project",
+            taskType: "1",
+            depends: "a|b",
+            depMode: "any",
+            sequential: true,
+            note: "note",
+            reviewInterval: 14,
+            reviewDate: "2026-08-30",
+        }),
+    );
     const attrs = taskDetailDraftToAttrs(draft, { "na-ext-owner": "me" });
     assert.deepEqual(Object.keys(attrs), [
-        "na-status", "na-priority", "na-importance", "na-effort", "na-due", "na-start",
-        "na-context", "na-tags", "na-parent", "na-task", "na-depends", "na-dep-mode",
-        "na-sequential", "na-note", "na-review-interval", "na-review-date", "na-ext-owner",
+        "na-status",
+        "na-priority",
+        "na-importance",
+        "na-effort",
+        "na-due",
+        "na-start",
+        "na-context",
+        "na-tags",
+        "na-parent",
+        "na-task",
+        "na-depends",
+        "na-dep-mode",
+        "na-sequential",
+        "na-note",
+        "na-review-interval",
+        "na-review-date",
+        "na-ext-owner",
     ]);
     assert.equal(attrs["na-context"], "home|deep");
     assert.equal(attrs["na-depends"], "a|b");

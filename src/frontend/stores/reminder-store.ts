@@ -11,7 +11,15 @@ import {
     REMINDER_DATA_PATH,
     type ReminderSoundId,
 } from "../../shared/constants";
-import type { ReminderEntry, DismissedRecord, TaskCacheEntry, ReminderItem, ReminderRelative, ReminderAbsolute, ReminderSummaryData } from "../../shared/types";
+import type {
+    ReminderEntry,
+    DismissedRecord,
+    TaskCacheEntry,
+    ReminderItem,
+    ReminderRelative,
+    ReminderAbsolute,
+    ReminderSummaryData,
+} from "../../shared/types";
 import type { Plugin } from "siyuan";
 import { playSound } from "../utils/audio-player";
 import { parseReminderItems } from "../utils/reminder-utils";
@@ -26,7 +34,7 @@ export const notificationQueue = writable<ReminderEntry[]>([]);
 
 /** Visible slice of the notification queue (capped by REMINDER_MAX_VISIBLE) */
 export const visibleNotifications = derived(notificationQueue, ($q) =>
-    $q.filter((r) => !r.dismissed).slice(0, REMINDER_MAX_VISIBLE)
+    $q.filter((r) => !r.dismissed).slice(0, REMINDER_MAX_VISIBLE),
 );
 
 /** Dismissed dedup-keys persisted via Plugin.saveData */
@@ -70,7 +78,7 @@ export function buildDedupKey(
     blockId: string,
     baseDateStr: string,
     minutesBefore: number,
-    type: "due" | "review" | "absolute" | "summary"
+    type: "due" | "review" | "absolute" | "summary",
 ): string {
     return `${blockId}|${baseDateStr}|${minutesBefore}|${type}`;
 }
@@ -194,7 +202,13 @@ function computeSummary(): ReminderSummaryData {
  * Only show when there is something actionable to report.
  */
 function hasActionableItems(summary: ReminderSummaryData): boolean {
-    return summary.overdue > 0 || summary.dueToday > 0 || summary.startingToday > 0 || summary.nextAction > 0 || summary.waiting > 0;
+    return (
+        summary.overdue > 0 ||
+        summary.dueToday > 0 ||
+        summary.startingToday > 0 ||
+        summary.nextAction > 0 ||
+        summary.waiting > 0
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -210,9 +224,9 @@ function scanReminders(): void {
     const candidates = get(tasksWithDueOrReview);
     const currentQueue = get(notificationQueue);
     const queuedBlockIds = new Set(currentQueue.map((r) => r.blockId));
-    const queuedDedupKeys = new Set<string>(currentQueue.map((r) =>
-        buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type)
-    ));
+    const queuedDedupKeys = new Set<string>(
+        currentQueue.map((r) => buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type)),
+    );
     const newEntries: ReminderEntry[] = [];
 
     // ---- Summary card ----
@@ -231,7 +245,7 @@ function scanReminders(): void {
                     return { ...r, summary: freshSummary };
                 }
                 return r;
-            })
+            }),
         );
     } else if (!dismissed[summaryDedupKey]) {
         const summary = computeSummary();
@@ -259,7 +273,7 @@ function scanReminders(): void {
         // ---- Absolute time reminders ----
         {
             const items = getEffectiveReminders(entry);
-            const absoluteItems = items.filter(i => i.type === "absolute") as ReminderAbsolute[];
+            const absoluteItems = items.filter((i) => i.type === "absolute") as ReminderAbsolute[];
             if (absoluteItems.length > 0) {
                 for (const item of absoluteItems) {
                     const triggerTime = new Date(item.time).getTime();
@@ -269,7 +283,7 @@ function scanReminders(): void {
                     if (dismissed[dedupKey]) continue;
                     if (queuedDedupKeys.has(dedupKey)) continue;
 
-                    const current = get(taskStore).allTasks.find(t => t.blockId === entry.blockId);
+                    const current = get(taskStore).allTasks.find((t) => t.blockId === entry.blockId);
                     if (!current || current.status === "done") continue;
 
                     newEntries.push({
@@ -293,7 +307,7 @@ function scanReminders(): void {
         // Overdue tasks are covered by the summary card, not individual alerts.
         {
             const items = getEffectiveReminders(entry);
-            const relativeItems = items.filter(i => i.type === "relative") as ReminderRelative[];
+            const relativeItems = items.filter((i) => i.type === "relative") as ReminderRelative[];
             for (const item of relativeItems) {
                 if (queuedBlockIds.has(entry.blockId)) continue;
                 if (!entry.due) continue;
@@ -309,7 +323,7 @@ function scanReminders(): void {
                 const triggerTime = dueTimeMs - item.minutes * 60000;
 
                 if (triggerTime > now) continue; // not yet time to remind
-                if (dueTimeMs <= now) continue;  // already overdue → summary card handles this
+                if (dueTimeMs <= now) continue; // already overdue → summary card handles this
 
                 const baseDateStr = entry.due.slice(0, 10);
                 const dedupKey = buildDedupKey(entry.blockId, baseDateStr, item.minutes, "due");
@@ -339,7 +353,7 @@ function scanReminders(): void {
             const dedupKey = buildDedupKey(entry.blockId, baseDateStr, 0, "review");
 
             if (reviewMs <= now && !dismissed[dedupKey] && !queuedDedupKeys.has(dedupKey)) {
-                const current = get(taskStore).allTasks.find(t => t.blockId === entry.blockId);
+                const current = get(taskStore).allTasks.find((t) => t.blockId === entry.blockId);
                 if (!current || current.status === "done") continue;
 
                 newEntries.push({
@@ -361,9 +375,7 @@ function scanReminders(): void {
     if (newEntries.length === 0) return;
 
     notificationQueue.update((queue) => {
-        const existing = new Set(queue.map((r) =>
-            buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type)
-        ));
+        const existing = new Set(queue.map((r) => buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type)));
         const added: ReminderEntry[] = [];
         for (const e of newEntries) {
             const key = buildDedupKey(e.blockId, e.baseDateStr, e.minutesBefore, e.type);
@@ -381,10 +393,11 @@ function scanReminders(): void {
 
     if (reminderSettings.soundEnabled) {
         const firstNew = newEntries[0];
-        const soundId: ReminderSoundId = firstNew.type === "review"
-            ? (reminderSettings.reviewSound || "soft")
-            : (reminderSettings.dueSound || "chime");
-        playSound(soundId).catch(() => { /* silent fallback */ });
+        const soundId: ReminderSoundId =
+            firstNew.type === "review" ? reminderSettings.reviewSound || "soft" : reminderSettings.dueSound || "chime";
+        playSound(soundId).catch(() => {
+            /* silent fallback */
+        });
     }
 }
 
@@ -400,7 +413,7 @@ export function dismissReminder(dedupKey: string): void {
             const key = buildDedupKey(r.blockId, r.baseDateStr, r.minutesBefore, r.type);
             if (key === dedupKey) return { ...r, dismissed: true };
             return r;
-        })
+        }),
     );
 
     // Also remove dismissed entries from the queue entirely to keep it clean
@@ -422,9 +435,7 @@ export function dismissAllReminders(): void {
     }
     void saveDismissed();
 
-    notificationQueue.update((q) =>
-        q.map((r) => ({ ...r, dismissed: true }))
-    );
+    notificationQueue.update((q) => q.map((r) => ({ ...r, dismissed: true })));
     pendingReminderCount.set(0);
 }
 

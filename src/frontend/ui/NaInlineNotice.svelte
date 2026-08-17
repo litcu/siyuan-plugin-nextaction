@@ -5,17 +5,22 @@
     export let tone: "info" | "warning" | "error" | "success" = "info";
     export let live: "off" | "polite" | "assertive" = tone === "error" ? "assertive" : "polite";
 
-    $: symbol = tone === "error"
-        ? "iconCloseRound"
-        : tone === "warning"
-            ? "iconWarning"
-            : tone === "success"
+    $: symbol =
+        tone === "error"
+            ? "iconCloseRound"
+            : tone === "warning"
+              ? "iconWarning"
+              : tone === "success"
                 ? "iconSelect"
                 : "iconInfo";
 </script>
 
 {#if message}
-    <div class="na-inline-notice na-inline-notice--{tone}" role={tone === "error" ? "alert" : "status"} aria-live={live}>
+    <div
+        class="na-inline-notice na-inline-notice--{tone}"
+        role={tone === "error" ? "alert" : "status"}
+        aria-live={live}
+    >
         <NaIcon {symbol} size={14} />
         <span>{message}</span>
     </div>
@@ -34,8 +39,12 @@
         font-size: var(--na-font-size-sm);
         line-height: 1.45;
 
-        :global(.na-icon) { margin-top: 1px; }
-        span { min-width: 0; }
+        :global(.na-icon) {
+            margin-top: 1px;
+        }
+        span {
+            min-width: 0;
+        }
     }
 
     .na-inline-notice--warning {

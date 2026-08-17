@@ -4,278 +4,280 @@
 
 // ===== 公共页面与表单骨架 =====
 .nextaction .na-page-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .nextaction input.b3-text-field,
 .nextaction select.b3-select {
-  box-sizing: border-box;
-  min-height: var(--na-control-height);
-  font-family: var(--b3-font-family);
-  font-size: var(--na-font-size-md);
-  font-weight: 400;
-  line-height: 20px;
+    box-sizing: border-box;
+    min-height: var(--na-control-height);
+    font-family: var(--b3-font-family);
+    font-size: var(--na-font-size-md);
+    font-weight: 400;
+    line-height: 20px;
 }
 
 .nextaction textarea.b3-text-field {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 72px;
-  padding: var(--na-space-md);
-  resize: vertical;
-  font-family: var(--b3-font-family);
-  font-size: var(--na-font-size-md);
-  font-weight: 400;
-  line-height: 1.5;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 72px;
+    padding: var(--na-space-md);
+    resize: vertical;
+    font-family: var(--b3-font-family);
+    font-size: var(--na-font-size-md);
+    font-weight: 400;
+    line-height: 1.5;
 }
 
 .nextaction .b3-button {
-  min-height: var(--na-control-height);
-  font-family: var(--b3-font-family);
-  font-size: var(--na-font-size-md);
-  letter-spacing: 0;
+    min-height: var(--na-control-height);
+    font-family: var(--b3-font-family);
+    font-size: var(--na-font-size-md);
+    letter-spacing: 0;
 }
 
 .nextaction :is(input, select, textarea, button):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 42%, transparent);
-  outline-offset: 1px;
+    outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 42%, transparent);
+    outline-offset: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nextaction *,
-  .nextaction *::before,
-  .nextaction *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
+    .nextaction *,
+    .nextaction *::before,
+    .nextaction *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
 }
 
 .nextaction select.b3-select {
-  height: var(--na-control-height);
-  padding-top: 5px;
-  padding-bottom: 5px;
-  vertical-align: middle;
+    height: var(--na-control-height);
+    padding-top: 5px;
+    padding-bottom: 5px;
+    vertical-align: middle;
 }
 
 // ===== 下拉选择框 =====
 .na-select {
-  width: 100%;
-  height: var(--na-control-height);
-  padding: 0 28px 0 10px;
-  font-size: var(--na-font-size-md);
-  box-sizing: border-box;
-  color: var(--b3-theme-on-background);
-  background: var(--b3-select-background);
-  border: 1px solid var(--na-color-divider);
-  border-radius: var(--na-radius-md);
-  outline: none;
-  appearance: none;
-  cursor: pointer;
-  transition: border-color 0.2s;
+    width: 100%;
+    height: var(--na-control-height);
+    padding: 0 28px 0 10px;
+    font-size: var(--na-font-size-md);
+    box-sizing: border-box;
+    color: var(--b3-theme-on-background);
+    background: var(--b3-select-background);
+    border: 1px solid var(--na-color-divider);
+    border-radius: var(--na-radius-md);
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
 
-  &:hover {
-    border-color: var(--b3-theme-primary-light);
-  }
+    &:hover {
+        border-color: var(--b3-theme-primary-light);
+    }
 
-  &:focus {
-    border-color: var(--b3-theme-primary);
-  }
+    &:focus {
+        border-color: var(--b3-theme-primary);
+    }
 
-  &--sm {
-    height: var(--na-control-height-sm);
-    font-size: var(--na-font-size-sm);
-    padding: 0 24px 0 8px;
-    border-radius: var(--na-radius-sm);
-  }
+    &--sm {
+        height: var(--na-control-height-sm);
+        font-size: var(--na-font-size-sm);
+        padding: 0 24px 0 8px;
+        border-radius: var(--na-radius-sm);
+    }
 }
 
 // ===== 文本输入 =====
 .na-input {
-  width: 100%;
-  height: var(--na-control-height);
-  padding: 0 var(--na-space-md);
-  font-size: var(--na-font-size-md);
-  color: var(--b3-theme-on-background);
-  background: var(--b3-theme-background);
-  border: 1px solid var(--na-color-divider);
-  border-radius: var(--na-radius-md);
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    height: var(--na-control-height);
+    padding: 0 var(--na-space-md);
+    font-size: var(--na-font-size-md);
+    color: var(--b3-theme-on-background);
+    background: var(--b3-theme-background);
+    border: 1px solid var(--na-color-divider);
+    border-radius: var(--na-radius-md);
+    outline: none;
+    box-sizing: border-box;
+    transition:
+        border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
-  &::placeholder {
-    color: var(--b3-theme-on-surface-light);
-  }
+    &::placeholder {
+        color: var(--b3-theme-on-surface-light);
+    }
 
-  &:hover {
-    border-color: var(--b3-theme-primary-light);
-  }
+    &:hover {
+        border-color: var(--b3-theme-primary-light);
+    }
 
-  &:focus {
-    border-color: var(--b3-theme-primary);
-  }
+    &:focus {
+        border-color: var(--b3-theme-primary);
+    }
 
-  &:active {
-    transform: scale(0.98);
-  }
+    &:active {
+        transform: scale(0.98);
+    }
 }
 
 // ===== 按钮 =====
 .na-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--na-space-xs);
-  height: var(--na-control-height);
-  padding: 0 var(--na-space-lg);
-  font-size: var(--na-font-size-md);
-  font-weight: 500;
-  color: var(--b3-theme-on-background);
-  background: var(--b3-theme-surface);
-  border: 1px solid var(--na-color-divider);
-  border-radius: var(--na-radius-md);
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: 0;
-  box-shadow: none;
-
-  &:hover {
-    background: var(--b3-theme-surface-light);
-    border-color: var(--b3-theme-primary-light);
-  }
-
-  &:active {
-    transform: scale(0.97);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--na-space-xs);
+    height: var(--na-control-height);
+    padding: 0 var(--na-space-lg);
+    font-size: var(--na-font-size-md);
+    font-weight: 500;
+    color: var(--b3-theme-on-background);
     background: var(--b3-theme-surface);
-  }
-
-  &--primary {
-    color: var(--b3-theme-on-primary);
-    background: var(--b3-theme-primary);
-    border-color: transparent;
-    box-shadow: none;
-
-    &:hover {
-      background: var(--b3-theme-primary-light);
-      border-color: transparent;
-    }
-
-    &:active {
-      background: var(--b3-theme-primary);
-      transform: scale(0.97);
-    }
-  }
-
-  &--danger {
-    color: var(--b3-theme-error);
-    border-color: var(--na-color-divider);
-    background: transparent;
-
-    &:hover {
-      background: var(--b3-theme-error);
-      color: var(--b3-theme-on-primary);
-      border-color: var(--b3-theme-error);
-    }
-
-    &:active {
-      opacity: 0.9;
-      transform: scale(0.97);
-    }
-  }
-
-  &--icon {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
+    border: 1px solid var(--na-color-divider);
     border-radius: var(--na-radius-md);
-    background: transparent;
-    color: var(--b3-theme-on-surface-light);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0;
     box-shadow: none;
 
     &:hover {
-      background: var(--b3-theme-surface-light);
-      color: var(--b3-theme-on-background);
+        background: var(--b3-theme-surface-light);
+        border-color: var(--b3-theme-primary-light);
     }
 
     &:active {
-      background: var(--b3-theme-surface);
-      transform: scale(0.9);
+        transform: scale(0.97);
+        background: var(--b3-theme-surface);
     }
-  }
 
-  &--sm {
-    height: var(--na-control-height-sm);
-    padding: 0 var(--na-space-md);
-    font-size: var(--na-font-size-sm);
-    border-radius: var(--na-radius-sm);
-  }
+    &--primary {
+        color: var(--b3-theme-on-primary);
+        background: var(--b3-theme-primary);
+        border-color: transparent;
+        box-shadow: none;
+
+        &:hover {
+            background: var(--b3-theme-primary-light);
+            border-color: transparent;
+        }
+
+        &:active {
+            background: var(--b3-theme-primary);
+            transform: scale(0.97);
+        }
+    }
+
+    &--danger {
+        color: var(--b3-theme-error);
+        border-color: var(--na-color-divider);
+        background: transparent;
+
+        &:hover {
+            background: var(--b3-theme-error);
+            color: var(--b3-theme-on-primary);
+            border-color: var(--b3-theme-error);
+        }
+
+        &:active {
+            opacity: 0.9;
+            transform: scale(0.97);
+        }
+    }
+
+    &--icon {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: none;
+        border-radius: var(--na-radius-md);
+        background: transparent;
+        color: var(--b3-theme-on-surface-light);
+        box-shadow: none;
+
+        &:hover {
+            background: var(--b3-theme-surface-light);
+            color: var(--b3-theme-on-background);
+        }
+
+        &:active {
+            background: var(--b3-theme-surface);
+            transform: scale(0.9);
+        }
+    }
+
+    &--sm {
+        height: var(--na-control-height-sm);
+        padding: 0 var(--na-space-md);
+        font-size: var(--na-font-size-sm);
+        border-radius: var(--na-radius-sm);
+    }
 }
 
 // ===== 链接 =====
 .na-link {
-  color: var(--b3-theme-primary);
-  text-decoration: none;
-  cursor: pointer;
-  font-weight: 500;
-  transition: opacity 0.15s;
+    color: var(--b3-theme-primary);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
 
-  &:hover {
-    opacity: 0.8;
-  }
+    &:hover {
+        opacity: 0.8;
+    }
 }
 
 // ===== 文本溢出省略 =====
 .na-ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 // ===== Tooltip =====
 // Keep SiYuan's placement behavior while softening its default high-contrast bubble.
 :where(.nextaction, .na-notification-host) .b3-tooltips::after,
 .nextaction.b3-tooltips::after {
-  border: 1px solid color-mix(in srgb, var(--b3-border-color) 62%, transparent);
-  border-radius: var(--na-radius-sm);
-  background: color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-background));
-  color: var(--b3-theme-on-background);
-  box-shadow: var(--na-shadow-sm);
+    border: 1px solid color-mix(in srgb, var(--b3-border-color) 62%, transparent);
+    border-radius: var(--na-radius-sm);
+    background: color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-background));
+    color: var(--b3-theme-on-background);
+    box-shadow: var(--na-shadow-sm);
 }
 
 // ===== 列表项 =====
 .na-list-item {
-  display: flex;
-  align-items: center;
-  gap: var(--na-space-sm);
-  padding: var(--na-space-sm) var(--na-space-md);
-  font-size: var(--na-font-size-md);
-  color: var(--b3-theme-on-background);
-  cursor: pointer;
-  transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: var(--na-radius-sm);
-
-  &:hover {
-    background: var(--b3-theme-surface-light);
-  }
-
-  &--sm {
-    padding: var(--na-space-xs) var(--na-space-md);
-    font-size: var(--na-font-size-sm);
-  }
-
-  &--action {
-    color: var(--b3-theme-primary);
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--na-space-sm);
+    padding: var(--na-space-sm) var(--na-space-md);
+    font-size: var(--na-font-size-md);
+    color: var(--b3-theme-on-background);
+    cursor: pointer;
+    transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: var(--na-radius-sm);
 
     &:hover {
-      background: var(--b3-theme-primary-lightest);
+        background: var(--b3-theme-surface-light);
     }
-  }
+
+    &--sm {
+        padding: var(--na-space-xs) var(--na-space-md);
+        font-size: var(--na-font-size-sm);
+    }
+
+    &--action {
+        color: var(--b3-theme-primary);
+        font-weight: 500;
+
+        &:hover {
+            background: var(--b3-theme-primary-lightest);
+        }
+    }
 }

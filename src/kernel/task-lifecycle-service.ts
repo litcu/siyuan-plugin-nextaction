@@ -1,4 +1,14 @@
-import { type TaskCacheEntry, type StatisticsResult, type StatisticsSummary, StatisticsDistribution, StatisticsContextItem, StatisticsProjectStatus, type ReviewData, type CompletedTasksPage, type MyDayState } from "../shared/types";
+import {
+    type TaskCacheEntry,
+    type StatisticsResult,
+    type StatisticsSummary,
+    StatisticsDistribution,
+    StatisticsContextItem,
+    StatisticsProjectStatus,
+    type ReviewData,
+    type CompletedTasksPage,
+    type MyDayState,
+} from "../shared/types";
 import { paginateCompletedTasks, type CompletedTasksPageOptions } from "../shared/task-pagination";
 import {
     ATTR_TASK,
@@ -48,7 +58,12 @@ import {
     type RepeatStateV1,
 } from "./repeat-engine";
 import type { PluginSettings } from "../shared/settings";
-import { encodeCustomFieldValue, isCustomFieldApplicable, validateCustomFieldDefinition, type CustomFieldDef } from "../shared/custom-fields";
+import {
+    encodeCustomFieldValue,
+    isCustomFieldApplicable,
+    validateCustomFieldDefinition,
+    type CustomFieldDef,
+} from "../shared/custom-fields";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
 import type { TaskRepository } from "./task-repository";
@@ -107,7 +122,9 @@ export class TaskLifecycleService {
         this.myDayManager = myDayManager;
     }
 
-    private get settings(): PluginSettings { return this.runtime.getSettings(); }
+    private get settings(): PluginSettings {
+        return this.runtime.getSettings();
+    }
 
     setIsReady(val: boolean): void {
         this.runtime.setReady(val);
@@ -133,7 +150,7 @@ export class TaskLifecycleService {
             );
             const blockType = rows?.[0]?.type || "";
             if (blockType || attempt === attempts - 1) return blockType;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
         }
         return "";
     }
@@ -161,9 +178,12 @@ export class TaskLifecycleService {
             return { id: blockId, type: blockType };
         }
         if (blockType === "i") {
-            const children = await this.api.request<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", { id: blockId });
+            const children = await this.api.request<Array<{ id?: string; type?: string }>>(
+                "/api/block/getChildBlocks",
+                { id: blockId },
+            );
             const textChild = Array.isArray(children)
-                ? children.find(child => child?.id && (child.type === "p" || child.type === "h"))
+                ? children.find((child) => child?.id && (child.type === "p" || child.type === "h"))
                 : undefined;
             if (textChild?.id && textChild.type) return { id: textChild.id, type: textChild.type };
         }
@@ -207,7 +227,7 @@ export class TaskLifecycleService {
 
         // A caller-provided title is authoritative and avoids an unnecessary SQL
         // read for blocks that were just inserted.
-        const title = cleanTitle || await this.fetchBlockTitle(blockId);
+        const title = cleanTitle || (await this.fetchBlockTitle(blockId));
 
         // Check if already a task
         const existingAttrs = await this.repository.getBlockAttrs(blockId);
@@ -233,11 +253,16 @@ export class TaskLifecycleService {
                     // Parent not set, try to find ancestor task
                     let ancestorId = "";
                     try {
-                        ancestorId = hintedParentId || await this.relationships.findAncestorTask(blockId);
-                    } catch (_error: unknown) { /* ignore */ }
+                        ancestorId = hintedParentId || (await this.relationships.findAncestorTask(blockId));
+                    } catch (_error: unknown) {
+                        /* ignore */
+                    }
 
                     if (ancestorId) {
-                        Object.assign(existingAttrs, await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: ancestorId }));
+                        Object.assign(
+                            existingAttrs,
+                            await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: ancestorId }),
+                        );
                         existingAttrs[ATTR_PARENT] = ancestorId;
                     }
                 }
@@ -290,7 +315,7 @@ export class TaskLifecycleService {
             // Find ancestor task to set na-parent
             let parentTaskId = "";
             try {
-                parentTaskId = hintedParentId || await this.relationships.findAncestorTask(blockId);
+                parentTaskId = hintedParentId || (await this.relationships.findAncestorTask(blockId));
             } catch (_error: unknown) {
                 // Ignore errors in finding ancestor
             }
@@ -301,7 +326,9 @@ export class TaskLifecycleService {
                 // 设置默认 na-sort：排在父任务下现有子任务末尾
                 const siblings = this.cacheManager.getByParent(parentTaskId);
                 const maxSort = siblings.reduce((max, s) => Math.max(max, s.sort), -1);
-                finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000) });
+                finalAttrs = await this.repository.writeAttrs(blockId, {
+                    [ATTR_SORT]: String(maxSort < 0 ? 0 : maxSort + 10000),
+                });
             }
 
             // Find descendant tasks and update their na-parent
@@ -329,7 +356,11 @@ export class TaskLifecycleService {
      * are skipped. Paragraphs that are already tasks are left unchanged.
      * Parent relationships are derived from the list nesting hierarchy.
      */
-    async convertToTaskWithChildren(blockId: string, cleanTitle?: string, taskType: string = "1"): Promise<{ converted: number; skipped: number }> {
+    async convertToTaskWithChildren(
+        blockId: string,
+        cleanTitle?: string,
+        taskType: string = "1",
+    ): Promise<{ converted: number; skipped: number }> {
         blockId = assertBlockId(blockId);
         this.checkReady();
 
@@ -354,7 +385,7 @@ export class TaskLifecycleService {
         const blockRows = await this.api.query<{ id: string; type: string }>(
             sql`SELECT id, type FROM blocks WHERE id = ${blockId}`,
         );
-        const blockType = (blockRows && blockRows.length > 0) ? blockRows[0].type : "";
+        const blockType = blockRows && blockRows.length > 0 ? blockRows[0].type : "";
         if (blockType === "i") {
             // blockId is a list item — use it as root
             rootContainerId = blockId;
@@ -381,8 +412,8 @@ export class TaskLifecycleService {
                     SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id
                 ) SELECT id FROM descendants WHERE type = 'p'`,
             );
-            const allIds = new Set((rows || []).map(r => r.id));
-            for (const r of (directRows || [])) {
+            const allIds = new Set((rows || []).map((r) => r.id));
+            for (const r of directRows || []) {
                 allIds.add(r.id);
             }
             paragraphIds = [...allIds];
@@ -396,7 +427,7 @@ export class TaskLifecycleService {
                     SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN descendants d ON b.parent_id = d.id
                 ) SELECT id FROM descendants WHERE type = 'p'`,
             );
-            paragraphIds = (rows || []).map(r => r.id);
+            paragraphIds = (rows || []).map((r) => r.id);
         } else {
             // Not in a list — just convert the block itself (only if it's a paragraph)
             if (blockType === "p") {
@@ -425,7 +456,7 @@ export class TaskLifecycleService {
                 }
 
                 const title = await this.fetchBlockTitle(pid);
-                const effectiveTitle = (pid === blockId && cleanTitle) ? cleanTitle : title;
+                const effectiveTitle = pid === blockId && cleanTitle ? cleanTitle : title;
 
                 const defaultAttrs: Record<string, string> = {};
                 defaultAttrs[ATTR_TASK] = taskType;
@@ -443,7 +474,9 @@ export class TaskLifecycleService {
                 let parentTaskId = "";
                 try {
                     parentTaskId = await this.relationships.findAncestorTask(pid);
-                } catch (_error: unknown) { /* ignore */ }
+                } catch (_error: unknown) {
+                    /* ignore */
+                }
 
                 if (parentTaskId !== "") {
                     defaultAttrs[ATTR_PARENT] = parentTaskId;
@@ -456,7 +489,9 @@ export class TaskLifecycleService {
 
                 try {
                     await this.relationships.updateDescendantParents(pid);
-                } catch (_error: unknown) { /* ignore */ }
+                } catch (_error: unknown) {
+                    /* ignore */
+                }
 
                 const entry = this.repository.buildEntry(pid, finalAttrs, undefined, effectiveTitle);
                 this.repository.cache(entry);
@@ -491,7 +526,9 @@ export class TaskLifecycleService {
             for (let i = 0; i < entry.childIds.length; i++) {
                 const childId = entry.childIds[i];
                 try {
-                    const childAttrs = await this.repository.writeAttrs(childId, { [ATTR_PARENT]: grandParentId || "" });
+                    const childAttrs = await this.repository.writeAttrs(childId, {
+                        [ATTR_PARENT]: grandParentId || "",
+                    });
 
                     // Update cache for child
                     const childEntry = this.cacheManager.get(childId);
@@ -546,7 +583,10 @@ export class TaskLifecycleService {
             try {
                 await this.myDayManager.removeTask(blockId);
             } catch (error: unknown) {
-                void this.api.log("warn", `removeTask: failed to remove from MyDay: ${error instanceof Error ? error.message : String(error)}`);
+                void this.api.log(
+                    "warn",
+                    `removeTask: failed to remove from MyDay: ${error instanceof Error ? error.message : String(error)}`,
+                );
             }
 
             // Remove from cache
@@ -576,7 +616,12 @@ export class TaskLifecycleService {
             throw codedError(validationError, RPC_ERROR_INVALID_PARAMS);
         }
 
-        if (attrs[ATTR_TASK] !== undefined && attrs[ATTR_TASK] !== "" && attrs[ATTR_TASK] !== "1" && attrs[ATTR_TASK] !== "2") {
+        if (
+            attrs[ATTR_TASK] !== undefined &&
+            attrs[ATTR_TASK] !== "" &&
+            attrs[ATTR_TASK] !== "1" &&
+            attrs[ATTR_TASK] !== "2"
+        ) {
             throw codedError("Invalid task type: " + attrs[ATTR_TASK], RPC_ERROR_INVALID_PARAMS);
         }
 
@@ -632,15 +677,16 @@ export class TaskLifecycleService {
             throw codedError("Cannot depend on ancestor task", RPC_ERROR_DEP_CYCLE);
         }
         // 顺序约束矛盾检测（警告，不阻止）
-        const hasSequentialConflict = dependsAttr !== undefined && this.relationships.checkSequentialConflict(blockId, dependsAttr);
+        const hasSequentialConflict =
+            dependsAttr !== undefined && this.relationships.checkSequentialConflict(blockId, dependsAttr);
 
         // 开始/截止时间校验：截止时间必须 >= 开始时间
         const dueAttr = attrs[ATTR_DUE];
         const startAttr = attrs[ATTR_START];
         if (dueAttr !== undefined || startAttr !== undefined) {
             const existing = this.cacheManager.get(blockId);
-            const effectiveStart = startAttr !== undefined ? startAttr : (existing?.start || "");
-            const effectiveDue = dueAttr !== undefined ? dueAttr : (existing?.due || "");
+            const effectiveStart = startAttr !== undefined ? startAttr : existing?.start || "";
+            const effectiveDue = dueAttr !== undefined ? dueAttr : existing?.due || "";
             if (effectiveStart && effectiveDue) {
                 const startDate = new Date(effectiveStart.includes("T") ? effectiveStart : effectiveStart + "T00:00");
                 const dueDate = new Date(effectiveDue.includes("T") ? effectiveDue : effectiveDue + "T23:59");
@@ -673,7 +719,9 @@ export class TaskLifecycleService {
                     }
                     const effectiveStart = attrs[ATTR_START] !== undefined ? attrs[ATTR_START] : previousEntry.start;
                     const effectiveDue = attrs[ATTR_DUE] !== undefined ? attrs[ATTR_DUE] : previousEntry.due;
-                    const state = parseRepeatState(previousEntry.repeatState) || createRepeatState(rule, effectiveStart, effectiveDue);
+                    const state =
+                        parseRepeatState(previousEntry.repeatState) ||
+                        createRepeatState(rule, effectiveStart, effectiveDue);
                     if (!state) {
                         throw codedError("Repeat task requires a start or due date", RPC_ERROR_INVALID_PARAMS);
                     }
@@ -716,13 +764,19 @@ export class TaskLifecycleService {
                 try {
                     await this.myDayManager.markTaskCompleted(blockId, completedAt);
                 } catch (error: unknown) {
-                    void this.api.log("warn", `updateTask: failed to mark My Day completion: ${error instanceof Error ? error.message : String(error)}`);
+                    void this.api.log(
+                        "warn",
+                        `updateTask: failed to mark My Day completion: ${error instanceof Error ? error.message : String(error)}`,
+                    );
                 }
             } else if (attrs[ATTR_STATUS] !== undefined && attrs[ATTR_STATUS] !== "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
                 } catch (error: unknown) {
-                    void this.api.log("warn", `updateTask: failed to clear My Day completion: ${error instanceof Error ? error.message : String(error)}`);
+                    void this.api.log(
+                        "warn",
+                        `updateTask: failed to clear My Day completion: ${error instanceof Error ? error.message : String(error)}`,
+                    );
                 }
             }
 
@@ -740,7 +794,12 @@ export class TaskLifecycleService {
             // 循环/重复任务：完成当前发生后推进轻量状态，不生成新块。
             const updatedEntry = this.cacheManager.get(blockId);
             if (updatedEntry && preparedRepeat) {
-                const advanced = advanceRepeatState(preparedRepeat.rule, preparedRepeat.state, localActionDate(), "complete");
+                const advanced = advanceRepeatState(
+                    preparedRepeat.rule,
+                    preparedRepeat.state,
+                    localActionDate(),
+                    "complete",
+                );
                 const repeatAttrs: Record<string, string> = {
                     [ATTR_REPEAT_STATE]: JSON.stringify(advanced.state),
                 };
@@ -756,7 +815,10 @@ export class TaskLifecycleService {
                     try {
                         await this.myDayManager.clearTaskCompleted(blockId);
                     } catch (error: unknown) {
-                        void this.api.log("warn", `updateTask: failed to clear My Day completion after repeat advancement: ${error instanceof Error ? error.message : String(error)}`);
+                        void this.api.log(
+                            "warn",
+                            `updateTask: failed to clear My Day completion after repeat advancement: ${error instanceof Error ? error.message : String(error)}`,
+                        );
                     }
                 }
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, updatedEntry);
@@ -824,12 +886,12 @@ export class TaskLifecycleService {
     }
 
     async rebuildCache(): Promise<void> {
-        await this.cacheManager.rebuild(blockIds => this.repository.batchGetBlockAttrs(blockIds));
+        await this.cacheManager.rebuild((blockIds) => this.repository.batchGetBlockAttrs(blockIds));
         this.repository.reconcileAllDerivedState();
     }
 
     async loadCache(): Promise<void> {
-        await this.cacheManager.loadAll(blockIds => this.repository.batchGetBlockAttrs(blockIds));
+        await this.cacheManager.loadAll((blockIds) => this.repository.batchGetBlockAttrs(blockIds));
         this.repository.reconcileAllDerivedState();
     }
 

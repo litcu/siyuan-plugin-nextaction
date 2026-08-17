@@ -14,7 +14,7 @@ function sourceFiles(directory) {
 
 const files = sourceFiles(sourceRoot);
 const failures = [];
-const textByFile = new Map(files.map(path => [path, readFileSync(path, "utf8")]));
+const textByFile = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
 
 function projectPath(path) {
     return relative(root, path).replace(/\\/g, "/");
@@ -22,24 +22,50 @@ function projectPath(path) {
 
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
-    const imports = [...source.matchAll(/(?:import|export)\s+(?:[^"']+?\s+from\s+)?["']([^"']+)["']/g)].map(match => match[1]);
-    if (name.startsWith("src/frontend/") && imports.some(value => value.includes("/kernel/") || value.startsWith("@kernel/"))) {
+    const imports = [...source.matchAll(/(?:import|export)\s+(?:[^"']+?\s+from\s+)?["']([^"']+)["']/g)].map(
+        (match) => match[1],
+    );
+    if (
+        name.startsWith("src/frontend/") &&
+        imports.some((value) => value.includes("/kernel/") || value.startsWith("@kernel/"))
+    ) {
         failures.push(`${name}: frontend must not import kernel modules`);
     }
-    if (name.startsWith("src/shared/") && imports.some(value => value.includes("/frontend/") || value.includes("/kernel/") || value === "siyuan" || value.startsWith("siyuan/"))) {
+    if (
+        name.startsWith("src/shared/") &&
+        imports.some(
+            (value) =>
+                value.includes("/frontend/") ||
+                value.includes("/kernel/") ||
+                value === "siyuan" ||
+                value.startsWith("siyuan/"),
+        )
+    ) {
         failures.push(`${name}: shared must remain independent from frontend, kernel and SiYuan runtime modules`);
     }
-    if (name.startsWith("src/shared/") && /\b(?:window|document|localStorage|sessionStorage|navigator)\s*\./.test(source)) {
+    if (
+        name.startsWith("src/shared/") &&
+        /\b(?:window|document|localStorage|sessionStorage|navigator)\s*\./.test(source)
+    ) {
         failures.push(`${name}: shared must not use browser-only runtime globals`);
     }
-    if (name.startsWith("src/shared/") && /\b(?:HTMLElement|HTML[A-Za-z]+Element|MutationObserver|ResizeObserver)\b/.test(source)) {
+    if (
+        name.startsWith("src/shared/") &&
+        /\b(?:HTMLElement|HTML[A-Za-z]+Element|MutationObserver|ResizeObserver)\b/.test(source)
+    ) {
         failures.push(`${name}: shared must not depend on DOM-only types`);
     }
 }
 
 const frontendTaskFallbacks = [...textByFile]
     .filter(([path]) => projectPath(path).startsWith("src/frontend/") || projectPath(path) === "src/index.ts")
-    .flatMap(([path, source]) => [...source.matchAll(/\/api\/(?:attr\/(?:getBlockAttrs|setBlockAttrs|batchGetBlockAttrs|batchSetBlockAttrs)|query\/sql)/g)].map(() => projectPath(path)));
+    .flatMap(([path, source]) =>
+        [
+            ...source.matchAll(
+                /\/api\/(?:attr\/(?:getBlockAttrs|setBlockAttrs|batchGetBlockAttrs|batchSetBlockAttrs)|query\/sql)/g,
+            ),
+        ].map(() => projectPath(path)),
+    );
 if (frontendTaskFallbacks.length !== 0) {
     failures.push(`frontend task fallback endpoints are forbidden, found: ${frontendTaskFallbacks.join(", ")}`);
 }
@@ -73,8 +99,10 @@ for (const [path, source] of textByFile) {
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
     if (!name.startsWith("src/kernel/") && name !== "src/index.ts") continue;
-    if (/stmt\s*:\s*(?:"|'|`)[^\n]*\+/.test(source)) failures.push(`${name}: SQL statement concatenates a dynamic value`);
-    if (/stmt\s*:\s*`[^`]*\$\{/.test(source) && !/stmt\s*:\s*sql`/.test(source)) failures.push(`${name}: interpolated SQL must use the sql tag`);
+    if (/stmt\s*:\s*(?:"|'|`)[^\n]*\+/.test(source))
+        failures.push(`${name}: SQL statement concatenates a dynamic value`);
+    if (/stmt\s*:\s*`[^`]*\$\{/.test(source) && !/stmt\s*:\s*sql`/.test(source))
+        failures.push(`${name}: interpolated SQL must use the sql tag`);
     for (const match of source.matchAll(/`(?:\\.|[^`])*`/gs)) {
         const literal = match[0];
         if (!/^`\s*(?:SELECT|WITH|INSERT|UPDATE|DELETE)\b/i.test(literal) || !literal.includes("${")) continue;
@@ -91,23 +119,33 @@ for (const [path, source] of textByFile) {
 }
 
 const methodsSource = readFileSync(join(sourceRoot, "shared", "rpc-methods.ts"), "utf8");
-const declaredList = [...methodsSource.matchAll(/^ {4}([A-Za-z][A-Za-z0-9]+): defineRpc/gm)].map(match => match[1]);
+const declaredList = [...methodsSource.matchAll(/^ {4}([A-Za-z][A-Za-z0-9]+): defineRpc/gm)].map((match) => match[1]);
 const declared = new Set(declaredList);
 const serverSource = readFileSync(join(sourceRoot, "kernel", "rpc-server.ts"), "utf8");
 const bridgeSource = readFileSync(join(sourceRoot, "frontend", "kernel-bridge.ts"), "utf8");
-const handled = new Set([...serverSource.matchAll(/^ {8}([A-Za-z][A-Za-z0-9]+):/gm)].map(match => match[1]));
-const called = new Set([...bridgeSource.matchAll(/this\.call(?:<[^>]+>)?\("([A-Za-z][A-Za-z0-9]+)"/g)].map(match => match[1]));
+const handlersStart = serverSource.indexOf("    const handlers: RpcHandlerMap = {");
+const handlersEnd = serverSource.indexOf("    } satisfies {", handlersStart);
+const handlersSource =
+    handlersStart >= 0 && handlersEnd > handlersStart ? serverSource.slice(handlersStart, handlersEnd) : "";
+const handled = new Set([...handlersSource.matchAll(/^ {8}([A-Za-z][A-Za-z0-9]+):/gm)].map((match) => match[1]));
+const called = new Set(
+    [...bridgeSource.matchAll(/this\.call(?:<[^>]+>)?\("([A-Za-z][A-Za-z0-9]+)"/g)].map((match) => match[1]),
+);
 if (declaredList.length !== declared.size || declared.size === 0) {
     failures.push(`RPC contract must contain unique methods, found ${declaredList.length}/${declared.size}`);
 }
+if (!handlersSource) failures.push("RPC server must define the typed handler map");
 for (const method of declared) {
     if (!handled.has(method)) failures.push(`RPC method ${method} is declared but has no server handler`);
     if (!called.has(method)) failures.push(`RPC method ${method} is declared but has no KernelBridge call`);
 }
-for (const method of handled) if (!declared.has(method)) failures.push(`RPC server handles undeclared method ${method}`);
+for (const method of handled)
+    if (!declared.has(method)) failures.push(`RPC server handles undeclared method ${method}`);
 for (const method of called) if (!declared.has(method)) failures.push(`KernelBridge calls undeclared method ${method}`);
-if (!serverSource.includes("for (const method of RPC_METHOD_NAMES)")) failures.push("RPC server must bind methods from the shared contract");
-if ([...serverSource.matchAll(/\bcatch\s*\(/g)].length !== 1) failures.push("RPC server must use one shared exception boundary");
+if (!serverSource.includes("for (const method of RPC_METHOD_NAMES)"))
+    failures.push("RPC server must bind methods from the shared contract");
+if ([...serverSource.matchAll(/\bcatch\s*\(/g)].length !== 1)
+    failures.push("RPC server must use one shared exception boundary");
 
 const rpcResultDefinitions = [...textByFile]
     .filter(([, source]) => /(?:interface|type)\s+RpcResult\b/.test(source))
@@ -117,9 +155,11 @@ if (rpcResultDefinitions.length !== 1 || rpcResultDefinitions[0] !== "src/shared
 }
 
 const taskFacadeSource = readFileSync(join(sourceRoot, "kernel", "task-service.ts"), "utf8");
-if (taskFacadeSource.split(/\r?\n/).length > 160) failures.push("TaskService compatibility facade must remain below 160 lines");
+if (taskFacadeSource.replace(/\s/g, "").length > 6500)
+    failures.push("TaskService compatibility facade must remain below 6500 non-whitespace characters");
 for (const forbidden of ["new Mutex", "setBlockAttrs(", "publishChanges(", "/api/"]) {
-    if (taskFacadeSource.includes(forbidden)) failures.push(`TaskService facade contains business implementation marker: ${forbidden}`);
+    if (taskFacadeSource.includes(forbidden))
+        failures.push(`TaskService facade contains business implementation marker: ${forbidden}`);
 }
 for (const service of [
     "TaskRuntimeState",
@@ -140,15 +180,21 @@ if (/\/api\/attr\/|\bsetBlockAttrs\s*\(|\bbatchSetBlockAttrs\s*\(/.test(mcpExecu
 const mcpUtilsSource = readFileSync(join(sourceRoot, "kernel", "mcp-utils.ts"), "utf8");
 const readToolSection = mcpUtilsSource.match(/READ_MCP_TOOL_NAMES = \[([\s\S]*?)\] as const/)?.[1] || "";
 const writeToolSection = mcpUtilsSource.match(/WRITE_MCP_TOOL_NAMES = \[([\s\S]*?)\] as const/)?.[1] || "";
-const mcpToolNames = [...readToolSection.matchAll(/"([a-z_]+)"/g), ...writeToolSection.matchAll(/"([a-z_]+)"/g)].map(match => match[1]);
+const mcpToolNames = [...readToolSection.matchAll(/"([a-z_]+)"/g), ...writeToolSection.matchAll(/"([a-z_]+)"/g)].map(
+    (match) => match[1],
+);
 if (mcpToolNames.length !== 14 || new Set(mcpToolNames).size !== 14) {
-    failures.push(`MCP catalog must contain 14 unique tools, found ${mcpToolNames.length}/${new Set(mcpToolNames).size}`);
+    failures.push(
+        `MCP catalog must contain 14 unique tools, found ${mcpToolNames.length}/${new Set(mcpToolNames).size}`,
+    );
 }
 for (const name of mcpToolNames) {
-    if (!new RegExp(`^ {12}${name}:`, "m").test(mcpExecutorSource)) failures.push(`MCP tool ${name} has no executor definition`);
+    if (!new RegExp(`^ {12}${name}:`, "m").test(mcpExecutorSource))
+        failures.push(`MCP tool ${name} has no executor definition`);
 }
 const capabilitySource = readFileSync(join(sourceRoot, "kernel", "mcp-capability-manager.ts"), "utf8");
-if (!capabilitySource.includes("executor.getCatalog()")) failures.push("MCP capability registration must use the shared catalog");
+if (!capabilitySource.includes("executor.getCatalog()"))
+    failures.push("MCP capability registration must use the shared catalog");
 
 const frontendEntrySource = readFileSync(join(sourceRoot, "index.ts"), "utf8");
 if (frontendEntrySource.split(/\r?\n/).length > 100) failures.push("frontend entry must remain below 100 lines");
@@ -193,7 +239,13 @@ const cacheOwner = "src/kernel/cache-manager.ts";
 const nonTaskOrderOwner = "src/kernel/my-day-manager.ts";
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
-    if (!name.startsWith("src/kernel/") || name === derivedStateOwner || name === cacheOwner || name === nonTaskOrderOwner) continue;
+    if (
+        !name.startsWith("src/kernel/") ||
+        name === derivedStateOwner ||
+        name === cacheOwner ||
+        name === nonTaskOrderOwner
+    )
+        continue;
     if (/\.(?:childIds|blocked|blockedReason|order)\s*=/.test(source)) {
         failures.push(`${name}: derived task state may only be assigned by the cache or derived-state service`);
     }
@@ -206,7 +258,8 @@ for (const [path, source] of textByFile) {
     const name = projectPath(path);
     if (!name.startsWith("src/kernel/")) continue;
     for (const legacyHelper of ["recalcBlockedStatus", "getSequentialBroadcastIds"]) {
-        if (source.includes(legacyHelper)) failures.push(`${name}: legacy derived-state helper ${legacyHelper} is forbidden`);
+        if (source.includes(legacyHelper))
+            failures.push(`${name}: legacy derived-state helper ${legacyHelper} is forbidden`);
     }
 }
 
@@ -215,33 +268,36 @@ const v1RefreshSection = taskStoreSource.match(/function scheduleV1Refresh\(\): 
 if (!v1RefreshSection.includes("2000") || /\b2000\b/.test(taskStoreSource.replace(v1RefreshSection, ""))) {
     failures.push("the fixed two-second full refresh must remain isolated to V1 compatibility mode");
 }
-const v2ApplySection = taskStoreSource.match(/function applyV2Notification\(value: unknown\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
+const v2ApplySection =
+    taskStoreSource.match(/function applyV2Notification\(value: unknown\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
 if (!v2ApplySection || /getAllTasks|setTimeout/.test(v2ApplySection)) {
     failures.push("V2 notification reduction must not schedule or invoke a full V1 task reload");
 }
 
 const runtimeSource = readFileSync(join(sourceRoot, "frontend", "controllers", "frontend-runtime.ts"), "utf8");
-if ([...runtimeSource.matchAll(/\bsetInterval\s*\(/g)].length !== 1
-    || !runtimeSource.includes("TASK_CALIBRATION_INTERVAL_MS = 5 * 60 * 1000")) {
+if (
+    [...runtimeSource.matchAll(/\bsetInterval\s*\(/g)].length !== 1 ||
+    !runtimeSource.includes("TASK_CALIBRATION_INTERVAL_MS = 5 * 60 * 1000")
+) {
     failures.push("FrontendRuntime must own exactly one five-minute task calibration timer");
 }
 for (const marker of [
     'rpc.bind("tasksChanged"',
     'rpc.bind("tasksChangedV2"',
-    'getTaskSnapshotV2',
-    'TaskSnapshotV2',
-    'TaskChangeSetV2',
+    "getTaskSnapshotV2",
+    "TaskSnapshotV2",
+    "TaskChangeSetV2",
 ]) {
     const source = marker.startsWith("rpc.bind")
         ? runtimeSource
         : marker === "getTaskSnapshotV2"
-            ? methodsSource + serverSource + bridgeSource
-            : readFileSync(join(sourceRoot, "shared", "types.ts"), "utf8");
+          ? methodsSource + serverSource + bridgeSource
+          : readFileSync(join(sourceRoot, "shared", "types.ts"), "utf8");
     if (!source.includes(marker)) failures.push(`revisioned task sync boundary is missing ${marker}`);
 }
 
 if (failures.length) {
-    console.error(failures.map(message => `- ${message}`).join("\n"));
+    console.error(failures.map((message) => `- ${message}`).join("\n"));
     process.exit(1);
 }
 

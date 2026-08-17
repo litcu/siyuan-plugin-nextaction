@@ -2,14 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const taskCardSource = readFileSync(
-    new URL("../src/frontend/components/TaskCard.svelte", import.meta.url),
-    "utf8",
-);
-const stylesheetSource = readFileSync(
-    new URL("../src/frontend/styles/components.scss", import.meta.url),
-    "utf8",
-);
+const taskCardSource = readFileSync(new URL("../src/frontend/components/TaskCard.svelte", import.meta.url), "utf8");
+const stylesheetSource = readFileSync(new URL("../src/frontend/styles/components.scss", import.meta.url), "utf8");
 
 test("父任务作为任务名称的同一行语义后缀展示", () => {
     const titleRowStart = taskCardSource.indexOf('<div class="na-task-card__title-row">');
@@ -51,15 +45,15 @@ test("任务元数据保持单行，内容过多时不撑高卡片", () => {
 });
 
 test("无卡片元数据时隐藏空的辅助行", () => {
-    assert.match(
-        stylesheetSource,
-        /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
-    );
+    assert.match(stylesheetSource, /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/);
 });
 
 test("复合标题分别约束任务名和父任务的溢出", () => {
     const compositeRule = stylesheetSource.match(/\.na-task-card__title-composite\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const childTitleRule = stylesheetSource.match(/\.na-task-card__title-composite--has-parent \.na-task-card__title\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const childTitleRule =
+        stylesheetSource.match(
+            /\.na-task-card__title-composite--has-parent \.na-task-card__title\s*\{([\s\S]*?)\n\}/,
+        )?.[1] ?? "";
     const parentRule = stylesheetSource.match(/\.na-task-card__parent-context\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
 
     assert.match(compositeRule, /overflow:\s*hidden/);

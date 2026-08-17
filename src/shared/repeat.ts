@@ -10,10 +10,7 @@ export type RepeatMonthlyPattern =
     | { type: "lastDay" }
     | { type: "nthWeekday"; nth: 1 | 2 | 3 | 4 | -1; weekday: IsoWeekday };
 
-export type RepeatEnd =
-    | { type: "never" }
-    | { type: "count"; count: number }
-    | { type: "date"; date: string };
+export type RepeatEnd = { type: "never" } | { type: "count"; count: number } | { type: "date"; date: string };
 
 export interface RepeatRuleV2 {
     version: 2;
@@ -108,9 +105,8 @@ export function normalizeRepeatRule(value: unknown): RepeatRuleV2 | null {
 
     const legacy = value as LegacyRepeatRule;
     const frequency = value.version === 2 ? value.frequency : legacy.freq;
-    const basis = value.version === 2
-        ? (value.basis ?? "schedule")
-        : (legacy.from === "complete" ? "completion" : "schedule");
+    const basis =
+        value.version === 2 ? (value.basis ?? "schedule") : legacy.from === "complete" ? "completion" : "schedule";
     const interval = value.interval;
 
     if (!FREQUENCIES.includes(frequency as RepeatFrequency)) return null;

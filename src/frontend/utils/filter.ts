@@ -48,12 +48,12 @@ export const DEFAULT_FILTER_STATE: FilterState = {
 
 export function hasActiveTaskFilters(filters: FilterState): boolean {
     return Boolean(
-        filters.searchText
-        || filters.contexts.length
-        || filters.priorities.length
-        || filters.statuses.length
-        || filters.tags.length
-        || filters.customFieldFilters.length,
+        filters.searchText ||
+        filters.contexts.length ||
+        filters.priorities.length ||
+        filters.statuses.length ||
+        filters.tags.length ||
+        filters.customFieldFilters.length,
     );
 }
 
@@ -73,60 +73,75 @@ export function isNextActionCandidate(entry: TaskCacheEntry, startPreviewDays: n
     return true;
 }
 
-export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState, customFields: CustomFieldDef[] = []): TaskCacheEntry[] {
+export function applyFilters(
+    tasks: TaskCacheEntry[],
+    filters: FilterState,
+    customFields: CustomFieldDef[] = [],
+): TaskCacheEntry[] {
     let result = tasks;
 
     // 1. Text search on title and tags
     if (filters.searchText) {
         const q = filters.searchText.toLowerCase();
-        result = result.filter(t => {
+        result = result.filter((t) => {
             if (t.title.toLowerCase().includes(q)) return true;
-            if (t.tags && t.tags.replace(/\|/g, ', ').toLowerCase().includes(q)) return true;
-            if (customFields.some(field => t.customFields?.[field.key] && formatCustomFieldValue(field, t.customFields[field.key]).toLowerCase().includes(q))) return true;
+            if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
+            if (
+                customFields.some(
+                    (field) =>
+                        t.customFields?.[field.key] &&
+                        formatCustomFieldValue(field, t.customFields[field.key]).toLowerCase().includes(q),
+                )
+            )
+                return true;
             return false;
         });
     }
 
     // 2. Context filter (OR within dimension)
     if (filters.contexts.length > 0) {
-        result = result.filter(t => {
+        result = result.filter((t) => {
             if (!t.context) return false;
-            const taskContexts = t.context.split("|").map(c => c.trim());
-            return taskContexts.some(c => filters.contexts.includes(c));
+            const taskContexts = t.context.split("|").map((c) => c.trim());
+            return taskContexts.some((c) => filters.contexts.includes(c));
         });
     }
 
     // 3. Priority filter (OR within dimension)
     if (filters.priorities.length > 0) {
         const selectedPriorities = filters.priorities.map(normalizePriority);
-        result = result.filter(t => selectedPriorities.includes(normalizePriority(t.priority)));
+        result = result.filter((t) => selectedPriorities.includes(normalizePriority(t.priority)));
     }
 
     // 4. Status filter (OR within dimension)
     if (filters.statuses.length > 0) {
-        result = result.filter(t => filters.statuses.includes(t.status));
+        result = result.filter((t) => filters.statuses.includes(t.status));
     }
 
     // 5. Tag filter (OR within dimension)
     if (filters.tags.length > 0) {
-        result = result.filter(t => {
+        result = result.filter((t) => {
             if (!t.tags) return false;
-            const taskTags = t.tags.split("|").map(tag => tag.trim());
-            return taskTags.some(tag => filters.tags.includes(tag));
+            const taskTags = t.tags.split("|").map((tag) => tag.trim());
+            return taskTags.some((tag) => filters.tags.includes(tag));
         });
     }
 
     if ((filters.customFieldFilters || []).length > 0) {
-        result = result.filter(task => (filters.customFieldFilters || []).every(filter => {
-            const field = customFields.find(item => item.key === filter.key);
-            const formatted = field ? formatCustomFieldValue(field, task.customFields?.[filter.key]) : (task.customFields?.[filter.key] || "");
-            const value = formatted.toLowerCase();
-            const expected = (filter.value || "").toLowerCase();
-            if (filter.operator === "empty") return value === "";
-            if (filter.operator === "notEmpty") return value !== "";
-            if (filter.operator === "equals") return value === expected;
-            return value.includes(expected);
-        }));
+        result = result.filter((task) =>
+            (filters.customFieldFilters || []).every((filter) => {
+                const field = customFields.find((item) => item.key === filter.key);
+                const formatted = field
+                    ? formatCustomFieldValue(field, task.customFields?.[filter.key])
+                    : task.customFields?.[filter.key] || "";
+                const value = formatted.toLowerCase();
+                const expected = (filter.value || "").toLowerCase();
+                if (filter.operator === "empty") return value === "";
+                if (filter.operator === "notEmpty") return value !== "";
+                if (filter.operator === "equals") return value === expected;
+                return value.includes(expected);
+            }),
+        );
     }
 
     // 6. Sort
@@ -135,7 +150,12 @@ export function applyFilters(tasks: TaskCacheEntry[], filters: FilterState, cust
     return result;
 }
 
-export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: boolean, customFields: CustomFieldDef[] = []): TaskCacheEntry[] {
+export function sortTasksBy(
+    tasks: TaskCacheEntry[],
+    sortBy: string,
+    sortAsc: boolean,
+    customFields: CustomFieldDef[] = [],
+): TaskCacheEntry[] {
     const arr = [...tasks];
     const dir = sortAsc ? 1 : -1;
 
@@ -162,7 +182,7 @@ export function sortTasksBy(tasks: TaskCacheEntry[], sortBy: string, sortAsc: bo
         default:
             if (sortBy.startsWith("custom:")) {
                 const key = sortBy.slice("custom:".length);
-                const field = customFields.find(item => item.key === key);
+                const field = customFields.find((item) => item.key === key);
                 arr.sort((a, b) => {
                     const av = a.customFields?.[key] || "";
                     const bv = b.customFields?.[key] || "";

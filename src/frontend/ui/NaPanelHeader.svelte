@@ -46,8 +46,13 @@
         min-width: 0;
     }
 
-    .na-panel-header__copy { gap: 9px; }
-    .na-panel-header__actions { flex: 0 0 auto; gap: 6px; }
+    .na-panel-header__copy {
+        gap: 9px;
+    }
+    .na-panel-header__actions {
+        flex: 0 0 auto;
+        gap: 6px;
+    }
 
     .na-panel-header__icon {
         display: grid;
@@ -60,7 +65,9 @@
         background: var(--b3-theme-primary-lightest);
     }
 
-    .na-panel-header__text { min-width: 0; }
+    .na-panel-header__text {
+        min-width: 0;
+    }
 
     .na-panel-header__eyebrow {
         display: block;
@@ -94,12 +101,25 @@
         white-space: nowrap;
     }
 
-    .na-panel-header--compact h1 { font-size: 12px; line-height: 17px; }
-    .na-panel-header--compact p { display: none; }
-    .na-panel-header--compact .na-panel-header__icon { width: 24px; height: 24px; flex-basis: 24px; }
+    .na-panel-header--compact h1 {
+        font-size: 12px;
+        line-height: 17px;
+    }
+    .na-panel-header--compact p {
+        display: none;
+    }
+    .na-panel-header--compact .na-panel-header__icon {
+        width: 24px;
+        height: 24px;
+        flex-basis: 24px;
+    }
 
     @media (max-width: 520px) {
-        .na-panel-header { padding: 13px 14px 11px; }
-        .na-panel-header__actions { gap: 3px; }
+        .na-panel-header {
+            padding: 13px 14px 11px;
+        }
+        .na-panel-header__actions {
+            gap: 3px;
+        }
     }
 </style>

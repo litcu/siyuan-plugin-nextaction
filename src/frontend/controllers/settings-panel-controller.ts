@@ -1,9 +1,4 @@
-import {
-    DEFAULT_SETTINGS,
-    mergeSettings,
-    validateSettings,
-    type PluginSettings,
-} from "../../shared/settings";
+import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "../../shared/settings";
 
 export type SettingsPage = "general" | "customFields" | "ai" | "mcp" | "advanced";
 export type SettingsLoadState = "idle" | "loading" | "loaded" | "error";

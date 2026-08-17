@@ -130,7 +130,10 @@ export class TaskRepository {
         } catch (error: unknown) {
             if (timeoutId !== null) clearTimeout(timeoutId);
             cancelAcquire();
-            acquirePromise.then(lock => lock.release(), () => {});
+            acquirePromise.then(
+                (lock) => lock.release(),
+                () => {},
+            );
             throw error;
         }
     }
@@ -152,13 +155,14 @@ export class TaskRepository {
         if (blockAttrs.length === 0) return { attrsByBlockId: {}, failedBlockIds: [] };
         try {
             await this.api.batchSetBlockAttrs(blockAttrs);
-            const attrsByBlockId = await this.api.batchGetBlockAttrs(blockAttrs.map(item => item.id));
-            const failedBlockIds = blockAttrs
-                .map(item => item.id)
-                .filter(blockId => !attrsByBlockId[blockId]);
+            const attrsByBlockId = await this.api.batchGetBlockAttrs(blockAttrs.map((item) => item.id));
+            const failedBlockIds = blockAttrs.map((item) => item.id).filter((blockId) => !attrsByBlockId[blockId]);
             return { attrsByBlockId, failedBlockIds };
         } catch (batchError: unknown) {
-            void this.api.log("warn", `TaskRepository: batch attribute write failed, using compatibility fallback: ${this.errorMessage(batchError)}`);
+            void this.api.log(
+                "warn",
+                `TaskRepository: batch attribute write failed, using compatibility fallback: ${this.errorMessage(batchError)}`,
+            );
             const attrsByBlockId: Record<string, Record<string, string>> = {};
             const failedBlockIds: string[] = [];
             for (const item of blockAttrs) {
@@ -166,14 +170,22 @@ export class TaskRepository {
                     attrsByBlockId[item.id] = await this.writeAttrs(item.id, item.attrs);
                 } catch (error: unknown) {
                     failedBlockIds.push(item.id);
-                    void this.api.log("warn", `TaskRepository: attribute write failed for ${item.id}: ${this.errorMessage(error)}`);
+                    void this.api.log(
+                        "warn",
+                        `TaskRepository: attribute write failed for ${item.id}: ${this.errorMessage(error)}`,
+                    );
                 }
             }
             return { attrsByBlockId, failedBlockIds };
         }
     }
 
-    buildEntry(blockId: string, attrs: Record<string, string>, existing?: TaskCacheEntry, titleOverride?: string): TaskCacheEntry {
+    buildEntry(
+        blockId: string,
+        attrs: Record<string, string>,
+        existing?: TaskCacheEntry,
+        titleOverride?: string,
+    ): TaskCacheEntry {
         return buildTaskEntryFromAttrs(blockId, attrs, this.settings, existing, titleOverride);
     }
 
@@ -201,7 +213,10 @@ export class TaskRepository {
             }
             this.changePublisher.broadcastChanges();
         } catch (error: unknown) {
-            void this.api.log("error", `TaskRepository: failed to broadcast confirmed task changes: ${this.errorMessage(error)}`);
+            void this.api.log(
+                "error",
+                `TaskRepository: failed to broadcast confirmed task changes: ${this.errorMessage(error)}`,
+            );
         } finally {
             this.pendingDirectChanges.clear();
         }

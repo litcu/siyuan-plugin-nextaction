@@ -40,7 +40,10 @@ test("AI、提醒和共享控件的新增文案提供双语翻译", () => {
         aiReviewEyebrow: ["NEXTACTION / REVIEW", "NEXTACTION / REVIEW"],
         reminderOverflow: ["{count} more reminders", "还有 {count} 条提醒"],
         errAiRawResponse: ["AI response cannot be used", "AI 返回内容无法使用"],
-        errAiDialogHost: ["AI result window cannot be opened. Reload the plugin and try again.", "AI 结果窗口无法打开，请重新加载插件后再试"],
+        errAiDialogHost: [
+            "AI result window cannot be opened. Reload the plugin and try again.",
+            "AI 结果窗口无法打开，请重新加载插件后再试",
+        ],
         urlPlaceholder: ["URL", "URL"],
         openLink: ["Open link", "打开链接"],
         removeLabel: ["Remove", "移除"],
@@ -84,7 +87,19 @@ test("用户可见文案通过 i18n 获取且 fallback 与英文翻译一致", (
     assert.match(linkInput, /i18n\?\.openLink/);
     assert.match(chip, /i18n\?\.removeLabel/);
 
-    for (const source of [notificationHost, notificationCard, reminderView, contextMenu, taskDetail, projectView, aiService, review]) {
-        assert.doesNotMatch(source, /AI 拆解项目|AI 拆解任务|恢复重复|暂停重复|固定提醒|已逾期\{n\}|\{n\}(?:分钟|小时|天)后到期|只读建议/);
+    for (const source of [
+        notificationHost,
+        notificationCard,
+        reminderView,
+        contextMenu,
+        taskDetail,
+        projectView,
+        aiService,
+        review,
+    ]) {
+        assert.doesNotMatch(
+            source,
+            /AI 拆解项目|AI 拆解任务|恢复重复|暂停重复|固定提醒|已逾期\{n\}|\{n\}(?:分钟|小时|天)后到期|只读建议/,
+        );
     }
 });

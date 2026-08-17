@@ -14,9 +14,9 @@ type DialogCallbacks = {
 function configureDialog(dialog: Dialog, className: string): HTMLElement | null {
     dialog.element.classList.add("nextaction");
     const dialogRoot = dialog.element.querySelector<HTMLElement>(".b3-dialog");
-    const drawerZIndex = Array.from(document.querySelectorAll<HTMLElement>(
-        ".na-drawer-host--open, .na-drawer-host__backdrop",
-    )).reduce((highest, element) => {
+    const drawerZIndex = Array.from(
+        document.querySelectorAll<HTMLElement>(".na-drawer-host--open, .na-drawer-host__backdrop"),
+    ).reduce((highest, element) => {
         const zIndex = Number.parseInt(window.getComputedStyle(element).zIndex, 10);
         return Number.isFinite(zIndex) ? Math.max(highest, zIndex) : highest;
     }, 0);
@@ -91,7 +91,9 @@ export function openReminderSettingsDialog(
         currentItems = event.detail.items;
         component?.$set({ saving: true, error: "" });
         try {
-            const updated = await bridge.updateTask(task.blockId, { "na-reminder": serializeReminderItems(currentItems) });
+            const updated = await bridge.updateTask(task.blockId, {
+                "na-reminder": serializeReminderItems(currentItems),
+            });
             currentItems = parseReminderItems(updated.reminder);
             component?.$set({ items: currentItems, due: updated.due });
             callbacks.onSave?.(updated);
@@ -158,6 +160,8 @@ export function openRepeatRuleDialog(
 
 function taskStoreSnapshot(): any {
     let snapshot: any;
-    taskStore.subscribe(value => { snapshot = value; })();
+    taskStore.subscribe((value) => {
+        snapshot = value;
+    })();
     return snapshot;
 }

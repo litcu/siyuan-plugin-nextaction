@@ -1,7 +1,18 @@
 <script lang="ts">
     import { taskStore } from "../stores/task-store";
     import { KernelBridge } from "../kernel-bridge";
-    import { VIEW_INBOX, VIEW_NEXT_ACTION, VIEW_ALL_TASKS, VIEW_BY_PROJECT, VIEW_SOMEDAY, VIEW_WAITING, VIEW_STATISTICS, VIEW_MY_DAY, VIEW_REVIEW, VIEW_REMINDER } from "../constants";
+    import {
+        VIEW_INBOX,
+        VIEW_NEXT_ACTION,
+        VIEW_ALL_TASKS,
+        VIEW_BY_PROJECT,
+        VIEW_SOMEDAY,
+        VIEW_WAITING,
+        VIEW_STATISTICS,
+        VIEW_MY_DAY,
+        VIEW_REVIEW,
+        VIEW_REMINDER,
+    } from "../constants";
     import NavRail from "./NavRail.svelte";
     import NextActionView from "./NextActionView.svelte";
     import InboxView from "./InboxView.svelte";
@@ -134,7 +145,7 @@
     }
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
-        const inMyDay = $taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false;
+        const inMyDay = $taskStore.myDayState?.tasks.some((t) => t.blockId === task.blockId) ?? false;
         const callbacks: {
             onUpdated: (updated: TaskCacheEntry) => void;
             onRemoved: (blockId: string) => void;
@@ -171,7 +182,7 @@
         };
         callbacks.onReminderEdit = (blockId: string) => {
             const storeState = get(taskStore);
-            const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);
+            const taskEntry = storeState.allTasks.find((t) => t.blockId === blockId);
             if (!taskEntry) return;
             openReminderSettingsDialog(taskEntry, bridge, i18n, {
                 onSave: (updated: TaskCacheEntry) => {
@@ -234,7 +245,7 @@
             i18n,
             parentTask,
             onCreated: handleTaskCreated,
-        }).catch(error => notifyError(formatRpcError(error, i18n)));
+        }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
@@ -260,7 +271,11 @@
 
     <div class="na-app__center">
         <NaPanelHeader compact title={activeViewMeta.title} icon={activeViewMeta.icon}>
-            <svelte:fragment slot="actions"><NaButton size="sm" variant="primary" icon="iconAdd" on:click={() => openCreate()}>{i18n?.createTask || "Create task"}</NaButton></svelte:fragment>
+            <svelte:fragment slot="actions"
+                ><NaButton size="sm" variant="primary" icon="iconAdd" on:click={() => openCreate()}
+                    >{i18n?.createTask || "Create task"}</NaButton
+                ></svelte:fragment
+            >
         </NaPanelHeader>
         <div class="na-app__list">
             {#if activeView === VIEW_INBOX}

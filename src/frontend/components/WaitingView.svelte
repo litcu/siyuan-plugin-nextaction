@@ -17,7 +17,7 @@
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
     $: filterState = $taskStore.filterByView[VIEW_WAITING] || DEFAULT_FILTER_STATE;
-    $: waitingTasks = $taskStore.allTasks.filter(t => t.status === "waiting");
+    $: waitingTasks = $taskStore.allTasks.filter((t) => t.status === "waiting");
     $: filteredTasks = applyFilters(waitingTasks, filterState, $taskStore.settings.customFields);
 
     const waitingSortOptions = [
@@ -30,29 +30,36 @@
     }
 </script>
 
-<NaViewShell loading={$taskStore.loading} empty={filteredTasks.length === 0} emptyText={$taskStore.error || i18n?.noWaitingTasks || "No waiting tasks"} hint={i18n?.viewHintWaiting}>
-    <svelte:fragment slot="toolbar"><NaTaskFilterBar
-        contexts={$taskStore.contexts}
-        tags={$taskStore.tags}
-        customFields={$taskStore.settings.customFields}
-        filterState={filterState}
-        showStatus={false}
-        showPriority={false}
-        sortOptions={waitingSortOptions}
-        {i18n}
-        on:change={(event) => handleFilterChange(event.detail)}
-    /></svelte:fragment>
-        <NaTaskList>
-            {#each filteredTasks as task (task.blockId)}
-                <TaskCard
-                    {task}
-                    selected={task.blockId === selectedTaskId}
-                    onSelect={onSelectTask}
-                    {onEdit}
-                    {onStatusClick}
-                    {onContextMenu}
-                    {i18n}
-                />
-            {/each}
-        </NaTaskList>
+<NaViewShell
+    loading={$taskStore.loading}
+    empty={filteredTasks.length === 0}
+    emptyText={$taskStore.error || i18n?.noWaitingTasks || "No waiting tasks"}
+    hint={i18n?.viewHintWaiting}
+>
+    <svelte:fragment slot="toolbar"
+        ><NaTaskFilterBar
+            contexts={$taskStore.contexts}
+            tags={$taskStore.tags}
+            customFields={$taskStore.settings.customFields}
+            {filterState}
+            showStatus={false}
+            showPriority={false}
+            sortOptions={waitingSortOptions}
+            {i18n}
+            on:change={(event) => handleFilterChange(event.detail)}
+        /></svelte:fragment
+    >
+    <NaTaskList>
+        {#each filteredTasks as task (task.blockId)}
+            <TaskCard
+                {task}
+                selected={task.blockId === selectedTaskId}
+                onSelect={onSelectTask}
+                {onEdit}
+                {onStatusClick}
+                {onContextMenu}
+                {i18n}
+            />
+        {/each}
+    </NaTaskList>
 </NaViewShell>

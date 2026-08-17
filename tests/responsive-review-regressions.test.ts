@@ -18,17 +18,16 @@ const rpcSource = source("../src/kernel/rpc-server.ts");
 const kernelSource = source("../src/kernel.ts");
 const typesSource = source("../src/shared/types.ts");
 const settingsSource = source("../src/shared/settings.ts");
-const stylesheetSource = [
-    "../src/frontend/styles/app-shell.scss",
-    "../src/frontend/styles/components.scss",
-].map(source).join("\n");
+const stylesheetSource = ["../src/frontend/styles/app-shell.scss", "../src/frontend/styles/components.scss"]
+    .map(source)
+    .join("\n");
 const iconButtonSource = source("../src/frontend/ui/NaIconButton.svelte");
 const navItemSource = source("../src/frontend/ui/NaNavItem.svelte");
 const zhI18nSource = source("../src/i18n/zh-CN.json");
 const enI18nSource = source("../src/i18n/en.json");
 
 test("任务属性面板的跳转操作使用统一的图标按钮", () => {
-    assert.match(taskDetailSource, /<NaIconButton symbol="iconOpenWindow"/);
+    assert.match(taskDetailSource, /<NaIconButton\s+symbol="iconOpenWindow"/);
     assert.match(iconButtonSource, /aria-label=\{label\}/);
     assert.match(iconButtonSource, /<NaTooltip text=\{label\}/);
     assert.match(iconButtonSource, /tooltipPosition.*"bottom"/);
@@ -88,9 +87,18 @@ test("回顾清单通过独立 RPC 记录完成时间并在视图中展示", () 
 
 test("回顾视图在任务数据变化后去抖刷新并清理定时器", () => {
     assert.match(reviewViewSource, /import \{ onDestroy, onMount \} from "svelte"/);
-    assert.match(reviewViewSource, /\$: if \(\$taskStore\.allTasks\) \{[\s\S]*?setTimeout\(\(\) => \{[\s\S]*?loadReviewData\(\);[\s\S]*?\}, 300\)/);
-    assert.match(reviewViewSource, /handleMarkReviewed[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?await loadReviewData\(\)/);
-    assert.match(reviewViewSource, /onMount\(\(\) => \{[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?loadReviewData\(\)/);
+    assert.match(
+        reviewViewSource,
+        /\$: if \(\$taskStore\.allTasks\) \{[\s\S]*?setTimeout\(\(\) => \{[\s\S]*?loadReviewData\(\);[\s\S]*?\}, 300\)/,
+    );
+    assert.match(
+        reviewViewSource,
+        /handleMarkReviewed[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?await loadReviewData\(\)/,
+    );
+    assert.match(
+        reviewViewSource,
+        /onMount\(\(\) => \{[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?loadReviewData\(\)/,
+    );
     assert.match(reviewViewSource, /onDestroy\(\(\) => \{[\s\S]*?clearTimeout\(refreshTimer\)/);
 });
 

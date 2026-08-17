@@ -2,10 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const detailSource = readFileSync(
-    new URL("../src/frontend/components/TaskDetail.svelte", import.meta.url),
-    "utf8",
-);
+const detailSource = readFileSync(new URL("../src/frontend/components/TaskDetail.svelte", import.meta.url), "utf8");
 
 test("任务属性中的重复设置只保留开关和操作按钮", () => {
     assert.match(detailSource, /class="na-task-detail__repeat-control"[\s\S]*NaToggle/);
@@ -22,4 +19,3 @@ test("缺少重复日期显示前置警告而不是保存失败", () => {
     assert.match(detailSource, /repeatDateError[\s\S]*\? "warning"/);
     assert.match(detailSource, /function handleDateChange\(\) \{[\s\S]*?repeatDateError = ""/);
 });
-

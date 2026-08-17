@@ -3,7 +3,7 @@
         notificationQueue,
         visibleNotifications,
         dismissReminder,
-        dismissAllReminders
+        dismissAllReminders,
     } from "../stores/reminder-store";
     import NotificationCard from "./NotificationCard.svelte";
     import { REMINDER_MAX_VISIBLE } from "../../shared/constants";
@@ -11,11 +11,16 @@
     export let i18n: any;
 
     $: hasNotifications = $visibleNotifications.length > 0;
-    $: overflowCount = Math.max(0, $notificationQueue.filter(r => !r.dismissed).length - REMINDER_MAX_VISIBLE);
+    $: overflowCount = Math.max(0, $notificationQueue.filter((r) => !r.dismissed).length - REMINDER_MAX_VISIBLE);
 
     $: dismissAllLabel = i18n?.reminderDismissAll || "一键已读";
 
-    function handleDismiss(item: { blockId: string; baseDateStr: string; minutesBefore: number; type: "due" | "review" | "absolute" | "summary" }) {
+    function handleDismiss(item: {
+        blockId: string;
+        baseDateStr: string;
+        minutesBefore: number;
+        type: "due" | "review" | "absolute" | "summary";
+    }) {
         const dedupKey = `${item.blockId}|${item.baseDateStr}|${item.minutesBefore}|${item.type}`;
         dismissReminder(dedupKey);
     }
@@ -24,7 +29,11 @@
         dismissAllReminders();
     }
 
-    function getMessage(item: { type: "due" | "review" | "absolute" | "summary"; dueTime: number; triggerTime?: number }): string {
+    function getMessage(item: {
+        type: "due" | "review" | "absolute" | "summary";
+        dueTime: number;
+        triggerTime?: number;
+    }): string {
         if (item.type === "review") {
             return i18n?.reminderReviewToday || "今天需回顾";
         }

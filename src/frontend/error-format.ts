@@ -56,21 +56,22 @@ export function formatError(error: unknown): string {
 }
 
 export function formatRpcError(error: unknown, i18n: I18nRecord): string {
-    const record = error && typeof error === "object" ? error as Record<string, unknown> : null;
-    const nested = record?._rpcError && typeof record._rpcError === "object"
-        ? record._rpcError as Record<string, unknown>
-        : null;
+    const record = error && typeof error === "object" ? (error as Record<string, unknown>) : null;
+    const nested =
+        record?._rpcError && typeof record._rpcError === "object"
+            ? (record._rpcError as Record<string, unknown>)
+            : null;
     const message = String(record?.message ?? nested?.message ?? error);
     for (const [pattern, key] of ERROR_MESSAGE_MAP) {
         if (pattern.test(message)) return i18n?.[key] || message;
     }
     const code = Number(record?.code ?? nested?.code);
     const key = ERROR_CODE_MAP[code];
-    return key ? (i18n?.[key] || message || key) : message;
+    return key ? i18n?.[key] || message || key : message;
 }
 
 export function formatOperationError(error: unknown, i18n: I18nRecord): string {
-    const record = error && typeof error === "object" ? error as Record<string, unknown> : null;
+    const record = error && typeof error === "object" ? (error as Record<string, unknown>) : null;
     if (record?.kind === "transport") {
         return i18n?.errTransport || "Unable to reach the kernel service. Please retry.";
     }

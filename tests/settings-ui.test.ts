@@ -45,8 +45,8 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.match(panel, /export async function requestClose\(\)/);
     assert.match(indexSource, /\.b3-dialog__scrim/);
     assert.match(indexSource, /component\.requestClose\(\)/);
-    assert.match(panel, /na-settings-modern__header \{ position: sticky/);
-    assert.match(panel, /na-settings-modern__footer \{ position: sticky/);
+    assert.match(panel, /na-settings-modern__header\s*\{\s*position:\s*sticky/);
+    assert.match(panel, /na-settings-modern__footer\s*\{\s*position:\s*sticky/);
     assert.match(panel, /na-settings-modern__nav \{[\s\S]*position: sticky/);
 });
 
@@ -62,14 +62,22 @@ test("设置页提供带确认的全部重置并统一原生表单字体", () =>
 test("各分区重置和维护操作要求确认且全部重置不会嵌套确认", () => {
     for (const name of ["Priority", "Defaults", "MyDay", "Reminder", "Mcp", "TaskCreation"]) {
         assert.match(panel, new RegExp(`function doReset${name}\\(\\)`));
-        assert.match(panel, new RegExp(`function handleReset${name}\\(\\) \\{[\\s\\S]*?requestDraftAction[\\s\\S]*?settingResetSectionConfirm[\\s\\S]*?doReset${name}\\(\\)`));
+        assert.match(
+            panel,
+            new RegExp(
+                `function handleReset${name}\\(\\) \\{[\\s\\S]*?requestDraftAction[\\s\\S]*?settingResetSectionConfirm[\\s\\S]*?doReset${name}\\(\\)`,
+            ),
+        );
     }
     const resetAll = panel.match(/function handleResetAll\(\) \{([\s\S]*?)\n    \}/)?.[1] || "";
     for (const name of ["Defaults", "TaskCreation", "MyDay", "Reminder", "Mcp", "Priority"]) {
         assert.match(resetAll, new RegExp(`doReset${name}\\(\\)`));
         assert.doesNotMatch(resetAll, new RegExp(`handleReset${name}\\(\\)`));
     }
-    assert.match(panel, /function handleRebuildCache\(\) \{[\s\S]*?requestMaintenanceAction[\s\S]*?rebuildCacheConfirm[\s\S]*?bridge\.rebuildCache\(\)/);
+    assert.match(
+        panel,
+        /function handleRebuildCache\(\) \{[\s\S]*?requestMaintenanceAction[\s\S]*?rebuildCacheConfirm[\s\S]*?bridge\.rebuildCache\(\)/,
+    );
     assert.doesNotMatch(panel, /bridge\.rebuildParents|handleRebuildParents/);
     assert.doesNotMatch(advanced, /rebuildParents|onRebuildParents/);
 });
@@ -89,7 +97,10 @@ test("指定的收件箱文档通过搜索选择且不提供当前文档快捷�
     assert.match(general, /NaDocumentPicker/);
     assert.match(general, /bind:value=\{taskCreationInboxDocument\}/);
     assert.match(general, /fixedDropdown/);
-    assert.doesNotMatch(general, /taskCreationInboxDocumentId|onUseCurrentDocument|settingTaskCreationUseCurrentDocument|settingTaskCreationVerify/);
+    assert.doesNotMatch(
+        general,
+        /taskCreationInboxDocumentId|onUseCurrentDocument|settingTaskCreationUseCurrentDocument|settingTaskCreationVerify/,
+    );
     assert.match(panel, /inboxDocumentId: taskCreationInboxDocumentId\.trim\(\)/);
     assert.match(panel, /taskCreationInboxDocumentId = document\?\.id \|\| ""/);
     assert.doesNotMatch(panel, /getCurrentDocumentId|useCurrentDocumentForTaskCreation|onUseCurrentDocument/);

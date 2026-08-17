@@ -24,7 +24,8 @@ export class McpToolManager {
         creation?: TaskCreationService,
     ) {
         this.targets = targets || new TaskTargetResolver(api, () => taskService.getSettings());
-        this.creation = creation || new TaskCreationService(taskService, api, this.targets, () => taskService.getSettings());
+        this.creation =
+            creation || new TaskCreationService(taskService, api, this.targets, () => taskService.getSettings());
         let statusProvider: () => McpStatus = () => ({
             supported: false,
             enabled: settings.mcpSettings.enabled,
@@ -33,22 +34,46 @@ export class McpToolManager {
             tools: [],
             lastError: "",
         });
-        this.executor = new McpToolExecutor(siyuan, taskService, settings, api, this.targets, this.creation, () => statusProvider());
+        this.executor = new McpToolExecutor(siyuan, taskService, settings, api, this.targets, this.creation, () =>
+            statusProvider(),
+        );
         this.capabilities = new McpCapabilityManager(siyuan, this.executor, settings);
         statusProvider = () => this.capabilities.getStatus();
     }
 
-    getStatus() { return this.capabilities.getStatus(); }
-    validateSettings(settings: PluginSettings) { return this.targets.validateSettings(settings); }
-    reconcile(settings: PluginSettings) { return this.capabilities.reconcile(settings); }
-    unload() { return this.capabilities.unload(); }
-    listTargetNotebooks() { return this.targets.listNotebooks(); }
-    listTargetDocuments(notebookId: string, path = "/") { return this.targets.listDocuments(notebookId, path); }
-    searchTargetDocuments(query: string) { return this.targets.searchDocuments(query); }
-    resolveDocumentTarget(value: unknown) { return this.targets.resolveDocument(value); }
-    resolveChildTarget(value: unknown) { return this.targets.resolveChildTarget(value); }
-    createTaskForPlugin(input: CreateTaskInput) { return this.executor.createTaskForPlugin(input); }
-    convertTaskForPlugin(input: Record<string, unknown>) { return this.executor.convertTaskForPlugin(input); }
+    getStatus() {
+        return this.capabilities.getStatus();
+    }
+    validateSettings(settings: PluginSettings) {
+        return this.targets.validateSettings(settings);
+    }
+    reconcile(settings: PluginSettings) {
+        return this.capabilities.reconcile(settings);
+    }
+    unload() {
+        return this.capabilities.unload();
+    }
+    listTargetNotebooks() {
+        return this.targets.listNotebooks();
+    }
+    listTargetDocuments(notebookId: string, path = "/") {
+        return this.targets.listDocuments(notebookId, path);
+    }
+    searchTargetDocuments(query: string) {
+        return this.targets.searchDocuments(query);
+    }
+    resolveDocumentTarget(value: unknown) {
+        return this.targets.resolveDocument(value);
+    }
+    resolveChildTarget(value: unknown) {
+        return this.targets.resolveChildTarget(value);
+    }
+    createTaskForPlugin(input: CreateTaskInput) {
+        return this.executor.createTaskForPlugin(input);
+    }
+    convertTaskForPlugin(input: Record<string, unknown>) {
+        return this.executor.convertTaskForPlugin(input);
+    }
 }
 
 export type {

@@ -16,12 +16,14 @@
         {
             id: "extractTasks" as const,
             label: i18n?.settingAiPromptExtractTasks || "Extract tasks from notes",
-            description: i18n?.settingAiPromptExtractTasksDesc || "Identify executable tasks from selected note content.",
+            description:
+                i18n?.settingAiPromptExtractTasksDesc || "Identify executable tasks from selected note content.",
         },
         {
             id: "decomposeTask" as const,
             label: i18n?.settingAiPromptDecomposeTask || "Decompose task",
-            description: i18n?.settingAiPromptDecomposeTaskDesc || "Break a task or project into concrete next actions.",
+            description:
+                i18n?.settingAiPromptDecomposeTaskDesc || "Break a task or project into concrete next actions.",
         },
         {
             id: "planMyDay" as const,
@@ -37,8 +39,29 @@
 
     const variableGroups = [
         { id: "runtime", names: ["{{today}}", "{{currentDateTime}}", "{{timezone}}", "{{feature}}"] },
-        { id: "task", names: ["{{currentTaskBlock}}", "{{currentTaskBlockWithChildren}}", "{{currentTaskBlockWithParent}}", "{{selectedBlocks}}", "{{block:blockID}}"] },
-        { id: "gtd", names: ["{{nextaction}}", "{{myDay}}", "{{inbox}}", "{{waiting}}", "{{someday}}", "{{overdue}}", "{{reviewDue}}", "{{activeProjects}}"] },
+        {
+            id: "task",
+            names: [
+                "{{currentTaskBlock}}",
+                "{{currentTaskBlockWithChildren}}",
+                "{{currentTaskBlockWithParent}}",
+                "{{selectedBlocks}}",
+                "{{block:blockID}}",
+            ],
+        },
+        {
+            id: "gtd",
+            names: [
+                "{{nextaction}}",
+                "{{myDay}}",
+                "{{inbox}}",
+                "{{waiting}}",
+                "{{someday}}",
+                "{{overdue}}",
+                "{{reviewDue}}",
+                "{{activeProjects}}",
+            ],
+        },
     ];
 
     function variableGroupTitle(id: string): string {
@@ -52,15 +75,12 @@
     }
 
     function setOpen(id: AiFeatureId, open: boolean) {
-        openFeatures = open
-            ? Array.from(new Set([...openFeatures, id]))
-            : openFeatures.filter(item => item !== id);
+        openFeatures = open ? Array.from(new Set([...openFeatures, id])) : openFeatures.filter((item) => item !== id);
     }
 
     function updatePrompt(id: AiFeatureId, value: string) {
         aiPrompts = { ...aiPrompts, [id]: value };
     }
-
 </script>
 
 <div class="na-page-stack na-settings-ai">
@@ -68,7 +88,10 @@
         <span class="na-settings-ai__intro-icon"><NaIcon symbol="iconSparkles" size={18} /></span>
         <div>
             <strong>{i18n?.settingAiPromptTitle || "AI feature prompts"}</strong>
-            <p>{i18n?.settingAiPromptDesc || "Tune how each feature works. Runtime data and strict output contracts are added automatically."}</p>
+            <p>
+                {i18n?.settingAiPromptDesc ||
+                    "Tune how each feature works. Runtime data and strict output contracts are added automatically."}
+            </p>
         </div>
     </div>
 
@@ -81,7 +104,9 @@
         {#each variableGroups as group}
             <div class="na-settings-ai__variable-group">
                 <strong>{variableGroupTitle(group.id)}</strong>
-                <div>{#each group.names as name}<code>{name}</code>{/each}</div>
+                <div>
+                    {#each group.names as name}<code>{name}</code>{/each}
+                </div>
             </div>
         {/each}
     </details>
@@ -98,7 +123,9 @@
                 on:openChange={(event) => setOpen(feature.id, event.detail)}
             >
                 <svelte:fragment slot="default">
-                    <label class="na-settings-ai__label" for={`setting-ai-prompt-${feature.id}`}>{i18n?.settingAiPromptInstruction || "Feature instruction"}</label>
+                    <label class="na-settings-ai__label" for={`setting-ai-prompt-${feature.id}`}
+                        >{i18n?.settingAiPromptInstruction || "Feature instruction"}</label
+                    >
                     <textarea
                         id={`setting-ai-prompt-${feature.id}`}
                         class="b3-text-field na-settings-ai__textarea"
@@ -109,16 +136,38 @@
                         on:input={(event) => updatePrompt(feature.id, event.currentTarget.value)}
                     ></textarea>
                     <div class="na-settings-ai__footer">
-                        <span>{i18n?.settingAiPromptHint || "Describe the goal, decision criteria, and things the model should avoid."}</span>
+                        <span
+                            >{i18n?.settingAiPromptHint ||
+                                "Describe the goal, decision criteria, and things the model should avoid."}</span
+                        >
                         <code>{(aiPrompts[feature.id] || "").length}/12000</code>
-                        <button type="button" class="b3-button b3-button--text" on:click={() => onResetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button>
+                        <button
+                            type="button"
+                            class="b3-button b3-button--text"
+                            on:click={() => onResetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button
+                        >
                     </div>
                     <details class="na-settings-ai__runtime">
-                        <summary>{i18n?.settingAiRuntimePreview || "View fixed parts of the actual request (read-only)"}</summary>
-                        <p>{i18n?.settingAiRuntimePreviewDesc || "These sections are generated at runtime and are not saved in the instruction."}</p>
-                        <div><span>{i18n?.settingAiRuntimeInput || "Input data"}</span><pre>{getRuntimePreview(feature.id).input}</pre></div>
-                        <div><span>{i18n?.settingAiRuntimeSchema || "Strict output protocol"}</span><pre>{getRuntimePreview(feature.id).schema}</pre></div>
-                        <div><span>{i18n?.settingAiRuntimeExample || "Complete JSON example"}</span><pre>{getRuntimePreview(feature.id).example}</pre></div>
+                        <summary
+                            >{i18n?.settingAiRuntimePreview ||
+                                "View fixed parts of the actual request (read-only)"}</summary
+                        >
+                        <p>
+                            {i18n?.settingAiRuntimePreviewDesc ||
+                                "These sections are generated at runtime and are not saved in the instruction."}
+                        </p>
+                        <div>
+                            <span>{i18n?.settingAiRuntimeInput || "Input data"}</span>
+                            <pre>{getRuntimePreview(feature.id).input}</pre>
+                        </div>
+                        <div>
+                            <span>{i18n?.settingAiRuntimeSchema || "Strict output protocol"}</span>
+                            <pre>{getRuntimePreview(feature.id).schema}</pre>
+                        </div>
+                        <div>
+                            <span>{i18n?.settingAiRuntimeExample || "Complete JSON example"}</span>
+                            <pre>{getRuntimePreview(feature.id).example}</pre>
+                        </div>
                     </details>
                 </svelte:fragment>
             </NaAccordion>

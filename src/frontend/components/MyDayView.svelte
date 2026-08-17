@@ -2,7 +2,11 @@
     import { onMount } from "svelte";
     import { taskStore } from "../stores/task-store";
     import { VIEW_MY_DAY } from "../constants";
-    import { DEFAULT_MY_DAY_RESET_HOUR, DEFAULT_MY_DAY_VIEW_MODE, DEFAULT_MY_DAY_DURATION } from "../../shared/constants";
+    import {
+        DEFAULT_MY_DAY_RESET_HOUR,
+        DEFAULT_MY_DAY_VIEW_MODE,
+        DEFAULT_MY_DAY_DURATION,
+    } from "../../shared/constants";
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
@@ -35,7 +39,9 @@
     $: defaultDuration = $taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION;
     $: myDayEntries = $taskStore.myDayState?.tasks ?? [];
     $: myDayEntryMap = new Map(myDayEntries.map((entry) => [entry.blockId, entry]));
-    $: scheduledCount = myDayEntries.filter((entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null).length;
+    $: scheduledCount = myDayEntries.filter(
+        (entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null,
+    ).length;
     $: unscheduledCount = myDayEntries.length - scheduledCount;
     $: plannedMinutes = myDayEntries.reduce((sum, entry) => {
         if (entry.scheduleStart === null || entry.scheduleEnd === null) return sum;
@@ -95,26 +101,44 @@
 </script>
 
 <div class="na-view na-view--myday">
-    <NaViewShell loading={viewMode === "list" && $taskStore.loading} empty={viewMode === "list" && filteredTasks.length === 0} emptyText={i18n?.noMyDayTasks || "No tasks planned for today."} emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }} hint={i18n?.viewHintMyDay} scrollMode="none">
+    <NaViewShell
+        loading={viewMode === "list" && $taskStore.loading}
+        empty={viewMode === "list" && filteredTasks.length === 0}
+        emptyText={i18n?.noMyDayTasks || "No tasks planned for today."}
+        emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
+        hint={i18n?.viewHintMyDay}
+        scrollMode="none"
+    >
         <svelte:fragment slot="toolbar">
             <NaToolbar>
                 <NaMetricStrip items={summaryItems} />
                 <div class="na-toolbar__actions-content">
-                    <NaButton size="sm" icon="iconSparkles" on:click={runAiPlanMyDay}>{i18n?.aiPlanMyDay || "自动规划"}</NaButton>
-                    <NaSegmentControl size="sm" options={[{ value: "timeline", label: i18n?.timelineMode || "Timeline" }, { value: "list", label: i18n?.listMode || "List" }]} value={viewMode} label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"} on:change={handleViewModeChange} />
+                    <NaButton size="sm" icon="iconSparkles" on:click={runAiPlanMyDay}
+                        >{i18n?.aiPlanMyDay || "自动规划"}</NaButton
+                    >
+                    <NaSegmentControl
+                        size="sm"
+                        options={[
+                            { value: "timeline", label: i18n?.timelineMode || "Timeline" },
+                            { value: "list", label: i18n?.listMode || "List" },
+                        ]}
+                        value={viewMode}
+                        label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
+                        on:change={handleViewModeChange}
+                    />
                 </div>
             </NaToolbar>
             {#if viewMode === "list"}<NaTaskFilterBar
-            contexts={$taskStore.contexts}
-            tags={$taskStore.tags}
-            customFields={$taskStore.settings.customFields}
-            filterState={filterState}
-            showStatus={true}
-            showPriority={true}
-            sortOptions={myDaySortOptions}
-            {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
-            />{/if}
+                    contexts={$taskStore.contexts}
+                    tags={$taskStore.tags}
+                    customFields={$taskStore.settings.customFields}
+                    {filterState}
+                    showStatus={true}
+                    showPriority={true}
+                    sortOptions={myDaySortOptions}
+                    {i18n}
+                    on:change={(event) => handleFilterChange(event.detail)}
+                />{/if}
         </svelte:fragment>
         {#if viewMode === "timeline"}
             <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />

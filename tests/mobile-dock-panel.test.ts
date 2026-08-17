@@ -45,7 +45,10 @@ test("Tooltip 点击后立即隐藏，避免与任务详情叠加", () => {
 
 test("任务详情错误固定在滚动正文顶部 Notice", () => {
     const detail = source("../src/frontend/components/TaskDetail.svelte");
-    assert.match(detail, /noticeMessage = dateError \|\| depError \|\| customFieldError \|\| saveError \|\| repeatDateError/);
+    assert.match(
+        detail,
+        /noticeMessage = dateError \|\| depError \|\| customFieldError \|\| saveError \|\| repeatDateError/,
+    );
     assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.repeat \|\| "Repeat"\} error=/);
     assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.dueTime[\s\S]*?error=\{dateError\}/);
     assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.depMode[\s\S]*?error=\{depError\}/);

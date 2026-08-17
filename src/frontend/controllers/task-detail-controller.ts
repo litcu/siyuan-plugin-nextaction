@@ -1,9 +1,6 @@
 import type { TaskCacheEntry } from "../../shared/types";
 import { normalizePriority } from "../constants";
-import {
-    isTaskDateRangeValid,
-    type TaskDetailDraft,
-} from "../utils/task-detail-draft";
+import { isTaskDateRangeValid, type TaskDetailDraft } from "../utils/task-detail-draft";
 
 export type TaskDetailSaveState = "idle" | "pending" | "saving" | "saved" | "error";
 export type TaskDetailCloseDecision = "close" | "confirm-discard";
@@ -68,7 +65,7 @@ function fieldEquals(draft: TaskDetailDraft, baseline: TaskDetailDraft, field: T
 }
 
 function dirtyFieldsFor(draft: TaskDetailDraft, baseline: TaskDetailDraft): Set<TaskDetailDraftField> {
-    return new Set(DRAFT_FIELDS.filter(field => !fieldEquals(draft, baseline, field)));
+    return new Set(DRAFT_FIELDS.filter((field) => !fieldEquals(draft, baseline, field)));
 }
 
 export function taskToTaskDetailDraft(task: TaskCacheEntry): TaskDetailDraft {
@@ -124,7 +121,10 @@ export class TaskDetailController {
     private disposed = false;
     private discarded = false;
 
-    constructor(task: TaskCacheEntry, private readonly options: TaskDetailControllerOptions) {
+    constructor(
+        task: TaskCacheEntry,
+        private readonly options: TaskDetailControllerOptions,
+    ) {
         const draft = taskToTaskDetailDraft(task);
         this.debounceMs = options.debounceMs ?? 500;
         this.savedStateMs = options.savedStateMs ?? 1600;
@@ -255,7 +255,12 @@ export class TaskDetailController {
     dispose(options: TaskDetailDisposeOptions = {}): void {
         if (this.disposed) return;
         this.clearTimers();
-        const shouldSave = options.bestEffort && this.state.dirty && !this.discarded && !this.activeSave && !this.state.validationError;
+        const shouldSave =
+            options.bestEffort &&
+            this.state.dirty &&
+            !this.discarded &&
+            !this.activeSave &&
+            !this.state.validationError;
         const taskId = this.state.task.blockId;
         const draft = cloneDraft(this.state.draft);
         this.disposed = true;

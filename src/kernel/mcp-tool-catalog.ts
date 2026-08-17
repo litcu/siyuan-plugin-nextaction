@@ -20,17 +20,24 @@ export class McpToolCatalog {
     private readonly entries: Record<McpToolName, McpToolCatalogEntry>;
 
     constructor(definitions: Record<McpToolName, ToolDefinition>) {
-        this.entries = Object.fromEntries(ALL_MCP_TOOL_NAMES.map(name => {
-            const definition = definitions[name];
-            if (!definition) throw new Error(`Missing MCP tool definition: ${name}`);
-            return [name, {
-                ...definition,
-                name,
-                write: (WRITE_MCP_TOOL_NAMES as readonly string[]).includes(name),
-                effects: getMcpCapabilityEffects(name),
-            }];
-        })) as Record<McpToolName, McpToolCatalogEntry>;
-        const unexpected = Object.keys(definitions).filter(name => !(ALL_MCP_TOOL_NAMES as readonly string[]).includes(name));
+        this.entries = Object.fromEntries(
+            ALL_MCP_TOOL_NAMES.map((name) => {
+                const definition = definitions[name];
+                if (!definition) throw new Error(`Missing MCP tool definition: ${name}`);
+                return [
+                    name,
+                    {
+                        ...definition,
+                        name,
+                        write: (WRITE_MCP_TOOL_NAMES as readonly string[]).includes(name),
+                        effects: getMcpCapabilityEffects(name),
+                    },
+                ];
+            }),
+        ) as Record<McpToolName, McpToolCatalogEntry>;
+        const unexpected = Object.keys(definitions).filter(
+            (name) => !(ALL_MCP_TOOL_NAMES as readonly string[]).includes(name),
+        );
         if (unexpected.length) throw new Error(`Unexpected MCP tool definitions: ${unexpected.join(", ")}`);
     }
 
@@ -39,6 +46,6 @@ export class McpToolCatalog {
     }
 
     list(): McpToolCatalogEntry[] {
-        return ALL_MCP_TOOL_NAMES.map(name => this.entries[name]);
+        return ALL_MCP_TOOL_NAMES.map((name) => this.entries[name]);
     }
 }

@@ -31,7 +31,10 @@ test("搜索选择器根据视口上下空间决定展开方向并限制高度",
 
 test("任务详情弹窗中的上下文、标签、任务关系和自定义选项均启用固定浮层", () => {
     const fixedDropdownUsages = taskDetail.match(/fixedDropdown=\{true\}/g) || [];
-    assert.ok(fixedDropdownUsages.length >= 7, `expected at least 7 fixed dropdown usages, got ${fixedDropdownUsages.length}`);
+    assert.ok(
+        fixedDropdownUsages.length >= 7,
+        `expected at least 7 fixed dropdown usages, got ${fixedDropdownUsages.length}`,
+    );
     assert.match(taskDetail, /<NaCustomFieldInput[\s\S]*?fixedDropdown=\{true\}/);
     assert.match(customFieldInput, /def\.type === "multiSelect"[\s\S]*?\{fixedDropdown\}/);
     assert.match(customFieldInput, /def\.type === "singleSelect"[\s\S]*?\{fixedDropdown\}/);

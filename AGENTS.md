@@ -22,7 +22,7 @@
 
 ## 编码风格与命名
 
-TypeScript 开启 `strict`。沿用现有格式：4 空格缩进、双引号、分号和尾随逗号；仓库未配置独立 formatter/linter，请保持相邻代码风格。Svelte 组件、类和类型使用 `PascalCase`，函数与变量使用 `camelCase`，工具文件使用 `kebab-case.ts`。CSS 采用 `.na-` 前缀的 BEM 命名，并优先使用 `--b3-*`、`--na-*` 主题变量。共享契约放入 `src/shared/`，避免前端直接依赖内核实现。
+TypeScript 开启 `strict`。沿用现有格式：4 空格缩进、双引号、分号和尾随逗号；仓库使用 Prettier 自动格式化（`pnpm run format`），ESLint 不含格式规则。提交前运行 `pnpm run format` 或确保 `pnpm run format:check` 通过。Svelte 组件、类和类型使用 `PascalCase`，函数与变量使用 `camelCase`，工具文件使用 `kebab-case.ts`。CSS 采用 `.na-` 前缀的 BEM 命名，并优先使用 `--b3-*`、`--na-*` 主题变量。共享契约放入 `src/shared/`，避免前端直接依赖内核实现。
 
 ## 前端组件复用
 
@@ -34,7 +34,19 @@ TypeScript 开启 `strict`。沿用现有格式：4 空格缩进、双引号、�
 
 ## 测试规范
 
-使用 `node:test` 与 `node:assert/strict`，文件命名为 `<feature>.test.ts`。优先覆盖纯逻辑和用户可见回归；需要保护组件或 RPC 接线时，可沿用现有源码断言测试。项目暂无覆盖率阈值，但每个修复应附能复现旧行为并验证新行为的测试。提交前运行 `pnpm test && pnpm run build`；需要人工验收时，随后必须运行 `pnpm run release`，并在交付说明中告知用户已部署、可以开始验证。
+使用 `node:test` 与 `node:assert/strict`，文件命名为 `<feature>.test.ts`。优先覆盖纯逻辑和用户可见回归；需要保护组件或 RPC 接线时，可沿用现有源码断言测试。项目暂无覆盖率阈值，但每个修复应附能复现旧行为并验证新行为的测试。
+
+### 回归测试纪律
+
+修复 bug 时，必须在最相关的测试文件中附一个复现原始场景的回归测试。回归测试应：
+
+- 构造触发原始 bug 的输入条件
+- 断言修复后的正确行为（在修复前会失败）
+- 以 `// Regression: <bug 简述>` 注释标记，便于追溯
+
+如果现有测试文件都不合适，可新建 `tests/<feature>-regression.test.ts`。回归测试与行为测试使用相同的断言风格——直接调用函数、传入数据、断言结果，不用源码字符串匹配。
+
+提交前运行 `pnpm test && pnpm run build`；需要人工验收时，随后必须运行 `pnpm run release`，并在交付说明中告知用户已部署、可以开始验证。
 
 ## 提交与 Pull Request
 

@@ -24,7 +24,10 @@ export interface RpcServerHooks {
     completeReview?: () => Promise<ReviewData>;
     getMcpStatus?: () => RpcMcpStatus;
     listMcpTargetNotebooks?: () => Promise<RpcMcpNotebookTarget[]>;
-    listMcpTargetDocuments?: (notebookId: string, path: string) => Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }>;
+    listMcpTargetDocuments?: (
+        notebookId: string,
+        path: string,
+    ) => Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }>;
     searchMcpTargetDocuments?: (query: string) => Promise<RpcMcpDocumentListItem[]>;
     resolveMcpDocumentTarget?: (value: unknown) => Promise<RpcMcpDocumentTarget>;
     resolveChildTarget?: (value: unknown) => Promise<RpcChildTargetResult>;
@@ -55,10 +58,7 @@ function rawParams(method: RpcMethodName, args: unknown[]): unknown {
     return { params: args };
 }
 
-function bindRpcMethod<Method extends RpcMethodName>(
-    method: Method,
-    handler: RpcHandlerMap[Method],
-): void {
+function bindRpcMethod<Method extends RpcMethodName>(method: Method, handler: RpcHandlerMap[Method]): void {
     const siyuan = getSiyuan();
     void siyuan.rpc.bind(method, async (...args: unknown[]): Promise<RpcResult<RpcReturn<Method>>> => {
         try {
@@ -77,8 +77,10 @@ function bindRpcMethod<Method extends RpcMethodName>(
 export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHooks = {}): void {
     const handlers: RpcHandlerMap = {
         echo: ({ params }) => params,
-        convertToTask: ({ blockId, cleanTitle, taskType }) => taskService.convertToTask(blockId, cleanTitle, taskType || "1"),
-        convertToTaskWithChildren: ({ blockId, cleanTitle, taskType }) => taskService.convertToTaskWithChildren(blockId, cleanTitle, taskType || "1"),
+        convertToTask: ({ blockId, cleanTitle, taskType }) =>
+            taskService.convertToTask(blockId, cleanTitle, taskType || "1"),
+        convertToTaskWithChildren: ({ blockId, cleanTitle, taskType }) =>
+            taskService.convertToTaskWithChildren(blockId, cleanTitle, taskType || "1"),
         removeTask: async ({ blockId }) => {
             await taskService.removeTask(blockId);
             return { success: true };
@@ -90,7 +92,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getTask: ({ blockId }) => taskService.getTask(blockId),
         getNextActions: () => taskService.getNextActions(),
         getAllTasks: ({ status, sortBy }) => taskService.getAllTasks({ status, sortBy }),
-        getTaskSnapshotV2: () => hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2"),
+        getTaskSnapshotV2: () => (hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2")),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),
         recalcAllOrders: async () => {
@@ -107,32 +109,42 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getTags: () => taskService.getTags(),
         rebuildParentRelationships: async () => ({ fixed: await taskService.rebuildParentRelationships() }),
         getProjectReminders: () => taskService.getProjectReminders(),
-        reorderTask: ({ blockId, parentId, afterId }) => taskService.reorderTask(blockId, parentId ?? undefined, afterId ?? undefined),
+        reorderTask: ({ blockId, parentId, afterId }) =>
+            taskService.reorderTask(blockId, parentId ?? undefined, afterId ?? undefined),
         getStatistics: ({ period }) => taskService.getStatistics(period || "week"),
-        updateSettings: ({ settings }) => hooks.updateSettings ? hooks.updateSettings(settings) : Promise.resolve(taskService.updateSettings(settings)),
+        updateSettings: ({ settings }) =>
+            hooks.updateSettings
+                ? hooks.updateSettings(settings)
+                : Promise.resolve(taskService.updateSettings(settings)),
         getSettings: () => taskService.getSettings(),
-        validateAiProposal: ({ proposal }) => hooks.aiProposalService
-            ? hooks.aiProposalService.validate(proposal)
-            : unavailable("AI proposal service"),
-        applyAiProposal: ({ proposal }) => hooks.aiProposalService
-            ? hooks.aiProposalService.apply(proposal)
-            : unavailable("AI proposal service"),
-        getMcpStatus: () => hooks.getMcpStatus ? hooks.getMcpStatus() : ({
-            supported: false,
-            enabled: false,
-            allowWrite: false,
-            endpoint: "/mcp",
-            tools: [],
-            lastError: "MCP manager is unavailable",
-        }),
-        listMcpTargetNotebooks: () => hooks.listMcpTargetNotebooks ? hooks.listMcpTargetNotebooks() : Promise.resolve([]),
-        listMcpTargetDocuments: ({ notebookId, path }) => hooks.listMcpTargetDocuments
-            ? hooks.listMcpTargetDocuments(notebookId, path || "/")
-            : unavailable("MCP manager"),
-        searchMcpTargetDocuments: ({ query }) => hooks.searchMcpTargetDocuments ? hooks.searchMcpTargetDocuments(query) : Promise.resolve([]),
-        resolveMcpDocumentTarget: ({ value }) => hooks.resolveMcpDocumentTarget ? hooks.resolveMcpDocumentTarget(value) : unavailable("MCP manager"),
-        resolveChildTarget: ({ value }) => hooks.resolveChildTarget ? hooks.resolveChildTarget(value) : unavailable("MCP manager"),
-        createTask: (input) => hooks.createTask ? hooks.createTask(input) : unavailable("MCP manager"),
+        validateAiProposal: ({ proposal }) =>
+            hooks.aiProposalService ? hooks.aiProposalService.validate(proposal) : unavailable("AI proposal service"),
+        applyAiProposal: ({ proposal }) =>
+            hooks.aiProposalService ? hooks.aiProposalService.apply(proposal) : unavailable("AI proposal service"),
+        getMcpStatus: () =>
+            hooks.getMcpStatus
+                ? hooks.getMcpStatus()
+                : {
+                      supported: false,
+                      enabled: false,
+                      allowWrite: false,
+                      endpoint: "/mcp",
+                      tools: [],
+                      lastError: "MCP manager is unavailable",
+                  },
+        listMcpTargetNotebooks: () =>
+            hooks.listMcpTargetNotebooks ? hooks.listMcpTargetNotebooks() : Promise.resolve([]),
+        listMcpTargetDocuments: ({ notebookId, path }) =>
+            hooks.listMcpTargetDocuments
+                ? hooks.listMcpTargetDocuments(notebookId, path || "/")
+                : unavailable("MCP manager"),
+        searchMcpTargetDocuments: ({ query }) =>
+            hooks.searchMcpTargetDocuments ? hooks.searchMcpTargetDocuments(query) : Promise.resolve([]),
+        resolveMcpDocumentTarget: ({ value }) =>
+            hooks.resolveMcpDocumentTarget ? hooks.resolveMcpDocumentTarget(value) : unavailable("MCP manager"),
+        resolveChildTarget: ({ value }) =>
+            hooks.resolveChildTarget ? hooks.resolveChildTarget(value) : unavailable("MCP manager"),
+        createTask: (input) => (hooks.createTask ? hooks.createTask(input) : unavailable("MCP manager")),
         getCustomFieldDiagnostics: () => taskService.getCustomFieldDiagnostics(),
         purgeCustomField: ({ fieldId }) => taskService.purgeCustomField(fieldId),
         purgeOrphanCustomField: ({ key }) => taskService.purgeOrphanCustomField(key),
@@ -143,7 +155,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         setMyDaySchedule: ({ blockId, start, end }) => taskService.setMyDaySchedule(blockId, start, end),
         removeMyDaySchedule: ({ blockId }) => taskService.removeMyDaySchedule(blockId),
         getReviewData: () => taskService.getReviewData(),
-        completeReview: () => hooks.completeReview ? hooks.completeReview() : unavailable("completeReview"),
+        completeReview: () => (hooks.completeReview ? hooks.completeReview() : unavailable("completeReview")),
         markTaskReviewed: ({ blockIds }) => taskService.markTaskReviewed(blockIds),
     } satisfies { [Method in keyof RpcContract]: RpcHandlerMap[Method] };
 

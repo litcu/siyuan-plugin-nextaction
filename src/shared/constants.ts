@@ -7,7 +7,14 @@ export const STATUS_DOING = "doing";
 export const STATUS_WAITING = "waiting";
 export const STATUS_SOMEDAY = "someday";
 export const STATUS_DONE = "done";
-export const ALL_STATUSES = [STATUS_INBOX, STATUS_TODO, STATUS_DOING, STATUS_WAITING, STATUS_SOMEDAY, STATUS_DONE] as const;
+export const ALL_STATUSES = [
+    STATUS_INBOX,
+    STATUS_TODO,
+    STATUS_DOING,
+    STATUS_WAITING,
+    STATUS_SOMEDAY,
+    STATUS_DONE,
+] as const;
 
 export const PRIORITY_CRITICAL = "critical";
 export const PRIORITY_HIGH = "high";
@@ -66,7 +73,7 @@ export const REMINDER_DISMISSED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // 可用音效 ID 列表
 export const REMINDER_SOUND_IDS = ["chime", "soft", "bell", "ping", "gentle"] as const;
-export type ReminderSoundId = typeof REMINDER_SOUND_IDS[number];
+export type ReminderSoundId = (typeof REMINDER_SOUND_IDS)[number];
 
 export const DEFAULT_IMPORTANCE = 4;
 export const DEFAULT_EFFORT = 4;

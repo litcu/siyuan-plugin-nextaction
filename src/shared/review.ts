@@ -22,10 +22,7 @@ export function isTaskReviewDue(
     task: Pick<TaskCacheEntry, "reviewInterval" | "reviewDate" | "status">,
     today = localDateString(),
 ): boolean {
-    return task.status !== "done"
-        && task.reviewInterval > 0
-        && Boolean(task.reviewDate)
-        && task.reviewDate <= today;
+    return task.status !== "done" && task.reviewInterval > 0 && Boolean(task.reviewDate) && task.reviewDate <= today;
 }
 
 /** Count unique tasks that need attention on the Review page. */

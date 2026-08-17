@@ -1,11 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import {
-        PIXELS_PER_MINUTE,
-        TIMELINE_SLOT_MINUTES,
-        DAY_MINUTES,
-        MY_DAY_DRAG_TYPE,
-    } from "../../../shared/constants";
+    import { PIXELS_PER_MINUTE, TIMELINE_SLOT_MINUTES, DAY_MINUTES, MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
     import type { KernelBridge } from "../../kernel-bridge";
     import { taskStore } from "../../stores/task-store";
@@ -80,11 +75,7 @@
         if (!blockId || dragPreviewStart === null) return;
 
         try {
-            const newState = await bridge.setMyDaySchedule(
-                blockId,
-                dragPreviewStart,
-                dragPreviewEnd!,
-            );
+            const newState = await bridge.setMyDaySchedule(blockId, dragPreviewStart, dragPreviewEnd!);
             taskStore.applyMyDayUpdate(newState);
         } catch (err: any) {
             console.error("[NextAction] setMyDaySchedule failed:", err);
@@ -116,7 +107,11 @@
     });
 </script>
 
-<div class="na-timeline-column" bind:this={containerEl} role="region" aria-label={i18n?.timelineMode || "Timeline"}
+<div
+    class="na-timeline-column"
+    bind:this={containerEl}
+    role="region"
+    aria-label={i18n?.timelineMode || "Timeline"}
     on:dragover={handleDragOver}
     on:dragleave={handleDragLeave}
     on:drop={handleDrop}
@@ -137,7 +132,9 @@
         {#if isDragOver && dragPreviewStart !== null && dragPreviewEnd !== null}
             <div
                 class="na-timeline-preview"
-                style="top: {minuteToPixel(dragPreviewStart)}px; height: {minuteToPixel(dragPreviewEnd - dragPreviewStart)}px;"
+                style="top: {minuteToPixel(dragPreviewStart)}px; height: {minuteToPixel(
+                    dragPreviewEnd - dragPreviewStart,
+                )}px;"
             >
                 <span class="na-timeline-preview__time">
                     {minuteToTimeLabel(dragPreviewStart, resetHour)} - {minuteToTimeLabel(dragPreviewEnd, resetHour)}

@@ -39,13 +39,19 @@ test("拒绝无效频率、间隔、星期和结束条件", () => {
     assert.equal(normalizeRepeatRule({ version: 2, frequency: "day", interval: 0 }), null);
     assert.equal(normalizeRepeatRule({ version: 2, frequency: "week", interval: 1, weekdays: [0, 8] }), null);
     assert.equal(normalizeRepeatRule({ version: 2, frequency: "day", interval: 1, weekdays: [1] }), null);
-    assert.equal(normalizeRepeatRule({ version: 2, frequency: "week", interval: 1, monthly: { type: "lastDay" } }), null);
-    assert.equal(normalizeRepeatRule({
-        version: 2,
-        frequency: "day",
-        interval: 1,
-        end: { type: "count", count: 0 },
-    }), null);
+    assert.equal(
+        normalizeRepeatRule({ version: 2, frequency: "week", interval: 1, monthly: { type: "lastDay" } }),
+        null,
+    );
+    assert.equal(
+        normalizeRepeatRule({
+            version: 2,
+            frequency: "day",
+            interval: 1,
+            end: { type: "count", count: 0 },
+        }),
+        null,
+    );
 });
 
 test("月末按锚点计算，不会从二月漂移到三月二十八日", () => {
@@ -98,10 +104,7 @@ test("固定计划默认跳到未来最近一次，也可逐期补做", () => {
         advanceRepeatState(skipMissed, initial, "2026-07-05T10:00", "complete").state.currentDue,
         "2026-07-06",
     );
-    assert.equal(
-        advanceRepeatState(catchUp, initial, "2026-07-05T10:00", "complete").state.currentDue,
-        "2026-07-02",
-    );
+    assert.equal(advanceRepeatState(catchUp, initial, "2026-07-05T10:00", "complete").state.currentDue, "2026-07-02");
 });
 
 test("完成日模式保留开始截止窗口，开始日不得早于完成日", () => {
@@ -143,23 +146,19 @@ test("预览返回当前发生之后的五次日期", () => {
     const preview = previewRepeatOccurrences(repeatRule, "2026-07-27", "2026-07-27", 5);
 
     assert.equal(preview.length, 5);
-    assert.deepEqual(preview.map((item) => item.due), [
-        "2026-07-31",
-        "2026-08-03",
-        "2026-08-07",
-        "2026-08-10",
-        "2026-08-14",
-    ]);
+    assert.deepEqual(
+        preview.map((item) => item.due),
+        ["2026-07-31", "2026-08-03", "2026-08-07", "2026-08-10", "2026-08-14"],
+    );
 });
 
 test("每天预设的预览按天推进，而不是沿用周规则", () => {
     const repeatRule = rule({ frequency: "day", interval: 1 });
     const preview = previewRepeatOccurrences(repeatRule, "2026-07-27", "2026-07-27", 3);
-    assert.deepEqual(preview.map((item) => item.due), [
-        "2026-07-28",
-        "2026-07-29",
-        "2026-07-30",
-    ]);
+    assert.deepEqual(
+        preview.map((item) => item.due),
+        ["2026-07-28", "2026-07-29", "2026-07-30"],
+    );
 });
 
 test("年度重复支持闰日并保留时间部分", () => {

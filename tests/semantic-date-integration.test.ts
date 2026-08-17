@@ -8,7 +8,10 @@ const settingsSource = readFileSync(new URL("../src/shared/settings.ts", import.
 
 test("语义日期设置默认开启并支持安全合并和校验", () => {
     assert.match(settingsSource, /semanticDateParsingEnabled:\s*true/);
-    assert.match(settingsSource, /semanticDateParsingEnabled: override\.semanticDateParsingEnabled \?\? base\.semanticDateParsingEnabled/);
+    assert.match(
+        settingsSource,
+        /semanticDateParsingEnabled: override\.semanticDateParsingEnabled \?\? base\.semanticDateParsingEnabled/,
+    );
     assert.match(settingsSource, /semanticDateParsingEnabled must be boolean/);
 });
 

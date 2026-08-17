@@ -22,12 +22,8 @@
     $: allTasks = $taskStore.allTasks;
     $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry]));
 
-    $: unscheduledEntries = (myDayState?.tasks ?? []).filter(
-        (e) => e.scheduleStart === null || e.scheduleEnd === null,
-    );
-    $: scheduledEntries = (myDayState?.tasks ?? []).filter(
-        (e) => e.scheduleStart !== null && e.scheduleEnd !== null,
-    );
+    $: unscheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null);
+    $: scheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null);
 
     function handleDragOver(e: DragEvent) {
         if (!e.dataTransfer?.types.includes(MY_DAY_DRAG_TYPE)) return;

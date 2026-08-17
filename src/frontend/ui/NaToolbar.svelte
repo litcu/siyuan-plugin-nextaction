@@ -21,13 +21,38 @@
         background: var(--b3-theme-surface);
         flex-wrap: wrap;
     }
-    .na-toolbar--compact { padding-block: var(--na-space-sm); }
-    .na-toolbar--nowrap { flex-wrap: nowrap; }
-    .na-toolbar__main { display: flex; align-items: center; gap: var(--na-space-sm); min-width: 0; width: 100%; flex: 1 1 auto; }
-    .na-toolbar__actions-content, .na-toolbar__main :global(.na-toolbar__actions-content) { display: flex; align-items: center; gap: var(--na-space-sm); min-width: 0; margin-left: auto; }
+    .na-toolbar--compact {
+        padding-block: var(--na-space-sm);
+    }
+    .na-toolbar--nowrap {
+        flex-wrap: nowrap;
+    }
+    .na-toolbar__main {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-sm);
+        min-width: 0;
+        width: 100%;
+        flex: 1 1 auto;
+    }
+    .na-toolbar__actions-content,
+    .na-toolbar__main :global(.na-toolbar__actions-content) {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-sm);
+        min-width: 0;
+        margin-left: auto;
+    }
     @container nextaction-app (max-width: 520px) {
-        .na-toolbar { padding-inline: var(--na-space-md); }
-        .na-toolbar__main { flex-basis: 100%; }
-        .na-toolbar__actions-content, .na-toolbar__main :global(.na-toolbar__actions-content) { margin-left: 0; }
+        .na-toolbar {
+            padding-inline: var(--na-space-md);
+        }
+        .na-toolbar__main {
+            flex-basis: 100%;
+        }
+        .na-toolbar__actions-content,
+        .na-toolbar__main :global(.na-toolbar__actions-content) {
+            margin-left: 0;
+        }
     }
 </style>

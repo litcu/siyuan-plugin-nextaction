@@ -93,7 +93,7 @@
     }
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
-        const inMyDay = $taskStore.myDayState?.tasks.some(t => t.blockId === task.blockId) ?? false;
+        const inMyDay = $taskStore.myDayState?.tasks.some((t) => t.blockId === task.blockId) ?? false;
         const callbacks: any = {
             onUpdated: (updated: TaskCacheEntry) => {
                 taskStore.applyUpdate(updated);
@@ -118,7 +118,7 @@
         };
         callbacks.onReminderEdit = (blockId: string) => {
             const storeState = get(taskStore);
-            const taskEntry = storeState.allTasks.find(t => t.blockId === blockId);
+            const taskEntry = storeState.allTasks.find((t) => t.blockId === blockId);
             if (!taskEntry) return;
             openReminderSettingsDialog(taskEntry, bridge, i18n, {
                 onSave: (updated: TaskCacheEntry) => taskStore.applyUpdate(updated),
@@ -137,8 +137,8 @@
 
     $: visibleTabs = tabs;
 
-    $: tabOptions = visibleTabs.map(tab => ({ value: tab.id, label: tab.label }));
-    $: activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label || "";
+    $: tabOptions = visibleTabs.map((tab) => ({ value: tab.id, label: tab.label }));
+    $: activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || "";
 </script>
 
 <div class="na-dock">
@@ -201,10 +201,20 @@
         background: var(--b3-theme-background);
     }
 
-    :global(.na-dock > .na-panel-header) { gap: 8px; }
-    :global(.na-dock > .na-panel-header .na-panel-header__copy) { flex: 1 1 auto; min-width: 0; }
-    :global(.na-dock > .na-panel-header .na-panel-header__actions) { flex: 0 1 auto; min-width: 0; }
-    :global(.na-dock > .na-panel-header .na-segment-control) { max-width: 100%; }
+    :global(.na-dock > .na-panel-header) {
+        gap: 8px;
+    }
+    :global(.na-dock > .na-panel-header .na-panel-header__copy) {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    :global(.na-dock > .na-panel-header .na-panel-header__actions) {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+    :global(.na-dock > .na-panel-header .na-segment-control) {
+        max-width: 100%;
+    }
     :global(.na-dock > .na-panel-header .na-segment-control__option) {
         overflow: hidden;
         padding-inline: clamp(4px, 1.8vw, 9px);
@@ -217,10 +227,22 @@
     }
 
     @container na-dock (max-width: 260px) {
-        :global(.na-dock > .na-panel-header) { gap: 4px; padding-inline: 7px; }
-        :global(.na-dock > .na-panel-header .na-panel-header__copy) { flex-basis: 72px; }
-        :global(.na-dock > .na-panel-header .na-panel-header__actions) { flex: 1 1 auto; }
-        :global(.na-dock > .na-panel-header .na-segment-control) { width: 100%; }
-        :global(.na-dock > .na-panel-header .na-segment-control__option) { padding-inline: 4px; font-size: 10px; }
+        :global(.na-dock > .na-panel-header) {
+            gap: 4px;
+            padding-inline: 7px;
+        }
+        :global(.na-dock > .na-panel-header .na-panel-header__copy) {
+            flex-basis: 72px;
+        }
+        :global(.na-dock > .na-panel-header .na-panel-header__actions) {
+            flex: 1 1 auto;
+        }
+        :global(.na-dock > .na-panel-header .na-segment-control) {
+            width: 100%;
+        }
+        :global(.na-dock > .na-panel-header .na-segment-control__option) {
+            padding-inline: 4px;
+            font-size: 10px;
+        }
     }
 </style>

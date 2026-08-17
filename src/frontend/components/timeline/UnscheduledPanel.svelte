@@ -40,17 +40,25 @@
     }
 
     function handleClick(e: MouseEvent, task: TaskCacheEntry, entry: MyDayTaskEntry) {
-        showTaskQuickMenu(task, e.clientX, e.clientY, bridge, i18n, {
-            onScheduleRemoved: (newState: MyDayState) => {
-                taskStore.applyMyDayUpdate(newState);
+        showTaskQuickMenu(
+            task,
+            e.clientX,
+            e.clientY,
+            bridge,
+            i18n,
+            {
+                onScheduleRemoved: (newState: MyDayState) => {
+                    taskStore.applyMyDayUpdate(newState);
+                },
+                onTaskUpdated: (updated: TaskCacheEntry) => {
+                    taskStore.applyUpdate(updated);
+                },
+                onRemovedFromMyDay: (newState: MyDayState) => {
+                    taskStore.applyMyDayUpdate(newState);
+                },
             },
-            onTaskUpdated: (updated: TaskCacheEntry) => {
-                taskStore.applyUpdate(updated);
-            },
-            onRemovedFromMyDay: (newState: MyDayState) => {
-                taskStore.applyMyDayUpdate(newState);
-            },
-        }, isMyDayEntryDone(entry, task.status));
+            isMyDayEntryDone(entry, task.status),
+        );
     }
 
     function handleCardKeydown(event: KeyboardEvent, task: TaskCacheEntry, entry: MyDayTaskEntry): void {
@@ -72,11 +80,12 @@
         const d = parseLocalDateOnly(due);
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diff = Math.round((d.getTime() - today.getTime()) / (86400000));
+        const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
         const timeStr = hasTime ? due.split("T")[1] : "";
         if (diff < 0) return i18n?.overdue || "Overdue";
-        if (diff === 0) return timeStr ? `${i18n?.dueToday || "Today"} ${timeStr}` : (i18n?.dueToday || "Today");
-        if (diff === 1) return timeStr ? `${i18n?.dueTomorrow || "Tomorrow"} ${timeStr}` : (i18n?.dueTomorrow || "Tomorrow");
+        if (diff === 0) return timeStr ? `${i18n?.dueToday || "Today"} ${timeStr}` : i18n?.dueToday || "Today";
+        if (diff === 1)
+            return timeStr ? `${i18n?.dueTomorrow || "Tomorrow"} ${timeStr}` : i18n?.dueTomorrow || "Tomorrow";
         const datePart = due.split("T")[0].slice(5);
         return timeStr ? `${datePart} ${timeStr}` : datePart;
     }
@@ -134,10 +143,13 @@
                         <div class="na-unscheduled-card__name">{task.title}</div>
                         <div class="na-unscheduled-card__meta">
                             {#if task.context}
-                                <span class="na-unscheduled-card__context">@{task.context.split('|')[0].trim()}</span>
+                                <span class="na-unscheduled-card__context">@{task.context.split("|")[0].trim()}</span>
                             {/if}
                             {#if task.due}
-                                <span class="na-unscheduled-card__due" class:na-unscheduled-card__due--overdue={isOverdue(task.due)}>
+                                <span
+                                    class="na-unscheduled-card__due"
+                                    class:na-unscheduled-card__due--overdue={isOverdue(task.due)}
+                                >
                                     {formatDue(task.due)}
                                 </span>
                             {/if}
@@ -155,7 +167,9 @@
         flex-direction: column;
         height: 100%;
         background: var(--na-myday-panel-bg, var(--b3-theme-surface));
-        transition: background 0.2s, border-color 0.2s;
+        transition:
+            background 0.2s,
+            border-color 0.2s;
     }
 
     .na-unscheduled--drop-target {
@@ -228,7 +242,11 @@
         background-color: var(--b3-theme-surface);
         box-shadow: var(--na-shadow-sm);
         cursor: grab;
-        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+        transition:
+            background 0.15s,
+            border-color 0.15s,
+            box-shadow 0.15s,
+            transform 0.15s;
 
         &:hover {
             background: var(--b3-theme-surface-light);

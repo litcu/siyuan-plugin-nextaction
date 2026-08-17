@@ -5,14 +5,16 @@ import { SettingsPanelController } from "../src/frontend/controllers/settings-pa
 
 function controller(): SettingsPanelController {
     return new SettingsPanelController({
-        formatError: error => (error as Error).message || String(error),
-        formatValidationError: error => `validation:${error}`,
+        formatError: (error) => (error as Error).message || String(error),
+        formatValidationError: (error) => `validation:${error}`,
     });
 }
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>(ok => { resolve = ok; });
+    const promise = new Promise<T>((ok) => {
+        resolve = ok;
+    });
     return { promise, resolve };
 }
 
@@ -46,7 +48,7 @@ test("持久化成功立即清除脏状态且后处理错误不会重新变脏",
     const model = controller();
     model.load(DEFAULT_SETTINGS);
     model.edit({ ...model.snapshot.draft, defaultEffort: 7 });
-    const saved = await model.save(async settings => settings);
+    const saved = await model.save(async (settings) => settings);
     assert.equal(saved?.defaultEffort, 7);
     assert.equal(model.snapshot.dirty, false);
     model.reportPostSaveError("settings saved but refresh failed");
@@ -59,7 +61,12 @@ test("持久化失败保留草稿和脏状态", async () => {
     const model = controller();
     model.load(DEFAULT_SETTINGS);
     model.edit({ ...model.snapshot.draft, defaultImportance: 5 });
-    assert.equal(await model.save(async () => { throw new Error("offline"); }), null);
+    assert.equal(
+        await model.save(async () => {
+            throw new Error("offline");
+        }),
+        null,
+    );
     assert.equal(model.snapshot.dirty, true);
     assert.equal(model.snapshot.draft.defaultImportance, 5);
     assert.equal(model.snapshot.error, "offline");

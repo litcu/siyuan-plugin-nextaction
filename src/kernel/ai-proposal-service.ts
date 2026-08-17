@@ -13,7 +13,9 @@ export interface AiProposalApplyResult {
     warnings: string[];
 }
 
-type CreateTaskHandler = (input: CreateTaskInput & { status?: string; fields?: Record<string, unknown> }) => Promise<{ task: any; warnings?: string[] }>;
+type CreateTaskHandler = (
+    input: CreateTaskInput & { status?: string; fields?: Record<string, unknown> },
+) => Promise<{ task: any; warnings?: string[] }>;
 type ConvertTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
 
 export class AiProposalService {
@@ -21,11 +23,7 @@ export class AiProposalService {
     private readonly createTask: CreateTaskHandler;
     private readonly convertTask: ConvertTaskHandler;
 
-    constructor(
-        taskService: TaskService,
-        createTask: CreateTaskHandler,
-        convertTask: ConvertTaskHandler,
-    ) {
+    constructor(taskService: TaskService, createTask: CreateTaskHandler, convertTask: ConvertTaskHandler) {
         this.taskService = taskService;
         this.createTask = createTask;
         this.convertTask = convertTask;
@@ -43,7 +41,7 @@ export class AiProposalService {
 
         if (proposal.feature === "planMyDay") {
             const current = await this.taskService.getMyDay();
-            const existing = new Set(current.tasks.map(item => item.blockId));
+            const existing = new Set(current.tasks.map((item) => item.blockId));
             let next = current;
             const warnings: string[] = [];
             for (const suggestion of proposal.myDay || []) {
@@ -64,7 +62,7 @@ export class AiProposalService {
         const createdIds: string[] = [];
         for (const item of proposal.tasks || []) {
             const fields = this.toFields(item, createdIds);
-            const target = proposal.target || { type: "mcp_default" } as AiWriteTarget;
+            const target = proposal.target || ({ type: "mcp_default" } as AiWriteTarget);
             if (target.type === "original" && item.sourceBlockId) {
                 const result = await this.convertTask({
                     blockId: item.sourceBlockId,
@@ -78,13 +76,14 @@ export class AiProposalService {
                 continue;
             }
 
-            const destination: CreateTaskDestination | undefined = target.type === "document" || target.type === "current_document" || target.type === "source_document"
-                ? { type: "document", documentId: target.documentId }
-                : target.type === "child"
-                    ? { type: "block", parentBlockId: target.parentBlockId }
-                    : target.type === "source_child"
+            const destination: CreateTaskDestination | undefined =
+                target.type === "document" || target.type === "current_document" || target.type === "source_document"
+                    ? { type: "document", documentId: target.documentId }
+                    : target.type === "child"
+                      ? { type: "block", parentBlockId: target.parentBlockId }
+                      : target.type === "source_child"
                         ? { type: "block", parentBlockId: item.sourceBlockId }
-                    : undefined;
+                        : undefined;
             const result = await this.createTask({
                 title: item.title,
                 kind: item.kind === "project" ? "project" : "task",
@@ -102,12 +101,14 @@ export class AiProposalService {
             const item = proposal.tasks![index];
             if (!item.dependsOnIndexes?.length) continue;
             const targetId = createdIds[index];
-            const dependencyIds = item.dependsOnIndexes.map(dep => createdIds[dep]).filter(Boolean);
+            const dependencyIds = item.dependsOnIndexes.map((dep) => createdIds[dep]).filter(Boolean);
             if (targetId && dependencyIds.length) {
-                const updated = await this.taskService.updateTask(targetId, { [ATTR_DEPENDS]: dependencyIds.join("|") });
-                const position = created.findIndex(task => task.blockId === targetId);
+                const updated = await this.taskService.updateTask(targetId, {
+                    [ATTR_DEPENDS]: dependencyIds.join("|"),
+                });
+                const position = created.findIndex((task) => task.blockId === targetId);
                 if (position >= 0) created[position] = updated;
-                const convertedPosition = converted.findIndex(task => task.blockId === targetId);
+                const convertedPosition = converted.findIndex((task) => task.blockId === targetId);
                 if (convertedPosition >= 0) converted[convertedPosition] = updated;
             }
         }
@@ -121,7 +122,8 @@ export class AiProposalService {
             if (item[key] !== undefined) fields[key] = item[key];
         }
         if (item.parentId !== undefined) fields.parentId = item.parentId;
-        if (item.dependsOnIndexes?.length) fields.dependencyIds = item.dependsOnIndexes.map(index => createdIds[index]).filter(Boolean);
+        if (item.dependsOnIndexes?.length)
+            fields.dependencyIds = item.dependsOnIndexes.map((index) => createdIds[index]).filter(Boolean);
         return fields;
     }
 }

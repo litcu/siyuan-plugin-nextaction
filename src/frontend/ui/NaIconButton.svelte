@@ -48,10 +48,13 @@
             background: var(--b3-list-hover);
         }
 
-        &:focus-visible { outline: 2px solid var(--b3-theme-primary); outline-offset: 2px; }
+        &:focus-visible {
+            outline: 2px solid var(--b3-theme-primary);
+            outline-offset: 2px;
+        }
 
         &:disabled {
-            opacity: .45;
+            opacity: 0.45;
             cursor: not-allowed;
         }
     }

@@ -101,11 +101,11 @@ export class FakeSiyuanApi implements SiyuanApiPort {
     }
 
     private queryFromStatement(statement: string): Array<Record<string, string>> {
-        const ids = [...statement.matchAll(/'(\d{14}-[0-9a-z]{7})'/g)].map(match => match[1]);
-        const rows = ids.map(id => this.blocks.get(id)).filter((block): block is FakeBlock => !!block);
-        if (/SELECT\s+type\s+FROM/i.test(statement)) return rows.map(block => ({ type: block.type }));
-        if (/SELECT\s+content\s+FROM/i.test(statement)) return rows.map(block => ({ content: block.content }));
-        return rows.map(block => ({
+        const ids = [...statement.matchAll(/'(\d{14}-[0-9a-z]{7})'/g)].map((match) => match[1]);
+        const rows = ids.map((id) => this.blocks.get(id)).filter((block): block is FakeBlock => !!block);
+        if (/SELECT\s+type\s+FROM/i.test(statement)) return rows.map((block) => ({ type: block.type }));
+        if (/SELECT\s+content\s+FROM/i.test(statement)) return rows.map((block) => ({ content: block.content }));
+        return rows.map((block) => ({
             id: block.id,
             type: block.type,
             content: block.content,
@@ -133,23 +133,74 @@ export class FakeMyDayTaskPort implements MyDayTaskPort {
     settings: PluginSettings = { ...DEFAULT_SETTINGS };
     state: MyDayState = { schema: 1, dayKey: "2026-08-16", tasks: [], updatedAt: 0 };
 
-    updateSettings(settings: PluginSettings): void { this.settings = settings; }
-    async getState(): Promise<MyDayState> { return this.state; }
-    async addTask(blockId: string): Promise<MyDayState> { this.state.tasks.push({ blockId, addedAt: Date.now(), order: this.state.tasks.length, scheduleStart: null, scheduleEnd: null }); return this.state; }
-    async removeTask(blockId: string): Promise<MyDayState> { this.state.tasks = this.state.tasks.filter(item => item.blockId !== blockId); return this.state; }
-    async reorderTask(): Promise<MyDayState> { return this.state; }
-    async setSchedule(): Promise<MyDayState> { return this.state; }
-    async removeSchedule(): Promise<MyDayState> { return this.state; }
-    async markTaskCompleted(): Promise<MyDayState> { return this.state; }
-    async clearTaskCompleted(): Promise<MyDayState> { return this.state; }
+    updateSettings(settings: PluginSettings): void {
+        this.settings = settings;
+    }
+    async getState(): Promise<MyDayState> {
+        return this.state;
+    }
+    async addTask(blockId: string): Promise<MyDayState> {
+        this.state.tasks.push({
+            blockId,
+            addedAt: Date.now(),
+            order: this.state.tasks.length,
+            scheduleStart: null,
+            scheduleEnd: null,
+        });
+        return this.state;
+    }
+    async removeTask(blockId: string): Promise<MyDayState> {
+        this.state.tasks = this.state.tasks.filter((item) => item.blockId !== blockId);
+        return this.state;
+    }
+    async reorderTask(): Promise<MyDayState> {
+        return this.state;
+    }
+    async setSchedule(): Promise<MyDayState> {
+        return this.state;
+    }
+    async removeSchedule(): Promise<MyDayState> {
+        return this.state;
+    }
+    async markTaskCompleted(): Promise<MyDayState> {
+        return this.state;
+    }
+    async clearTaskCompleted(): Promise<MyDayState> {
+        return this.state;
+    }
 }
 
 export function taskFactory(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
-        blockId, parentId: "", status: "todo", priority: "medium", importance: 4, effort: 4,
-        due: "", start: "", context: "", taskType: "1", order: 0, childIds: [], title: "Task",
-        depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "", sort: -1,
-        completed: "", note: "", created: "", tags: "", blocked: false, blockedReason: "",
-        reviewInterval: 0, reviewDate: "", reminder: "", customFields: {}, ...overrides,
+        blockId,
+        parentId: "",
+        status: "todo",
+        priority: "medium",
+        importance: 4,
+        effort: 4,
+        due: "",
+        start: "",
+        context: "",
+        taskType: "1",
+        order: 0,
+        childIds: [],
+        title: "Task",
+        depends: "",
+        depMode: "all",
+        sequential: false,
+        repeat: "",
+        repeatState: "",
+        sort: -1,
+        completed: "",
+        note: "",
+        created: "",
+        tags: "",
+        blocked: false,
+        blockedReason: "",
+        reviewInterval: 0,
+        reviewDate: "",
+        reminder: "",
+        customFields: {},
+        ...overrides,
     };
 }

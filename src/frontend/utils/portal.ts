@@ -16,7 +16,10 @@ export function portal(node: HTMLElement, enabled = true) {
     function restore() {
         if (!active) return;
         if (originalParent && originalParent.isConnected) {
-            originalParent.insertBefore(node, originalNextSibling && originalNextSibling.parentNode === originalParent ? originalNextSibling : null);
+            originalParent.insertBefore(
+                node,
+                originalNextSibling && originalNextSibling.parentNode === originalParent ? originalNextSibling : null,
+            );
         } else {
             node.remove();
         }

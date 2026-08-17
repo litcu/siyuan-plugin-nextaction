@@ -10,7 +10,14 @@
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
+    type DocumentSelection = {
+        id: string;
+        title: string;
+        notebookId: string;
+        notebookName: string;
+        path: string;
+        icon: string;
+    };
 
     export let bridge: KernelBridge;
     export let i18n: I18nStrings;
@@ -53,14 +60,24 @@
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetTaskCreation}
     >
-        <NaSettingRow forId="setting-task-creation-target" title={i18n?.settingTaskCreationDefaultTarget || "Default storage location"} description={i18n?.settingTaskCreationDefaultTargetDesc || "Used by the task dialog and MCP when no location is specified"}>
+        <NaSettingRow
+            forId="setting-task-creation-target"
+            title={i18n?.settingTaskCreationDefaultTarget || "Default storage location"}
+            description={i18n?.settingTaskCreationDefaultTargetDesc ||
+                "Used by the task dialog and MCP when no location is specified"}
+        >
             <select id="setting-task-creation-target" class="b3-select" bind:value={taskCreationDefaultCreateTarget}>
                 <option value="inbox">{i18n?.settingTaskCreationTargetInbox || "Configured inbox document"}</option>
                 <option value="daily_note">{i18n?.settingTaskCreationTargetDailyNote || "Today's daily note"}</option>
             </select>
         </NaSettingRow>
         {#if taskCreationDefaultCreateTarget === "inbox"}
-            <NaSettingRow stacked={true} title={i18n?.settingTaskCreationInboxDocument || "Inbox document"} description={i18n?.settingTaskCreationInboxDocumentDesc || "Text blocks and document blocks will be created under this document"}>
+            <NaSettingRow
+                stacked={true}
+                title={i18n?.settingTaskCreationInboxDocument || "Inbox document"}
+                description={i18n?.settingTaskCreationInboxDocumentDesc ||
+                    "Text blocks and document blocks will be created under this document"}
+            >
                 <NaDocumentPicker
                     {bridge}
                     {i18n}
@@ -70,8 +87,17 @@
                 />
             </NaSettingRow>
         {:else}
-            <NaSettingRow forId="setting-task-creation-daily-notebook" title={i18n?.settingTaskCreationDailyNoteNotebook || "Daily note notebook"} description={i18n?.settingTaskCreationDailyNoteNotebookDesc || "The current daily note in this notebook is used as the parent location"}>
-                <select id="setting-task-creation-daily-notebook" class="b3-select" bind:value={taskCreationDailyNoteNotebookId}>
+            <NaSettingRow
+                forId="setting-task-creation-daily-notebook"
+                title={i18n?.settingTaskCreationDailyNoteNotebook || "Daily note notebook"}
+                description={i18n?.settingTaskCreationDailyNoteNotebookDesc ||
+                    "The current daily note in this notebook is used as the parent location"}
+            >
+                <select
+                    id="setting-task-creation-daily-notebook"
+                    class="b3-select"
+                    bind:value={taskCreationDailyNoteNotebookId}
+                >
                     <option value="">{i18n?.settingTaskCreationSelectNotebook || "Select a notebook"}</option>
                     {#each taskCreationNotebooks as notebook}<option value={notebook.id}>{notebook.name}</option>{/each}
                 </select>
@@ -86,14 +112,30 @@
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetDefaults}
     >
-        <NaSettingRow title={i18n?.settingDefaultImportance || "Default importance"} description={i18n?.settingDefaultImportanceDesc || "Importance value for new tasks (1-7)"}>
+        <NaSettingRow
+            title={i18n?.settingDefaultImportance || "Default importance"}
+            description={i18n?.settingDefaultImportanceDesc || "Importance value for new tasks (1-7)"}
+        >
             <NaDotRating count={7} bind:value={defaultImportance} color="var(--na-color-importance)" />
         </NaSettingRow>
-        <NaSettingRow title={i18n?.settingDefaultEffort || "Default effort"} description={i18n?.settingDefaultEffortDesc || "Effort value for new tasks (1-7)"}>
+        <NaSettingRow
+            title={i18n?.settingDefaultEffort || "Default effort"}
+            description={i18n?.settingDefaultEffortDesc || "Effort value for new tasks (1-7)"}
+        >
             <NaDotRating count={7} bind:value={defaultEffort} color="var(--na-color-effort)" />
         </NaSettingRow>
-        <NaSettingRow forId="setting-semantic-date-parsing" title={i18n?.settingSemanticDateParsing || "Parse dates from task titles"} description={i18n?.settingSemanticDateParsingDesc || "Fill empty start and due dates when a block is first converted"}>
-            <input id="setting-semantic-date-parsing" class="b3-switch" type="checkbox" bind:checked={semanticDateParsingEnabled} />
+        <NaSettingRow
+            forId="setting-semantic-date-parsing"
+            title={i18n?.settingSemanticDateParsing || "Parse dates from task titles"}
+            description={i18n?.settingSemanticDateParsingDesc ||
+                "Fill empty start and due dates when a block is first converted"}
+        >
+            <input
+                id="setting-semantic-date-parsing"
+                class="b3-switch"
+                type="checkbox"
+                bind:checked={semanticDateParsingEnabled}
+            />
         </NaSettingRow>
     </NaSection>
 
@@ -104,14 +146,32 @@
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetMyDay}
     >
-        <NaSettingRow forId="setting-myday-reset-hour" title={i18n?.settingMyDayResetHour || "Daily reset hour"} description={i18n?.settingMyDayResetHourDesc || "Before this hour still counts as the previous day (0-23)"}>
+        <NaSettingRow
+            forId="setting-myday-reset-hour"
+            title={i18n?.settingMyDayResetHour || "Daily reset hour"}
+            description={i18n?.settingMyDayResetHourDesc || "Before this hour still counts as the previous day (0-23)"}
+        >
             <div class="na-settings-general__inline-control">
-                <input id="setting-myday-reset-hour" class="b3-text-field na-settings-general__number" type="number" min={0} max={23} step={1} bind:value={myDayResetHour} />
+                <input
+                    id="setting-myday-reset-hour"
+                    class="b3-text-field na-settings-general__number"
+                    type="number"
+                    min={0}
+                    max={23}
+                    step={1}
+                    bind:value={myDayResetHour}
+                />
                 <span>:00</span>
             </div>
         </NaSettingRow>
-        <NaSettingRow title={i18n?.settingMyDayDefaultViewMode || "Default view mode"} description={i18n?.settingMyDayDefaultViewModeDesc || "Initial view when opening My Day"}>
-            <div class="na-settings-general__segmented" aria-label={i18n?.settingMyDayDefaultViewMode || "Default view mode"}>
+        <NaSettingRow
+            title={i18n?.settingMyDayDefaultViewMode || "Default view mode"}
+            description={i18n?.settingMyDayDefaultViewModeDesc || "Initial view when opening My Day"}
+        >
+            <div
+                class="na-settings-general__segmented"
+                aria-label={i18n?.settingMyDayDefaultViewMode || "Default view mode"}
+            >
                 <label class:active={myDayDefaultViewMode === "timeline"}>
                     <input type="radio" value="timeline" bind:group={myDayDefaultViewMode} />
                     <span>{i18n?.settingMyDayDefaultViewModeTimeline || "Timeline"}</span>
@@ -122,9 +182,22 @@
                 </label>
             </div>
         </NaSettingRow>
-        <NaSettingRow forId="setting-myday-duration" title={i18n?.settingMyDayDefaultDuration || "Default schedule duration"} description={i18n?.settingMyDayDefaultDurationDesc || "Default duration when dropping a task onto the timeline"}>
+        <NaSettingRow
+            forId="setting-myday-duration"
+            title={i18n?.settingMyDayDefaultDuration || "Default schedule duration"}
+            description={i18n?.settingMyDayDefaultDurationDesc ||
+                "Default duration when dropping a task onto the timeline"}
+        >
             <div class="na-settings-general__inline-control">
-                <input id="setting-myday-duration" class="b3-text-field na-settings-general__number" type="number" min={15} max={480} step={15} bind:value={myDayDefaultDuration} />
+                <input
+                    id="setting-myday-duration"
+                    class="b3-text-field na-settings-general__number"
+                    type="number"
+                    min={15}
+                    max={480}
+                    step={15}
+                    bind:value={myDayDefaultDuration}
+                />
                 <span>{i18n?.settingMinutes || "min"}</span>
             </div>
         </NaSettingRow>
@@ -137,10 +210,20 @@
         actionLabel={i18n?.settingResetSection || i18n?.settingReset || "Reset"}
         onAction={onResetReminder}
     >
-        <NaSettingRow forId="setting-reminder-enabled" title={i18n?.reminderSettingEnabled || i18n?.reminder || "Enable reminders"} description={i18n?.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}>
+        <NaSettingRow
+            forId="setting-reminder-enabled"
+            title={i18n?.reminderSettingEnabled || i18n?.reminder || "Enable reminders"}
+            description={i18n?.reminderSettingEnabledDesc || "Show notifications before due dates and on review dates"}
+        >
             <input id="setting-reminder-enabled" class="b3-switch" type="checkbox" bind:checked={reminderEnabled} />
         </NaSettingRow>
-        <NaSettingRow stacked={true} disabled={!reminderEnabled} title={i18n?.reminderSettingDefaultOffsets || "Default advance times"} description={i18n?.reminderSettingDefaultOffsetsDesc || "Advance times offered when configuring task reminders"}>
+        <NaSettingRow
+            stacked={true}
+            disabled={!reminderEnabled}
+            title={i18n?.reminderSettingDefaultOffsets || "Default advance times"}
+            description={i18n?.reminderSettingDefaultOffsetsDesc ||
+                "Advance times offered when configuring task reminders"}
+        >
             <div class="na-settings-general__offset-editor">
                 <div class="na-settings-general__offset-list">
                     {#each reminderDefaultOffsets as offset}
@@ -148,16 +231,30 @@
                         <span class="na-settings-general__offset-chip">
                             <strong>{display.value}</strong>
                             <span>{getUnitLabel(display.unit)}</span>
-                            <button type="button" class="b3-tooltips b3-tooltips__n" on:click={() => onRemoveOffset(offset)} disabled={!reminderEnabled} aria-label={i18n?.reminderRemoveOffset || "Remove"}>
+                            <button
+                                type="button"
+                                class="b3-tooltips b3-tooltips__n"
+                                on:click={() => onRemoveOffset(offset)}
+                                disabled={!reminderEnabled}
+                                aria-label={i18n?.reminderRemoveOffset || "Remove"}
+                            >
                                 <NaIcon symbol="iconCloseRound" size={13} />
                             </button>
                         </span>
                     {:else}
-                        <span class="na-settings-general__empty">{i18n?.reminderNoPending || "No advance times configured"}</span>
+                        <span class="na-settings-general__empty"
+                            >{i18n?.reminderNoPending || "No advance times configured"}</span
+                        >
                     {/each}
                 </div>
                 <div class="na-settings-general__offset-add">
-                    <input class="b3-text-field na-settings-general__number" type="number" min={1} bind:value={newOffsetValue} disabled={!reminderEnabled} />
+                    <input
+                        class="b3-text-field na-settings-general__number"
+                        type="number"
+                        min={1}
+                        bind:value={newOffsetValue}
+                        disabled={!reminderEnabled}
+                    />
                     <select class="b3-select" bind:value={newOffsetUnit} disabled={!reminderEnabled}>
                         <option value="minutes">{i18n?.reminderOffsetMinutes || "minutes"}</option>
                         <option value="hours">{i18n?.reminderOffsetHours || "hours"}</option>
@@ -170,28 +267,69 @@
                 </div>
             </div>
         </NaSettingRow>
-        <NaSettingRow disabled={!reminderEnabled} forId="setting-reminder-due-sound" title={i18n?.reminderSettingDueSound || "Due reminder sound"}>
+        <NaSettingRow
+            disabled={!reminderEnabled}
+            forId="setting-reminder-due-sound"
+            title={i18n?.reminderSettingDueSound || "Due reminder sound"}
+        >
             <div class="na-settings-general__sound-control">
-                <select id="setting-reminder-due-sound" class="b3-select" bind:value={reminderDueSound} disabled={!reminderEnabled}>
+                <select
+                    id="setting-reminder-due-sound"
+                    class="b3-select"
+                    bind:value={reminderDueSound}
+                    disabled={!reminderEnabled}
+                >
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
-                <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => onPreviewSound(reminderDueSound)} disabled={!reminderEnabled} aria-label={i18n?.reminderSoundPreview || "Preview"}>
+                <button
+                    type="button"
+                    class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
+                    on:click={() => onPreviewSound(reminderDueSound)}
+                    disabled={!reminderEnabled}
+                    aria-label={i18n?.reminderSoundPreview || "Preview"}
+                >
                     <NaIcon symbol="iconPlay" size={14} />
                 </button>
             </div>
         </NaSettingRow>
-        <NaSettingRow disabled={!reminderEnabled} forId="setting-reminder-review-sound" title={i18n?.reminderSettingReviewSound || "Review reminder sound"}>
+        <NaSettingRow
+            disabled={!reminderEnabled}
+            forId="setting-reminder-review-sound"
+            title={i18n?.reminderSettingReviewSound || "Review reminder sound"}
+        >
             <div class="na-settings-general__sound-control">
-                <select id="setting-reminder-review-sound" class="b3-select" bind:value={reminderReviewSound} disabled={!reminderEnabled}>
+                <select
+                    id="setting-reminder-review-sound"
+                    class="b3-select"
+                    bind:value={reminderReviewSound}
+                    disabled={!reminderEnabled}
+                >
                     {#each soundIds as soundId}<option value={soundId}>{getSoundLabel(soundId)}</option>{/each}
                 </select>
-                <button type="button" class="b3-button b3-button--text b3-tooltips b3-tooltips__n" on:click={() => onPreviewSound(reminderReviewSound)} disabled={!reminderEnabled} aria-label={i18n?.reminderSoundPreview || "Preview"}>
+                <button
+                    type="button"
+                    class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
+                    on:click={() => onPreviewSound(reminderReviewSound)}
+                    disabled={!reminderEnabled}
+                    aria-label={i18n?.reminderSoundPreview || "Preview"}
+                >
                     <NaIcon symbol="iconPlay" size={14} />
                 </button>
             </div>
         </NaSettingRow>
-        <NaSettingRow disabled={!reminderEnabled} forId="setting-reminder-sound-enabled" title={i18n?.reminderSettingSoundEnabled || "Play reminder sounds"} description={i18n?.reminderSettingSoundEnabledDesc || "Play a sound when a reminder appears"}>
-            <input id="setting-reminder-sound-enabled" class="b3-switch" type="checkbox" bind:checked={reminderSoundEnabled} disabled={!reminderEnabled} />
+        <NaSettingRow
+            disabled={!reminderEnabled}
+            forId="setting-reminder-sound-enabled"
+            title={i18n?.reminderSettingSoundEnabled || "Play reminder sounds"}
+            description={i18n?.reminderSettingSoundEnabledDesc || "Play a sound when a reminder appears"}
+        >
+            <input
+                id="setting-reminder-sound-enabled"
+                class="b3-switch"
+                type="checkbox"
+                bind:checked={reminderSoundEnabled}
+                disabled={!reminderEnabled}
+            />
         </NaSettingRow>
     </NaSection>
 </div>
@@ -298,5 +436,4 @@
         font-size: 11px;
         font-style: italic;
     }
-
 </style>

@@ -336,15 +336,17 @@
         const clamped = Math.max(0, Math.min(maxIdx, idx));
         const targetTop = clamped * ITEM_H;
         if (Math.abs(el.scrollTop - targetTop) < 1) return;
-        if (isHour) isSnappingHour = true; else isSnappingMinute = true;
-        el.scrollTo({ top: targetTop, behavior: 'smooth' });
+        if (isHour) isSnappingHour = true;
+        else isSnappingMinute = true;
+        el.scrollTo({ top: targetTop, behavior: "smooth" });
         const onEnd = () => {
-            el.removeEventListener('scroll', onEnd);
-            el.removeEventListener('touchend', onEnd);
-            if (isHour) isSnappingHour = false; else isSnappingMinute = false;
+            el.removeEventListener("scroll", onEnd);
+            el.removeEventListener("touchend", onEnd);
+            if (isHour) isSnappingHour = false;
+            else isSnappingMinute = false;
         };
-        el.addEventListener('scroll', onEnd);
-        el.addEventListener('touchend', onEnd);
+        el.addEventListener("scroll", onEnd);
+        el.addEventListener("touchend", onEnd);
     }
 
     function handleHourScroll() {
@@ -375,11 +377,21 @@
     }
 
     function prevMonth() {
-        if (viewMonth === 0) { viewMonth = 11; viewYear--; } else { viewMonth--; }
+        if (viewMonth === 0) {
+            viewMonth = 11;
+            viewYear--;
+        } else {
+            viewMonth--;
+        }
     }
 
     function nextMonth() {
-        if (viewMonth === 11) { viewMonth = 0; viewYear++; } else { viewMonth++; }
+        if (viewMonth === 11) {
+            viewMonth = 0;
+            viewYear++;
+        } else {
+            viewMonth++;
+        }
     }
 
     function handleClickOutside(e: MouseEvent) {
@@ -430,7 +442,7 @@
             {disabled}
             aria-invalid={inputError ? "true" : "false"}
             on:input={handleTextInput}
-            on:focus={() => inputFocused = true}
+            on:focus={() => (inputFocused = true)}
             on:blur={handleInputBlur}
             on:keydown={handleInputKeydown}
         />
@@ -438,7 +450,10 @@
             type="button"
             class="na-date-picker__calendar-button b3-tooltips b3-tooltips__n"
             on:mousedown|preventDefault
-            on:click={() => { commitNaturalInput(); toggleOpen(); }}
+            on:click={() => {
+                commitNaturalInput();
+                toggleOpen();
+            }}
             aria-expanded={open}
             aria-controls="na-date-picker-calendar"
             aria-haspopup="grid"
@@ -451,14 +466,37 @@
     {#if inputError}<div class="na-date-picker__error" role="alert">{inputError}</div>{/if}
 
     {#if open}
-        <div use:portal={fixedDropdown} use:stopInteractionPropagation bind:this={dropdownEl} class="na-date-picker__dropdown" class:na-date-picker__dropdown--fixed={fixedDropdown} style={fixedDropdown ? dropdownStyle : ""} id="na-date-picker-calendar" role="application" tabindex="-1" aria-label={i18n?.dueDate || "Calendar"}>
+        <div
+            use:portal={fixedDropdown}
+            use:stopInteractionPropagation
+            bind:this={dropdownEl}
+            class="na-date-picker__dropdown"
+            class:na-date-picker__dropdown--fixed={fixedDropdown}
+            style={fixedDropdown ? dropdownStyle : ""}
+            id="na-date-picker-calendar"
+            role="application"
+            tabindex="-1"
+            aria-label={i18n?.dueDate || "Calendar"}
+        >
             <!-- Calendar -->
             <div class="na-date-picker__header">
-                <button class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n" on:click={prevMonth} aria-label={previousMonthLabel}>
+                <button
+                    class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n"
+                    on:click={prevMonth}
+                    aria-label={previousMonthLabel}
+                >
                     <NaIcon symbol="iconRight" size={12} />
                 </button>
-                <span class="na-date-picker__month-year">{i18n?.dpYearMonth ? i18n.dpYearMonth.replace("{y}", String(viewYear)).replace("{m}", String(viewMonth + 1)) : `${viewYear}/${viewMonth + 1}`}</span>
-                <button class="na-date-picker__nav b3-tooltips b3-tooltips__n" on:click={nextMonth} aria-label={nextMonthLabel}>
+                <span class="na-date-picker__month-year"
+                    >{i18n?.dpYearMonth
+                        ? i18n.dpYearMonth.replace("{y}", String(viewYear)).replace("{m}", String(viewMonth + 1))
+                        : `${viewYear}/${viewMonth + 1}`}</span
+                >
+                <button
+                    class="na-date-picker__nav b3-tooltips b3-tooltips__n"
+                    on:click={nextMonth}
+                    aria-label={nextMonthLabel}
+                >
                     <NaIcon symbol="iconRight" size={12} />
                 </button>
             </div>
@@ -477,9 +515,9 @@
                         class:na-date-picker__day--today={cell.date === today}
                         class:na-date-picker__day--outside={!cell.inMonth}
                         on:click={() => selectDay(cell.date)}
-                        on:mouseenter={() => hoverDate = cell.date}
-                        on:mouseleave={() => hoverDate = ""}
-                        disabled={disabled}
+                        on:mouseenter={() => (hoverDate = cell.date)}
+                        on:mouseleave={() => (hoverDate = "")}
+                        {disabled}
                     >
                         {cell.day}
                     </button>
@@ -492,10 +530,18 @@
                     <div class="na-date-picker__time-row">
                         <div class="na-date-picker__time-col">
                             <span class="na-date-picker__time-label">{hourLabel}</span>
-                            <div class="na-date-picker__time-scroll" bind:this={hourListEl} on:scroll={handleHourScroll}>
+                            <div
+                                class="na-date-picker__time-scroll"
+                                bind:this={hourListEl}
+                                on:scroll={handleHourScroll}
+                            >
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each HOURS as h}
-                                    <button class="na-date-picker__time-item" class:na-date-picker__time-item--active={h === selectedHour} on:click|stopPropagation={() => onHourClick(h)}>
+                                    <button
+                                        class="na-date-picker__time-item"
+                                        class:na-date-picker__time-item--active={h === selectedHour}
+                                        on:click|stopPropagation={() => onHourClick(h)}
+                                    >
                                         {pad(h)}
                                     </button>
                                 {/each}
@@ -505,10 +551,18 @@
                         <span class="na-date-picker__time-sep">:</span>
                         <div class="na-date-picker__time-col">
                             <span class="na-date-picker__time-label">{minuteLabel}</span>
-                            <div class="na-date-picker__time-scroll" bind:this={minuteListEl} on:scroll={handleMinuteScroll}>
+                            <div
+                                class="na-date-picker__time-scroll"
+                                bind:this={minuteListEl}
+                                on:scroll={handleMinuteScroll}
+                            >
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each MINUTES as m}
-                                    <button class="na-date-picker__time-item" class:na-date-picker__time-item--active={m === selectedMinute} on:click|stopPropagation={() => onMinuteClick(m)}>
+                                    <button
+                                        class="na-date-picker__time-item"
+                                        class:na-date-picker__time-item--active={m === selectedMinute}
+                                        on:click|stopPropagation={() => onMinuteClick(m)}
+                                    >
                                         {pad(m)}
                                     </button>
                                 {/each}
@@ -528,9 +582,14 @@
                 <div class="na-date-picker__footer-actions">
                     <button class="na-date-picker__action" on:click={selectToday}>{todayLabel}</button>
                     {#if timeMode || requireTime}
-                        <button class="na-date-picker__action na-date-picker__action--primary" on:click={confirmDateTime}>{okLabel}</button>
+                        <button
+                            class="na-date-picker__action na-date-picker__action--primary"
+                            on:click={confirmDateTime}>{okLabel}</button
+                        >
                     {/if}
-                    <button class="na-date-picker__action na-date-picker__action--danger" on:click={clearValue}>{clearLabel}</button>
+                    <button class="na-date-picker__action na-date-picker__action--danger" on:click={clearValue}
+                        >{clearLabel}</button
+                    >
                 </div>
             </div>
         </div>
@@ -554,14 +613,23 @@
         overflow: hidden;
         transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .na-date-picker__control:hover { border-color: var(--b3-theme-primary-light); }
+    .na-date-picker__control:hover {
+        border-color: var(--b3-theme-primary-light);
+    }
     .na-date-picker__control:focus-within,
-    .na-date-picker__control--open { border-color: var(--b3-theme-primary); }
+    .na-date-picker__control--open {
+        border-color: var(--b3-theme-primary);
+    }
     .na-date-picker__control:focus-within {
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--b3-theme-primary) 28%, transparent);
     }
-    .na-date-picker__control--invalid { border-color: var(--b3-theme-error); }
-    .na-date-picker__control--disabled { opacity: 0.35; cursor: not-allowed; }
+    .na-date-picker__control--invalid {
+        border-color: var(--b3-theme-error);
+    }
+    .na-date-picker__control--disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
 
     .na-date-picker__input {
         flex: 1;
@@ -575,9 +643,13 @@
         font: inherit;
         font-size: var(--na-font-size-md);
     }
-    .na-date-picker__input::placeholder { color: var(--b3-theme-on-surface-light); }
+    .na-date-picker__input::placeholder {
+        color: var(--b3-theme-on-surface-light);
+    }
     .na-date-picker__control .na-date-picker__input:focus-visible,
-    .na-date-picker__control .na-date-picker__calendar-button:focus-visible { outline: none; }
+    .na-date-picker__control .na-date-picker__calendar-button:focus-visible {
+        outline: none;
+    }
     .na-date-picker__calendar-button {
         display: grid;
         place-items: center;
@@ -589,8 +661,12 @@
         background: transparent;
         cursor: pointer;
     }
-    .na-date-picker__calendar-button:hover { color: var(--b3-theme-primary); }
-    .na-date-picker__calendar-button:disabled { cursor: not-allowed; }
+    .na-date-picker__calendar-button:hover {
+        color: var(--b3-theme-primary);
+    }
+    .na-date-picker__calendar-button:disabled {
+        cursor: not-allowed;
+    }
     .na-date-picker__error {
         margin-top: 4px;
         color: var(--b3-theme-error);
@@ -619,8 +695,14 @@
     }
 
     @keyframes na-dp-fade {
-        from { opacity: 0; transform: translateY(-4px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     /* ── Calendar header ── */
@@ -632,15 +714,28 @@
     }
 
     .na-date-picker__nav {
-        display: flex; align-items: center; justify-content: center;
-        width: 22px; height: 22px; padding: 0;
-        border: none; background: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: none;
         color: var(--b3-theme-on-surface-light);
-        cursor: pointer; border-radius: var(--na-radius-sm);
-        transition: background 0.15s, color 0.15s;
+        cursor: pointer;
+        border-radius: var(--na-radius-sm);
+        transition:
+            background 0.15s,
+            color 0.15s;
     }
-    .na-date-picker__nav:hover { background: var(--b3-theme-surface-light); color: var(--b3-theme-on-background); }
-    .na-date-picker__nav--previous :global(.na-icon) { transform: rotate(180deg); }
+    .na-date-picker__nav:hover {
+        background: var(--b3-theme-surface-light);
+        color: var(--b3-theme-on-background);
+    }
+    .na-date-picker__nav--previous :global(.na-icon) {
+        transform: rotate(180deg);
+    }
 
     .na-date-picker__month-year {
         font-size: var(--na-font-size-md);
@@ -669,26 +764,61 @@
         gap: 1px;
     }
     .na-date-picker__day {
-        display: flex; align-items: center; justify-content: center;
-        width: 28px; height: 26px; margin: 0 auto; padding: 0;
-        border: none; background: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 26px;
+        margin: 0 auto;
+        padding: 0;
+        border: none;
+        background: none;
         color: var(--b3-theme-on-background);
         font-size: var(--na-font-size-sm);
-        cursor: pointer; border-radius: var(--na-radius-sm);
-        transition: background 0.1s, color 0.1s;
+        cursor: pointer;
+        border-radius: var(--na-radius-sm);
+        transition:
+            background 0.1s,
+            color 0.1s;
         position: relative;
     }
-    .na-date-picker__day:hover { background: var(--b3-theme-surface-light); }
-    .na-date-picker__day--outside { color: var(--b3-theme-on-surface-light); opacity: 0.45; }
-    .na-date-picker__day--today { font-weight: 600; }
-    .na-date-picker__day--today::after {
-        content: ""; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
-        width: 4px; height: 2px; border-radius: 1px; background: var(--b3-theme-primary);
+    .na-date-picker__day:hover {
+        background: var(--b3-theme-surface-light);
     }
-    .na-date-picker__day--selected { background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); font-weight: 500; }
-    .na-date-picker__day--selected.na-date-picker__day--today::after { background: var(--b3-theme-on-primary); }
-    .na-date-picker__day--selected:hover { background: var(--b3-theme-primary-light); color: var(--b3-theme-on-primary); }
-    .na-date-picker__day--outside.na-date-picker__day--selected { opacity: 1; color: var(--b3-theme-on-primary); }
+    .na-date-picker__day--outside {
+        color: var(--b3-theme-on-surface-light);
+        opacity: 0.45;
+    }
+    .na-date-picker__day--today {
+        font-weight: 600;
+    }
+    .na-date-picker__day--today::after {
+        content: "";
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--b3-theme-primary);
+    }
+    .na-date-picker__day--selected {
+        background: var(--b3-theme-primary);
+        color: var(--b3-theme-on-primary);
+        font-weight: 500;
+    }
+    .na-date-picker__day--selected.na-date-picker__day--today::after {
+        background: var(--b3-theme-on-primary);
+    }
+    .na-date-picker__day--selected:hover {
+        background: var(--b3-theme-primary-light);
+        color: var(--b3-theme-on-primary);
+    }
+    .na-date-picker__day--outside.na-date-picker__day--selected {
+        opacity: 1;
+        color: var(--b3-theme-on-primary);
+    }
 
     /* ── Time section: below calendar, same width, Ant Design style ── */
     .na-date-picker__time-section {
@@ -728,7 +858,10 @@
         border-radius: var(--na-radius-md);
         background: var(--b3-theme-background);
 
-        &::-webkit-scrollbar { width: 0; display: none; }
+        &::-webkit-scrollbar {
+            width: 0;
+            display: none;
+        }
     }
 
     .na-date-picker__time-pad {
@@ -737,16 +870,23 @@
     }
 
     .na-date-picker__time-item {
-        display: flex; align-items: center; justify-content: center;
-        height: 22px; width: 100%; padding: 0;
-        border: none; background: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 22px;
+        width: 100%;
+        padding: 0;
+        border: none;
+        background: none;
         color: var(--b3-theme-on-surface-light);
         font-size: var(--na-font-size-sm);
         font-variant-numeric: tabular-nums;
         cursor: pointer;
         border-radius: 2px;
 
-        &:hover { background: var(--b3-theme-surface-light); }
+        &:hover {
+            background: var(--b3-theme-surface-light);
+        }
     }
 
     .na-date-picker__time-item--active {
@@ -756,7 +896,9 @@
     }
 
     .na-date-picker__time-sep {
-        display: flex; align-items: center; justify-content: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         width: 14px;
         font-size: var(--na-font-size-md);
         font-weight: 600;
@@ -776,36 +918,59 @@
     }
 
     .na-date-picker__time-toggle {
-        display: flex; align-items: center; gap: 3px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
         padding: 3px 6px;
-        border: none; background: none;
+        border: none;
+        background: none;
         color: var(--b3-theme-primary);
         font-size: var(--na-font-size-xs);
-        cursor: pointer; border-radius: var(--na-radius-sm);
+        cursor: pointer;
+        border-radius: var(--na-radius-sm);
         transition: background 0.15s;
 
-        &:hover { background: var(--b3-theme-primary-lightest); }
+        &:hover {
+            background: var(--b3-theme-primary-lightest);
+        }
     }
 
     .na-date-picker__footer-actions {
-        display: flex; align-items: center; gap: 2px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
     }
 
     .na-date-picker__action {
-        padding: 3px 8px; border: none; background: none;
+        padding: 3px 8px;
+        border: none;
+        background: none;
         color: var(--b3-theme-primary);
-        font-size: var(--na-font-size-sm); font-weight: 500;
-        cursor: pointer; border-radius: var(--na-radius-sm);
+        font-size: var(--na-font-size-sm);
+        font-weight: 500;
+        cursor: pointer;
+        border-radius: var(--na-radius-sm);
         transition: background 0.15s;
     }
-    .na-date-picker__action:hover { background: var(--b3-theme-primary-lightest); }
+    .na-date-picker__action:hover {
+        background: var(--b3-theme-primary-lightest);
+    }
 
     .na-date-picker__action--primary {
-        background: var(--b3-theme-primary); color: var(--b3-theme-on-primary);
-        border-radius: var(--na-radius-md); padding: 3px 10px;
+        background: var(--b3-theme-primary);
+        color: var(--b3-theme-on-primary);
+        border-radius: var(--na-radius-md);
+        padding: 3px 10px;
     }
-    .na-date-picker__action--primary:hover { background: var(--b3-theme-primary-light); color: var(--b3-theme-on-primary); }
+    .na-date-picker__action--primary:hover {
+        background: var(--b3-theme-primary-light);
+        color: var(--b3-theme-on-primary);
+    }
 
-    .na-date-picker__action--danger { color: var(--b3-theme-error); }
-    .na-date-picker__action--danger:hover { background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-surface)); }
+    .na-date-picker__action--danger {
+        color: var(--b3-theme-error);
+    }
+    .na-date-picker__action--danger:hover {
+        background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-surface));
+    }
 </style>

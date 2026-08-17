@@ -21,7 +21,7 @@ function snapshot(streamId: string, revision: number, tasks = [taskFactory(TASK_
 }
 
 function tick(): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, 0));
+    return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 test("纯 reducer 每批统一更新任务及全部聚合值", () => {
@@ -35,35 +35,46 @@ test("纯 reducer 每批统一更新任务及全部聚合值", () => {
         deletedBlockIds: [TASK_B],
     });
 
-    assert.deepEqual(reduction.collection.allTasks.find(task => task.blockId === PROJECT)?.childIds, [TASK_A]);
+    assert.deepEqual(reduction.collection.allTasks.find((task) => task.blockId === PROJECT)?.childIds, [TASK_A]);
     assert.deepEqual(reduction.collection.contexts, ["work", "home"]);
     assert.deepEqual(reduction.collection.tags, ["phase-four"]);
     assert.equal(reduction.collection.doneCount, 1);
-    assert.deepEqual(reduction.collection.projectReminders.map(task => task.blockId), [PROJECT]);
+    assert.deepEqual(
+        reduction.collection.projectReminders.map((task) => task.blockId),
+        [PROJECT],
+    );
     assert.equal(reduction.completedChanged, true);
 });
 
 test("V2 snapshot 与 delta 校验拒绝缺字段、重复和交叉 ID", () => {
     assert.equal(isTaskSnapshotV2(snapshot("stream-a", 0)), true);
     assert.equal(isTaskSnapshotV2({ ...snapshot("stream-a", 0), tasks: [{ blockId: TASK_A }] }), false);
-    assert.equal(isTaskChangeSetV2({
-        schema: 2,
-        type: "delta",
-        streamId: "stream-a",
-        fromRevision: 0,
-        revision: 1,
-        upserts: [taskFactory(TASK_A)],
-        deletedBlockIds: [TASK_A],
-    }), false);
+    assert.equal(
+        isTaskChangeSetV2({
+            schema: 2,
+            type: "delta",
+            streamId: "stream-a",
+            fromRevision: 0,
+            revision: 1,
+            upserts: [taskFactory(TASK_A)],
+            deletedBlockIds: [TASK_A],
+        }),
+        false,
+    );
 });
 
 test("snapshot 握手期间缓存并按 revision 重放 V2 通知", async () => {
     let resolveSnapshot!: (value: TaskSnapshotV2) => void;
-    const pendingSnapshot = new Promise<TaskSnapshotV2>(resolve => { resolveSnapshot = resolve; });
+    const pendingSnapshot = new Promise<TaskSnapshotV2>((resolve) => {
+        resolveSnapshot = resolve;
+    });
     let getAllCalls = 0;
     const bridge = {
         getTaskSnapshotV2: () => pendingSnapshot,
-        getAllTasks: async () => { getAllCalls++; return []; },
+        getAllTasks: async () => {
+            getAllCalls++;
+            return [];
+        },
     } as unknown as KernelBridge;
     const store = createTaskStore();
     store.setBridge(bridge);
@@ -94,7 +105,9 @@ test("revision 缺口触发 snapshot 恢复且过期通知被忽略", async () =
     let snapshotCalls = 0;
     const bridge = {
         getTaskSnapshotV2: async () => snapshots[Math.min(snapshotCalls++, snapshots.length - 1)],
-        getAllTasks: async () => { throw new Error("V2 must not call getAllTasks"); },
+        getAllTasks: async () => {
+            throw new Error("V2 must not call getAllTasks");
+        },
     } as unknown as KernelBridge;
     const store = createTaskStore();
     store.setBridge(bridge);
@@ -111,7 +124,10 @@ test("revision 缺口触发 snapshot 恢复且过期通知被忽略", async () =
     });
     await tick();
     await tick();
-    assert.deepEqual(get(store).allTasks.map(task => task.blockId), [TASK_B]);
+    assert.deepEqual(
+        get(store).allTasks.map((task) => task.blockId),
+        [TASK_B],
+    );
     assert.equal(snapshotCalls, 2);
 
     store.applyChangeSetV2({
@@ -137,7 +153,9 @@ test("reset、stream 变化和非法载荷都通过 V2 snapshot 恢复", async (
     let snapshotCalls = 0;
     const bridge = {
         getTaskSnapshotV2: async () => snapshots[Math.min(snapshotCalls++, snapshots.length - 1)],
-        getAllTasks: async () => { throw new Error("V2 recovery must not call getAllTasks"); },
+        getAllTasks: async () => {
+            throw new Error("V2 recovery must not call getAllTasks");
+        },
     } as unknown as KernelBridge;
     const store = createTaskStore();
     store.setBridge(bridge);
@@ -167,8 +185,13 @@ test("reset、stream 变化和非法载荷都通过 V2 snapshot 恢复", async (
 test("旧内核自动退回 V1，并将一批逐 ID 回读交给同一 reducer", async () => {
     let getAllCalls = 0;
     const bridge = {
-        getTaskSnapshotV2: async () => { throw new Error("unknown RPC method"); },
-        getAllTasks: async () => { getAllCalls++; return [taskFactory(TASK_A)]; },
+        getTaskSnapshotV2: async () => {
+            throw new Error("unknown RPC method");
+        },
+        getAllTasks: async () => {
+            getAllCalls++;
+            return [taskFactory(TASK_A)];
+        },
         getTask: async (blockId: string) => taskFactory(blockId, { status: "done", context: "legacy" }),
     } as unknown as KernelBridge;
     const store = createTaskStore();

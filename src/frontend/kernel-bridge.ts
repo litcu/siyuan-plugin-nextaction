@@ -1,4 +1,13 @@
-import type { TaskCacheEntry, TaskChangeNotification, TaskSnapshotV2, StatisticsResult, PluginSettings, MyDayState, ReviewData, CompletedTasksPage } from "../shared/types";
+import type {
+    TaskCacheEntry,
+    TaskChangeNotification,
+    TaskSnapshotV2,
+    StatisticsResult,
+    PluginSettings,
+    MyDayState,
+    ReviewData,
+    CompletedTasksPage,
+} from "../shared/types";
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
@@ -56,7 +65,10 @@ export class KernelBridge {
         this.plugin = plugin;
     }
 
-    private async call<Method extends RpcMethodName>(method: Method, params: RpcParams<Method>): Promise<RpcReturn<Method>> {
+    private async call<Method extends RpcMethodName>(
+        method: Method,
+        params: RpcParams<Method>,
+    ): Promise<RpcReturn<Method>> {
         if (this.plugin.kernel.state.code !== 2) {
             throw new RpcCallError(RPC_ERROR_NOT_READY, "Kernel not ready");
         }
@@ -81,7 +93,11 @@ export class KernelBridge {
         return this.call("convertToTask", { blockId: assertBlockId(blockId), cleanTitle, taskType });
     }
 
-    async convertToTaskWithChildren(blockId: string, cleanTitle?: string, taskType?: string): Promise<{ converted: number; skipped: number }> {
+    async convertToTaskWithChildren(
+        blockId: string,
+        cleanTitle?: string,
+        taskType?: string,
+    ): Promise<{ converted: number; skipped: number }> {
         return this.call("convertToTaskWithChildren", { blockId: assertBlockId(blockId), cleanTitle, taskType });
     }
 
@@ -187,7 +203,13 @@ export class KernelBridge {
         return this.call("validateAiProposal", { proposal });
     }
 
-    async applyAiProposal(proposal: AiProposal): Promise<{ feature: string; created: TaskCacheEntry[]; converted: TaskCacheEntry[]; myDay: MyDayState | null; warnings: string[] }> {
+    async applyAiProposal(proposal: AiProposal): Promise<{
+        feature: string;
+        created: TaskCacheEntry[];
+        converted: TaskCacheEntry[];
+        myDay: MyDayState | null;
+        warnings: string[];
+    }> {
         return this.call("applyAiProposal", { proposal });
     }
 
@@ -199,7 +221,10 @@ export class KernelBridge {
         return this.call("listMcpTargetNotebooks", {});
     }
 
-    async listMcpTargetDocuments(notebookId: string, path = "/"): Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }> {
+    async listMcpTargetDocuments(
+        notebookId: string,
+        path = "/",
+    ): Promise<{ notebookId: string; path: string; items: RpcMcpDocumentListItem[] }> {
         return this.call("listMcpTargetDocuments", { notebookId, path });
     }
 
@@ -219,7 +244,10 @@ export class KernelBridge {
         return this.call("resolveChildTarget", { value });
     }
 
-    async getCustomFieldDiagnostics(): Promise<{ fields: Array<{ fieldId: string; key: string; status: string; count: number }>; orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }> }> {
+    async getCustomFieldDiagnostics(): Promise<{
+        fields: Array<{ fieldId: string; key: string; status: string; count: number }>;
+        orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }>;
+    }> {
         return this.call("getCustomFieldDiagnostics", {});
     }
 

@@ -27,11 +27,12 @@
     $: targetOffset = geometry.targetX === undefined ? null : geometry.targetX - anchorLeft;
     $: targetBufferLeft = targetOffset === null ? 0 : Math.min(anchorWidth, targetOffset);
     $: targetBufferWidth = targetOffset === null ? 0 : Math.abs(targetOffset - anchorWidth);
-    $: outsideLabel = geometry.kind === "deadline"
-        ? `${geometry.endDate.slice(5)} · ${task.title || i18n?.untitled || "Untitled"}`
-        : geometry.kind === "open"
-            ? `${geometry.startDate.slice(5)} → · ${task.title || i18n?.untitled || "Untitled"}`
-        : task.title || i18n?.untitled || "Untitled";
+    $: outsideLabel =
+        geometry.kind === "deadline"
+            ? `${geometry.endDate.slice(5)} · ${task.title || i18n?.untitled || "Untitled"}`
+            : geometry.kind === "open"
+              ? `${geometry.startDate.slice(5)} → · ${task.title || i18n?.untitled || "Untitled"}`
+              : task.title || i18n?.untitled || "Untitled";
     $: tooltipText = buildTooltipText();
 
     function getStatusColor(entry: TaskCacheEntry): string {
@@ -61,10 +62,14 @@
             });
             if (geometry.kind === "rollup") schedule = `${i18n?.ganttSummary || "Summary"}: ${schedule}`;
         }
-        if (geometry.targetDate) schedule += ` · ${i18n?.ganttProjectDeadline || "Project deadline"}: ${geometry.targetDate}`;
+        if (geometry.targetDate)
+            schedule += ` · ${i18n?.ganttProjectDeadline || "Project deadline"}: ${geometry.targetDate}`;
         if (geometry.invalidRange) schedule += ` · ${i18n?.ganttInvalidRange || "Start is after due date"}`;
         if (dependencyCount > 0) {
-            const dependencyText = (i18n?.dependencyCount || "{n} dependencies").replace("{n}", String(dependencyCount));
+            const dependencyText = (i18n?.dependencyCount || "{n} dependencies").replace(
+                "{n}",
+                String(dependencyCount),
+            );
             schedule += ` · ${dependencyText}`;
         }
         return schedule;
@@ -106,7 +111,9 @@
         >
             <span class="na-gantt-bar__visual">
                 {#if showInsideLabel}
-                    <span class="na-gantt-bar__label na-gantt-bar__label--inside">{task.title || i18n?.untitled || "Untitled"}</span>
+                    <span class="na-gantt-bar__label na-gantt-bar__label--inside"
+                        >{task.title || i18n?.untitled || "Untitled"}</span
+                    >
                     {#if showInsideDate}<span class="na-gantt-bar__date">{geometry.endDate.slice(5)}</span>{/if}
                 {/if}
             </span>
@@ -134,8 +141,8 @@
             class="na-gantt-bar__target-label"
             class:na-gantt-bar__target-label--late={geometry.targetLate}
             style="left: {targetOffset - 39}px"
-            aria-hidden="true"
-        >{geometry.targetDate.slice(5)}</span>
+            aria-hidden="true">{geometry.targetDate.slice(5)}</span
+        >
     {/if}
 </div>
 
@@ -254,7 +261,9 @@
         box-shadow: none;
     }
 
-    .na-gantt-bar-anchor--clarify .na-gantt-bar__visual::before { background: var(--na-color-warning); }
+    .na-gantt-bar-anchor--clarify .na-gantt-bar__visual::before {
+        background: var(--na-color-warning);
+    }
 
     .na-gantt-bar-anchor--overdue .na-gantt-bar__visual,
     .na-gantt-bar-anchor--invalid .na-gantt-bar__visual {
@@ -262,7 +271,7 @@
     }
 
     .na-gantt-bar-anchor--done {
-        opacity: .55;
+        opacity: 0.55;
     }
 
     .na-gantt-bar-anchor--done .na-gantt-bar__label {
@@ -270,7 +279,9 @@
     }
 
     .na-gantt-bar-anchor--selected .na-gantt-bar__visual {
-        box-shadow: 0 0 0 2px var(--na-accent), var(--na-shadow-sm);
+        box-shadow:
+            0 0 0 2px var(--na-accent),
+            var(--na-shadow-sm);
     }
 
     .na-gantt-bar-anchor--deadline .na-gantt-bar__visual {
@@ -326,11 +337,17 @@
         background: color-mix(in srgb, var(--na-gantt-bar-color) 78%, var(--b3-theme-surface));
     }
 
-    .na-gantt-bar-anchor--rollup .na-gantt-bar__visual::before { left: 0; }
-    .na-gantt-bar-anchor--rollup .na-gantt-bar__visual::after { right: 0; }
+    .na-gantt-bar-anchor--rollup .na-gantt-bar__visual::before {
+        left: 0;
+    }
+    .na-gantt-bar-anchor--rollup .na-gantt-bar__visual::after {
+        right: 0;
+    }
 
     .na-gantt-bar-anchor--deadline.na-gantt-bar-anchor--selected .na-gantt-bar__visual {
-        box-shadow: 0 0 0 2px var(--b3-theme-background), 0 0 0 4px var(--na-accent);
+        box-shadow:
+            0 0 0 2px var(--b3-theme-background),
+            0 0 0 4px var(--na-accent);
     }
 
     .na-gantt-bar-anchor--rollup.na-gantt-bar-anchor--selected .na-gantt-bar__visual {
@@ -346,7 +363,9 @@
         pointer-events: none;
     }
 
-    .na-gantt-bar__buffer--late { border-color: color-mix(in srgb, var(--na-color-error) 62%, var(--na-color-divider)); }
+    .na-gantt-bar__buffer--late {
+        border-color: color-mix(in srgb, var(--na-color-error) 62%, var(--na-color-divider));
+    }
 
     .na-gantt-bar__target {
         position: absolute;
@@ -361,7 +380,9 @@
         transform: rotate(45deg);
     }
 
-    .na-gantt-bar__target--late { border-color: var(--na-color-error); }
+    .na-gantt-bar__target--late {
+        border-color: var(--na-color-error);
+    }
 
     .na-gantt-bar__target-label {
         position: absolute;
@@ -377,5 +398,7 @@
         pointer-events: none;
     }
 
-    .na-gantt-bar__target-label--late { color: var(--na-color-error); }
+    .na-gantt-bar__target-label--late {
+        color: var(--na-color-error);
+    }
 </style>

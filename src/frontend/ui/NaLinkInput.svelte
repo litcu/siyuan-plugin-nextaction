@@ -21,7 +21,11 @@
         if (!raw) return false;
         try {
             const url = new URL(raw);
-            return url.protocol === "http:" || url.protocol === "https:" || (url.protocol === "siyuan:" && raw.startsWith("siyuan://blocks/"));
+            return (
+                url.protocol === "http:" ||
+                url.protocol === "https:" ||
+                (url.protocol === "siyuan:" && raw.startsWith("siyuan://blocks/"))
+            );
         } catch (_error) {
             return false;
         }
@@ -54,7 +58,16 @@
         aria-label={resolvedOpenLabel}
         on:click={handleOpen}
     >
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+            viewBox="0 0 16 16"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
             <path d="M9.5 2.5h4v4" />
             <path d="M7 9l6.5-6.5" />
             <path d="M12.5 9.5v3a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3" />
@@ -72,7 +85,9 @@
         background: var(--b3-theme-background);
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-md);
-        transition: border-color 0.15s, box-shadow 0.15s;
+        transition:
+            border-color 0.15s,
+            box-shadow 0.15s;
 
         &:hover:not(.na-link-input--disabled) {
             border-color: var(--b3-theme-primary-light);
@@ -84,7 +99,9 @@
         }
     }
 
-    .na-link-input--disabled { opacity: 0.45; }
+    .na-link-input--disabled {
+        opacity: 0.45;
+    }
 
     .na-link-input__control {
         flex: 1 1 auto;
@@ -97,7 +114,9 @@
         outline: none;
         font: inherit;
 
-        &::placeholder { color: var(--b3-theme-on-surface-light); }
+        &::placeholder {
+            color: var(--b3-theme-on-surface-light);
+        }
     }
 
     .na-link-input .na-link-input__control:focus-visible,
@@ -118,7 +137,9 @@
         border: none;
         border-left: 1px solid var(--na-color-divider);
         cursor: pointer;
-        transition: color 0.15s, background 0.15s;
+        transition:
+            color 0.15s,
+            background 0.15s;
 
         &:hover:not(:disabled) {
             color: var(--b3-theme-on-primary);

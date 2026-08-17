@@ -42,12 +42,12 @@
     }
     let isClicking = false;
 
-    $: selectedArray = Array.isArray(selected) ? (selected as string[]) : (selected ? [selected] : []);
-    $: availableOptions = allOptions.filter(o => !selectedArray.includes(o));
+    $: selectedArray = Array.isArray(selected) ? (selected as string[]) : selected ? [selected] : [];
+    $: availableOptions = allOptions.filter((o) => !selectedArray.includes(o));
     $: filteredOptions = input.trim()
-        ? availableOptions.filter(o => o.toLowerCase().includes(input.trim().toLowerCase())).slice(0, 8)
+        ? availableOptions.filter((o) => o.toLowerCase().includes(input.trim().toLowerCase())).slice(0, 8)
         : availableOptions.slice(0, 8);
-    $: filteredResults = results.filter(r => !selectedArray.includes(r.id));
+    $: filteredResults = results.filter((r) => !selectedArray.includes(r.id));
     $: hasDropdownContent = filteredResults.length > 0 || filteredOptions.length > 0;
 
     function updateDropdownPosition() {
@@ -98,7 +98,9 @@
         if (inputEl) {
             inputEl.focus();
         }
-        setTimeout(() => { isClicking = false; }, 0);
+        setTimeout(() => {
+            isClicking = false;
+        }, 0);
     }
 
     function clearAndReopen() {
@@ -172,7 +174,7 @@
 
     function removeItem(id: string) {
         if (multi) {
-            selected = selectedArray.filter(x => x !== id);
+            selected = selectedArray.filter((x) => x !== id);
         } else {
             selected = "";
             selectedLabel = "";
@@ -222,10 +224,25 @@
 <svelte:window on:click={closeDropdown} on:resize={handleViewportChange} />
 
 <div class="na-search-select" bind:this={containerEl}>
-    <div class="na-search-select__box" role="combobox" aria-controls="na-search-select-options" aria-expanded={dropdownOpen} tabindex="0" on:mousedown={handleBoxMousedown} on:click={handleBoxClick} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") handleBoxClick(); }}>
+    <div
+        class="na-search-select__box"
+        role="combobox"
+        aria-controls="na-search-select-options"
+        aria-expanded={dropdownOpen}
+        tabindex="0"
+        on:mousedown={handleBoxMousedown}
+        on:click={handleBoxClick}
+        on:keydown={(event) => {
+            if (event.key === "Enter" || event.key === " ") handleBoxClick();
+        }}
+    >
         {#if !multi && selected}
             <span class="na-search-select__selected">{selectedLabel || String(selected)}</span>
-            <button class="na-search-select__clear b3-tooltips b3-tooltips__n" on:click|stopPropagation={clearAndReopen} aria-label={clearLabel}>
+            <button
+                class="na-search-select__clear b3-tooltips b3-tooltips__n"
+                on:click|stopPropagation={clearAndReopen}
+                aria-label={clearLabel}
+            >
                 <NaIcon symbol="iconCloseRound" size={10} />
             </button>
         {:else}
@@ -234,7 +251,11 @@
                     {#each selectedArray as item}
                         <span class="na-search-select__chip">
                             {labelMap.get(item) || item}
-                            <button class="na-search-select__chip-remove b3-tooltips b3-tooltips__n" on:click|stopPropagation={() => removeItem(item)} aria-label={`${removeLabel}: ${labelMap.get(item) || item}`}>
+                            <button
+                                class="na-search-select__chip-remove b3-tooltips b3-tooltips__n"
+                                on:click|stopPropagation={() => removeItem(item)}
+                                aria-label={`${removeLabel}: ${labelMap.get(item) || item}`}
+                            >
                                 <NaIcon symbol="iconCloseRound" size={8} />
                             </button>
                         </span>
@@ -282,7 +303,11 @@
                 </button>
             {/each}
             {#if allowCreate && multi && input.trim() && !selectedArray.includes(input.trim()) && !filteredOptions.includes(input.trim()) && filteredResults.length === 0}
-                <button type="button" class="na-search-select__option na-search-select__option--create" on:click={() => selectItem({ id: input.trim(), label: input.trim() })}>
+                <button
+                    type="button"
+                    class="na-search-select__option na-search-select__option--create"
+                    on:click={() => selectItem({ id: input.trim(), label: input.trim() })}
+                >
                     + {input.trim()}
                 </button>
             {/if}
@@ -345,7 +370,9 @@
         cursor: pointer;
         border-radius: 50%;
         flex-shrink: 0;
-        transition: color 0.15s, background 0.15s;
+        transition:
+            color 0.15s,
+            background 0.15s;
 
         &:hover {
             color: var(--b3-theme-on-background);
@@ -454,7 +481,9 @@
         overflow-wrap: anywhere;
         color: var(--b3-theme-on-background);
         cursor: pointer;
-        transition: background-color 0.1s, color 0.1s;
+        transition:
+            background-color 0.1s,
+            color 0.1s;
 
         &:hover,
         &:focus-visible {

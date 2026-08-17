@@ -81,12 +81,16 @@ test("MCP 工具清单稳定区分只读和写入工具", () => {
 });
 
 test("任务 DTO 将内部字符串转换为 MCP 友好结构", () => {
-    const dto = taskToMcpDto(task({
-        depends: "20260802120001-bbbbbbb|20260802120002-ccccccc",
-        completed: "2026-08-01T09:00:00|2026-08-02T10:00:00",
-        reminder: "[]",
-        customFields: { ghost: "internal" },
-    }), [], true);
+    const dto = taskToMcpDto(
+        task({
+            depends: "20260802120001-bbbbbbb|20260802120002-ccccccc",
+            completed: "2026-08-01T09:00:00|2026-08-02T10:00:00",
+            reminder: "[]",
+            customFields: { ghost: "internal" },
+        }),
+        [],
+        true,
+    );
 
     assert.equal(dto.id, "20260802120000-abcdefg");
     assert.equal(dto.siyuanUrl, "siyuan://blocks/20260802120000-abcdefg");
@@ -106,7 +110,14 @@ test("任务查询支持关键词、项目后代、状态过滤和分页", () =>
     const project = task({ blockId: "project", taskType: "2", title: "Launch", tags: "", order: 5 });
     const child = task({ blockId: "child", parentId: "project", title: "Call Alice", order: 9 });
     const grandchild = task({ blockId: "grandchild", parentId: "child", title: "Email contract", tags: "", order: 8 });
-    const done = task({ blockId: "done", parentId: "project", title: "Call Bob", tags: "", status: "done", order: 100 });
+    const done = task({
+        blockId: "done",
+        parentId: "project",
+        title: "Call Bob",
+        tags: "",
+        status: "done",
+        order: 100,
+    });
 
     const result = searchTasksForMcp([project, child, grandchild, done], {
         query: "call",
@@ -125,18 +136,22 @@ test("任务查询支持关键词、项目后代、状态过滤和分页", () =>
 });
 
 test("写入映射只接受白名单字段并正确处理清空", () => {
-    const attrs = buildTaskAttrsFromMcpPatch({
-        priority: "high",
-        contexts: ["office", "@office", "@@phone"],
-        tags: [],
-        due: null,
-        sequential: true,
-        dependencyIds: ["20260802120001-bbbbbbb"],
-        reminders: { mode: "disabled" },
-        kind: "project",
-        status: "done",
-        repeat: null,
-    }, [], task());
+    const attrs = buildTaskAttrsFromMcpPatch(
+        {
+            priority: "high",
+            contexts: ["office", "@office", "@@phone"],
+            tags: [],
+            due: null,
+            sequential: true,
+            dependencyIds: ["20260802120001-bbbbbbb"],
+            reminders: { mode: "disabled" },
+            kind: "project",
+            status: "done",
+            repeat: null,
+        },
+        [],
+        task(),
+    );
 
     assert.deepEqual(attrs, {
         "custom-na-priority": "high",
@@ -151,28 +166,26 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
         "custom-na-repeat": "",
     });
 
+    assert.throws(() => buildTaskAttrsFromMcpPatch({ rawAttribute: "done" } as any, [], task()), /not allowed/);
+    assert.throws(() => buildTaskAttrsFromMcpPatch({ due: "2026-02-31" }, [], task()), /valid date/);
+    assert.throws(() => buildTaskAttrsFromMcpPatch({ dependencyMode: "some" } as any, [], task()), /dependencyMode/);
+    assert.throws(() => buildTaskAttrsFromMcpPatch({ sequential: "yes" } as any, [], task()), /sequential/);
     assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ rawAttribute: "done" } as any, [], task()),
-        /not allowed/,
-    );
-    assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ due: "2026-02-31" }, [], task()),
-        /valid date/,
-    );
-    assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ dependencyMode: "some" } as any, [], task()),
-        /dependencyMode/,
-    );
-    assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ sequential: "yes" } as any, [], task()),
-        /sequential/,
-    );
-    assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ reminders: { mode: "custom", items: [{ type: "relative", minutes: 0 }] } }, [], task()),
+        () =>
+            buildTaskAttrsFromMcpPatch(
+                { reminders: { mode: "custom", items: [{ type: "relative", minutes: 0 }] } },
+                [],
+                task(),
+            ),
         /relative reminder/,
     );
     assert.throws(
-        () => buildTaskAttrsFromMcpPatch({ reminders: { mode: "custom", items: [{ type: "absolute", time: "2026-02-31T09:00" }] } }, [], task()),
+        () =>
+            buildTaskAttrsFromMcpPatch(
+                { reminders: { mode: "custom", items: [{ type: "absolute", time: "2026-02-31T09:00" }] } },
+                [],
+                task(),
+            ),
         /absolute reminder/,
     );
 });
@@ -184,16 +197,23 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
     assert.equal(extractDocumentIdFromPath("/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
     assert.equal(extractDocumentIdFromPath("/parent/20260808123456-abcdefg.sy"), "20260808123456-abcdefg");
     assert.equal(extractDocumentIdFromPath("/parent/not-a-document.sy"), "");
-    assert.equal(extractInsertedBlockId([{ doOperations: [{ action: "insert", id: "20260802120000-abcdefg" }] }]), "20260802120000-abcdefg");
+    assert.equal(
+        extractInsertedBlockId([{ doOperations: [{ action: "insert", id: "20260802120000-abcdefg" }] }]),
+        "20260802120000-abcdefg",
+    );
     assert.deepEqual(
-        extractInsertedBlockMeta([{
-            doOperations: [{
-                action: "insert",
-                id: "20260802120000-abcdefg",
-                parentID: "20260802119999-parentx",
-                data: '<div data-node-id="20260802120000-abcdefg" data-type="NodeParagraph"><div>Call Alice</div></div>',
-            }],
-        }]),
+        extractInsertedBlockMeta([
+            {
+                doOperations: [
+                    {
+                        action: "insert",
+                        id: "20260802120000-abcdefg",
+                        parentID: "20260802119999-parentx",
+                        data: '<div data-node-id="20260802120000-abcdefg" data-type="NodeParagraph"><div>Call Alice</div></div>',
+                    },
+                ],
+            },
+        ]),
         {
             id: "20260802120000-abcdefg",
             parentId: "20260802119999-parentx",
@@ -201,14 +221,18 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
         },
     );
     assert.deepEqual(
-        extractInsertedBlockMeta([{
-            doOperations: [{
-                action: "insert",
-                id: "20260802120000-listabc",
-                parentID: "20260802119999-parentx",
-                data: '<div data-node-id="20260802120000-listabc" data-type="NodeList"><div data-node-id="20260802120001-childaa" data-type="NodeParagraph"><div>Child</div></div></div>',
-            }],
-        }]),
+        extractInsertedBlockMeta([
+            {
+                doOperations: [
+                    {
+                        action: "insert",
+                        id: "20260802120000-listabc",
+                        parentID: "20260802119999-parentx",
+                        data: '<div data-node-id="20260802120000-listabc" data-type="NodeList"><div data-node-id="20260802120001-childaa" data-type="NodeParagraph"><div>Child</div></div></div>',
+                    },
+                ],
+            },
+        ]),
         {
             id: "20260802120001-childaa",
             parentId: "20260802119999-parentx",

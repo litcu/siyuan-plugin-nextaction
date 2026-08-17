@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import { renderAiPromptTemplate } from "../src/frontend/ai/ai-prompt-template.ts";
 
 test("AI 提示词模板会替换通用和功能上下文变量", () => {
-    const result = renderAiPromptTemplate("功能={{feature}} 日期={{today}} 任务={{currentTaskBlock}} 候选={{nextaction}}", {
-        feature: "decomposeTask",
-        context: { task: { blockId: "task-1", title: "准备发布" }, candidates: [{ blockId: "next-1" }] },
-    });
+    const result = renderAiPromptTemplate(
+        "功能={{feature}} 日期={{today}} 任务={{currentTaskBlock}} 候选={{nextaction}}",
+        {
+            feature: "decomposeTask",
+            context: { task: { blockId: "task-1", title: "准备发布" }, candidates: [{ blockId: "next-1" }] },
+        },
+    );
     assert.match(result.text, /decomposeTask/);
     assert.match(result.text, /task-1/);
     assert.match(result.text, /next-1/);

@@ -27,9 +27,24 @@
     .na-badge:hover {
         opacity: 0.85;
     }
-    .na-badge--primary { color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
-    .na-badge--info { color: var(--na-color-info); background: var(--na-color-info-bg); }
-    .na-badge--success { color: var(--na-color-success); background: var(--na-color-success-bg); }
-    .na-badge--warning { color: var(--na-color-warning); background: var(--na-color-warning-bg); }
-    .na-badge--danger { color: var(--na-color-error); background: var(--na-color-error-bg); }
+    .na-badge--primary {
+        color: var(--b3-theme-primary);
+        background: var(--b3-theme-primary-lightest);
+    }
+    .na-badge--info {
+        color: var(--na-color-info);
+        background: var(--na-color-info-bg);
+    }
+    .na-badge--success {
+        color: var(--na-color-success);
+        background: var(--na-color-success-bg);
+    }
+    .na-badge--warning {
+        color: var(--na-color-warning);
+        background: var(--na-color-warning-bg);
+    }
+    .na-badge--danger {
+        color: var(--na-color-error);
+        background: var(--na-color-error-bg);
+    }
 </style>

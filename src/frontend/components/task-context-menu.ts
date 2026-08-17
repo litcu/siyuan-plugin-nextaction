@@ -37,9 +37,10 @@ export function showTaskContextMenu(
                     const updated = await bridge.updateTask(task.blockId, { "na-status": s });
                     callbacks.onUpdated(updated);
                     const statusLabel = i18n?.[i18nKey] || s;
-                    const template = s === "done"
-                        ? (i18n?.taskMarkedDone || "Marked as done")
-                        : (i18n?.taskStatusUpdated || "Status updated to {status}");
+                    const template =
+                        s === "done"
+                            ? i18n?.taskMarkedDone || "Marked as done"
+                            : i18n?.taskStatusUpdated || "Status updated to {status}";
                     notifyInfo(template.replace("{status}", statusLabel));
                 } catch (e: any) {
                     console.error("[NextAction] updateTask (status) failed:", e);
@@ -76,9 +77,7 @@ export function showTaskContextMenu(
         const isInMyDay = inMyDay ?? false;
         menu.addItem({
             icon: isInMyDay ? "iconClose" : "iconBookmark",
-            label: isInMyDay
-                ? (i18n?.removeFromMyDay || "Remove from My Day")
-                : (i18n?.addToMyDay || "Add to My Day"),
+            label: isInMyDay ? i18n?.removeFromMyDay || "Remove from My Day" : i18n?.addToMyDay || "Add to My Day",
             click: async () => {
                 callbacks.onMyDayToggle!(task.blockId, isInMyDay);
             },
@@ -108,9 +107,7 @@ export function showTaskContextMenu(
 
         if (repeatStatus !== "ended") {
             menu.addItem({
-                label: repeatStatus === "paused"
-                    ? (i18n?.repeatResume || "Resume")
-                    : (i18n?.repeatPause || "Pause"),
+                label: repeatStatus === "paused" ? i18n?.repeatResume || "Resume" : i18n?.repeatPause || "Pause",
                 click: async () => {
                     try {
                         const updated = await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused");
@@ -128,7 +125,9 @@ export function showTaskContextMenu(
     if (callbacks.onEdit) {
         menu.addItem({
             icon: "iconEdit",
-            label: isProject ? (i18n?.projectProperties || "Project Properties") : (i18n?.taskProperties || "Task Properties"),
+            label: isProject
+                ? i18n?.projectProperties || "Project Properties"
+                : i18n?.taskProperties || "Task Properties",
             click: () => {
                 callbacks.onEdit!(task);
             },
@@ -139,7 +138,9 @@ export function showTaskContextMenu(
 
     menu.addItem({
         icon: "iconSparkles",
-        label: isProject ? (i18n?.aiDecomposeProject || "Break down project with AI") : (i18n?.aiDecomposeTask || "Break down with AI"),
+        label: isProject
+            ? i18n?.aiDecomposeProject || "Break down project with AI"
+            : i18n?.aiDecomposeTask || "Break down with AI",
         click: async () => runAiDecomposeTask(task),
     });
 
@@ -159,13 +160,14 @@ export function showTaskContextMenu(
 
     menu.addItem({
         icon: "iconTrashcan",
-        label: isProject ? (i18n?.removeProject || "Remove Project") : (i18n?.removeTask || "Remove Task"),
+        label: isProject ? i18n?.removeProject || "Remove Project" : i18n?.removeTask || "Remove Task",
         click: async () => {
             confirm(
-                isProject ? (i18n?.removeProject || "Remove Project") : (i18n?.removeTask || "Remove Task"),
+                isProject ? i18n?.removeProject || "Remove Project" : i18n?.removeTask || "Remove Task",
                 isProject
-                    ? (i18n?.confirmRemoveProject || "This will clear all project attributes. This action cannot be undone.")
-                    : (i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone."),
+                    ? i18n?.confirmRemoveProject ||
+                          "This will clear all project attributes. This action cannot be undone."
+                    : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.",
                 async () => {
                     try {
                         await bridge.removeTask(task.blockId);

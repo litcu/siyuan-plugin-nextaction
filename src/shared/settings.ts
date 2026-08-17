@@ -1,16 +1,7 @@
 // Plugin settings: type definition, defaults, and validation
 import { type ReminderSoundId, REMINDER_SOUND_IDS } from "./constants";
-import {
-    migrateCustomFieldDefs,
-    validateCustomFieldDefinitions,
-    type CustomFieldDef,
-} from "./custom-fields";
-import {
-    DEFAULT_MCP_SETTINGS,
-    mergeMcpSettings,
-    validateMcpSettings,
-    type McpSettings,
-} from "./mcp-settings";
+import { migrateCustomFieldDefs, validateCustomFieldDefinitions, type CustomFieldDef } from "./custom-fields";
+import { DEFAULT_MCP_SETTINGS, mergeMcpSettings, validateMcpSettings, type McpSettings } from "./mcp-settings";
 import type { AiFeatureId } from "./ai";
 import {
     DEFAULT_TASK_CREATION_SETTINGS,
@@ -56,7 +47,7 @@ export type MyDayViewMode = "timeline" | "list";
 
 export interface ReminderSettings {
     enabled: boolean;
-    defaultOffsets: number[];       // 默认提前量（分钟数）
+    defaultOffsets: number[]; // 默认提前量（分钟数）
     dueSound: ReminderSoundId;
     reviewSound: ReminderSoundId;
     soundEnabled: boolean;
@@ -137,7 +128,8 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 // a user-written short prompt is preserved.
 const LEGACY_AI_PROMPTS: Record<AiFeatureId, string> = {
     extractTasks: "从提供的笔记内容中识别真正可执行的任务和项目。保留来源块 ID；不要把背景、观点或资料当成任务。",
-    decomposeTask: "把目标拆成少量、明确、可执行的子任务；第一项应是当前真正的下一步行动。使用 dependsOnIndexes 表示必要顺序。",
+    decomposeTask:
+        "把目标拆成少量、明确、可执行的子任务；第一项应是当前真正的下一步行动。使用 dependsOnIndexes 表示必要顺序。",
     planMyDay: "从候选任务中挑选今天最值得加入 My Day 的任务。只返回建议加入的 blockId，不安排时间，不修改任务属性。",
     review: "按 GTD 回顾分组分析任务。上下文中的 groups 保存本地分组与任务 ID 的映射，tasks 保存去重后的任务摘要；只返回每个分组的观察、风险和处理建议，不要重复返回任务 ID。指出积压、等待、将来/也许、逾期和缺少下一步行动的项目。只生成报告。",
 };
@@ -162,7 +154,7 @@ export interface PluginSettings {
 export const DEFAULT_PRIORITY_ENGINE: PriorityEngineSettings = {
     dueWeight: 0.45,
     startWeight: 0.25,
-    importanceWeight: 0.30,
+    importanceWeight: 0.3,
     overdueBase: 35,
     dueDecayTau: 5,
     noDueScore: 35,
@@ -209,7 +201,11 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         return "semanticDateParsingEnabled must be boolean";
     }
     if (settings.defaultImportance !== undefined) {
-        if (!Number.isInteger(settings.defaultImportance) || settings.defaultImportance < 1 || settings.defaultImportance > 7) {
+        if (
+            !Number.isInteger(settings.defaultImportance) ||
+            settings.defaultImportance < 1 ||
+            settings.defaultImportance > 7
+        ) {
             return "defaultImportance must be integer 1-7";
         }
     }
@@ -219,7 +215,10 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
     }
     if (settings.lastReviewAt !== undefined) {
-        if (typeof settings.lastReviewAt !== "string" || (settings.lastReviewAt !== "" && Number.isNaN(Date.parse(settings.lastReviewAt)))) {
+        if (
+            typeof settings.lastReviewAt !== "string" ||
+            (settings.lastReviewAt !== "" && Number.isNaN(Date.parse(settings.lastReviewAt)))
+        ) {
             return "lastReviewAt must be empty or a valid date-time string";
         }
     }
@@ -238,7 +237,10 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         if (pe.effortScale !== undefined && (pe.effortScale < 0 || pe.effortScale > 0.5)) {
             return "effortScale must be 0-0.5";
         }
-        if (pe.startPreviewDays !== undefined && (!Number.isInteger(pe.startPreviewDays) || pe.startPreviewDays < 0 || pe.startPreviewDays > 14)) {
+        if (
+            pe.startPreviewDays !== undefined &&
+            (!Number.isInteger(pe.startPreviewDays) || pe.startPreviewDays < 0 || pe.startPreviewDays > 14)
+        ) {
             return "startPreviewDays must be integer 0-14";
         }
     }
@@ -253,7 +255,11 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
         }
     }
     if (settings.myDayDefaultDuration !== undefined) {
-        if (!Number.isInteger(settings.myDayDefaultDuration) || settings.myDayDefaultDuration < 15 || settings.myDayDefaultDuration > 480) {
+        if (
+            !Number.isInteger(settings.myDayDefaultDuration) ||
+            settings.myDayDefaultDuration < 15 ||
+            settings.myDayDefaultDuration > 480
+        ) {
             return "myDayDefaultDuration must be integer 15-480";
         }
     }
@@ -356,7 +362,10 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
             ...(override.reminderSettings ?? {}),
         },
         mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
-        taskCreationSettings: mergeTaskCreationSettings(base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS, migratedTaskCreation),
+        taskCreationSettings: mergeTaskCreationSettings(
+            base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS,
+            migratedTaskCreation,
+        ),
         aiSettings: {
             ...base.aiSettings,
             ...(override.aiSettings ?? {}),

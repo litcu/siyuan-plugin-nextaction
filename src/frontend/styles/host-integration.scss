@@ -178,7 +178,9 @@
         border-radius: 50%;
         border: 2px solid var(--na-text-secondary);
         cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
+        transition:
+            border-color 0.15s,
+            background 0.15s;
         box-sizing: border-box;
     }
 
@@ -345,7 +347,9 @@
         color: var(--b3-theme-on-surface-light);
         cursor: pointer;
         border-radius: 6px;
-        transition: background 0.15s ease, color 0.15s ease;
+        transition:
+            background 0.15s ease,
+            color 0.15s ease;
         flex-shrink: 0;
 
         &:hover {

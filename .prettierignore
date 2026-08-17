@@ -1,0 +1,7 @@
+dist/
+dev/
+vendor/
+kernel.js
+node_modules/
+package.zip
+*.md

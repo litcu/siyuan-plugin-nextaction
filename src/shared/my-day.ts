@@ -1,9 +1,6 @@
 import type { MyDayState, MyDayTaskEntry } from "./types";
 
-export function isMyDayEntryDone(
-    entry: MyDayTaskEntry | null | undefined,
-    taskStatus: string,
-): boolean {
+export function isMyDayEntryDone(entry: MyDayTaskEntry | null | undefined, taskStatus: string): boolean {
     return entry?.completedAt !== undefined || taskStatus === "done";
 }
 

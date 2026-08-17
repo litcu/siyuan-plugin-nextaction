@@ -9,13 +9,16 @@ const components = read("../src/frontend/styles/components.scss");
 const host = read("../src/frontend/styles/host-integration.scss");
 
 test("根样式入口只按稳定职责顺序汇总", () => {
-    assert.equal(entry.trim(), [
-        '@use "./frontend/ui/tokens";',
-        '@use "./frontend/ui/primitives";',
-        '@use "./frontend/styles/app-shell";',
-        '@use "./frontend/styles/components";',
-        '@use "./frontend/styles/host-integration";',
-    ].join("\n"));
+    assert.equal(
+        entry.replace(/\r\n/g, "\n").trim(),
+        [
+            '@use "./frontend/ui/tokens";',
+            '@use "./frontend/ui/primitives";',
+            '@use "./frontend/styles/app-shell";',
+            '@use "./frontend/styles/components";',
+            '@use "./frontend/styles/host-integration";',
+        ].join("\n"),
+    );
 });
 
 test("壳层、组件和宿主集成样式各自拥有对应选择器", () => {

@@ -7,11 +7,8 @@ import {
 import type { MyDayTaskEntry } from "../../../shared/types";
 
 /** 将分钟偏移量转为时钟时间标签，如 "09:30" */
-export function minuteToTimeLabel(
-    offsetMinute: number,
-    resetHour: number = DEFAULT_MY_DAY_RESET_HOUR,
-): string {
-    const absoluteMinute = ((offsetMinute + resetHour * 60) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES;
+export function minuteToTimeLabel(offsetMinute: number, resetHour: number = DEFAULT_MY_DAY_RESET_HOUR): string {
+    const absoluteMinute = (((offsetMinute + resetHour * 60) % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
     const hour = Math.floor(absoluteMinute / 60);
     const min = absoluteMinute % 60;
     return `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
@@ -54,9 +51,7 @@ export interface LaneLayout {
 /** 贪心泳道算法：为已排期任务分配泳道，避免视觉遮挡 */
 export function computeLaneLayouts(entries: MyDayTaskEntry[]): Map<string, LaneLayout> {
     const result = new Map<string, LaneLayout>();
-    const scheduled = entries.filter(
-        (e) => e.scheduleStart !== null && e.scheduleEnd !== null,
-    );
+    const scheduled = entries.filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null);
     if (scheduled.length === 0) return result;
 
     scheduled.sort((a, b) => a.scheduleStart! - b.scheduleStart!);

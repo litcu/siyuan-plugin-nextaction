@@ -18,7 +18,8 @@
 <svelte:window on:keydown={handleKeydown} />
 
 {#if open}
-    <button class="na-drawer-host__backdrop" aria-label={label} on:click={() => dispatch("requestClose", "backdrop")}></button>
+    <button class="na-drawer-host__backdrop" aria-label={label} on:click={() => dispatch("requestClose", "backdrop")}
+    ></button>
 {/if}
 <aside class="na-drawer-host" class:na-drawer-host--open={open} aria-hidden={!open}>
     <slot />
@@ -39,10 +40,25 @@
         background: var(--b3-theme-surface);
         box-shadow: var(--b3-dialog-shadow);
         transform: translateX(100%);
-        transition: transform 180ms cubic-bezier(.4, 0, .2, 1);
+        transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
         pointer-events: none;
     }
-    .na-drawer-host--open { transform: translateX(0); pointer-events: auto; }
-    .na-drawer-host__backdrop { position: absolute; inset: 0; z-index: 20; padding: 0; border: 0; background: var(--na-color-overlay-bg); }
-    @media (max-width: 520px) { .na-drawer-host { width: 100%; border-left: 0; } }
+    .na-drawer-host--open {
+        transform: translateX(0);
+        pointer-events: auto;
+    }
+    .na-drawer-host__backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        padding: 0;
+        border: 0;
+        background: var(--na-color-overlay-bg);
+    }
+    @media (max-width: 520px) {
+        .na-drawer-host {
+            width: 100%;
+            border-left: 0;
+        }
+    }
 </style>

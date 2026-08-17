@@ -56,8 +56,8 @@ function requireHost(): AiServiceHost {
 async function canUseChildTarget(bridge: KernelBridge, blockIds: string[]): Promise<boolean> {
     if (!blockIds.length) return false;
     try {
-        const results = await Promise.all(blockIds.map(blockId => bridge.resolveChildTarget(blockId)));
-        return results.length > 0 && results.every(result => result.available);
+        const results = await Promise.all(blockIds.map((blockId) => bridge.resolveChildTarget(blockId)));
+        return results.length > 0 && results.every((result) => result.available);
     } catch (error) {
         console.warn("[NextAction] resolve AI child targets failed:", error);
         return false;
@@ -130,7 +130,7 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
     const taskMap = new Map<string, Record<string, unknown>>();
     const groups: Record<string, string[]> = {};
     for (const [key, entries] of sourceGroups) {
-        groups[key] = entries.slice(0, MAX_REVIEW_GROUP_ITEMS).map(task => {
+        groups[key] = entries.slice(0, MAX_REVIEW_GROUP_ITEMS).map((task) => {
             if (!taskMap.has(task.blockId) && taskMap.size < MAX_REVIEW_TASKS) {
                 taskMap.set(task.blockId, reviewSnapshot(task));
             }
@@ -138,7 +138,7 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
         });
     }
     const groupSnapshots = (key: string): Record<string, unknown>[] =>
-        (groups[key] || []).map(id => taskMap.get(id)).filter((item): item is Record<string, unknown> => !!item);
+        (groups[key] || []).map((id) => taskMap.get(id)).filter((item): item is Record<string, unknown> => !!item);
     return {
         groups,
         tasks: Array.from(taskMap.values()),
@@ -152,7 +152,9 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
         activeProjects: groupSnapshots("activeProjects"),
         reviewDue: groupSnapshots("reviewDue"),
         reviewData: { groups, tasks: Array.from(taskMap.values()) },
-        truncated: taskMap.size >= MAX_REVIEW_TASKS || sourceGroups.some(([, entries]) => entries.length > MAX_REVIEW_GROUP_ITEMS),
+        truncated:
+            taskMap.size >= MAX_REVIEW_TASKS ||
+            sourceGroups.some(([, entries]) => entries.length > MAX_REVIEW_GROUP_ITEMS),
     };
 }
 
@@ -290,11 +292,13 @@ function schemaFor(feature: AiFeatureId): string {
   ${featureSchema[feature]},
   "warnings": []
 }
-只填写当前功能需要的字段。${feature === "extractTasks" || feature === "decomposeTask"
-        ? "新生成的任务尚未有独立 blockId；不要为新任务虚构 blockId，只保留 sourceBlockId、parentId 和 dependsOnIndexes。不要输出 myDay 或 review。"
-        : feature === "review"
-            ? "groups 只返回 key、title、summary，不要返回 blockIds，任务分组由插件根据本地数据填充；actions.blockId 只能引用上下文中已有的任务 blockId，不要虚构。不要输出 tasks。"
-            : "只能引用上下文中已有的任务 blockId，不要虚构 blockId。不要输出 tasks。"} 信息不足时留空或放入 warnings。`;
+只填写当前功能需要的字段。${
+        feature === "extractTasks" || feature === "decomposeTask"
+            ? "新生成的任务尚未有独立 blockId；不要为新任务虚构 blockId，只保留 sourceBlockId、parentId 和 dependsOnIndexes。不要输出 myDay 或 review。"
+            : feature === "review"
+              ? "groups 只返回 key、title、summary，不要返回 blockIds，任务分组由插件根据本地数据填充；actions.blockId 只能引用上下文中已有的任务 blockId，不要虚构。不要输出 tasks。"
+              : "只能引用上下文中已有的任务 blockId，不要虚构 blockId。不要输出 tasks。"
+    } 信息不足时留空或放入 warnings。`;
 }
 
 /** Settings UI uses this to show the immutable runtime contract. */
@@ -305,20 +309,19 @@ export function getAiPromptRuntimePreview(feature: AiFeatureId): { input: string
 function promptFor(feature: AiFeatureId, context: unknown): { text: string; blockIds: string[] } {
     const schema = schemaFor(feature);
     const configured = get(taskStore).settings?.aiSettings?.prompts?.[feature];
-    const instruction = typeof configured === "string" && configured.trim()
-        ? configured.trim()
-        : DEFAULT_AI_SETTINGS.prompts[feature];
+    const instruction =
+        typeof configured === "string" && configured.trim() ? configured.trim() : DEFAULT_AI_SETTINGS.prompts[feature];
     const rendered = renderAiPromptTemplate(instruction, {
         feature,
-        context: { ...(context as Record<string, unknown> || {}), outputSchema: schema },
+        context: { ...((context as Record<string, unknown>) || {}), outputSchema: schema },
     });
     const renderedInput = renderAiPromptTemplate(inputTemplateFor(feature), {
         feature,
-        context: { ...(context as Record<string, unknown> || {}), outputSchema: schema },
+        context: { ...((context as Record<string, unknown>) || {}), outputSchema: schema },
     });
     const outputExample = outputExampleFor(feature);
     const unknownHint = rendered.unknown.length
-        ? `\n\n提示词中发现未知变量：${rendered.unknown.map(item => `{{${item}}}`).join("、")}。这些变量已替换为占位说明。`
+        ? `\n\n提示词中发现未知变量：${rendered.unknown.map((item) => `{{${item}}}`).join("、")}。这些变量已替换为占位说明。`
         : "";
     return {
         text: `${rendered.text}
@@ -343,9 +346,10 @@ async function requestProposal(feature: AiFeatureId, ids: string[], context: unk
     let lastRaw = "";
     let lastErrors: string[] = [];
     for (let attempt = 0; attempt < 2; attempt++) {
-        const retryInstruction = attempt === 0
-            ? ""
-            : `\n\n这是第 2 次尝试。上一次返回内容无法使用（${lastErrors.join("；") || "不是合法 JSON"}）。请重新生成，必须只返回一个完整 JSON 对象，不要 markdown、不要代码围栏、不要前后解释。`;
+        const retryInstruction =
+            attempt === 0
+                ? ""
+                : `\n\n这是第 2 次尝试。上一次返回内容无法使用（${lastErrors.join("；") || "不是合法 JSON"}）。请重新生成，必须只返回一个完整 JSON 对象，不要 markdown、不要代码围栏、不要前后解释。`;
         const prompt = promptFor(feature, context);
         const requestBlockIds = [...new Set([...ids, ...prompt.blockIds])];
         const raw = await callSiyuanAi(requestBlockIds, prompt.text + retryInstruction);
@@ -364,7 +368,11 @@ async function requestProposal(feature: AiFeatureId, ids: string[], context: unk
         if (!validation.errors.length) return validation.proposal;
         lastErrors = validation.errors;
     }
-    throw new AiRawResponseError(i18n?.errAiRawResponse || "AI response cannot be used", lastRaw, lastErrors.join("；"));
+    throw new AiRawResponseError(
+        i18n?.errAiRawResponse || "AI response cannot be used",
+        lastRaw,
+        lastErrors.join("；"),
+    );
 }
 
 async function openComponent(title: string, loader: () => Promise<any>, props: Record<string, unknown>): Promise<void> {
@@ -395,20 +403,29 @@ export async function runAiExtractTasks(blockIds: string[]): Promise<void> {
     const { bridge, i18n } = requireHost();
     try {
         const childFromSource = await canUseChildTarget(bridge, blockIds);
-        const proposal = await requestProposal("extractTasks", blockIds, {
-            sourceBlockIds: blockIds,
-            selectedBlockIds: blockIds,
-            currentDocumentId: host?.getCurrentDocumentId?.(),
-        }, i18n);
-        if (!proposal.target) proposal.target = { type: "mcp_default" };
-        await openComponent(i18n?.aiExtractTasks || "AI 提取任务", () => import("../components/AiProposalDialog.svelte"), {
-            proposal,
-            bridge,
+        const proposal = await requestProposal(
+            "extractTasks",
+            blockIds,
+            {
+                sourceBlockIds: blockIds,
+                selectedBlockIds: blockIds,
+                currentDocumentId: host?.getCurrentDocumentId?.(),
+            },
             i18n,
-            defaultDocumentId: host?.getCurrentDocumentId?.(),
-            childFromSource,
-            onDone: () => taskStore.loadTasks(),
-        });
+        );
+        if (!proposal.target) proposal.target = { type: "mcp_default" };
+        await openComponent(
+            i18n?.aiExtractTasks || "AI 提取任务",
+            () => import("../components/AiProposalDialog.svelte"),
+            {
+                proposal,
+                bridge,
+                i18n,
+                defaultDocumentId: host?.getCurrentDocumentId?.(),
+                childFromSource,
+                onDone: () => taskStore.loadTasks(),
+            },
+        );
     } catch (error: unknown) {
         console.error("[NextAction] AI extract failed:", error);
         notifyAiError(error, i18n);
@@ -420,23 +437,30 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
     try {
         const childAvailable = await canUseChildTarget(bridge, [task.blockId]);
         const state = get(taskStore);
-        const children = state.allTasks.filter(item => item.parentId === task.blockId).map(taskSnapshot);
+        const children = state.allTasks.filter((item) => item.parentId === task.blockId).map(taskSnapshot);
         const currentTask = taskSnapshot(task);
-        const parentTask = task.parentId ? state.allTasks.find(item => item.blockId === task.parentId) : undefined;
+        const parentTask = task.parentId ? state.allTasks.find((item) => item.blockId === task.parentId) : undefined;
         const currentTaskParent = parentTask ? taskSnapshot(parentTask) : undefined;
-        const proposal = await requestProposal("decomposeTask", [task.blockId], {
-            task: currentTask,
-            currentTaskBlock: currentTask,
-            children,
-            currentTaskChildren: children,
-            currentTaskParent,
-            currentTaskBlockWithParent: { task: currentTask, parent: currentTaskParent || null },
-        }, i18n);
+        const proposal = await requestProposal(
+            "decomposeTask",
+            [task.blockId],
+            {
+                task: currentTask,
+                currentTaskBlock: currentTask,
+                children,
+                currentTaskChildren: children,
+                currentTaskParent,
+                currentTaskBlockWithParent: { task: currentTask, parent: currentTaskParent || null },
+            },
+            i18n,
+        );
         if (!proposal.target) proposal.target = { type: "mcp_default" };
-        if (proposal.tasks) proposal.tasks = proposal.tasks.map(item => ({ ...item, parentId: item.parentId ?? task.blockId }));
-        const dialogTitle = task.taskType === "2"
-            ? (i18n?.aiDecomposeProject || "Break down project with AI")
-            : (i18n?.aiDecomposeTask || "Break down with AI");
+        if (proposal.tasks)
+            proposal.tasks = proposal.tasks.map((item) => ({ ...item, parentId: item.parentId ?? task.blockId }));
+        const dialogTitle =
+            task.taskType === "2"
+                ? i18n?.aiDecomposeProject || "Break down project with AI"
+                : i18n?.aiDecomposeTask || "Break down with AI";
         await openComponent(dialogTitle, () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,
@@ -457,26 +481,38 @@ export async function runAiPlanMyDay(): Promise<void> {
     try {
         const state = get(taskStore);
         const myDayEntries = state.myDayState?.tasks || [];
-        const existing = new Set(myDayEntries.map(item => item.blockId));
-        const taskById = new Map(state.allTasks.map(task => [task.blockId, task]));
-        const existingMyDay = myDayEntries.map(item => ({
+        const existing = new Set(myDayEntries.map((item) => item.blockId));
+        const taskById = new Map(state.allTasks.map((task) => [task.blockId, task]));
+        const existingMyDay = myDayEntries.map((item) => ({
             ...(taskById.has(item.blockId) ? taskSnapshot(taskById.get(item.blockId)!) : { blockId: item.blockId }),
             scheduleStart: item.scheduleStart,
             scheduleEnd: item.scheduleEnd,
             order: item.order,
         }));
         const candidates = (await bridge.getNextActions())
-            .filter(task => !existing.has(task.blockId) && task.status !== "done" && task.status !== "someday" && !task.blocked)
+            .filter(
+                (task) =>
+                    !existing.has(task.blockId) && task.status !== "done" && task.status !== "someday" && !task.blocked,
+            )
             .slice(0, MAX_MY_DAY_CANDIDATES)
             .map(taskSnapshot);
-        const proposal = await requestProposal("planMyDay", [], { existingMyDay, myDay: existingMyDay, myDayTaskIds: [...existing], candidates, nextaction: candidates }, i18n);
-        await openComponent(i18n?.aiPlanMyDay || "自动规划我的一天", () => import("../components/AiProposalDialog.svelte"), {
-            proposal,
-            bridge,
+        const proposal = await requestProposal(
+            "planMyDay",
+            [],
+            { existingMyDay, myDay: existingMyDay, myDayTaskIds: [...existing], candidates, nextaction: candidates },
             i18n,
-            onDone: () => taskStore.loadMyDay(),
-            myDayOnly: true,
-        });
+        );
+        await openComponent(
+            i18n?.aiPlanMyDay || "自动规划我的一天",
+            () => import("../components/AiProposalDialog.svelte"),
+            {
+                proposal,
+                bridge,
+                i18n,
+                onDone: () => taskStore.loadMyDay(),
+                myDayOnly: true,
+            },
+        );
     } catch (error: unknown) {
         console.error("[NextAction] AI My Day planning failed:", error);
         notifyAiError(error, i18n);
@@ -488,7 +524,11 @@ export async function runAiReview(): Promise<void> {
     try {
         const review = await bridge.getReviewData();
         const reviewContext = buildReviewContext(review);
-        const proposal = completeReviewProposal(await requestProposal("review", [], reviewContext, i18n), reviewContext, i18n);
+        const proposal = completeReviewProposal(
+            await requestProposal("review", [], reviewContext, i18n),
+            reviewContext,
+            i18n,
+        );
         const reviewTaskMap = new Map<string, TaskCacheEntry>();
         for (const task of [
             ...review.overdueTasks,
@@ -502,7 +542,12 @@ export async function runAiReview(): Promise<void> {
             reviewTaskMap.set(task.blockId, task);
         }
         const reviewTasks = Array.from(reviewTaskMap.values());
-        await openComponent(i18n?.aiReview || "智能回顾", () => import("../components/AiReviewDialog.svelte"), { proposal, bridge, i18n, reviewTasks });
+        await openComponent(i18n?.aiReview || "智能回顾", () => import("../components/AiReviewDialog.svelte"), {
+            proposal,
+            bridge,
+            i18n,
+            reviewTasks,
+        });
     } catch (error: unknown) {
         console.error("[NextAction] AI review failed:", error);
         notifyAiError(error, i18n);

@@ -112,7 +112,8 @@ function chooseScaleForDensity(pixelsPerDay: number): GanttScaleName {
 }
 
 export function calculateGanttRange(tasks: TaskCacheEntry[]): GanttRange | null {
-    const dates = tasks.flatMap(task => [calendarDayNumber(task.start || ""), calendarDayNumber(task.due || "")])
+    const dates = tasks
+        .flatMap((task) => [calendarDayNumber(task.start || ""), calendarDayNumber(task.due || "")])
         .filter((value): value is number => value !== null);
     if (dates.length === 0) return null;
 
@@ -208,8 +209,8 @@ export function calculateGanttGeometries(
     model: Pick<ProjectTreeModel, "includedIds" | "includedTasks" | "childrenByParent">,
     range: GanttRange,
 ): Map<string, GanttBarGeometry> {
-    const taskById = new Map(tasks.map(task => [task.blockId, task]));
-    const scheduledIds = new Set(model.includedTasks.map(task => task.blockId));
+    const taskById = new Map(tasks.map((task) => [task.blockId, task]));
+    const scheduledIds = new Set(model.includedTasks.map((task) => task.blockId));
     const spanCache = new Map<string, Span | null>();
 
     const resolveSpan = (taskId: string, visiting = new Set<string>()): Span | null => {
@@ -235,8 +236,8 @@ export function calculateGanttGeometries(
         }
 
         const childSpans = (model.childrenByParent.get(taskId) || [])
-            .filter(child => model.includedIds.has(child.blockId))
-            .map(child => resolveSpan(child.blockId, nextVisiting))
+            .filter((child) => model.includedIds.has(child.blockId))
+            .map((child) => resolveSpan(child.blockId, nextVisiting))
             .filter((span): span is Span => Boolean(span));
         if (!explicit && childSpans.length === 0) {
             spanCache.set(taskId, null);
@@ -244,14 +245,17 @@ export function calculateGanttGeometries(
         }
 
         const hasIncludedChildren = childSpans.length > 0;
-        const spans = task.taskType === "2" && hasIncludedChildren
-            ? childSpans
-            : explicit ? [explicit, ...childSpans] : childSpans;
+        const spans =
+            task.taskType === "2" && hasIncludedChildren
+                ? childSpans
+                : explicit
+                  ? [explicit, ...childSpans]
+                  : childSpans;
         const resolved: Span = {
-            startDay: Math.min(...spans.map(span => span.startDay)),
-            endDay: Math.max(...spans.map(span => span.endDay)),
-            explicitKind: hasIncludedChildren ? "bar" : (explicit?.explicitKind || "bar"),
-            invalidRange: Boolean(explicit?.invalidRange || childSpans.some(span => span.invalidRange)),
+            startDay: Math.min(...spans.map((span) => span.startDay)),
+            endDay: Math.max(...spans.map((span) => span.endDay)),
+            explicitKind: hasIncludedChildren ? "bar" : explicit?.explicitKind || "bar",
+            invalidRange: Boolean(explicit?.invalidRange || childSpans.some((span) => span.invalidRange)),
         };
         spanCache.set(taskId, resolved);
         return resolved;
@@ -263,22 +267,20 @@ export function calculateGanttGeometries(
         if (!scheduledIds.has(task.blockId)) continue;
         const span = resolveSpan(task.blockId);
         if (!span) continue;
-        const hasIncludedChildren = (model.childrenByParent.get(task.blockId) || [])
-            .some(child => model.includedIds.has(child.blockId) && resolveSpan(child.blockId));
+        const hasIncludedChildren = (model.childrenByParent.get(task.blockId) || []).some(
+            (child) => model.includedIds.has(child.blockId) && resolveSpan(child.blockId),
+        );
         const kind: GanttBarKind = hasIncludedChildren ? "rollup" : span.explicitKind;
         const startOffset = span.startDay - rangeStart;
         const durationDays = span.endDay - span.startDay + 1;
-        const x = kind === "deadline"
-            ? (startOffset + 0.5) * range.pixelsPerDay
-            : startOffset * range.pixelsPerDay;
-        const width = kind === "deadline"
-            ? 0
-            : kind === "open"
-                ? Math.max(34, range.pixelsPerDay * 1.5)
-                : Math.max(range.pixelsPerDay, durationDays * range.pixelsPerDay);
-        const projectDueDay = task.taskType === "2" && kind === "rollup"
-            ? calendarDayNumber(task.due || "")
-            : null;
+        const x = kind === "deadline" ? (startOffset + 0.5) * range.pixelsPerDay : startOffset * range.pixelsPerDay;
+        const width =
+            kind === "deadline"
+                ? 0
+                : kind === "open"
+                  ? Math.max(34, range.pixelsPerDay * 1.5)
+                  : Math.max(range.pixelsPerDay, durationDays * range.pixelsPerDay);
+        const projectDueDay = task.taskType === "2" && kind === "rollup" ? calendarDayNumber(task.due || "") : null;
         geometries.set(task.blockId, {
             taskId: task.blockId,
             kind,
@@ -288,11 +290,13 @@ export function calculateGanttGeometries(
             endDate: calendarDateFromDay(span.endDay),
             durationDays,
             invalidRange: span.invalidRange,
-            ...(projectDueDay === null ? {} : {
-                targetX: (projectDueDay - rangeStart + 0.5) * range.pixelsPerDay,
-                targetDate: calendarDateFromDay(projectDueDay),
-                targetLate: projectDueDay < span.endDay,
-            }),
+            ...(projectDueDay === null
+                ? {}
+                : {
+                      targetX: (projectDueDay - rangeStart + 0.5) * range.pixelsPerDay,
+                      targetDate: calendarDateFromDay(projectDueDay),
+                      targetLate: projectDueDay < span.endDay,
+                  }),
         });
     }
     return geometries;
@@ -340,11 +344,11 @@ export function buildGanttAxis(range: GanttRange): GanttAxis {
 
     addGrouped(
         primary,
-        day => {
+        (day) => {
             const date = calendarDateFromDay(day);
             return range.scale === "month" ? date.slice(0, 4) : date.slice(0, 7);
         },
-        day => segmentLabel(calendarDateFromDay(day), range.scale, true),
+        (day) => segmentLabel(calendarDateFromDay(day), range.scale, true),
     );
 
     if (range.scale === "day") {
@@ -362,18 +366,18 @@ export function buildGanttAxis(range: GanttRange): GanttAxis {
     } else if (range.scale === "week") {
         addGrouped(
             secondary,
-            day => {
+            (day) => {
                 const dayOfWeek = weekday(day) || 7;
                 return String(day - (dayOfWeek - 1));
             },
-            day => segmentLabel(calendarDateFromDay(day), range.scale, false),
+            (day) => segmentLabel(calendarDateFromDay(day), range.scale, false),
             true,
         );
     } else {
         addGrouped(
             secondary,
-            day => calendarDateFromDay(day).slice(0, 7),
-            day => segmentLabel(calendarDateFromDay(day), range.scale, false),
+            (day) => calendarDateFromDay(day).slice(0, 7),
+            (day) => segmentLabel(calendarDateFromDay(day), range.scale, false),
             true,
         );
     }
@@ -400,7 +404,7 @@ export function calculateGanttEdges(
     geometries: ReadonlyMap<string, GanttBarGeometry>,
 ): GanttEdge[] {
     const rowIndex = new Map(rows.map((row, index) => [row.task.blockId, index]));
-    const visibleTaskById = new Map(rows.map(row => [row.task.blockId, row.task]));
+    const visibleTaskById = new Map(rows.map((row) => [row.task.blockId, row.task]));
     const edges: GanttEdge[] = [];
     const edgeKeys = new Set<string>();
 
@@ -434,9 +438,9 @@ export function calculateGanttEdges(
     for (const parent of allProjectTasks) {
         if (!parent.sequential) continue;
         const siblings = allProjectTasks
-            .filter(task => task.parentId === parent.blockId || parent.childIds?.includes(task.blockId))
-            .filter((task, index, items) => items.findIndex(item => item.blockId === task.blockId) === index)
-            .sort((a, b) => a.sort !== b.sort ? a.sort - b.sort : a.blockId.localeCompare(b.blockId));
+            .filter((task) => task.parentId === parent.blockId || parent.childIds?.includes(task.blockId))
+            .filter((task, index, items) => items.findIndex((item) => item.blockId === task.blockId) === index)
+            .sort((a, b) => (a.sort !== b.sort ? a.sort - b.sort : a.blockId.localeCompare(b.blockId)));
         for (let index = 1; index < siblings.length; index++) {
             const source = siblings[index - 1];
             const target = siblings[index];

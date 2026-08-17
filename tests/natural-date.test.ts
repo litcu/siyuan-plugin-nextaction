@@ -42,7 +42,10 @@ test("相邻的中英文日期与时间可以组成同一个结果", () => {
 });
 
 test("强制时间控件使用默认时间，无效或多个日期不猜测", () => {
-    assert.equal(parseNaturalDate("明天", { referenceDate: reference, requireTime: true, defaultTime: "09:30" })?.value, "2026-08-07T09:30");
+    assert.equal(
+        parseNaturalDate("明天", { referenceDate: reference, requireTime: true, defaultTime: "09:30" })?.value,
+        "2026-08-07T09:30",
+    );
     assert.equal(parseNaturalDate("不是日期", { referenceDate: reference }), null);
     assert.equal(parseNaturalDate("明天或后天", { referenceDate: reference }), null);
     assert.equal(parseNaturalDates("明天或后天", { referenceDate: reference }).length, 2);

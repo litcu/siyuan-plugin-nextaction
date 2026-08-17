@@ -43,17 +43,28 @@
         overflow: hidden;
         color: var(--b3-theme-on-surface-light);
         background: var(--b3-theme-background);
-        transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+        transition:
+            border-color 120ms ease,
+            background 120ms ease,
+            box-shadow 120ms ease;
     }
 
-    .na-search-input:hover { border-color: var(--b3-theme-primary-light); }
+    .na-search-input:hover {
+        border-color: var(--b3-theme-primary-light);
+    }
     .na-search-input:focus-within {
         border-color: var(--b3-theme-primary);
         background: var(--b3-theme-surface);
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
     }
-    .na-search-input--compact { height: var(--na-control-height-sm); padding: 0 8px; border-radius: var(--na-radius-sm); }
-    .na-search-input--disabled { opacity: .48; }
+    .na-search-input--compact {
+        height: var(--na-control-height-sm);
+        padding: 0 8px;
+        border-radius: var(--na-radius-sm);
+    }
+    .na-search-input--disabled {
+        opacity: 0.48;
+    }
 
     input {
         width: 100%;
@@ -68,11 +79,20 @@
         font-size: var(--na-font-size-md);
     }
 
-    input::placeholder { color: var(--b3-theme-on-surface-light); }
-    .na-search-input .na-search-input__control:focus-visible { outline: none; }
-    input::-webkit-search-cancel-button { cursor: pointer; opacity: .65; }
+    input::placeholder {
+        color: var(--b3-theme-on-surface-light);
+    }
+    .na-search-input .na-search-input__control:focus-visible {
+        outline: none;
+    }
+    input::-webkit-search-cancel-button {
+        cursor: pointer;
+        opacity: 0.65;
+    }
 
     @media (prefers-reduced-motion: reduce) {
-        .na-search-input { transition: none; }
+        .na-search-input {
+            transition: none;
+        }
     }
 </style>

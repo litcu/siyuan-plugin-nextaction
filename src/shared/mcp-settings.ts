@@ -31,9 +31,11 @@ export function validateMcpSettings(settings?: Partial<McpSettings>): string | n
     if (settings.allowWrite !== undefined && typeof settings.allowWrite !== "boolean") {
         return "mcpSettings.allowWrite must be boolean";
     }
-    if (settings.defaultCreateTarget !== undefined
-        && settings.defaultCreateTarget !== "inbox"
-        && settings.defaultCreateTarget !== "daily_note") {
+    if (
+        settings.defaultCreateTarget !== undefined &&
+        settings.defaultCreateTarget !== "inbox" &&
+        settings.defaultCreateTarget !== "daily_note"
+    ) {
         return "mcpSettings.defaultCreateTarget must be 'inbox' or 'daily_note'";
     }
     if (settings.inboxDocumentId !== undefined && typeof settings.inboxDocumentId !== "string") {
@@ -44,4 +46,3 @@ export function validateMcpSettings(settings?: Partial<McpSettings>): string | n
     }
     return null;
 }
-

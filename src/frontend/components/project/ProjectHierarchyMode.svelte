@@ -37,7 +37,17 @@
 </div>
 
 <style lang="scss">
-    .na-project-tree { display: flex; flex-direction: column; gap: 4px; }
-    .na-project-tree__row { display: flex; align-items: center; }
-    .na-project-tree__row :global(.na-task-card) { flex: 1; min-width: 0; }
+    .na-project-tree {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .na-project-tree__row {
+        display: flex;
+        align-items: center;
+    }
+    .na-project-tree__row :global(.na-task-card) {
+        flex: 1;
+        min-width: 0;
+    }
 </style>

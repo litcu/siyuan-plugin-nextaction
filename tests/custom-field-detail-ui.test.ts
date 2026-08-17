@@ -9,7 +9,8 @@ const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh-CN.json", import.meta
 const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8"));
 
 test("插件启动和内核重连时先加载自定义字段设置再加载任务", () => {
-    const loader = pluginEntry.match(/private async loadTaskStoreState\(\): Promise<void> \{([\s\S]*?)\n    \}/)?.[1] || "";
+    const loader =
+        pluginEntry.match(/private async loadTaskStoreState\(\): Promise<void> \{([\s\S]*?)\n    \}/)?.[1] || "";
     const settingsIndex = loader.indexOf("await taskStore.loadSettings()");
     const tasksIndex = loader.indexOf("await taskStore.loadTasks()");
 
@@ -21,7 +22,10 @@ test("插件启动和内核重连时先加载自定义字段设置再加载任�
 });
 
 test("单选字段复用可翻转的搜索选择器，而不是原生 select", () => {
-    const singleSelectBranch = customFieldInput.match(/\{:else if def\.type === "singleSelect"\}([\s\S]*?)\{:else if def\.type === "multiSelect"\}/)?.[1] || "";
+    const singleSelectBranch =
+        customFieldInput.match(
+            /\{:else if def\.type === "singleSelect"\}([\s\S]*?)\{:else if def\.type === "multiSelect"\}/,
+        )?.[1] || "";
     assert.match(singleSelectBranch, /<NaSearchSelect[\s\S]*?multi=\{false\}/);
     assert.doesNotMatch(singleSelectBranch, /<select/);
     assert.match(singleSelectBranch, /\{fixedDropdown\}/);

@@ -48,8 +48,13 @@
         color: var(--b3-theme-on-surface);
         background: var(--b3-theme-surface);
     }
-    .na-dialog-shell__notice:empty { display: none; }
-    .na-dialog-shell__notice { padding: 8px 16px 0; background: var(--b3-theme-surface); }
+    .na-dialog-shell__notice:empty {
+        display: none;
+    }
+    .na-dialog-shell__notice {
+        padding: 8px 16px 0;
+        background: var(--b3-theme-surface);
+    }
     .na-dialog-shell__body {
         position: relative;
         min-width: 0;
@@ -60,7 +65,9 @@
         overflow-y: auto;
         overscroll-behavior: contain;
     }
-    .na-dialog-shell--with-footer .na-dialog-shell__body { padding-bottom: 72px; }
+    .na-dialog-shell--with-footer .na-dialog-shell__body {
+        padding-bottom: 72px;
+    }
     :global(.na-dialog-shell .na-dialog-footer) {
         position: absolute;
         right: 0;

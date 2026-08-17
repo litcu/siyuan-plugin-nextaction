@@ -31,7 +31,7 @@
 
     $: myDayState = $taskStore.myDayState;
     $: allTasks = $taskStore.allTasks;
-    $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map(t => [t.blockId, t] as [string, TaskCacheEntry]));
+    $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry]));
     $: myDayEntryMap = new Map((myDayState?.tasks ?? []).map((entry) => [entry.blockId, entry]));
 
     $: myDayTasks = (() => {
@@ -45,27 +45,25 @@
         return result;
     })();
 
-    $: myDayBlockIds = new Set((myDayState?.tasks || []).map(t => t.blockId));
+    $: myDayBlockIds = new Set((myDayState?.tasks || []).map((t) => t.blockId));
 
-    $: unscheduledEntries = (myDayState?.tasks ?? []).filter(
-        (e) => e.scheduleStart === null || e.scheduleEnd === null,
-    );
-    $: scheduledEntries = (myDayState?.tasks ?? []).filter(
-        (e) => e.scheduleStart !== null && e.scheduleEnd !== null,
-    );
+    $: unscheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null);
+    $: scheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null);
 
     async function searchTasksForAdd(query: string): Promise<{ id: string; label: string }[]> {
         if (!query.trim()) return [];
         const q = query.toLowerCase();
         return $taskStore.allTasks
-            .filter(t =>
-                t.status !== "done" &&
-                t.status !== "someday" &&
-                !myDayBlockIds.has(t.blockId) &&
-                (t.title.toLowerCase().includes(q) || (t.tags && t.tags.replace(/\|/g, ', ').toLowerCase().includes(q)))
+            .filter(
+                (t) =>
+                    t.status !== "done" &&
+                    t.status !== "someday" &&
+                    !myDayBlockIds.has(t.blockId) &&
+                    (t.title.toLowerCase().includes(q) ||
+                        (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q))),
             )
             .slice(0, 10)
-            .map(t => ({ id: t.blockId, label: t.title || (i18n?.untitled || "(untitled)") }));
+            .map((t) => ({ id: t.blockId, label: t.title || i18n?.untitled || "(untitled)" }));
     }
 
     async function handleSearchChange() {
@@ -110,82 +108,110 @@
 </script>
 
 <div class="na-dock-myday">
-    <NaViewShell loading={viewMode === "list" && $taskStore.loading} empty={viewMode === "list" && myDayTasks.length === 0} emptyText={i18n?.noMyDayTasks || "No tasks planned for today."} emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }} scrollMode="none">
+    <NaViewShell
+        loading={viewMode === "list" && $taskStore.loading}
+        empty={viewMode === "list" && myDayTasks.length === 0}
+        emptyText={i18n?.noMyDayTasks || "No tasks planned for today."}
+        emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
+        scrollMode="none"
+    >
         <svelte:fragment slot="toolbar">
             <NaToolbar compact>
                 <NaIconButton symbol="iconSparkles" label={i18n?.aiPlanMyDay || "自动规划"} on:click={runAiPlanMyDay} />
-                <div class="na-dock-myday__add"><NaSearchSelect
-                placeholder={i18n?.dockSearchAddTask || "搜索添加任务…"}
-                emptyText={i18n?.dockSearchHint || "输入关键词搜索任务"}
-                noMatchText={i18n?.noMatches || "无匹配结果"}
-                loadingText={i18n?.loadingMore || "加载中…"}
-                clearLabel={i18n?.clearSelection || "清除选择"}
-                removeLabel={i18n?.removeSelection || "移除选择"}
-                searchFn={searchTasksForAdd}
-                bind:selected={selectedTaskId}
-                on:change={handleSearchChange}
-                /></div>
-                <svelte:fragment slot="actions"><NaSegmentControl
-            size="sm"
-            options={[
-                { value: "timeline", label: i18n?.timelineMode || "时间线" },
-                { value: "list", label: i18n?.listMode || "列表" },
-            ]}
-            value={viewMode}
-            label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
-                    on:change={handleViewModeChange}
-                /></svelte:fragment>
+                <div class="na-dock-myday__add">
+                    <NaSearchSelect
+                        placeholder={i18n?.dockSearchAddTask || "搜索添加任务…"}
+                        emptyText={i18n?.dockSearchHint || "输入关键词搜索任务"}
+                        noMatchText={i18n?.noMatches || "无匹配结果"}
+                        loadingText={i18n?.loadingMore || "加载中…"}
+                        clearLabel={i18n?.clearSelection || "清除选择"}
+                        removeLabel={i18n?.removeSelection || "移除选择"}
+                        searchFn={searchTasksForAdd}
+                        bind:selected={selectedTaskId}
+                        on:change={handleSearchChange}
+                    />
+                </div>
+                <svelte:fragment slot="actions"
+                    ><NaSegmentControl
+                        size="sm"
+                        options={[
+                            { value: "timeline", label: i18n?.timelineMode || "时间线" },
+                            { value: "list", label: i18n?.listMode || "列表" },
+                        ]}
+                        value={viewMode}
+                        label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
+                        on:change={handleViewModeChange}
+                    /></svelte:fragment
+                >
             </NaToolbar>
         </svelte:fragment>
 
-    {#if viewMode === "timeline"}
-        <div class="na-dock-myday__timeline">
-            {#if unscheduledEntries.length > 0}
-                <div class="na-dock-myday__unscheduled">
-                    <div class="na-dock-myday__unscheduled-header">
-                        <span>{i18n?.unscheduled || "Unscheduled"}</span>
-                        <span class="na-dock-myday__unscheduled-count">{unscheduledEntries.length}</span>
+        {#if viewMode === "timeline"}
+            <div class="na-dock-myday__timeline">
+                {#if unscheduledEntries.length > 0}
+                    <div class="na-dock-myday__unscheduled">
+                        <div class="na-dock-myday__unscheduled-header">
+                            <span>{i18n?.unscheduled || "Unscheduled"}</span>
+                            <span class="na-dock-myday__unscheduled-count">{unscheduledEntries.length}</span>
+                        </div>
+                        {#each unscheduledEntries as entry (entry.blockId)}
+                            {@const task = taskMap.get(entry.blockId)}
+                            {#if task}
+                                <div
+                                    class="na-dock-myday__unscheduled-item"
+                                    class:na-dock-myday__unscheduled-item--done={isMyDayEntryDone(entry, task.status)}
+                                    class:na-dock-myday__unscheduled-item--critical={normalizePriority(
+                                        task.priority,
+                                    ) === "critical"}
+                                    class:na-dock-myday__unscheduled-item--high={normalizePriority(task.priority) ===
+                                        "high"}
+                                    class:na-dock-myday__unscheduled-item--medium={normalizePriority(task.priority) ===
+                                        "medium"}
+                                    class:na-dock-myday__unscheduled-item--low={normalizePriority(task.priority) ===
+                                        "low"}
+                                    class:na-dock-myday__unscheduled-item--none={normalizePriority(task.priority) ===
+                                        "none"}
+                                    draggable="true"
+                                    role="button"
+                                    tabindex="0"
+                                    on:dragstart={(e) => handleDragStart(e, entry.blockId)}
+                                    on:click={(event) => handleUnscheduledClick(event, task)}
+                                    on:keydown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") onEdit(task);
+                                    }}
+                                    on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
+                                >
+                                    <span class="na-dock-myday__unscheduled-accent"></span>
+                                    <span class="na-dock-myday__unscheduled-name"
+                                        >{task.title || i18n?.untitled || "(untitled)"}</span
+                                    >
+                                    <span
+                                        ><NaIconButton
+                                            compact
+                                            symbol="iconClose"
+                                            label={i18n?.removeFromMyDay || "Remove from My Day"}
+                                            tone="danger"
+                                            on:click={() => handleRemoveFromMyDay(entry.blockId)}
+                                        /></span
+                                    >
+                                </div>
+                            {/if}
+                        {/each}
                     </div>
-                    {#each unscheduledEntries as entry (entry.blockId)}
-                        {@const task = taskMap.get(entry.blockId)}
-                        {#if task}
-                            <div
-                                class="na-dock-myday__unscheduled-item"
-                                class:na-dock-myday__unscheduled-item--done={isMyDayEntryDone(entry, task.status)}
-                                class:na-dock-myday__unscheduled-item--critical={normalizePriority(task.priority) === "critical"}
-                                class:na-dock-myday__unscheduled-item--high={normalizePriority(task.priority) === "high"}
-                                class:na-dock-myday__unscheduled-item--medium={normalizePriority(task.priority) === "medium"}
-                                class:na-dock-myday__unscheduled-item--low={normalizePriority(task.priority) === "low"}
-                                class:na-dock-myday__unscheduled-item--none={normalizePriority(task.priority) === "none"}
-                                draggable="true"
-                                role="button"
-                                tabindex="0"
-                                on:dragstart={(e) => handleDragStart(e, entry.blockId)}
-                                on:click={(event) => handleUnscheduledClick(event, task)}
-                                on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") onEdit(task); }}
-                                on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
-                            >
-                                <span class="na-dock-myday__unscheduled-accent"></span>
-                                <span class="na-dock-myday__unscheduled-name">{task.title || (i18n?.untitled || "(untitled)")}</span>
-                                <span><NaIconButton compact symbol="iconClose" label={i18n?.removeFromMyDay || "Remove from My Day"} tone="danger" on:click={() => handleRemoveFromMyDay(entry.blockId)} /></span>
-                            </div>
-                        {/if}
-                    {/each}
+                {/if}
+                <div class="na-dock-myday__timeline-col">
+                    <TimelineColumn
+                        {scheduledEntries}
+                        {taskMap}
+                        {resetHour}
+                        {defaultDuration}
+                        {bridge}
+                        {i18n}
+                        {onContextMenu}
+                    />
                 </div>
-            {/if}
-            <div class="na-dock-myday__timeline-col">
-                <TimelineColumn
-                    {scheduledEntries}
-                    {taskMap}
-                    {resetHour}
-                    {defaultDuration}
-                    {bridge}
-                    {i18n}
-                    {onContextMenu}
-                />
             </div>
-        </div>
-    {:else}
+        {:else}
             <NaTaskList density="compact">
                 {#each myDayTasks as task (task.blockId)}
                     <TaskCard
@@ -198,7 +224,7 @@
                     />
                 {/each}
             </NaTaskList>
-    {/if}
+        {/if}
     </NaViewShell>
 </div>
 
@@ -222,7 +248,9 @@
         min-width: 0;
     }
 
-    :global(.na-toolbar .na-segment-control) { flex: 0 0 auto; }
+    :global(.na-toolbar .na-segment-control) {
+        flex: 0 0 auto;
+    }
 
     .na-dock-myday__timeline {
         position: relative;
@@ -284,7 +312,11 @@
         background: var(--b3-theme-surface);
         box-shadow: var(--na-shadow-sm);
         cursor: grab;
-        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+        transition:
+            background 0.15s,
+            border-color 0.15s,
+            box-shadow 0.15s,
+            transform 0.15s;
 
         &:hover {
             background: var(--b3-theme-surface-light);
@@ -315,11 +347,19 @@
         background: var(--na-dock-myday-unscheduled-accent, var(--b3-theme-primary));
     }
 
-    .na-dock-myday__unscheduled-item--critical { --na-dock-myday-unscheduled-accent: var(--na-priority-critical); }
-    .na-dock-myday__unscheduled-item--high { --na-dock-myday-unscheduled-accent: var(--na-priority-high); }
-    .na-dock-myday__unscheduled-item--medium { --na-dock-myday-unscheduled-accent: var(--na-priority-medium); }
+    .na-dock-myday__unscheduled-item--critical {
+        --na-dock-myday-unscheduled-accent: var(--na-priority-critical);
+    }
+    .na-dock-myday__unscheduled-item--high {
+        --na-dock-myday-unscheduled-accent: var(--na-priority-high);
+    }
+    .na-dock-myday__unscheduled-item--medium {
+        --na-dock-myday-unscheduled-accent: var(--na-priority-medium);
+    }
     .na-dock-myday__unscheduled-item--low,
-    .na-dock-myday__unscheduled-item--none { --na-dock-myday-unscheduled-accent: var(--na-priority-low); }
+    .na-dock-myday__unscheduled-item--none {
+        --na-dock-myday-unscheduled-accent: var(--na-priority-low);
+    }
 
     .na-dock-myday__unscheduled-name {
         font-size: 12px;
@@ -342,14 +382,31 @@
         background: var(--na-dock-myday-panel-bg);
     }
 
-    :global(.na-task-list--compact .na-task-card__stats) { display: none; }
-    :global(.na-task-list--compact .na-task-card__actions) { opacity: 1; }
+    :global(.na-task-list--compact .na-task-card__stats) {
+        display: none;
+    }
+    :global(.na-task-list--compact .na-task-card__actions) {
+        opacity: 1;
+    }
 
     @container na-dock (max-width: 260px) {
-        :global(.na-toolbar) { flex-wrap: wrap; padding: 7px 8px; }
-        .na-dock-myday__add { order: 3; flex: 1 0 100%; }
-        :global(.na-toolbar .na-segment-control) { margin-left: auto; }
-        .na-dock-myday__timeline { padding: 6px; gap: 6px; }
-        .na-dock-myday__unscheduled { padding: 6px; }
+        :global(.na-toolbar) {
+            flex-wrap: wrap;
+            padding: 7px 8px;
+        }
+        .na-dock-myday__add {
+            order: 3;
+            flex: 1 0 100%;
+        }
+        :global(.na-toolbar .na-segment-control) {
+            margin-left: auto;
+        }
+        .na-dock-myday__timeline {
+            padding: 6px;
+            gap: 6px;
+        }
+        .na-dock-myday__unscheduled {
+            padding: 6px;
+        }
     }
 </style>

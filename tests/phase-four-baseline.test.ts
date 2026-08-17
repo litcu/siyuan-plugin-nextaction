@@ -16,7 +16,13 @@ test("缓存父子关系在新增、移动和删除后保持一致", () => {
     cache.set(taskFactory(CHILD_A_ID, { parentId: PROJECT_ID }));
     cache.set(taskFactory(CHILD_B_ID, { parentId: PROJECT_ID }));
 
-    assert.deepEqual(cache.getByParent(PROJECT_ID).map(task => task.blockId).sort(), [CHILD_A_ID, CHILD_B_ID]);
+    assert.deepEqual(
+        cache
+            .getByParent(PROJECT_ID)
+            .map((task) => task.blockId)
+            .sort(),
+        [CHILD_A_ID, CHILD_B_ID],
+    );
     assert.deepEqual(cache.get(PROJECT_ID)?.childIds.slice().sort(), [CHILD_A_ID, CHILD_B_ID]);
 
     cache.set(taskFactory(CHILD_A_ID, { parentId: OTHER_ID }));
@@ -30,7 +36,10 @@ test("缓存父子关系在新增、移动和删除后保持一致", () => {
 test("子任务早于父任务写入时仍能在父任务出现后回填索引", () => {
     const cache = new CacheManager(new FakeSiyuanApi());
     cache.set(taskFactory(CHILD_A_ID, { parentId: PROJECT_ID }));
-    assert.deepEqual(cache.getByParent(PROJECT_ID).map(task => task.blockId), [CHILD_A_ID]);
+    assert.deepEqual(
+        cache.getByParent(PROJECT_ID).map((task) => task.blockId),
+        [CHILD_A_ID],
+    );
 
     cache.set(taskFactory(PROJECT_ID, { taskType: "2" }));
     assert.deepEqual(cache.get(PROJECT_ID)?.childIds, [CHILD_A_ID]);
@@ -39,11 +48,17 @@ test("子任务早于父任务写入时仍能在父任务出现后回填索引",
 test("依赖反向索引随依赖更新和任务删除同步变化", () => {
     const cache = new CacheManager(new FakeSiyuanApi());
     cache.set(taskFactory(CHILD_A_ID, { depends: PROJECT_ID }));
-    assert.deepEqual(cache.getDependents(PROJECT_ID).map(task => task.blockId), [CHILD_A_ID]);
+    assert.deepEqual(
+        cache.getDependents(PROJECT_ID).map((task) => task.blockId),
+        [CHILD_A_ID],
+    );
 
     cache.set(taskFactory(CHILD_A_ID, { depends: OTHER_ID }));
     assert.deepEqual(cache.getDependents(PROJECT_ID), []);
-    assert.deepEqual(cache.getDependents(OTHER_ID).map(task => task.blockId), [CHILD_A_ID]);
+    assert.deepEqual(
+        cache.getDependents(OTHER_ID).map((task) => task.blockId),
+        [CHILD_A_ID],
+    );
 
     cache.remove(CHILD_A_ID);
     assert.deepEqual(cache.getDependents(OTHER_ID), []);

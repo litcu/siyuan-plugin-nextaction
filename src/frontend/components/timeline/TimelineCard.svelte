@@ -42,14 +42,14 @@
     $: duration = (entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0);
     $: cardTop = minuteToPixel(entry.scheduleStart ?? 0);
     $: cardHeight = minuteToPixel(duration);
-    $: cardWidth = laneCount > 0 ? (containerWidth / laneCount) - 4 : containerWidth;
+    $: cardWidth = laneCount > 0 ? containerWidth / laneCount - 4 : containerWidth;
     $: cardLeft = leftOffset + laneIndex * (containerWidth / laneCount);
     $: timeLabel = minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour);
     $: endTimeLabel = minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour);
     $: displayPriority = normalizePriority(task.priority);
     $: priorityColor = PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)";
     $: priorityClass = `na-timeline-card--priority-${displayPriority}`;
-    $: parentTitle = task.parentId ? taskMap.get(task.parentId)?.title ?? "" : "";
+    $: parentTitle = task.parentId ? (taskMap.get(task.parentId)?.title ?? "") : "";
     $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
     $: isDone = isMyDayEntryDone(entry, task.status);
 
@@ -124,17 +124,25 @@
         dragMode = "none";
 
         if (!isDragging) {
-            showTaskQuickMenu(task, e.clientX, e.clientY, bridge, i18n, {
-                onScheduleRemoved: (newState: MyDayState) => {
-                    taskStore.applyMyDayUpdate(newState);
+            showTaskQuickMenu(
+                task,
+                e.clientX,
+                e.clientY,
+                bridge,
+                i18n,
+                {
+                    onScheduleRemoved: (newState: MyDayState) => {
+                        taskStore.applyMyDayUpdate(newState);
+                    },
+                    onTaskUpdated: (updated: TaskCacheEntry) => {
+                        taskStore.applyUpdate(updated);
+                    },
+                    onRemovedFromMyDay: (newState: MyDayState) => {
+                        taskStore.applyMyDayUpdate(newState);
+                    },
                 },
-                onTaskUpdated: (updated: TaskCacheEntry) => {
-                    taskStore.applyUpdate(updated);
-                },
-                onRemovedFromMyDay: (newState: MyDayState) => {
-                    taskStore.applyMyDayUpdate(newState);
-                },
-            }, isDone);
+                isDone,
+            );
             isDragging = false;
             return;
         }
@@ -145,11 +153,13 @@
         const isOverUnscheduled = !!elUnderPointer?.closest(".na-unscheduled");
 
         if (isOverUnscheduled && currentMode === "move") {
-            bridge.removeMyDaySchedule(entry.blockId)
+            bridge
+                .removeMyDaySchedule(entry.blockId)
                 .then((newState) => taskStore.applyMyDayUpdate(newState))
                 .catch((err) => notifyError(formatRpcError(err, i18n)));
         } else if (previewStart !== originStart || previewEnd !== originEnd) {
-            bridge.setMyDaySchedule(entry.blockId, previewStart, previewEnd)
+            bridge
+                .setMyDaySchedule(entry.blockId, previewStart, previewEnd)
                 .then((newState) => taskStore.applyMyDayUpdate(newState))
                 .catch((err) => notifyError(formatRpcError(err, i18n)));
         }
@@ -194,12 +204,15 @@
             </div>
         {/if}
         <span class="na-timeline-card__name">
-            {#if isMinimal}{timeLabel} {/if}{task.title}
+            {#if isMinimal}{timeLabel}
+            {/if}{task.title}
         </span>
         {#if !isCompact}
             <div class="na-timeline-card__footer">
                 {#if task.context}
-                    <span class="na-timeline-card__chip na-timeline-card__chip--context">@{task.context.split('|')[0].trim()}</span>
+                    <span class="na-timeline-card__chip na-timeline-card__chip--context"
+                        >@{task.context.split("|")[0].trim()}</span
+                    >
                 {/if}
                 {#each tags as tag}
                     <span class="na-timeline-card__chip">#{tag}</span>
@@ -223,18 +236,27 @@
         border-radius: 8px;
         border: 1px solid var(--na-task-card-border, var(--b3-border-color));
         background-color: var(--na-timeline-card-bg, var(--b3-theme-surface));
-        box-shadow: inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)), var(--na-shadow-sm);
+        box-shadow:
+            inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)),
+            var(--na-shadow-sm);
         cursor: grab;
         user-select: none;
         touch-action: none;
         overflow: hidden;
         z-index: 12;
-        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s;
+        transition:
+            background 0.15s,
+            border-color 0.15s,
+            box-shadow 0.15s,
+            opacity 0.15s,
+            transform 0.15s;
 
         &:hover {
             background: var(--b3-theme-surface-light);
             border-color: var(--b3-theme-primary-light);
-            box-shadow: inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)), var(--na-shadow-hover);
+            box-shadow:
+                inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)),
+                var(--na-shadow-hover);
         }
     }
 
@@ -263,7 +285,9 @@
     // ===== 拖拽状态 =====
     .na-timeline-card--dragging {
         z-index: 20;
-        box-shadow: inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)), var(--na-shadow-dialog);
+        box-shadow:
+            inset 3px 0 0 var(--na-timeline-card-accent, var(--b3-theme-primary)),
+            var(--na-shadow-dialog);
         opacity: 0.9;
     }
 
@@ -308,8 +332,12 @@
         cursor: ns-resize;
         z-index: 2;
 
-        &--top { top: 0; }
-        &--bottom { bottom: 0; }
+        &--top {
+            top: 0;
+        }
+        &--bottom {
+            bottom: 0;
+        }
 
         &:hover {
             background: var(--na-color-info-bg);

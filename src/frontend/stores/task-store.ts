@@ -1,17 +1,21 @@
 import { writable, derived } from "svelte/store";
 import type { TaskCacheEntry, TaskChangeNotification, MyDayState, PluginSettings } from "../../shared/types";
 import { type KernelBridge } from "../kernel-bridge";
-import { STATUS_LIST, VIEW_NEXT_ACTION, VIEW_ALL_TASKS, VIEW_BY_PROJECT, VIEW_SOMEDAY, VIEW_WAITING, VIEW_MY_DAY, VIEW_REVIEW } from "../constants";
+import {
+    STATUS_LIST,
+    VIEW_NEXT_ACTION,
+    VIEW_ALL_TASKS,
+    VIEW_BY_PROJECT,
+    VIEW_SOMEDAY,
+    VIEW_WAITING,
+    VIEW_MY_DAY,
+    VIEW_REVIEW,
+} from "../constants";
 import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
-import {
-    buildTaskCollection,
-    isTaskChangeSetV2,
-    isTaskSnapshotV2,
-    reduceTaskChanges,
-} from "./task-sync-reducer";
+import { buildTaskCollection, isTaskChangeSetV2, isTaskSnapshotV2, reduceTaskChanges } from "./task-sync-reducer";
 
 interface TaskState {
     allTasks: TaskCacheEntry[];
@@ -38,7 +42,7 @@ interface TaskState {
     reviewDueCount: number;
 }
 
-const ALL_TASKS_DEFAULT_STATUSES = STATUS_LIST.filter(s => s !== "inbox" && s !== "done");
+const ALL_TASKS_DEFAULT_STATUSES = STATUS_LIST.filter((s) => s !== "inbox" && s !== "done");
 
 const DEFAULT_FILTERS: Record<string, FilterState> = {
     [VIEW_NEXT_ACTION]: { ...DEFAULT_FILTER_STATE },
@@ -91,7 +95,9 @@ export function createTaskStore() {
 
     function getCurrentState(): TaskState {
         let currentState!: TaskState;
-        subscribe((state) => { currentState = state; })();
+        subscribe((state) => {
+            currentState = state;
+        })();
         return currentState;
     }
 
@@ -185,10 +191,17 @@ export function createTaskStore() {
 
     async function applyV1Notification(notification: TaskChangeNotification): Promise<void> {
         if (!bridge) return;
-        const deletedBlockIds = notification.changedBlockIds.filter(blockId => notification.changeTypes[blockId] === "delete");
-        const upsertIds = notification.changedBlockIds.filter(blockId => notification.changeTypes[blockId] !== "delete");
-        const entries = await Promise.all(upsertIds.map(blockId => bridge!.getTask(blockId)));
-        commitTaskChanges(entries.filter((entry): entry is TaskCacheEntry => Boolean(entry)), deletedBlockIds);
+        const deletedBlockIds = notification.changedBlockIds.filter(
+            (blockId) => notification.changeTypes[blockId] === "delete",
+        );
+        const upsertIds = notification.changedBlockIds.filter(
+            (blockId) => notification.changeTypes[blockId] !== "delete",
+        );
+        const entries = await Promise.all(upsertIds.map((blockId) => bridge!.getTask(blockId)));
+        commitTaskChanges(
+            entries.filter((entry): entry is TaskCacheEntry => Boolean(entry)),
+            deletedBlockIds,
+        );
         scheduleV1Refresh();
     }
 
@@ -226,7 +239,7 @@ export function createTaskStore() {
         const seq = ++loadSeq;
         const currentState = getCurrentState();
         if (currentState.allTasks.length === 0) {
-            update(state => ({ ...state, loading: true, error: null }));
+            update((state) => ({ ...state, loading: true, error: null }));
         }
         handshakeInProgress = true;
 
@@ -251,7 +264,7 @@ export function createTaskStore() {
                     syncMode = "v2";
                     syncStreamId = rawSnapshot.streamId;
                     syncRevision = rawSnapshot.revision;
-                    update(state => ({ ...state, ...collection, loading: false, error: null }));
+                    update((state) => ({ ...state, ...collection, loading: false, error: null }));
                     handshakeInProgress = false;
                     queuedV1Notifications = [];
                     const queued = queuedV2Notifications;
@@ -266,7 +279,7 @@ export function createTaskStore() {
             if (seq !== loadSeq) return;
             const collection = buildTaskCollection(allTasks);
             syncMode = "v1";
-            update(state => ({ ...state, ...collection, loading: false, error: null }));
+            update((state) => ({ ...state, ...collection, loading: false, error: null }));
             handshakeInProgress = false;
             queuedV2Notifications = [];
             const queued = queuedV1Notifications;
@@ -279,7 +292,7 @@ export function createTaskStore() {
             console.error("[NextAction] loadTasks failed:", error);
             if (seq !== loadSeq) return;
             const message = error instanceof Error ? error.message : String(error);
-            update(state => ({ ...state, loading: false, error: message }));
+            update((state) => ({ ...state, loading: false, error: message }));
         } finally {
             if (seq === loadSeq) handshakeInProgress = false;
         }
@@ -295,7 +308,7 @@ export function createTaskStore() {
             if (!bridge) return;
             try {
                 const myDayState = await bridge.getMyDay();
-                update(s => ({ ...s, myDayState }));
+                update((s) => ({ ...s, myDayState }));
             } catch (e: any) {
                 console.error("[NextAction] loadMyDay failed:", e);
             }
@@ -305,18 +318,18 @@ export function createTaskStore() {
             if (!bridge) return;
             try {
                 const settings = await bridge.getSettings();
-                update(s => ({ ...s, settings }));
+                update((s) => ({ ...s, settings }));
             } catch (e: any) {
                 console.error("[NextAction] loadSettings failed:", e);
             }
         },
 
         applySettingsUpdate(settings: PluginSettings) {
-            update(s => ({ ...s, settings }));
+            update((s) => ({ ...s, settings }));
         },
 
         applyMyDayUpdate(myDayState: MyDayState) {
-            update(s => ({ ...s, myDayState }));
+            update((s) => ({ ...s, myDayState }));
         },
 
         loadTasks,
@@ -360,7 +373,7 @@ export function createTaskStore() {
             if (!bridge) return;
             try {
                 const reminders = await bridge.getProjectReminders();
-                update(s => ({ ...s, projectReminders: reminders }));
+                update((s) => ({ ...s, projectReminders: reminders }));
             } catch (e: any) {
                 console.error("[NextAction] loadProjectReminders failed:", e);
             }
@@ -460,7 +473,7 @@ export const taskById = derived(taskStore, ($state) => {
 
 /** Derived: tasks that have a due or reviewDate — used by reminder scanner to avoid full traversal */
 export const tasksWithDueOrReview = derived(taskStore, ($state) => {
-    return $state.allTasks.filter(t => {
+    return $state.allTasks.filter((t) => {
         if (t.status === "done") return false;
         if (t.due && t.status !== "someday") return true;
         if (t.reviewDate) return true;
@@ -471,7 +484,9 @@ export const tasksWithDueOrReview = derived(taskStore, ($state) => {
                 if (Array.isArray(parsed) && parsed.some((i: any) => i && i.type === "absolute")) {
                     return true;
                 }
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
         }
         return false;
     });

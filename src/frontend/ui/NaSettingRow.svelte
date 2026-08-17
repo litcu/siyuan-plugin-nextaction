@@ -28,7 +28,9 @@
         padding: 10px 0;
         border-bottom: 1px solid var(--b3-border-color);
 
-        &:last-child { border-bottom: 0; }
+        &:last-child {
+            border-bottom: 0;
+        }
     }
 
     .na-setting-row--stacked {
@@ -37,7 +39,9 @@
         gap: 9px;
     }
 
-    .na-setting-row--disabled { opacity: .48; }
+    .na-setting-row--disabled {
+        opacity: 0.48;
+    }
 
     .na-setting-row__copy {
         display: flex;
@@ -80,6 +84,8 @@
             padding: 13px 0;
         }
 
-        .na-setting-row__control { justify-content: flex-start; }
+        .na-setting-row__control {
+            justify-content: flex-start;
+        }
     }
 </style>

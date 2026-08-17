@@ -1,4 +1,19 @@
-import { ATTR_PREFIX, ATTR_EXT_PREFIX, ATTR_REMINDER, ATTR_PARENT, ATTR_DEPENDS, RPC_ERROR_INTERNAL, RPC_ERROR_INVALID_PARAMS, RPC_ERROR_TASK_NOT_FOUND, RPC_ERROR_CIRCULAR_REF, RPC_ERROR_NOT_READY, RPC_ERROR_TIMEOUT, RPC_ERROR_DEP_CYCLE, RPC_ERROR_NOT_TEXT_BLOCK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../shared/constants";
+import {
+    ATTR_PREFIX,
+    ATTR_EXT_PREFIX,
+    ATTR_REMINDER,
+    ATTR_PARENT,
+    ATTR_DEPENDS,
+    RPC_ERROR_INTERNAL,
+    RPC_ERROR_INVALID_PARAMS,
+    RPC_ERROR_TASK_NOT_FOUND,
+    RPC_ERROR_CIRCULAR_REF,
+    RPC_ERROR_NOT_READY,
+    RPC_ERROR_TIMEOUT,
+    RPC_ERROR_DEP_CYCLE,
+    RPC_ERROR_NOT_TEXT_BLOCK,
+    RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
+} from "../shared/constants";
 import { isBlockId, isBlockIdPipe } from "../shared/block-id";
 import type { RpcFailure } from "../shared/rpc-methods";
 import { getDefaultSiyuanApi, ProductionSiyuanApi, setDefaultSiyuanApi } from "./siyuan-api";
@@ -40,9 +55,7 @@ export function numberToAttr(val: number): string {
  * Catches patterns like /ntask, /nproject, /转..., /新..., or any /word at the start.
  */
 export function cleanSlashFromTitle(title: string): string {
-    return title
-        .replace(/\/[a-zA-Z\u4e00-\u9fff]\S*/g, "")
-        .trim();
+    return title.replace(/\/[a-zA-Z\u4e00-\u9fff]\S*/g, "").trim();
 }
 
 export function validateTaskAttrs(attrs: Record<string, string>): string | null {
@@ -88,7 +101,10 @@ export function validateTaskAttrs(attrs: Record<string, string>): string | null 
                                     return `Invalid attribute value for ${key}: relative.minutes must be positive integer`;
                                 }
                             } else if (item.type === "absolute") {
-                                if (typeof item.time !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)) {
+                                if (
+                                    typeof item.time !== "string" ||
+                                    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)
+                                ) {
                                     return `Invalid attribute value for ${key}: absolute.time must be YYYY-MM-DDTHH:mm`;
                                 }
                             } else {
@@ -121,14 +137,11 @@ export function rpcError(code: number, message: string): RpcFailure {
 }
 
 export function errorToRpcError(error: unknown): RpcFailure {
-    const candidate = error && typeof error === "object"
-        ? error as { code?: unknown; message?: unknown }
-        : null;
-    const code = (typeof candidate?.code === "number" && KNOWN_ERROR_CODES.has(candidate.code))
-        ? candidate.code
-        : RPC_ERROR_INTERNAL;
-    const message = code === RPC_ERROR_INTERNAL
-        ? "Internal error"
-        : String(candidate?.message || error);
+    const candidate = error && typeof error === "object" ? (error as { code?: unknown; message?: unknown }) : null;
+    const code =
+        typeof candidate?.code === "number" && KNOWN_ERROR_CODES.has(candidate.code)
+            ? candidate.code
+            : RPC_ERROR_INTERNAL;
+    const message = code === RPC_ERROR_INTERNAL ? "Internal error" : String(candidate?.message || error);
     return rpcError(code, message);
 }

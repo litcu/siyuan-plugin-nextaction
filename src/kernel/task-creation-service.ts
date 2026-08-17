@@ -7,12 +7,7 @@ import {
 } from "../shared/task-creation";
 import type { TaskCacheEntry } from "../shared/types";
 import { getErrorMessage, McpToolError } from "./mcp-tool-error";
-import {
-    escapeMarkdownText,
-    extractBlockId,
-    extractInsertedBlockMeta,
-    type InsertedBlockMeta,
-} from "./mcp-utils";
+import { escapeMarkdownText, extractBlockId, extractInsertedBlockMeta, type InsertedBlockMeta } from "./mcp-utils";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskService } from "./task-service";
 import type { TaskTargetResolver } from "./task-target-resolver";
@@ -39,7 +34,8 @@ export class TaskCreationService {
     async create(input: CreateTaskInput, applyProperties?: TaskPropertyApplier): Promise<TaskCreationOutcome> {
         if (typeof input.title !== "string") throw new McpToolError("INVALID_INPUT", "title is required");
         const title = input.title.replace(/[\r\n]+/g, " ").trim();
-        if (!title || title.length > 512) throw new McpToolError("INVALID_INPUT", "title must contain 1-512 characters");
+        if (!title || title.length > 512)
+            throw new McpToolError("INVALID_INPUT", "title must contain 1-512 characters");
         if (input.kind !== undefined && input.kind !== "task" && input.kind !== "project") {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
@@ -52,11 +48,12 @@ export class TaskCreationService {
         if (!(CREATE_TASK_DESTINATION_TYPES as readonly string[]).includes(destination.type)) {
             throw new McpToolError("INVALID_INPUT", "destination.type must be inbox, daily_note, document, or block");
         }
-        const format: CreateTaskFormat = destination.type === "block"
-            ? "paragraph"
-            : destination.format === undefined
+        const format: CreateTaskFormat =
+            destination.type === "block"
                 ? "paragraph"
-                : destination.format;
+                : destination.format === undefined
+                  ? "paragraph"
+                  : destination.format;
         if (!(CREATE_TASK_FORMATS as readonly string[]).includes(format)) {
             throw new McpToolError("INVALID_INPUT", "destination.format must be paragraph or document");
         }
@@ -66,7 +63,10 @@ export class TaskCreationService {
         if (kind === "2" && destination.type !== "document") {
             throw new McpToolError("INVALID_INPUT", "projects require a document destination");
         }
-        if (input.properties !== undefined && (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))) {
+        if (
+            input.properties !== undefined &&
+            (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))
+        ) {
             throw new McpToolError("INVALID_INPUT", "properties must be an object");
         }
         if (input.addToMyDay !== undefined && typeof input.addToMyDay !== "boolean") {
@@ -115,9 +115,10 @@ export class TaskCreationService {
                 };
             } else if (destination.type === "daily_note") {
                 const notebookId = destination.notebookId || settings.taskCreationSettings.dailyNoteNotebookId;
-                if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");
+                if (!notebookId)
+                    throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");
                 const notebooks = await this.targets.listNotebooks();
-                if (!notebooks.some(item => item.id === notebookId)) {
+                if (!notebooks.some((item) => item.id === notebookId)) {
                     throw new McpToolError("TARGET_NOT_FOUND", `Notebook unavailable: ${notebookId}`);
                 }
                 const inserted = await this.api.request<unknown[]>("/api/block/appendDailyNoteBlock", {
@@ -133,9 +134,10 @@ export class TaskCreationService {
                 rollbackBlockId = insertedMeta.rootId || blockId;
                 destinationResult = { type: "daily_note", format, notebookId };
             } else {
-                const rawDocumentId = destination.type === "document"
-                    ? destination.documentId
-                    : settings.taskCreationSettings.inboxDocumentId;
+                const rawDocumentId =
+                    destination.type === "document"
+                        ? destination.documentId
+                        : settings.taskCreationSettings.inboxDocumentId;
                 if (!rawDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Inbox document is not configured");
                 const document = await this.targets.resolveDocument(rawDocumentId);
                 const inserted = await this.api.request<unknown[]>("/api/block/appendBlock", {
@@ -154,7 +156,10 @@ export class TaskCreationService {
             if (!blockId) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the inserted block ID");
             const expectedNodeType = kind === "2" || format === "document" ? "NodeDocument" : "NodeParagraph";
             if (insertedMeta.nodeType !== expectedNodeType) {
-                throw new McpToolError("SIYUAN_API_ERROR", `Expected ${expectedNodeType}, got ${insertedMeta.nodeType || "unknown"}`);
+                throw new McpToolError(
+                    "SIYUAN_API_ERROR",
+                    `Expected ${expectedNodeType}, got ${insertedMeta.nodeType || "unknown"}`,
+                );
             }
 
             let task = await this.taskService.convertToTask(blockId, kind === "2" ? undefined : title, kind, {
@@ -165,7 +170,8 @@ export class TaskCreationService {
             const taskBlockId = task.blockId;
             const properties = (input.properties || {}) as Record<string, unknown>;
             if (Object.keys(properties).length) {
-                if (!applyProperties) throw new McpToolError("INVALID_INPUT", "Initial properties are not supported by this caller");
+                if (!applyProperties)
+                    throw new McpToolError("INVALID_INPUT", "Initial properties are not supported by this caller");
                 task = await applyProperties(task, properties);
             }
 
@@ -214,7 +220,10 @@ export class TaskCreationService {
         if (input.kind !== undefined && input.kind !== "task" && input.kind !== "project") {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
-        if (input.properties !== undefined && (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))) {
+        if (
+            input.properties !== undefined &&
+            (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))
+        ) {
             throw new McpToolError("INVALID_INPUT", "properties must be an object");
         }
         const kind = input.kind === "project" ? "2" : "1";
@@ -222,7 +231,8 @@ export class TaskCreationService {
         try {
             const properties = (input.properties || {}) as Record<string, unknown>;
             if (Object.keys(properties).length) {
-                if (!applyProperties) throw new McpToolError("INVALID_INPUT", "Initial properties are not supported by this caller");
+                if (!applyProperties)
+                    throw new McpToolError("INVALID_INPUT", "Initial properties are not supported by this caller");
                 task = await applyProperties(task, properties);
             }
             return { task, warnings: [] };

@@ -11,7 +11,8 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
     const state = source("../src/frontend/utils/project-view-state.ts");
     const overview = source("../src/frontend/components/project/ProjectOverviewMode.svelte");
     const hierarchy = source("../src/frontend/components/project/ProjectHierarchyMode.svelte");
-    for (const mode of ["overview", "hierarchy", "board", "plan", "gantt"]) assert.match(view, new RegExp(`value: \\\"${mode}\\\"`));
+    for (const mode of ["overview", "hierarchy", "board", "plan", "gantt"])
+        assert.match(view, new RegExp(`value: \\\"${mode}\\\"`));
     assert.match(view, /buildProjectViewModel/);
     assert.match(state, /buildProjectSummaries/);
     assert.match(state, /getProjectDateBucket/);
@@ -40,8 +41,14 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
 
 test("项目视图窄屏筛选控件流式换行并与搜索区保持间距", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
-    assert.match(view, /\.na-project-toolbar\s*\{[^}]*flex-wrap:\s*wrap;[^}]*gap:\s*8px 10px;[^}]*padding:\s*8px 12px;/);
-    assert.doesNotMatch(view, /@container nextaction-app \(max-width:\s*780px\)[^{]*\{[^}]*\.na-project-toolbar\s*\{[^}]*flex-direction:\s*column/);
+    assert.match(
+        view,
+        /\.na-project-toolbar\s*\{[^}]*flex-wrap:\s*wrap;[^}]*gap:\s*8px 10px;[^}]*padding:\s*8px 12px;/,
+    );
+    assert.doesNotMatch(
+        view,
+        /@container nextaction-app \(max-width:\s*780px\)[^{]*\{[^}]*\.na-project-toolbar\s*\{[^}]*flex-direction:\s*column/,
+    );
 });
 
 test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作", () => {
@@ -110,7 +117,7 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     assert.match(contextMenu, /i18n\?\.removeProject/);
     assert.match(aiService, /task\.taskType === \"2\"/);
     assert.match(aiService, /i18n\?\.aiDecomposeProject/);
-    assert.match(plugin, /custom-na-task'\) === '2'/);
+    assert.match(plugin, /custom-na-task["']\) === ["']2["']/);
     assert.match(plugin, /const isProjectBlock = taskBlock/);
     assert.match(plugin, /this\.plugin\.i18n\.projectProperties/);
     assert.match(plugin, /this\.plugin\.i18n\.removeProject/);

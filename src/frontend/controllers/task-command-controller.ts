@@ -63,7 +63,12 @@ export class TaskCommandController {
                 },
             },
             {
-                filter: [this.plugin.i18n.convertToTaskWithChildren, "convert to task with children", "ntaskchildren", "zrwz"],
+                filter: [
+                    this.plugin.i18n.convertToTaskWithChildren,
+                    "convert to task with children",
+                    "ntaskchildren",
+                    "zrwz",
+                ],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.plugin.i18n.convertToTaskWithChildren}</span></div>`,
                 id: "convertToTaskWithChildren",
                 callback: async (protyle: any, nodeElement: HTMLElement) => {
@@ -128,8 +133,9 @@ export class TaskCommandController {
             }
         }
 
-        const selected = currentProtyle?.wysiwygElement?.querySelector(".protyle-wysiwyg--select")
-            || currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select");
+        const selected =
+            currentProtyle?.wysiwygElement?.querySelector(".protyle-wysiwyg--select") ||
+            currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select");
         return selected?.dataset?.nodeId || currentProtyle?.block?.rootID || "";
     }
 
@@ -138,7 +144,9 @@ export class TaskCommandController {
         if (!blockId) return;
         try {
             await this.doConvertToTask(blockId, undefined, taskType);
-            notifyInfo(taskType === "2" ? this.plugin.i18n.convertToProjectSuccess : this.plugin.i18n.convertToTaskSuccess);
+            notifyInfo(
+                taskType === "2" ? this.plugin.i18n.convertToProjectSuccess : this.plugin.i18n.convertToTaskSuccess,
+            );
             void taskStore.loadTasks();
         } catch (e: any) {
             notifyOperationError(e, this.plugin.i18n);
@@ -176,13 +184,17 @@ export class TaskCommandController {
                 });
                 if (response.ok) {
                     const payload = await response.json();
-                    if (payload?.code === 0 && typeof payload?.data?.kramdown === "string"
-                        && !payload.data.kramdown.includes(command)) return;
+                    if (
+                        payload?.code === 0 &&
+                        typeof payload?.data?.kramdown === "string" &&
+                        !payload.data.kramdown.includes(command)
+                    )
+                        return;
                 }
             } catch (_e) {
                 // The transaction may still be in flight; retry below.
             }
-            await new Promise(resolve => setTimeout(resolve, 25 + attempt * 25));
+            await new Promise((resolve) => setTimeout(resolve, 25 + attempt * 25));
         }
     }
 
@@ -197,7 +209,11 @@ export class TaskCommandController {
         const range = savedRange || (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null);
         const slashCommand = range?.toString() || "";
         if (range) {
-            try { range.deleteContents(); } catch (_e) { /* ignore */ }
+            try {
+                range.deleteContents();
+            } catch (_e) {
+                /* ignore */
+            }
         }
 
         const cleanTitle = (nodeElement.querySelector('[contenteditable="true"]')?.textContent || "").trim();
@@ -205,15 +221,22 @@ export class TaskCommandController {
         const newHTML = nodeElement.outerHTML;
         if (blockId && newHTML !== oldHTML && typeof protyle?.transaction === "function") {
             nodeElement.setAttribute("data-editing", "true");
-            protyle.transaction([{
-                id: blockId,
-                data: newHTML,
-                action: "update",
-            }], [{
-                id: blockId,
-                data: oldHTML,
-                action: "update",
-            }]);
+            protyle.transaction(
+                [
+                    {
+                        id: blockId,
+                        data: newHTML,
+                        action: "update",
+                    },
+                ],
+                [
+                    {
+                        id: blockId,
+                        data: oldHTML,
+                        action: "update",
+                    },
+                ],
+            );
         } else if (newHTML !== oldHTML) {
             // Keep the fallback for older editor instances without the public transaction method.
             nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
@@ -234,7 +257,11 @@ export class TaskCommandController {
         }
     }
 
-    async doConvertToTaskWithChildren(blockId: string, cleanTitle?: string, taskType: string = "1"): Promise<{ converted: number; skipped: number }> {
+    async doConvertToTaskWithChildren(
+        blockId: string,
+        cleanTitle?: string,
+        taskType: string = "1",
+    ): Promise<{ converted: number; skipped: number }> {
         try {
             return await this.getBridge().convertToTaskWithChildren(blockId, cleanTitle, taskType);
         } catch (rpcErr: any) {
@@ -261,37 +288,63 @@ export class TaskCommandController {
             langKey: "convertToTask",
             langText: `[${this.plugin.i18n.pluginName}] ${this.plugin.i18n.convertToTask}`,
             hotkey: "",
-            callback: () => { void this.runConvertCommand(); },
-            editorCallback: (protyle: any) => { void this.runConvertCommand(protyle); },
-            globalCallback: () => { void this.runConvertCommand(); },
+            callback: () => {
+                void this.runConvertCommand();
+            },
+            editorCallback: (protyle: any) => {
+                void this.runConvertCommand(protyle);
+            },
+            globalCallback: () => {
+                void this.runConvertCommand();
+            },
         });
 
         this.plugin.addCommand({
             langKey: "refreshTasks",
             langText: `[${this.plugin.i18n.pluginName}] ${this.plugin.i18n.refreshTasks}`,
             hotkey: "",
-            callback: () => { void this.runRefreshCommand(); },
-            globalCallback: () => { void this.runRefreshCommand(); },
-            editorCallback: () => { void this.runRefreshCommand(); },
-            dockCallback: () => { void this.runRefreshCommand(); },
+            callback: () => {
+                void this.runRefreshCommand();
+            },
+            globalCallback: () => {
+                void this.runRefreshCommand();
+            },
+            editorCallback: () => {
+                void this.runRefreshCommand();
+            },
+            dockCallback: () => {
+                void this.runRefreshCommand();
+            },
         });
 
         this.plugin.addCommand({
             langKey: "convertToProject",
             langText: `[${this.plugin.i18n.pluginName}] ${this.plugin.i18n.convertToProject}`,
             hotkey: "",
-            callback: () => { void this.runConvertCommand(undefined, "2"); },
-            editorCallback: (protyle: any) => { void this.runConvertCommand(protyle, "2"); },
-            globalCallback: () => { void this.runConvertCommand(undefined, "2"); },
+            callback: () => {
+                void this.runConvertCommand(undefined, "2");
+            },
+            editorCallback: (protyle: any) => {
+                void this.runConvertCommand(protyle, "2");
+            },
+            globalCallback: () => {
+                void this.runConvertCommand(undefined, "2");
+            },
         });
 
         this.plugin.addCommand({
             langKey: "convertToTaskWithChildren",
             langText: `[${this.plugin.i18n.pluginName}] ${this.plugin.i18n.convertToTaskWithChildren}`,
             hotkey: "",
-            callback: () => { void this.runConvertWithChildrenCommand(); },
-            editorCallback: (protyle: any) => { void this.runConvertWithChildrenCommand(protyle); },
-            globalCallback: () => { void this.runConvertWithChildrenCommand(); },
+            callback: () => {
+                void this.runConvertWithChildrenCommand();
+            },
+            editorCallback: (protyle: any) => {
+                void this.runConvertWithChildrenCommand(protyle);
+            },
+            globalCallback: () => {
+                void this.runConvertWithChildrenCommand();
+            },
         });
 
         if (!this.isMobile) {
@@ -299,10 +352,18 @@ export class TaskCommandController {
                 langKey: "openTaskPanel",
                 langText: `[${this.plugin.i18n.pluginName}] ${this.plugin.i18n.openTaskPanel}`,
                 hotkey: "",
-            callback: () => { this.openPanel(); },
-            globalCallback: () => { this.openPanel(); },
-            editorCallback: () => { this.openPanel(); },
-            dockCallback: () => { this.openPanel(); },
+                callback: () => {
+                    this.openPanel();
+                },
+                globalCallback: () => {
+                    this.openPanel();
+                },
+                editorCallback: () => {
+                    this.openPanel();
+                },
+                dockCallback: () => {
+                    this.openPanel();
+                },
             });
         }
 

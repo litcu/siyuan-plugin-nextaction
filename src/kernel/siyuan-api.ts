@@ -25,7 +25,7 @@ export class ProductionSiyuanApi implements SiyuanApiPort {
         });
         let result: SiyuanApiResponse;
         try {
-            result = await response.json() as SiyuanApiResponse;
+            result = (await response.json()) as SiyuanApiResponse;
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`SiYuan API returned non-JSON response for ${path}: ${message}`);
@@ -66,13 +66,27 @@ export class ProductionSiyuanApi implements SiyuanApiPort {
 let defaultApi: SiyuanApiPort | null = null;
 
 const uninitializedApi: SiyuanApiPort = {
-    request: async () => { throw new Error("SiYuan API not initialized"); },
-    getBlockAttrs: async () => { throw new Error("SiYuan API not initialized"); },
-    setBlockAttrs: async () => { throw new Error("SiYuan API not initialized"); },
-    batchGetBlockAttrs: async () => { throw new Error("SiYuan API not initialized"); },
-    batchSetBlockAttrs: async () => { throw new Error("SiYuan API not initialized"); },
-    query: async () => { throw new Error("SiYuan API not initialized"); },
-    broadcast: () => { throw new Error("SiYuan API not initialized"); },
+    request: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    getBlockAttrs: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    setBlockAttrs: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    batchGetBlockAttrs: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    batchSetBlockAttrs: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    query: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    broadcast: () => {
+        throw new Error("SiYuan API not initialized");
+    },
     log: () => {},
 };
 

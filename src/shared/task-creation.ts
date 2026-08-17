@@ -67,17 +67,18 @@ export function mergeTaskCreationSettings(
     override?: Partial<TaskCreationSettings>,
 ): TaskCreationSettings {
     return {
-        defaultCreateTarget: override?.defaultCreateTarget === "daily_note"
-            ? "daily_note"
-            : override?.defaultCreateTarget === "inbox"
-                ? "inbox"
-                : base.defaultCreateTarget || "inbox",
-        inboxDocumentId: typeof override?.inboxDocumentId === "string"
-            ? override.inboxDocumentId
-            : (base.inboxDocumentId || ""),
-        dailyNoteNotebookId: typeof override?.dailyNoteNotebookId === "string"
-            ? override.dailyNoteNotebookId
-            : (base.dailyNoteNotebookId || ""),
+        defaultCreateTarget:
+            override?.defaultCreateTarget === "daily_note"
+                ? "daily_note"
+                : override?.defaultCreateTarget === "inbox"
+                  ? "inbox"
+                  : base.defaultCreateTarget || "inbox",
+        inboxDocumentId:
+            typeof override?.inboxDocumentId === "string" ? override.inboxDocumentId : base.inboxDocumentId || "",
+        dailyNoteNotebookId:
+            typeof override?.dailyNoteNotebookId === "string"
+                ? override.dailyNoteNotebookId
+                : base.dailyNoteNotebookId || "",
         recentTargets: Array.isArray(override?.recentTargets)
             ? override!.recentTargets.slice(0, 3).map(normalizeTargetMemory)
             : [...(base.recentTargets || [])].slice(0, 3).map(normalizeTargetMemory),
@@ -107,7 +108,15 @@ function isTargetMemory(value: unknown): value is TaskCreateTargetMemory {
     const target = value as Partial<TaskCreateTargetMemory>;
     if (!(CREATE_TASK_DESTINATION_TYPES as readonly string[]).includes(String(target.type))) return false;
     if (!(CREATE_TASK_FORMATS as readonly string[]).includes(String(target.format))) return false;
-    for (const key of ["notebookId", "notebookName", "documentId", "documentTitle", "documentPath", "parentBlockId", "parentTitle"] as const) {
+    for (const key of [
+        "notebookId",
+        "notebookName",
+        "documentId",
+        "documentTitle",
+        "documentPath",
+        "parentBlockId",
+        "parentTitle",
+    ] as const) {
         if (target[key] !== undefined && typeof target[key] !== "string") return false;
     }
     return true;
@@ -115,9 +124,11 @@ function isTargetMemory(value: unknown): value is TaskCreateTargetMemory {
 
 export function validateTaskCreationSettings(settings?: Partial<TaskCreationSettings>): string | null {
     if (!settings) return null;
-    if (settings.defaultCreateTarget !== undefined
-        && settings.defaultCreateTarget !== "inbox"
-        && settings.defaultCreateTarget !== "daily_note") {
+    if (
+        settings.defaultCreateTarget !== undefined &&
+        settings.defaultCreateTarget !== "inbox" &&
+        settings.defaultCreateTarget !== "daily_note"
+    ) {
         return "taskCreationSettings.defaultCreateTarget must be 'inbox' or 'daily_note'";
     }
     if (settings.inboxDocumentId !== undefined && typeof settings.inboxDocumentId !== "string") {
@@ -127,14 +138,24 @@ export function validateTaskCreationSettings(settings?: Partial<TaskCreationSett
         return "taskCreationSettings.dailyNoteNotebookId must be string";
     }
     if (settings.recentTargets !== undefined) {
-        if (!Array.isArray(settings.recentTargets) || settings.recentTargets.length > 3) return "taskCreationSettings.recentTargets must contain at most 3 items";
-        if (settings.recentTargets.some(target => !isTargetMemory(target))) return "taskCreationSettings.recentTargets contains an invalid target";
+        if (!Array.isArray(settings.recentTargets) || settings.recentTargets.length > 3)
+            return "taskCreationSettings.recentTargets must contain at most 3 items";
+        if (settings.recentTargets.some((target) => !isTargetMemory(target)))
+            return "taskCreationSettings.recentTargets contains an invalid target";
     }
     if (settings.presets !== undefined) {
-        if (!Array.isArray(settings.presets) || settings.presets.length > 12) return "taskCreationSettings.presets must contain at most 12 items";
+        if (!Array.isArray(settings.presets) || settings.presets.length > 12)
+            return "taskCreationSettings.presets must contain at most 12 items";
         const ids = new Set<string>();
         for (const preset of settings.presets) {
-            if (!preset || typeof preset !== "object" || typeof preset.id !== "string" || typeof preset.name !== "string" || !preset.name.trim() || !isTargetMemory(preset.target)) {
+            if (
+                !preset ||
+                typeof preset !== "object" ||
+                typeof preset.id !== "string" ||
+                typeof preset.name !== "string" ||
+                !preset.name.trim() ||
+                !isTargetMemory(preset.target)
+            ) {
                 return "taskCreationSettings.presets contains an invalid preset";
             }
             if (ids.has(preset.id)) return "taskCreationSettings.presets ids must be unique";

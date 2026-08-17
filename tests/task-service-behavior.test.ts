@@ -5,7 +5,15 @@ import { Mutex } from "../src/kernel/mutex.ts";
 import { TaskService } from "../src/kernel/task-service.ts";
 import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { SyncEngine } from "../src/kernel/sync-engine.ts";
-import { ATTR_DUE, ATTR_PRIORITY, ATTR_REPEAT, ATTR_REPEAT_STATE, ATTR_STATUS, ATTR_TASK, RPC_ERROR_TIMEOUT } from "../src/shared/constants.ts";
+import {
+    ATTR_DUE,
+    ATTR_PRIORITY,
+    ATTR_REPEAT,
+    ATTR_REPEAT_STATE,
+    ATTR_STATUS,
+    ATTR_TASK,
+    RPC_ERROR_TIMEOUT,
+} from "../src/shared/constants.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 
@@ -34,7 +42,10 @@ test("转换、更新和移除均以权威属性回读驱动缓存与变更发�
     assert.equal(updated.status, "todo");
     assert.equal(updated.priority, "high");
     assert.deepEqual(service.getTask(ID), updated);
-    assert.equal(service.getNextActions().some(task => task.blockId === ID), true);
+    assert.equal(
+        service.getNextActions().some((task) => task.blockId === ID),
+        true,
+    );
 
     await service.removeTask(ID);
     assert.equal(api.blocks.get(ID)?.attrs[ATTR_TASK], "");
@@ -102,7 +113,10 @@ test("下一步行动排除已完成和阻塞任务，并按统一优先级排�
     cache.set(taskFactory(blockerId, { status: "waiting", order: 1000 }));
     cache.set(taskFactory(blockedId, { depends: blockerId, order: 1000 }));
 
-    assert.deepEqual(service.getNextActions().map(task => task.blockId), [highId, lowId]);
+    assert.deepEqual(
+        service.getNextActions().map((task) => task.blockId),
+        [highId, lowId],
+    );
     assert.equal(service.getTask(highId)?.priority, "critical");
 });
 
@@ -117,29 +131,44 @@ test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功�
     service.setIsReady(true);
 
     const result = await service.convertToTask(ID, "Write tests");
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 150));
     assert.equal(cache.get(ID)?.blockId, result.blockId);
-    assert.equal(api.logs.some(log => log.level === "error" && log.message.includes("broadcastChanges")), true);
+    assert.equal(
+        api.logs.some((log) => log.level === "error" && log.message.includes("broadcastChanges")),
+        true,
+    );
     publisher.stop();
 });
 
 test("Repository 严格按写入、权威回读顺序确认状态", async () => {
     const api = new FakeSiyuanApi();
     api.addBlock(ID);
-    const repository = new TaskRepository(api, new CacheManager(api), new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const repository = new TaskRepository(
+        api,
+        new CacheManager(api),
+        new Mutex(),
+        new FakeTaskChangePublisher(),
+        DEFAULT_SETTINGS,
+    );
     const attrs = await repository.writeAttrs(ID, { [ATTR_PRIORITY]: "high" });
     assert.equal(attrs[ATTR_PRIORITY], "high");
-    assert.deepEqual(api.requests.slice(-2).map(request => request.path), [
-        "/api/attr/setBlockAttrs",
-        "/api/attr/getBlockAttrs",
-    ]);
+    assert.deepEqual(
+        api.requests.slice(-2).map((request) => request.path),
+        ["/api/attr/setBlockAttrs", "/api/attr/getBlockAttrs"],
+    );
 });
 
 test("Repository 批量写失败时只返回逐块确认成功项", async () => {
     const api = new FakeSiyuanApi();
     api.addBlock(ID);
     const missingId = "20260816123457-abcdefg";
-    const repository = new TaskRepository(api, new CacheManager(api), new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const repository = new TaskRepository(
+        api,
+        new CacheManager(api),
+        new Mutex(),
+        new FakeTaskChangePublisher(),
+        DEFAULT_SETTINGS,
+    );
     const result = await repository.batchWriteAttrs([
         { id: ID, attrs: { [ATTR_PRIORITY]: "high" } },
         { id: missingId, attrs: { [ATTR_PRIORITY]: "low" } },
@@ -152,7 +181,14 @@ test("Repository 并发锁超时返回编码错误且不会窃取锁", async () 
     const api = new FakeSiyuanApi();
     const mutex = new Mutex();
     const held = await mutex.acquire().promise;
-    const repository = new TaskRepository(api, new CacheManager(api), mutex, new FakeTaskChangePublisher(), DEFAULT_SETTINGS, 5);
+    const repository = new TaskRepository(
+        api,
+        new CacheManager(api),
+        mutex,
+        new FakeTaskChangePublisher(),
+        DEFAULT_SETTINGS,
+        5,
+    );
     await assert.rejects(repository.acquireWithTimeout(), (error: unknown) => {
         return error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_TIMEOUT;
     });
@@ -164,14 +200,25 @@ test("Repository 并发锁超时返回编码错误且不会窃取锁", async () 
 test("Repository 广播失败只记录日志，不回滚已确认缓存", () => {
     const api = new FakeSiyuanApi();
     const cache = new CacheManager(api);
-    const repository = new TaskRepository(api, cache, new Mutex(), {
-        addPendingChange: () => {},
-        broadcastChanges: () => { throw new Error("broadcast unavailable"); },
-    }, DEFAULT_SETTINGS);
+    const repository = new TaskRepository(
+        api,
+        cache,
+        new Mutex(),
+        {
+            addPendingChange: () => {},
+            broadcastChanges: () => {
+                throw new Error("broadcast unavailable");
+            },
+        },
+        DEFAULT_SETTINGS,
+    );
     const entry = taskFactory(ID);
     repository.cache(entry);
     repository.recordChange(ID, "update");
     repository.publishChanges();
     assert.equal(cache.get(ID), entry);
-    assert.equal(api.logs.some(log => log.level === "error" && log.message.includes("broadcast unavailable")), true);
+    assert.equal(
+        api.logs.some((log) => log.level === "error" && log.message.includes("broadcast unavailable")),
+        true,
+    );
 });

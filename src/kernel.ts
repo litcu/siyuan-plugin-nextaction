@@ -43,7 +43,13 @@ class NextActionKernelPlugin {
         this.cacheManager = new CacheManager(api);
         this.syncEngine = new SyncEngine(api, this.cacheManager);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
-        const taskRepository = new TaskRepository(api, this.cacheManager, this.mutex, this.syncEngine, DEFAULT_SETTINGS);
+        const taskRepository = new TaskRepository(
+            api,
+            this.cacheManager,
+            this.mutex,
+            this.syncEngine,
+            DEFAULT_SETTINGS,
+        );
         this.taskService = new TaskService(this.cacheManager, taskRepository, myDayManager, api);
         const loadedSettings = await this.loadSettings();
         try {
@@ -54,11 +60,8 @@ class NextActionKernelPlugin {
             this.taskService.updateSettings(DEFAULT_SETTINGS);
         }
         this.taskTargetResolver = new TaskTargetResolver(api, () => this.taskService.getSettings());
-        this.taskCreationService = new TaskCreationService(
-            this.taskService,
-            api,
-            this.taskTargetResolver,
-            () => this.taskService.getSettings(),
+        this.taskCreationService = new TaskCreationService(this.taskService, api, this.taskTargetResolver, () =>
+            this.taskService.getSettings(),
         );
         this.mcpToolManager = new McpToolManager(
             this.siyuan,
@@ -82,11 +85,7 @@ class NextActionKernelPlugin {
             );
             return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
         };
-        const aiProposalService = new AiProposalService(
-            this.taskService,
-            createTask,
-            convertTask,
-        );
+        const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask);
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -104,20 +103,25 @@ class NextActionKernelPlugin {
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
-        void this.taskService.loadCache().then(async () => {
-            const mismatches = await this.cacheManager.verifyIntegrity();
-            if (mismatches > 0) {
-                await logger.warn("onload: cache integrity check found " + mismatches + " mismatches, rebuilding...");
-                await this.taskService.rebuildCache();
-                this.syncEngine.broadcastReset();
-            }
-            this.isReady = true;
-            await myDayManager.load();
-            this.taskService.setIsReady(true);
-            await logger.info("onload: cache loaded, task service ready");
-        }).catch(async (error: unknown) => {
-            await logger.error("onload: failed to load cache: " + String(error));
-        });
+        void this.taskService
+            .loadCache()
+            .then(async () => {
+                const mismatches = await this.cacheManager.verifyIntegrity();
+                if (mismatches > 0) {
+                    await logger.warn(
+                        "onload: cache integrity check found " + mismatches + " mismatches, rebuilding...",
+                    );
+                    await this.taskService.rebuildCache();
+                    this.syncEngine.broadcastReset();
+                }
+                this.isReady = true;
+                await myDayManager.load();
+                this.taskService.setIsReady(true);
+                await logger.info("onload: cache loaded, task service ready");
+            })
+            .catch(async (error: unknown) => {
+                await logger.error("onload: failed to load cache: " + String(error));
+            });
     }
 
     private async onrunning(): Promise<void> {
@@ -137,7 +141,7 @@ class NextActionKernelPlugin {
     private async loadSettings(): Promise<PluginSettings> {
         try {
             const data = await this.siyuan.storage.get("settings.json");
-            const saved = await data.json() as Partial<PluginSettings>;
+            const saved = (await data.json()) as Partial<PluginSettings>;
             if (saved && typeof saved === "object") return mergeSettings(DEFAULT_SETTINGS, saved);
         } catch (_error) {
             // First run or unreadable legacy settings: use defaults.

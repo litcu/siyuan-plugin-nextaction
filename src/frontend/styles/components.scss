@@ -78,7 +78,9 @@
 }
 
 // View
-.na-view, .na-view--next-action, .na-view--project {
+.na-view,
+.na-view--next-action,
+.na-view--project {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -98,7 +100,10 @@
     cursor: pointer;
     border: 1px solid var(--na-task-card-border);
     position: relative;
-    transition: background 0.15s, box-shadow 0.18s, border-color 0.15s;
+    transition:
+        background 0.15s,
+        box-shadow 0.18s,
+        border-color 0.15s;
     background: var(--b3-theme-surface);
     box-shadow: none;
 
@@ -392,7 +397,9 @@
     padding-left: 6px;
     border-left: 1px solid transparent;
     opacity: 0.48;
-    transition: opacity 0.15s, border-color 0.15s;
+    transition:
+        opacity 0.15s,
+        border-color 0.15s;
 }
 
 .na-task-card:hover .na-task-card__actions,
@@ -414,7 +421,9 @@
     border-radius: 6px;
     padding: 0;
     flex-shrink: 0;
-    transition: color 0.15s, background 0.15s;
+    transition:
+        color 0.15s,
+        background 0.15s;
 
     svg {
         width: 12px;
@@ -444,7 +453,9 @@
     padding: 0 6px;
     flex-shrink: 0;
     font-size: var(--na-font-size-sm, 11px);
-    transition: color 0.15s, background 0.15s;
+    transition:
+        color 0.15s,
+        background 0.15s;
 
     &:hover {
         background: var(--na-color-warning-bg);
@@ -485,7 +496,10 @@
     flex-shrink: 0;
     vertical-align: middle;
     position: relative;
-    transition: transform 0.15s, border-color 0.2s, background 0.2s;
+    transition:
+        transform 0.15s,
+        border-color 0.2s,
+        background 0.2s;
     background: transparent;
     box-sizing: border-box;
 
@@ -561,7 +575,6 @@
             transform: translate(-50%, -50%);
         }
     }
-
 }
 
 // All tasks view - tree indent

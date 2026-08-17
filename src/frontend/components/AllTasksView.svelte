@@ -34,7 +34,11 @@
             getCardElement: (blockId: string) => listEl!.querySelector(`[data-task-block-id="${blockId}"]`),
             onReorder: async (blockId, parentId, afterId) => {
                 try {
-                    const updated = await bridge.reorderTask(blockId, parentId === null ? "" : parentId, afterId ?? undefined);
+                    const updated = await bridge.reorderTask(
+                        blockId,
+                        parentId === null ? "" : parentId,
+                        afterId ?? undefined,
+                    );
                     taskStore.applyUpdate(updated);
                 } catch (e: any) {
                     console.error("[NextAction] reorderTask failed:", e);
@@ -96,94 +100,134 @@
     $: completedPageNumbers = getPageNumbers($taskStore.completedPage, totalCompletedPages);
 </script>
 
-<NaViewShell loading={$taskStore.loading && filteredTasks.length === 0} empty={filteredTasks.length === 0 && doneCount === 0} emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"} hint={i18n?.viewHintAllTasks}>
-    <svelte:fragment slot="toolbar"><NaTaskFilterBar
-        contexts={$taskStore.contexts}
-        tags={$taskStore.tags}
-        customFields={$taskStore.settings.customFields}
-        filterState={allTaskFilterState}
-        showStatus={true}
-        statusValues={ALL_TASK_STATUS_FILTERS}
-        {i18n}
-        on:change={(event) => handleFilterChange(event.detail)}
-    /></svelte:fragment>
-        <NaTaskList bind:element={listEl}>
-            {#each taskRows as row (row.task.blockId)}
-                    <div class="na-all-tasks__item" data-task-block-id={row.task.blockId}
-                         class:na-all-tasks__item--root={row.indent === 0} style="--indent: {row.indent}"
-                         on:pointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}>
-                        <TaskCard
-                            task={row.task}
-                            selected={row.task.blockId === selectedTaskId}
-                            onSelect={onSelectTask}
-                            hasChildren={row.hasChildren}
-                            isCollapsed={!!collapsed[row.task.blockId]}
-                            childCount={row.childCount}
-                            onToggleCollapse={() => toggleCollapse(row.task.blockId)}
-                            isRoot={row.indent === 0}
-                            {onEdit}
-                            {onStatusClick}
-                            {onContextMenu}
-                            {i18n}
-                        />
-                    </div>
-            {/each}
+<NaViewShell
+    loading={$taskStore.loading && filteredTasks.length === 0}
+    empty={filteredTasks.length === 0 && doneCount === 0}
+    emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"}
+    hint={i18n?.viewHintAllTasks}
+>
+    <svelte:fragment slot="toolbar"
+        ><NaTaskFilterBar
+            contexts={$taskStore.contexts}
+            tags={$taskStore.tags}
+            customFields={$taskStore.settings.customFields}
+            filterState={allTaskFilterState}
+            showStatus={true}
+            statusValues={ALL_TASK_STATUS_FILTERS}
+            {i18n}
+            on:change={(event) => handleFilterChange(event.detail)}
+        /></svelte:fragment
+    >
+    <NaTaskList bind:element={listEl}>
+        {#each taskRows as row (row.task.blockId)}
+            <div
+                class="na-all-tasks__item"
+                data-task-block-id={row.task.blockId}
+                class:na-all-tasks__item--root={row.indent === 0}
+                style="--indent: {row.indent}"
+                on:pointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}
+            >
+                <TaskCard
+                    task={row.task}
+                    selected={row.task.blockId === selectedTaskId}
+                    onSelect={onSelectTask}
+                    hasChildren={row.hasChildren}
+                    isCollapsed={!!collapsed[row.task.blockId]}
+                    childCount={row.childCount}
+                    onToggleCollapse={() => toggleCollapse(row.task.blockId)}
+                    isRoot={row.indent === 0}
+                    {onEdit}
+                    {onStatusClick}
+                    {onContextMenu}
+                    {i18n}
+                />
+            </div>
+        {/each}
 
-            <!-- Completed section -->
-            {#if doneCount > 0}
-                <div class="na-completed-tasks">
-                    <NaAccordion title={i18n?.completedTasks || "Completed tasks"} count={doneCount} open={$taskStore.showCompleted} variant="plain" on:openChange={handleToggleCompleted}>
-                        <svelte:fragment slot="action">
-                            <NaSortSelect
-                                options={completedSortOptions}
-                                selected={$taskStore.completedSortBy}
-                                ascending={$taskStore.completedSortAsc}
+        <!-- Completed section -->
+        {#if doneCount > 0}
+            <div class="na-completed-tasks">
+                <NaAccordion
+                    title={i18n?.completedTasks || "Completed tasks"}
+                    count={doneCount}
+                    open={$taskStore.showCompleted}
+                    variant="plain"
+                    on:openChange={handleToggleCompleted}
+                >
+                    <svelte:fragment slot="action">
+                        <NaSortSelect
+                            options={completedSortOptions}
+                            selected={$taskStore.completedSortBy}
+                            ascending={$taskStore.completedSortAsc}
+                            {i18n}
+                            onChange={changeCompletedSort}
+                        />
+                    </svelte:fragment>
+                    {#if $taskStore.completedLoading && $taskStore.completedTasks.length === 0}
+                        <div class="na-completed-tasks__loading">{i18n?.loading || "Loading…"}</div>
+                    {:else if $taskStore.completedError}
+                        <div class="na-completed-tasks__error">{$taskStore.completedError}</div>
+                    {/if}
+                    {#each $taskStore.completedTasks as task (task.blockId)}
+                        {@const hasChildren = false}
+                        {@const childCount = 0}
+                        <div class="na-all-tasks__item na-all-tasks__item--root" style="--indent: 0">
+                            <TaskCard
+                                {task}
+                                selected={task.blockId === selectedTaskId}
+                                onSelect={onSelectTask}
+                                {hasChildren}
+                                isCollapsed={false}
+                                {childCount}
+                                onToggleCollapse={() => {}}
+                                isRoot={true}
+                                {onEdit}
+                                {onStatusClick}
+                                {onContextMenu}
                                 {i18n}
-                                onChange={changeCompletedSort}
                             />
-                        </svelte:fragment>
-                        {#if $taskStore.completedLoading && $taskStore.completedTasks.length === 0}
-                            <div class="na-completed-tasks__loading">{i18n?.loading || "Loading…"}</div>
-                        {:else if $taskStore.completedError}
-                            <div class="na-completed-tasks__error">{$taskStore.completedError}</div>
-                        {/if}
-                        {#each $taskStore.completedTasks as task (task.blockId)}
-                            {@const hasChildren = false}
-                            {@const childCount = 0}
-                            <div class="na-all-tasks__item na-all-tasks__item--root" style="--indent: 0">
-                                <TaskCard
-                                    {task}
-                                    selected={task.blockId === selectedTaskId}
-                                    onSelect={onSelectTask}
-                                    {hasChildren}
-                                    isCollapsed={false}
-                                    {childCount}
-                                    onToggleCollapse={() => {}}
-                                    isRoot={true}
-                                    {onEdit}
-                                    {onStatusClick}
-                                    {onContextMenu}
-                                    {i18n}
-                                />
-                            </div>
-                        {/each}
-                        {#if $taskStore.completedTotal > 0}
-                            <div class="na-completed-tasks__pagination" aria-label={i18n?.completedPagination || "Completed task pages"}>
-                                <NaButton size="sm" variant="text" disabled={$taskStore.completedPage <= 1 || $taskStore.completedLoading} on:click={() => changeCompletedPage($taskStore.completedPage - 1)}>{i18n?.previousPage || "Previous"}</NaButton>
-                                {#each completedPageNumbers as page (page)}
-                                    <NaButton size="sm" variant={page === $taskStore.completedPage ? "primary" : "text"} disabled={$taskStore.completedLoading} on:click={() => changeCompletedPage(page)}>{page}</NaButton>
-                                {/each}
-                                <NaButton size="sm" variant="text" disabled={!$taskStore.completedHasMore || $taskStore.completedLoading} on:click={() => changeCompletedPage($taskStore.completedPage + 1)}>{i18n?.nextPage || "Next"}</NaButton>
-                            </div>
-                        {/if}
-                    </NaAccordion>
-                </div>
-            {/if}
-        </NaTaskList>
+                        </div>
+                    {/each}
+                    {#if $taskStore.completedTotal > 0}
+                        <div
+                            class="na-completed-tasks__pagination"
+                            aria-label={i18n?.completedPagination || "Completed task pages"}
+                        >
+                            <NaButton
+                                size="sm"
+                                variant="text"
+                                disabled={$taskStore.completedPage <= 1 || $taskStore.completedLoading}
+                                on:click={() => changeCompletedPage($taskStore.completedPage - 1)}
+                                >{i18n?.previousPage || "Previous"}</NaButton
+                            >
+                            {#each completedPageNumbers as page (page)}
+                                <NaButton
+                                    size="sm"
+                                    variant={page === $taskStore.completedPage ? "primary" : "text"}
+                                    disabled={$taskStore.completedLoading}
+                                    on:click={() => changeCompletedPage(page)}>{page}</NaButton
+                                >
+                            {/each}
+                            <NaButton
+                                size="sm"
+                                variant="text"
+                                disabled={!$taskStore.completedHasMore || $taskStore.completedLoading}
+                                on:click={() => changeCompletedPage($taskStore.completedPage + 1)}
+                                >{i18n?.nextPage || "Next"}</NaButton
+                            >
+                        </div>
+                    {/if}
+                </NaAccordion>
+            </div>
+        {/if}
+    </NaTaskList>
 </NaViewShell>
 
 <style lang="scss">
-    .na-completed-tasks { flex: 0 0 auto; min-width: 0; }
+    .na-completed-tasks {
+        flex: 0 0 auto;
+        min-width: 0;
+    }
 
     .na-completed-tasks__loading,
     .na-completed-tasks__error {
@@ -192,7 +236,9 @@
         font-size: var(--na-font-size-sm);
     }
 
-    .na-completed-tasks__error { color: var(--na-color-error); }
+    .na-completed-tasks__error {
+        color: var(--na-color-error);
+    }
 
     .na-completed-tasks__pagination {
         display: flex;

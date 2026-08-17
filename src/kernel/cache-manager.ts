@@ -1,5 +1,29 @@
 import { type TaskCacheEntry } from "../shared/types";
-import { ATTR_PARENT, ATTR_STATUS, ATTR_PRIORITY, ATTR_DUE, ATTR_START, ATTR_CONTEXT, ATTR_TASK, ATTR_EFFORT, ATTR_IMPORTANCE, ATTR_DEPENDS, ATTR_DEP_MODE, ATTR_SEQUENTIAL, ATTR_REPEAT, ATTR_REPEAT_STATE, ATTR_SORT, ATTR_COMPLETED, ATTR_NOTE, ATTR_CREATED, ATTR_TAGS, ATTR_REVIEW_INTERVAL, ATTR_REVIEW_DATE, ATTR_REMINDER, ATTR_EXT_PREFIX } from "../shared/constants";
+import {
+    ATTR_PARENT,
+    ATTR_STATUS,
+    ATTR_PRIORITY,
+    ATTR_DUE,
+    ATTR_START,
+    ATTR_CONTEXT,
+    ATTR_TASK,
+    ATTR_EFFORT,
+    ATTR_IMPORTANCE,
+    ATTR_DEPENDS,
+    ATTR_DEP_MODE,
+    ATTR_SEQUENTIAL,
+    ATTR_REPEAT,
+    ATTR_REPEAT_STATE,
+    ATTR_SORT,
+    ATTR_COMPLETED,
+    ATTR_NOTE,
+    ATTR_CREATED,
+    ATTR_TAGS,
+    ATTR_REVIEW_INTERVAL,
+    ATTR_REVIEW_DATE,
+    ATTR_REMINDER,
+    ATTR_EXT_PREFIX,
+} from "../shared/constants";
 import { DEFAULT_SETTINGS } from "../shared/settings";
 import { attrToNumber, cleanSlashFromTitle } from "./utils";
 import { sql } from "../shared/sql";
@@ -121,7 +145,7 @@ export class CacheManager {
                 reviewDate: attrs[ATTR_REVIEW_DATE] || "",
                 reminder: attrs[ATTR_REMINDER] || "",
                 customFields: this.extractCustomFields(attrs),
-                blocked: false,  // 将在 childIds 构建后统一计算
+                blocked: false, // 将在 childIds 构建后统一计算
                 blockedReason: "",
                 taskType: attrs[ATTR_TASK] || "1",
                 order: 0,
@@ -130,7 +154,6 @@ export class CacheManager {
             };
 
             newCache[entry.blockId] = entry;
-
         }
 
         // Step 3: Atomically replace the primary cache and relationship indexes.
@@ -149,7 +172,7 @@ export class CacheManager {
             if (entry.parentId) parents.add(entry.parentId);
         }
         for (const parentId of parents) {
-            const children = this.getByParent(parentId).filter(c => c.sort === -1);
+            const children = this.getByParent(parentId).filter((c) => c.sort === -1);
             if (children.length === 0) continue;
             children.sort((a, b) => a.blockId.localeCompare(b.blockId));
             for (let i = 0; i < children.length; i++) {
@@ -236,10 +259,13 @@ export class CacheManager {
                       AND a.value != ''
                       AND b.type IN ('p', 'h', 'd')`,
             );
-            const dbCount = (rows && rows.length > 0) ? rows[0].count : 0;
+            const dbCount = rows && rows.length > 0 ? rows[0].count : 0;
             const cacheCount = Object.keys(this.cache).length;
             if (dbCount !== cacheCount) {
-                void this.api.log("warn", `Cache integrity check: DB has ${dbCount} tasks, cache has ${cacheCount}. Rebuilding...`);
+                void this.api.log(
+                    "warn",
+                    `Cache integrity check: DB has ${dbCount} tasks, cache has ${cacheCount}. Rebuilding...`,
+                );
                 return Math.abs(dbCount - cacheCount);
             }
             return 0;
@@ -324,7 +350,11 @@ export class CacheManager {
         const parent = this.cache[parentId];
         if (!parent) return;
         const childIds = this.childIdsFor(parentId);
-        if (parent.childIds.length === childIds.length && parent.childIds.every((childId, index) => childId === childIds[index])) return;
+        if (
+            parent.childIds.length === childIds.length &&
+            parent.childIds.every((childId, index) => childId === childIds[index])
+        )
+            return;
         parent.childIds = childIds;
         this.pendingRelationshipChangedIds.add(parentId);
     }

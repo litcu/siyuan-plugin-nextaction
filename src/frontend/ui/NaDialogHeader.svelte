@@ -15,7 +15,8 @@
     <div class="na-dialog-header__copy">
         <div class="na-dialog-header__title-row">
             <h2>{title}</h2>
-            {#if status}<span class="na-dialog-header__status na-dialog-header__status--{statusTone}">{status}</span>{/if}
+            {#if status}<span class="na-dialog-header__status na-dialog-header__status--{statusTone}">{status}</span
+                >{/if}
         </div>
         {#if subtitle}<p>{subtitle}</p>{/if}
     </div>
@@ -36,12 +37,53 @@
         border-bottom: 1px solid var(--b3-border-color);
         background: var(--na-color-panel-header);
     }
-    .na-dialog-header__copy { min-width: 0; flex: 1; }
-    .na-dialog-header__title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    h2 { overflow: hidden; margin: 0; color: var(--b3-theme-on-surface); font-size: 14px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
-    p { margin: 2px 0 0; color: var(--b3-theme-on-surface-light); font-size: 10px; line-height: 15px; }
-    .na-dialog-header__actions { display: flex; align-items: center; gap: 2px; flex: none; }
-    .na-dialog-header__status { flex: none; padding: 1px 6px; border-radius: var(--b3-border-radius); color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); font-size: 10px; font-weight: 600; }
-    .na-dialog-header__status--warning { color: var(--b3-card-warning-color); background: var(--na-color-warning-bg); }
-    .na-dialog-header__status--error { color: var(--b3-card-error-color); background: var(--na-color-error-bg); }
+    .na-dialog-header__copy {
+        min-width: 0;
+        flex: 1;
+    }
+    .na-dialog-header__title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    h2 {
+        overflow: hidden;
+        margin: 0;
+        color: var(--b3-theme-on-surface);
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 20px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    p {
+        margin: 2px 0 0;
+        color: var(--b3-theme-on-surface-light);
+        font-size: 10px;
+        line-height: 15px;
+    }
+    .na-dialog-header__actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex: none;
+    }
+    .na-dialog-header__status {
+        flex: none;
+        padding: 1px 6px;
+        border-radius: var(--b3-border-radius);
+        color: var(--b3-theme-primary);
+        background: var(--b3-theme-primary-lightest);
+        font-size: 10px;
+        font-weight: 600;
+    }
+    .na-dialog-header__status--warning {
+        color: var(--b3-card-warning-color);
+        background: var(--na-color-warning-bg);
+    }
+    .na-dialog-header__status--error {
+        color: var(--b3-card-error-color);
+        background: var(--na-color-error-bg);
+    }
 </style>

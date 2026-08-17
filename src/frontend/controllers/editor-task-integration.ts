@@ -31,7 +31,7 @@ export class EditorTaskIntegration {
     private handleEditorStatusClick = (event: MouseEvent) => {
         const target = event.target as HTMLElement;
         // Find the closest block with custom-na-task
-        const taskBlock = target.closest('[data-node-id][custom-na-task]') as HTMLElement;
+        const taskBlock = target.closest("[data-node-id][custom-na-task]") as HTMLElement;
         if (!taskBlock) return;
 
         const rect = taskBlock.getBoundingClientRect();
@@ -40,29 +40,30 @@ export class EditorTaskIntegration {
 
         const blockId = taskBlock.dataset.nodeId;
         if (!blockId) return;
-        const currentStatus = taskBlock.getAttribute('custom-na-status') || 'todo';
-        const currentPriority = normalizePriority(taskBlock.getAttribute('custom-na-priority'));
-        const isProject = taskBlock.getAttribute('custom-na-task') === '2';
+        const currentStatus = taskBlock.getAttribute("custom-na-status") || "todo";
+        const currentPriority = normalizePriority(taskBlock.getAttribute("custom-na-priority"));
+        const isProject = taskBlock.getAttribute("custom-na-task") === "2";
 
         event.stopPropagation();
         event.preventDefault();
 
-        const menu = new Menu('na-editor-status');
+        const menu = new Menu("na-editor-status");
 
         // Status section
-        for (const s of ['inbox', 'todo', 'doing', 'waiting', 'someday', 'done']) {
+        for (const s of ["inbox", "todo", "doing", "waiting", "someday", "done"]) {
             const i18nKey = statusI18nKey(s);
             menu.addItem({
-                icon: s === currentStatus ? 'iconSelect' : '',
+                icon: s === currentStatus ? "iconSelect" : "",
                 label: translateKey(this.i18n, i18nKey, s),
                 click: async () => {
                     try {
-                        const updated = await this.getBridge().updateTask(blockId, { 'na-status': s });
+                        const updated = await this.getBridge().updateTask(blockId, { "na-status": s });
                         taskStore.applyUpdate(updated);
                         const statusLabel = translateKey(this.i18n, i18nKey, s);
-                        const template = s === "done"
-                            ? (this.plugin.i18n.taskMarkedDone || "Marked as done")
-                            : (this.plugin.i18n.taskStatusUpdated || "Status updated to {status}");
+                        const template =
+                            s === "done"
+                                ? this.plugin.i18n.taskMarkedDone || "Marked as done"
+                                : this.plugin.i18n.taskStatusUpdated || "Status updated to {status}";
                         notifyInfo(template.replace("{status}", statusLabel));
                     } catch (e: any) {
                         notifyOperationError(e, this.plugin.i18n);
@@ -77,31 +78,33 @@ export class EditorTaskIntegration {
             icon: "iconSparkles",
             label: this.plugin.i18n.ai || "AI",
             type: "submenu",
-            submenu: [{
-                icon: "iconSparkles",
-                label: isProject
-                    ? (this.plugin.i18n.aiDecomposeProject || "AI 拆解项目")
-                    : (this.plugin.i18n.aiDecomposeTask || "AI 拆解任务"),
-                click: async () => {
-                    const task = get(taskStore).allTasks.find(item => item.blockId === blockId);
-                    if (task) await runAiDecomposeTask(task);
+            submenu: [
+                {
+                    icon: "iconSparkles",
+                    label: isProject
+                        ? this.plugin.i18n.aiDecomposeProject || "AI 拆解项目"
+                        : this.plugin.i18n.aiDecomposeTask || "AI 拆解任务",
+                    click: async () => {
+                        const task = get(taskStore).allTasks.find((item) => item.blockId === blockId);
+                        if (task) await runAiDecomposeTask(task);
+                    },
                 },
-            }],
+            ],
         });
 
         menu.addSeparator();
 
         // Priority submenu
         menu.addItem({
-            icon: 'iconSort',
-            label: this.plugin.i18n.priority || 'Priority',
-            type: 'submenu',
+            icon: "iconSort",
+            label: this.plugin.i18n.priority || "Priority",
+            type: "submenu",
             submenu: PRIORITY_LIST.map((p) => ({
-                icon: p === currentPriority ? 'iconSelect' : '',
+                icon: p === currentPriority ? "iconSelect" : "",
                 label: translateKey(this.i18n, priorityI18nKey(p), p),
                 click: async () => {
                     try {
-                        const updated = await this.getBridge().updateTask(blockId, { 'na-priority': p });
+                        const updated = await this.getBridge().updateTask(blockId, { "na-priority": p });
                         taskStore.applyUpdate(updated);
                     } catch (e: any) {
                         notifyOperationError(e, this.plugin.i18n);
@@ -114,12 +117,12 @@ export class EditorTaskIntegration {
 
         // My Day toggle
         const storeState = get(taskStore);
-        const isInMyDay = storeState.myDayState?.tasks.some(t => t.blockId === blockId) ?? false;
+        const isInMyDay = storeState.myDayState?.tasks.some((t) => t.blockId === blockId) ?? false;
         menu.addItem({
-            icon: isInMyDay ? 'iconClose' : 'iconBookmark',
+            icon: isInMyDay ? "iconClose" : "iconBookmark",
             label: isInMyDay
-                ? (this.plugin.i18n.removeFromMyDay || 'Remove from My Day')
-                : (this.plugin.i18n.addToMyDay || 'Add to My Day'),
+                ? this.plugin.i18n.removeFromMyDay || "Remove from My Day"
+                : this.plugin.i18n.addToMyDay || "Add to My Day",
             click: async () => {
                 try {
                     const myDayState = isInMyDay
@@ -135,8 +138,8 @@ export class EditorTaskIntegration {
 
         // Reminder
         menu.addItem({
-            icon: 'iconClock',
-            label: this.plugin.i18n.reminderAddReminder || '添加提醒',
+            icon: "iconClock",
+            label: this.plugin.i18n.reminderAddReminder || "添加提醒",
             click: () => {
                 this.openReminderDialog(blockId);
             },
@@ -146,10 +149,10 @@ export class EditorTaskIntegration {
 
         // Task properties
         menu.addItem({
-            icon: 'iconEdit',
+            icon: "iconEdit",
             label: isProject
-                ? (this.plugin.i18n.projectProperties || 'Project Properties')
-                : (this.plugin.i18n.taskProperties || 'Task Properties'),
+                ? this.plugin.i18n.projectProperties || "Project Properties"
+                : this.plugin.i18n.taskProperties || "Task Properties",
             click: () => {
                 void this.openTaskDetailDialog(blockId);
             },
@@ -157,16 +160,20 @@ export class EditorTaskIntegration {
 
         // Remove task
         menu.addItem({
-            icon: 'iconTrashcan',
+            icon: "iconTrashcan",
             label: isProject
-                ? (this.plugin.i18n.removeProject || 'Remove Project')
-                : (this.plugin.i18n.removeTask || 'Remove Task'),
+                ? this.plugin.i18n.removeProject || "Remove Project"
+                : this.plugin.i18n.removeTask || "Remove Task",
             click: async () => {
                 confirm(
-                    isProject ? (this.plugin.i18n.removeProject || 'Remove Project') : (this.plugin.i18n.removeTask || 'Remove Task'),
                     isProject
-                        ? (this.plugin.i18n.confirmRemoveProject || 'This will clear all project attributes. This action cannot be undone.')
-                        : (this.plugin.i18n.confirmRemoveTask || 'This will clear all task attributes. This action cannot be undone.'),
+                        ? this.plugin.i18n.removeProject || "Remove Project"
+                        : this.plugin.i18n.removeTask || "Remove Task",
+                    isProject
+                        ? this.plugin.i18n.confirmRemoveProject ||
+                              "This will clear all project attributes. This action cannot be undone."
+                        : this.plugin.i18n.confirmRemoveTask ||
+                              "This will clear all task attributes. This action cannot be undone.",
                     async () => {
                         try {
                             await this.getBridge().removeTask(blockId);
@@ -188,7 +195,7 @@ export class EditorTaskIntegration {
      */
     private openReminderDialog(blockId: string) {
         const storeState = get(taskStore);
-        const task = storeState.allTasks.find(t => t.blockId === blockId);
+        const task = storeState.allTasks.find((t) => t.blockId === blockId);
         if (!task) return;
 
         openReminderSettingsDialog(task, this.getBridge(), this.plugin.i18n, {
@@ -213,7 +220,9 @@ export class EditorTaskIntegration {
             }
         }
         if (!task) {
-            notifyError(this.plugin.i18n?.errItemNotFound || this.plugin.i18n?.errTaskNotFound || "Project or task not found");
+            notifyError(
+                this.plugin.i18n?.errItemNotFound || this.plugin.i18n?.errTaskNotFound || "Project or task not found",
+            );
             return;
         }
 
@@ -299,18 +308,27 @@ export class EditorTaskIntegration {
                     {
                         icon: "iconSparkles",
                         label: this.plugin.i18n.aiExtractTasks || "AI 提取任务",
-                        click: async () => runAiExtractTasks(blockElements.map((element: HTMLElement) => element.dataset.nodeId).filter(Boolean)),
+                        click: async () =>
+                            runAiExtractTasks(
+                                blockElements.map((element: HTMLElement) => element.dataset.nodeId).filter(Boolean),
+                            ),
                     },
-                    ...(taskBlock ? [{
-                        icon: "iconSplitLR",
-                        label: isProjectBlock
-                            ? (this.plugin.i18n.aiDecomposeProject || "AI 拆解项目")
-                            : (this.plugin.i18n.aiDecomposeTask || "AI 拆解任务"),
-                        click: async () => {
-                            const task = get(taskStore).allTasks.find(item => item.blockId === blockElements[0].dataset.nodeId);
-                            if (task) await runAiDecomposeTask(task);
-                        },
-                    }] : []),
+                    ...(taskBlock
+                        ? [
+                              {
+                                  icon: "iconSplitLR",
+                                  label: isProjectBlock
+                                      ? this.plugin.i18n.aiDecomposeProject || "AI 拆解项目"
+                                      : this.plugin.i18n.aiDecomposeTask || "AI 拆解任务",
+                                  click: async () => {
+                                      const task = get(taskStore).allTasks.find(
+                                          (item) => item.blockId === blockElements[0].dataset.nodeId,
+                                      );
+                                      if (task) await runAiDecomposeTask(task);
+                                  },
+                              },
+                          ]
+                        : []),
                 ],
             });
             detail.menu.addItem({
@@ -432,8 +450,7 @@ export class EditorTaskIntegration {
         this.plugin.eventBus.on("click-editortitleicon", this.editorTitleIconHandler);
 
         // Editor status checkbox click listener
-        document.addEventListener('click', this.handleEditorStatusClick, true);
-
+        document.addEventListener("click", this.handleEditorStatusClick, true);
     }
 
     dispose(): void {

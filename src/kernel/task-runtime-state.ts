@@ -33,7 +33,9 @@ export class TaskRuntimeState {
         const normalized: Partial<PluginSettings> = {
             ...partial,
             customFieldSchemaVersion: 2,
-            customFields: partial.customFields ? mergeSettings(DEFAULT_SETTINGS, partial).customFields : partial.customFields,
+            customFields: partial.customFields
+                ? mergeSettings(DEFAULT_SETTINGS, partial).customFields
+                : partial.customFields,
         };
         const error = validateSettings(normalized);
         if (error) throw new RpcContractError(error);

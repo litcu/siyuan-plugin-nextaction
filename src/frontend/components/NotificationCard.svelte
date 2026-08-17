@@ -13,12 +13,12 @@
 
     $: typeLabel =
         type === "due"
-            ? (i18n?.reminderDue || "截止提醒")
+            ? i18n?.reminderDue || "截止提醒"
             : type === "review"
-            ? (i18n?.reminderReview || "回顾提醒")
-            : type === "absolute"
-            ? (i18n?.reminderTypeAbsolute || "Fixed Time")
-            : (i18n?.reminderSummaryTitle || "任务概览");
+              ? i18n?.reminderReview || "回顾提醒"
+              : type === "absolute"
+                ? i18n?.reminderTypeAbsolute || "Fixed Time"
+                : i18n?.reminderSummaryTitle || "任务概览";
     $: dismissTitle = i18n?.reminderDismiss || "已读";
 
     function handleClick() {
@@ -43,15 +43,27 @@
         }
         if (summary.dueToday > 0) {
             const tpl = i18n?.reminderSummaryDueToday || "{n} due today";
-            items.push({ label: tpl.replace("{n}", String(summary.dueToday)), value: summary.dueToday, cls: "due-today" });
+            items.push({
+                label: tpl.replace("{n}", String(summary.dueToday)),
+                value: summary.dueToday,
+                cls: "due-today",
+            });
         }
         if (summary.startingToday > 0) {
             const tpl = i18n?.reminderSummaryStartingToday || "{n} starting today";
-            items.push({ label: tpl.replace("{n}", String(summary.startingToday)), value: summary.startingToday, cls: "starting-today" });
+            items.push({
+                label: tpl.replace("{n}", String(summary.startingToday)),
+                value: summary.startingToday,
+                cls: "starting-today",
+            });
         }
         if (summary.nextAction > 0) {
             const tpl = i18n?.reminderSummaryNextAction || "{n} next actions";
-            items.push({ label: tpl.replace("{n}", String(summary.nextAction)), value: summary.nextAction, cls: "next-action" });
+            items.push({
+                label: tpl.replace("{n}", String(summary.nextAction)),
+                value: summary.nextAction,
+                cls: "next-action",
+            });
         }
         if (summary.waiting > 0) {
             const tpl = i18n?.reminderSummaryWaiting || "{n} waiting";
@@ -66,9 +78,21 @@
         <span class="na-notification-card__type na-notification-card__type--{type}">
             {typeLabel}
         </span>
-        <button class="na-notification-card__close b3-tooltips b3-tooltips__w" on:click={onDismiss} aria-label={dismissTitle}>
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
+        <button
+            class="na-notification-card__close b3-tooltips b3-tooltips__w"
+            on:click={onDismiss}
+            aria-label={dismissTitle}
+        >
+            <svg
+                viewBox="0 0 16 16"
+                width="12"
+                height="12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+            >
+                <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
             </svg>
         </button>
     </div>

@@ -39,9 +39,13 @@ function stripComments(text) {
 function releaseBodyFromUnreleased(body) {
     const headings = [...body.matchAll(/^### (.+)$/gm)];
     const categories = headings.map((match) => match[1].trim());
-    if (categories.length !== CHANGELOG_CATEGORIES.length
-        || categories.some((category, index) => category !== CHANGELOG_CATEGORIES[index])) {
-        throw new Error(`CHANGELOG.md [Unreleased] must contain these categories in order: ${CHANGELOG_CATEGORIES.join(", ")}.`);
+    if (
+        categories.length !== CHANGELOG_CATEGORIES.length ||
+        categories.some((category, index) => category !== CHANGELOG_CATEGORIES[index])
+    ) {
+        throw new Error(
+            `CHANGELOG.md [Unreleased] must contain these categories in order: ${CHANGELOG_CATEGORIES.join(", ")}.`,
+        );
     }
 
     const populatedSections = headings.flatMap((heading, index) => {
@@ -52,7 +56,9 @@ function releaseBodyFromUnreleased(body) {
             return [];
         }
         if (!/^[-*] \S/m.test(content)) {
-            throw new Error(`CHANGELOG.md category "${categories[index]}" must contain at least one list item starting with "- ".`);
+            throw new Error(
+                `CHANGELOG.md category "${categories[index]}" must contain at least one list item starting with "- ".`,
+            );
         }
         return [`### ${categories[index]}\n\n${content}`];
     });
@@ -66,7 +72,10 @@ function releaseBodyFromUnreleased(body) {
 export function finalizeUnreleased(changelog, version, date) {
     const normalized = changelog.replace(/\r\n/g, "\n");
     const normalizedVersion = normalizeVersion(version);
-    const versionPattern = new RegExp(`^## \\[${normalizedVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\](?: - .+)?$`, "m");
+    const versionPattern = new RegExp(
+        `^## \\[${normalizedVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\](?: - .+)?$`,
+        "m",
+    );
     if (versionPattern.test(normalized)) {
         throw new Error(`CHANGELOG.md already contains version ${normalizedVersion}.`);
     }

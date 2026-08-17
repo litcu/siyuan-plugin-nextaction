@@ -23,7 +23,17 @@ export const VIEW_BY_PROJECT = "byProject";
 export const VIEW_STATISTICS = "statistics";
 export const VIEW_REVIEW = "review";
 export const VIEW_REMINDER = "reminder";
-export type ViewType = typeof VIEW_INBOX | typeof VIEW_NEXT_ACTION | typeof VIEW_ALL_TASKS | typeof VIEW_BY_PROJECT | typeof VIEW_SOMEDAY | typeof VIEW_WAITING | typeof VIEW_MY_DAY | typeof VIEW_STATISTICS | typeof VIEW_REVIEW | typeof VIEW_REMINDER;
+export type ViewType =
+    | typeof VIEW_INBOX
+    | typeof VIEW_NEXT_ACTION
+    | typeof VIEW_ALL_TASKS
+    | typeof VIEW_BY_PROJECT
+    | typeof VIEW_SOMEDAY
+    | typeof VIEW_WAITING
+    | typeof VIEW_MY_DAY
+    | typeof VIEW_STATISTICS
+    | typeof VIEW_REVIEW
+    | typeof VIEW_REMINDER;
 
 export const STATUS_LIST = ["inbox", "todo", "doing", "waiting", "someday", "done"] as const;
 export const PRIORITY_LIST = ["critical", "high", "medium", "low", "veryLow"] as const;

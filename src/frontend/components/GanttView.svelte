@@ -48,19 +48,21 @@
     $: contentHeight = rowsHeight + 56;
     $: todayX = range ? dateToPixel(localCalendarDate(), range) : null;
     $: markerPrefix = `na-gantt-${model.rows[0]?.task.blockId || "project"}`;
-    $: explicitlyScheduledTaskIds = new Set(model.rows
-        .filter(row => hasScheduledDate(row.task))
-        .map(row => row.task.blockId));
+    $: explicitlyScheduledTaskIds = new Set(
+        model.rows.filter((row) => hasScheduledDate(row.task)).map((row) => row.task.blockId),
+    );
     $: scheduledTaskIds = range ? new Set(geometries.keys()) : explicitlyScheduledTaskIds;
     $: scheduledCount = scheduledTaskIds.size;
-    $: unscheduledRows = model.rows.filter(row => !scheduledTaskIds.has(row.task.blockId));
-    $: firstUnscheduledTask = unscheduledRows.find(row => row.task.blockId !== model.rows[0]?.task.blockId)?.task
-        || unscheduledRows[0]?.task;
-    $: scaleLabel = range?.scale === "day"
-        ? (i18n?.ganttScaleDay || "Day")
-        : range?.scale === "week"
-            ? (i18n?.ganttScaleWeek || "Week")
-            : (i18n?.ganttScaleMonth || "Month");
+    $: unscheduledRows = model.rows.filter((row) => !scheduledTaskIds.has(row.task.blockId));
+    $: firstUnscheduledTask =
+        unscheduledRows.find((row) => row.task.blockId !== model.rows[0]?.task.blockId)?.task ||
+        unscheduledRows[0]?.task;
+    $: scaleLabel =
+        range?.scale === "day"
+            ? i18n?.ganttScaleDay || "Day"
+            : range?.scale === "week"
+              ? i18n?.ganttScaleWeek || "Week"
+              : i18n?.ganttScaleMonth || "Month";
     $: if (range && viewportElement) scheduleInitialScroll();
 
     function hasScheduledDate(task: TaskCacheEntry): boolean {
@@ -88,7 +90,10 @@
         lastScrollKey = key;
         await tick();
         if (todayX !== null && todayX >= 0 && todayX <= timelineWidth) {
-            viewportElement.scrollLeft = Math.max(0, outlineElement.offsetWidth + todayX - viewportElement.clientWidth * .25);
+            viewportElement.scrollLeft = Math.max(
+                0,
+                outlineElement.offsetWidth + todayX - viewportElement.clientWidth * 0.25,
+            );
         } else {
             viewportElement.scrollLeft = 0;
         }
@@ -119,7 +124,11 @@
     onDestroy(() => resizeObserver?.disconnect());
 </script>
 
-<div class="na-gantt" style="--na-gantt-content-height: {contentHeight}px" aria-label={i18n?.projectViewGantt || "Gantt"}>
+<div
+    class="na-gantt"
+    style="--na-gantt-content-height: {contentHeight}px"
+    aria-label={i18n?.projectViewGantt || "Gantt"}
+>
     <div class="na-gantt__viewport" bind:this={viewportElement}>
         <div
             class="na-gantt__grid"
@@ -168,13 +177,21 @@
                     </div>
                     <div class="na-gantt__axis-row na-gantt__axis-row--secondary">
                         {#each axis.secondary as segment (segment.key)}
-                            <span class:weekend={segment.weekend} class:alternate={segment.alternate} style="left: {segment.x}px; width: {segment.width}px">{segment.label}</span>
+                            <span
+                                class:weekend={segment.weekend}
+                                class:alternate={segment.alternate}
+                                style="left: {segment.x}px; width: {segment.width}px">{segment.label}</span
+                            >
                         {/each}
                     </div>
                 {:else}
                     <div class="na-gantt__axis-empty">
-                        <span class="na-gantt__axis-stat na-gantt__axis-stat--scheduled"><i></i>{scheduledCount} {i18n?.ganttScheduled || "Scheduled"}</span>
-                        <span class="na-gantt__axis-stat na-gantt__axis-stat--unscheduled"><i></i>{unscheduledRows.length} {i18n?.ganttUnscheduled || "Unscheduled"}</span>
+                        <span class="na-gantt__axis-stat na-gantt__axis-stat--scheduled"
+                            ><i></i>{scheduledCount} {i18n?.ganttScheduled || "Scheduled"}</span
+                        >
+                        <span class="na-gantt__axis-stat na-gantt__axis-stat--unscheduled"
+                            ><i></i>{unscheduledRows.length} {i18n?.ganttUnscheduled || "Unscheduled"}</span
+                        >
                     </div>
                 {/if}
             </header>
@@ -190,7 +207,9 @@
                         {#if row.hasChildren}
                             <NaIconButton
                                 symbol={collapsedIds.has(row.task.blockId) ? "iconRight" : "iconDown"}
-                                label={collapsedIds.has(row.task.blockId) ? (i18n?.expandChildren || "Expand subtasks") : (i18n?.collapseChildren || "Collapse subtasks")}
+                                label={collapsedIds.has(row.task.blockId)
+                                    ? i18n?.expandChildren || "Expand subtasks"
+                                    : i18n?.collapseChildren || "Collapse subtasks"}
                                 size={12}
                                 compact
                                 on:click={(event) => handleToggle(row.task.blockId, event)}
@@ -198,7 +217,8 @@
                         {:else}
                             <span class="na-gantt__outline-spacer"></span>
                         {/if}
-                        <span class="na-gantt__status" style="--na-gantt-status-color: {getStatusColor(row.task)}"></span>
+                        <span class="na-gantt__status" style="--na-gantt-status-color: {getStatusColor(row.task)}"
+                        ></span>
                         <button
                             type="button"
                             class="na-gantt__task-title"
@@ -210,9 +230,12 @@
                             <span class="na-gantt__task-name">{row.task.title || i18n?.untitled || "Untitled"}</span>
                             <span class="na-gantt__task-meta">
                                 {#if !scheduledTaskIds.has(row.task.blockId)}
-                                    <small class="na-gantt__unscheduled-label">{i18n?.ganttUnscheduled || "Unscheduled"}</small>
+                                    <small class="na-gantt__unscheduled-label"
+                                        >{i18n?.ganttUnscheduled || "Unscheduled"}</small
+                                    >
                                 {/if}
-                                {#if row.childCount > 0}<small class="na-gantt__child-count">{row.childCount}</small>{/if}
+                                {#if row.childCount > 0}<small class="na-gantt__child-count">{row.childCount}</small
+                                    >{/if}
                             </span>
                         </button>
                     </div>
@@ -223,19 +246,47 @@
                 {#if range}
                     <div class="na-gantt__bands" aria-hidden="true">
                         {#each axis.secondary as segment (segment.key)}
-                            <span class:weekend={segment.weekend} class:alternate={segment.alternate} style="left: {segment.x}px; width: {segment.width}px"></span>
+                            <span
+                                class:weekend={segment.weekend}
+                                class:alternate={segment.alternate}
+                                style="left: {segment.x}px; width: {segment.width}px"
+                            ></span>
                         {/each}
                     </div>
                     {#if todayX !== null && todayX >= 0 && todayX <= timelineWidth}
-                        <div class="na-gantt__today" style="left: {todayX}px" role="separator" aria-orientation="vertical" aria-label={i18n?.ganttToday || "Today"}></div>
+                        <div
+                            class="na-gantt__today"
+                            style="left: {todayX}px"
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label={i18n?.ganttToday || "Today"}
+                        ></div>
                     {/if}
                     <svg class="na-gantt__edges" width={timelineWidth} height={rowsHeight} aria-hidden="true">
                         <defs>
-                            <marker id={`${markerPrefix}-dependency`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" /></marker>
-                            <marker id={`${markerPrefix}-sequential`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" /></marker>
+                            <marker
+                                id={`${markerPrefix}-dependency`}
+                                markerWidth="6"
+                                markerHeight="6"
+                                refX="5"
+                                refY="3"
+                                orient="auto"><path d="M0,0 L6,3 L0,6 Z" /></marker
+                            >
+                            <marker
+                                id={`${markerPrefix}-sequential`}
+                                markerWidth="6"
+                                markerHeight="6"
+                                refX="5"
+                                refY="3"
+                                orient="auto"><path d="M0,0 L6,3 L0,6 Z" /></marker
+                            >
                         </defs>
                         {#each edges as edge (edge.id)}
-                            <path class:sequential={edge.type === "sequential"} d={edge.path} marker-end={`url(#${markerPrefix}-${edge.type})`} />
+                            <path
+                                class:sequential={edge.type === "sequential"}
+                                d={edge.path}
+                                marker-end={`url(#${markerPrefix}-${edge.type})`}
+                            />
                         {/each}
                     </svg>
                     <div class="na-gantt__bar-rows">
@@ -272,14 +323,24 @@
                             <div class="na-gantt__empty-content">
                                 <NaEmpty
                                     text={i18n?.ganttNoDates || "No scheduled tasks in this project"}
-                                    action={firstUnscheduledTask ? {
-                                        label: i18n?.ganttAddDates || "Add dates",
-                                        onClick: () => onEdit(firstUnscheduledTask),
-                                    } : undefined}
+                                    action={firstUnscheduledTask
+                                        ? {
+                                              label: i18n?.ganttAddDates || "Add dates",
+                                              onClick: () => onEdit(firstUnscheduledTask),
+                                          }
+                                        : undefined}
                                 />
-                                <div class="na-gantt__empty-stats" aria-label={`${scheduledCount} ${i18n?.ganttScheduled || "Scheduled"}, ${unscheduledRows.length} ${i18n?.ganttUnscheduled || "Unscheduled"}`}>
-                                    <span class="na-gantt__empty-stat na-gantt__empty-stat--scheduled"><strong>{scheduledCount}</strong>{i18n?.ganttScheduled || "Scheduled"}</span>
-                                    <span class="na-gantt__empty-stat na-gantt__empty-stat--unscheduled"><strong>{unscheduledRows.length}</strong>{i18n?.ganttUnscheduled || "Unscheduled"}</span>
+                                <div
+                                    class="na-gantt__empty-stats"
+                                    aria-label={`${scheduledCount} ${i18n?.ganttScheduled || "Scheduled"}, ${unscheduledRows.length} ${i18n?.ganttUnscheduled || "Unscheduled"}`}
+                                >
+                                    <span class="na-gantt__empty-stat na-gantt__empty-stat--scheduled"
+                                        ><strong>{scheduledCount}</strong>{i18n?.ganttScheduled || "Scheduled"}</span
+                                    >
+                                    <span class="na-gantt__empty-stat na-gantt__empty-stat--unscheduled"
+                                        ><strong>{unscheduledRows.length}</strong>{i18n?.ganttUnscheduled ||
+                                            "Unscheduled"}</span
+                                    >
                                 </div>
                             </div>
                         </div>
@@ -348,7 +409,10 @@
         color: var(--na-text-primary);
     }
 
-    .na-gantt__corner-title strong { font-size: var(--na-font-size-lg); font-weight: 700; }
+    .na-gantt__corner-title strong {
+        font-size: var(--na-font-size-lg);
+        font-weight: 700;
+    }
 
     .na-gantt__scale {
         min-width: 28px;
@@ -362,10 +426,22 @@
         font-variant-numeric: tabular-nums;
     }
 
-    .na-gantt__corner-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); }
+    .na-gantt__corner-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-xs);
+    }
 
-    .na-gantt__corner-meta :global(.na-segment-control) { flex: 0 0 auto; border-radius: var(--na-radius-sm); }
-    .na-gantt__corner-meta :global(.na-segment-control__option) { padding-inline: 7px; }
+    .na-gantt__corner-meta :global(.na-segment-control) {
+        flex: 0 0 auto;
+        border-radius: var(--na-radius-sm);
+    }
+    .na-gantt__corner-meta :global(.na-segment-control__option) {
+        padding-inline: 7px;
+    }
 
     .na-gantt__schedule-summary,
     .na-gantt__schedule-summary-item {
@@ -406,7 +482,9 @@
         overflow: hidden;
     }
 
-    .na-gantt__axis-row--primary { border-bottom: 1px solid var(--na-color-divider); }
+    .na-gantt__axis-row--primary {
+        border-bottom: 1px solid var(--na-color-divider);
+    }
 
     .na-gantt__axis-row span {
         position: absolute;
@@ -424,13 +502,24 @@
         white-space: nowrap;
     }
 
-    .na-gantt__axis-row--secondary span { justify-content: center; padding-inline: 3px; }
+    .na-gantt__axis-row--secondary span {
+        justify-content: center;
+        padding-inline: 3px;
+    }
     .na-gantt__axis--week .na-gantt__axis-row--secondary span,
-    .na-gantt__axis--month .na-gantt__axis-row--secondary span { font-weight: 650; }
+    .na-gantt__axis--month .na-gantt__axis-row--secondary span {
+        font-weight: 650;
+    }
 
-    .na-gantt__axis-row--primary span { color: var(--na-text-primary); background: color-mix(in srgb, var(--b3-theme-surface) 94%, var(--b3-theme-background)); font-weight: 700; }
+    .na-gantt__axis-row--primary span {
+        color: var(--na-text-primary);
+        background: color-mix(in srgb, var(--b3-theme-surface) 94%, var(--b3-theme-background));
+        font-weight: 700;
+    }
     .na-gantt__axis-row span.weekend,
-    .na-gantt__axis-row span.alternate { background: color-mix(in srgb, var(--na-color-info) 5%, transparent); }
+    .na-gantt__axis-row span.alternate {
+        background: color-mix(in srgb, var(--na-color-info) 5%, transparent);
+    }
     .na-gantt__axis-empty {
         display: flex;
         align-items: center;
@@ -441,8 +530,15 @@
         font-size: var(--na-font-size-sm);
     }
 
-    .na-gantt__axis-stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-    .na-gantt__axis-stat--scheduled i { background: var(--na-color-doing); }
+    .na-gantt__axis-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .na-gantt__axis-stat--scheduled i {
+        background: var(--na-color-doing);
+    }
 
     .na-gantt__outline {
         position: sticky;
@@ -463,12 +559,26 @@
     }
 
     .na-gantt__outline-row:hover,
-    .na-gantt__outline-row.selected { background: var(--na-color-hover-bg); }
-    .na-gantt__outline-row.selected { box-shadow: inset 3px 0 var(--na-accent); }
-    .na-gantt__outline-row--summary { background: color-mix(in srgb, var(--na-accent) 5%, var(--b3-theme-surface)); }
-    .na-gantt__outline-row--summary.selected { background: var(--na-color-selected-bg); }
-    .na-gantt__outline-row :global(.na-icon-button) { width: 24px; height: 24px; flex-basis: 24px; }
-    .na-gantt__outline-spacer { flex: 0 0 24px; }
+    .na-gantt__outline-row.selected {
+        background: var(--na-color-hover-bg);
+    }
+    .na-gantt__outline-row.selected {
+        box-shadow: inset 3px 0 var(--na-accent);
+    }
+    .na-gantt__outline-row--summary {
+        background: color-mix(in srgb, var(--na-accent) 5%, var(--b3-theme-surface));
+    }
+    .na-gantt__outline-row--summary.selected {
+        background: var(--na-color-selected-bg);
+    }
+    .na-gantt__outline-row :global(.na-icon-button) {
+        width: 24px;
+        height: 24px;
+        flex-basis: 24px;
+    }
+    .na-gantt__outline-spacer {
+        flex: 0 0 24px;
+    }
 
     .na-gantt__status {
         flex: 0 0 7px;
@@ -497,11 +607,31 @@
         cursor: pointer;
     }
 
-    .na-gantt__task-title:focus-visible { outline: 2px solid var(--na-accent); outline-offset: -1px; }
-    .na-gantt__task-name { min-width: 0; overflow: hidden; font-size: var(--na-font-size-lg); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
-    .na-gantt__outline-row--summary .na-gantt__task-name { font-weight: 700; }
-    .na-gantt__task-meta { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
-    .na-gantt__task-title small { font-size: var(--na-font-size-xs); font-variant-numeric: tabular-nums; }
+    .na-gantt__task-title:focus-visible {
+        outline: 2px solid var(--na-accent);
+        outline-offset: -1px;
+    }
+    .na-gantt__task-name {
+        min-width: 0;
+        overflow: hidden;
+        font-size: var(--na-font-size-lg);
+        font-weight: 560;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .na-gantt__outline-row--summary .na-gantt__task-name {
+        font-weight: 700;
+    }
+    .na-gantt__task-meta {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 4px;
+    }
+    .na-gantt__task-title small {
+        font-size: var(--na-font-size-xs);
+        font-variant-numeric: tabular-nums;
+    }
     .na-gantt__unscheduled-label {
         padding: 1px 6px;
         border: 1px solid var(--na-color-warning-border);
@@ -511,7 +641,9 @@
         font-weight: 600;
         line-height: 1.35;
     }
-    .na-gantt__child-count { color: var(--na-text-secondary); }
+    .na-gantt__child-count {
+        color: var(--na-text-secondary);
+    }
 
     .na-gantt__timeline {
         position: relative;
@@ -527,10 +659,19 @@
         inset: 0;
     }
 
-    .na-gantt__bands { z-index: 0; pointer-events: none; }
-    .na-gantt__bands span { position: absolute; inset-block: 0; border-right: 1px solid color-mix(in srgb, var(--na-color-divider) 48%, transparent); }
+    .na-gantt__bands {
+        z-index: 0;
+        pointer-events: none;
+    }
+    .na-gantt__bands span {
+        position: absolute;
+        inset-block: 0;
+        border-right: 1px solid color-mix(in srgb, var(--na-color-divider) 48%, transparent);
+    }
     .na-gantt__bands span.weekend,
-    .na-gantt__bands span.alternate { background: color-mix(in srgb, var(--na-color-info) 3%, transparent); }
+    .na-gantt__bands span.alternate {
+        background: color-mix(in srgb, var(--na-color-info) 3%, transparent);
+    }
 
     .na-gantt__today {
         position: absolute;
@@ -539,7 +680,7 @@
         width: 2px;
         background: var(--na-accent);
         pointer-events: none;
-        opacity: .78;
+        opacity: 0.78;
     }
 
     .na-gantt__today::before {
@@ -555,11 +696,26 @@
         content: "";
     }
 
-    .na-gantt__edges { z-index: 3; overflow: visible; pointer-events: none; }
-    .na-gantt__edges path { fill: none; stroke: color-mix(in srgb, var(--na-text-secondary) 66%, transparent); stroke-width: 1.2; }
-    .na-gantt__edges path.sequential { stroke-dasharray: 4 3; }
-    .na-gantt__edges marker path { fill: color-mix(in srgb, var(--na-text-secondary) 60%, transparent); stroke: none; }
-    .na-gantt__bar-rows { z-index: 2; }
+    .na-gantt__edges {
+        z-index: 3;
+        overflow: visible;
+        pointer-events: none;
+    }
+    .na-gantt__edges path {
+        fill: none;
+        stroke: color-mix(in srgb, var(--na-text-secondary) 66%, transparent);
+        stroke-width: 1.2;
+    }
+    .na-gantt__edges path.sequential {
+        stroke-dasharray: 4 3;
+    }
+    .na-gantt__edges marker path {
+        fill: color-mix(in srgb, var(--na-text-secondary) 60%, transparent);
+        stroke: none;
+    }
+    .na-gantt__bar-rows {
+        z-index: 2;
+    }
 
     .na-gantt__bar-row {
         position: absolute;
@@ -569,16 +725,26 @@
     }
 
     .na-gantt__bar-row:hover,
-    .na-gantt__bar-row.selected { background: color-mix(in srgb, var(--na-color-hover-bg) 54%, transparent); }
-    .na-gantt__bar-row--summary { background: color-mix(in srgb, var(--na-accent) 3%, transparent); }
-    .na-gantt__bar-row--summary.selected { background: color-mix(in srgb, var(--na-color-selected-bg) 72%, transparent); }
+    .na-gantt__bar-row.selected {
+        background: color-mix(in srgb, var(--na-color-hover-bg) 54%, transparent);
+    }
+    .na-gantt__bar-row--summary {
+        background: color-mix(in srgb, var(--na-accent) 3%, transparent);
+    }
+    .na-gantt__bar-row--summary.selected {
+        background: color-mix(in srgb, var(--na-color-selected-bg) 72%, transparent);
+    }
     .na-gantt__empty {
         display: flex;
         align-items: flex-start;
         height: 100%;
         min-height: 240px;
         padding: 22px;
-        background: linear-gradient(90deg, color-mix(in srgb, var(--na-color-info) 3%, transparent) 1px, transparent 1px);
+        background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--na-color-info) 3%, transparent) 1px,
+            transparent 1px
+        );
         background-size: 28px 100%;
     }
 
@@ -634,10 +800,20 @@
         border-radius: var(--na-radius-pill);
     }
 
-    .na-gantt__empty-schedule span:nth-child(2) i { width: 36%; }
-    .na-gantt__empty-schedule span:nth-child(3) i { width: 48%; }
+    .na-gantt__empty-schedule span:nth-child(2) i {
+        width: 36%;
+    }
+    .na-gantt__empty-schedule span:nth-child(3) i {
+        width: 48%;
+    }
 
-    .na-gantt__empty-content { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 10px; }
+    .na-gantt__empty-content {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+    }
     .na-gantt__empty-content :global(.na-empty) {
         display: grid;
         flex: 0 0 auto;
@@ -648,7 +824,9 @@
         justify-content: stretch;
         text-align: left;
     }
-    .na-gantt__empty-content :global(.na-empty__illustration) { display: none; }
+    .na-gantt__empty-content :global(.na-empty__illustration) {
+        display: none;
+    }
     .na-gantt__empty-content :global(.na-empty__text) {
         max-width: none;
         color: var(--na-text-primary);
@@ -656,24 +834,63 @@
         font-weight: 650;
         line-height: 1.4;
     }
-    .na-gantt__empty-stats { display: flex; align-items: center; gap: 12px; color: var(--na-text-secondary); font-size: var(--na-font-size-sm); }
-    .na-gantt__empty-stat { display: inline-flex; align-items: baseline; gap: 4px; }
-    .na-gantt__empty-stat strong { color: var(--na-text-primary); font-size: var(--na-font-size-lg); font-variant-numeric: tabular-nums; }
-    .na-gantt__empty-stat--unscheduled strong { color: var(--na-color-warning); }
+    .na-gantt__empty-stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+    }
+    .na-gantt__empty-stat {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+    }
+    .na-gantt__empty-stat strong {
+        color: var(--na-text-primary);
+        font-size: var(--na-font-size-lg);
+        font-variant-numeric: tabular-nums;
+    }
+    .na-gantt__empty-stat--unscheduled strong {
+        color: var(--na-color-warning);
+    }
 
     @container nextaction-app (max-width: 880px) {
-        .na-gantt__grid { --na-gantt-outline-width: 210px; }
+        .na-gantt__grid {
+            --na-gantt-outline-width: 210px;
+        }
     }
 
     @container nextaction-app (max-width: 520px) {
-        .na-gantt__grid { --na-gantt-outline-width: 164px; }
-        .na-gantt__corner { padding-inline: 6px; }
-        .na-gantt__task-name { font-size: var(--na-font-size-md); }
-        .na-gantt__child-count { display: none; }
-        .na-gantt__unscheduled-label { padding-inline: 4px; }
-        .na-gantt__empty { padding: 14px; }
-        .na-gantt__empty-card { grid-template-columns: 1fr; width: min(320px, calc(100% - 4px)); gap: 12px; padding: 14px; }
-        .na-gantt__empty-schedule { display: none; }
-        .na-gantt__empty-content :global(.na-empty) { grid-template-columns: 1fr; }
+        .na-gantt__grid {
+            --na-gantt-outline-width: 164px;
+        }
+        .na-gantt__corner {
+            padding-inline: 6px;
+        }
+        .na-gantt__task-name {
+            font-size: var(--na-font-size-md);
+        }
+        .na-gantt__child-count {
+            display: none;
+        }
+        .na-gantt__unscheduled-label {
+            padding-inline: 4px;
+        }
+        .na-gantt__empty {
+            padding: 14px;
+        }
+        .na-gantt__empty-card {
+            grid-template-columns: 1fr;
+            width: min(320px, calc(100% - 4px));
+            gap: 12px;
+            padding: 14px;
+        }
+        .na-gantt__empty-schedule {
+            display: none;
+        }
+        .na-gantt__empty-content :global(.na-empty) {
+            grid-template-columns: 1fr;
+        }
     }
 </style>

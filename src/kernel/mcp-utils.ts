@@ -58,7 +58,7 @@ export const WRITE_MCP_TOOL_NAMES = [
     "mark_tasks_reviewed",
 ] as const;
 
-export type McpToolName = typeof READ_MCP_TOOL_NAMES[number] | typeof WRITE_MCP_TOOL_NAMES[number];
+export type McpToolName = (typeof READ_MCP_TOOL_NAMES)[number] | (typeof WRITE_MCP_TOOL_NAMES)[number];
 
 export interface McpCapabilityEffects {
     localRead: true;
@@ -73,9 +73,7 @@ export function getMcpCapabilityEffects(name: McpToolName): McpCapabilityEffects
 
 export function getDesiredMcpToolNames(enabled: boolean, allowWrite: boolean): McpToolName[] {
     if (!enabled) return [];
-    return allowWrite
-        ? [...READ_MCP_TOOL_NAMES, ...WRITE_MCP_TOOL_NAMES]
-        : [...READ_MCP_TOOL_NAMES];
+    return allowWrite ? [...READ_MCP_TOOL_NAMES, ...WRITE_MCP_TOOL_NAMES] : [...READ_MCP_TOOL_NAMES];
 }
 
 export interface McpTaskDto {
@@ -154,9 +152,26 @@ export interface McpTaskPatch {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/;
 const PRIORITIES = new Set(["critical", "high", "medium", "low", "veryLow", "none"]);
 const PATCH_KEYS = new Set([
-    "title", "kind", "status", "priority", "importance", "effort", "start", "due", "contexts", "tags", "note",
-    "parentId", "dependencyIds", "dependencyMode", "sequential", "reviewInterval",
-    "reviewDate", "reminders", "repeat", "customFields",
+    "title",
+    "kind",
+    "status",
+    "priority",
+    "importance",
+    "effort",
+    "start",
+    "due",
+    "contexts",
+    "tags",
+    "note",
+    "parentId",
+    "dependencyIds",
+    "dependencyMode",
+    "sequential",
+    "reviewInterval",
+    "reviewDate",
+    "reminders",
+    "repeat",
+    "customFields",
 ]);
 
 export function validateMcpTaskPatch(patch: unknown): asserts patch is McpTaskPatch {
@@ -184,14 +199,23 @@ export function validateMcpTaskPatch(patch: unknown): asserts patch is McpTaskPa
 }
 
 function splitPipe(value: string): string[] {
-    return value ? value.split("|").map(item => item.trim()).filter(Boolean) : [];
+    return value
+        ? value
+              .split("|")
+              .map((item) => item.trim())
+              .filter(Boolean)
+        : [];
 }
 
 export function normalizeMcpContext(value: string): string {
     return value.trim().replace(/^@+/, "").trim();
 }
 
-function uniqueStrings(values: unknown, field: string, normalize: (value: string) => string = value => value.trim()): string[] {
+function uniqueStrings(
+    values: unknown,
+    field: string,
+    normalize: (value: string) => string = (value) => value.trim(),
+): string[] {
     if (!Array.isArray(values)) throw new Error(`${field} must be an array`);
     const result: string[] = [];
     for (const value of values) {
@@ -217,11 +241,11 @@ function validateDate(value: unknown, field: string): string {
     date.setUTCFullYear(year, month - 1, day);
     date.setUTCHours(hour, minute, 0, 0);
     if (
-        date.getUTCFullYear() !== year
-        || date.getUTCMonth() !== month - 1
-        || date.getUTCDate() !== day
-        || date.getUTCHours() !== hour
-        || date.getUTCMinutes() !== minute
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day ||
+        date.getUTCHours() !== hour ||
+        date.getUTCMinutes() !== minute
     ) {
         throw new Error(`${field} is not a valid date`);
     }
@@ -334,37 +358,53 @@ function priorityRank(priority: string): number {
 }
 
 export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTasksInput = {}) {
-    const map = new Map(entries.map(entry => [entry.blockId, entry]));
+    const map = new Map(entries.map((entry) => [entry.blockId, entry]));
     let filtered = entries.slice();
     if (input.kind && input.kind !== "all") {
-        filtered = filtered.filter(entry => input.kind === "project" ? entry.taskType === "2" : entry.taskType !== "2");
+        filtered = filtered.filter((entry) =>
+            input.kind === "project" ? entry.taskType === "2" : entry.taskType !== "2",
+        );
     }
-    if (input.statuses?.length) filtered = filtered.filter(entry => input.statuses!.includes(entry.status));
-    if (input.priorities?.length) filtered = filtered.filter(entry => input.priorities!.includes(entry.priority));
+    if (input.statuses?.length) filtered = filtered.filter((entry) => input.statuses!.includes(entry.status));
+    if (input.priorities?.length) filtered = filtered.filter((entry) => input.priorities!.includes(entry.priority));
     if (input.contexts?.length) {
         const contexts = input.contexts.map(normalizeMcpContext).filter(Boolean);
-        filtered = filtered.filter(entry => splitPipe(entry.context).map(normalizeMcpContext).some(value => contexts.includes(value)));
+        filtered = filtered.filter((entry) =>
+            splitPipe(entry.context)
+                .map(normalizeMcpContext)
+                .some((value) => contexts.includes(value)),
+        );
     }
-    if (input.tags?.length) filtered = filtered.filter(entry => splitPipe(entry.tags).some(value => input.tags!.includes(value)));
-    if (input.parentId !== undefined) filtered = filtered.filter(entry => entry.parentId === input.parentId);
-    if (input.projectId) filtered = filtered.filter(entry => belongsToProject(entry, input.projectId!, map));
-    if (input.startFrom) filtered = filtered.filter(entry => !!entry.start && entry.start >= input.startFrom!);
-    if (input.startTo) filtered = filtered.filter(entry => !!entry.start && entry.start <= input.startTo!);
-    if (input.dueFrom) filtered = filtered.filter(entry => !!entry.due && entry.due >= input.dueFrom!);
-    if (input.dueTo) filtered = filtered.filter(entry => !!entry.due && entry.due <= input.dueTo!);
+    if (input.tags?.length)
+        filtered = filtered.filter((entry) => splitPipe(entry.tags).some((value) => input.tags!.includes(value)));
+    if (input.parentId !== undefined) filtered = filtered.filter((entry) => entry.parentId === input.parentId);
+    if (input.projectId) filtered = filtered.filter((entry) => belongsToProject(entry, input.projectId!, map));
+    if (input.startFrom) filtered = filtered.filter((entry) => !!entry.start && entry.start >= input.startFrom!);
+    if (input.startTo) filtered = filtered.filter((entry) => !!entry.start && entry.start <= input.startTo!);
+    if (input.dueFrom) filtered = filtered.filter((entry) => !!entry.due && entry.due >= input.dueFrom!);
+    if (input.dueTo) filtered = filtered.filter((entry) => !!entry.due && entry.due <= input.dueTo!);
     if (input.query?.trim()) {
         const query = input.query.trim().toLocaleLowerCase();
-        filtered = filtered.filter(entry => [entry.title, entry.note, entry.context, entry.tags, JSON.stringify(entry.customFields)]
-            .join("\n").toLocaleLowerCase().includes(query));
+        filtered = filtered.filter((entry) =>
+            [entry.title, entry.note, entry.context, entry.tags, JSON.stringify(entry.customFields)]
+                .join("\n")
+                .toLocaleLowerCase()
+                .includes(query),
+        );
     }
 
     const sortBy = input.sortBy || "order";
     filtered.sort((a, b) => {
-        if (sortBy === "due") return (a.due || "9999").localeCompare(b.due || "9999") || a.blockId.localeCompare(b.blockId);
+        if (sortBy === "due")
+            return (a.due || "9999").localeCompare(b.due || "9999") || a.blockId.localeCompare(b.blockId);
         if (sortBy === "importance") return b.importance - a.importance || a.blockId.localeCompare(b.blockId);
-        if (sortBy === "priority") return priorityRank(b.priority) - priorityRank(a.priority) || a.blockId.localeCompare(b.blockId);
-        if (sortBy === "created") return (b.created || "").localeCompare(a.created || "") || a.blockId.localeCompare(b.blockId);
-        return b.order - a.order || (a.due || "9999").localeCompare(b.due || "9999") || a.blockId.localeCompare(b.blockId);
+        if (sortBy === "priority")
+            return priorityRank(b.priority) - priorityRank(a.priority) || a.blockId.localeCompare(b.blockId);
+        if (sortBy === "created")
+            return (b.created || "").localeCompare(a.created || "") || a.blockId.localeCompare(b.blockId);
+        return (
+            b.order - a.order || (a.due || "9999").localeCompare(b.due || "9999") || a.blockId.localeCompare(b.blockId)
+        );
     });
 
     const total = filtered.length;
@@ -388,21 +428,30 @@ export function buildTaskAttrsFromMcpPatch(
         if (!PRIORITIES.has(patch.priority)) throw new Error("priority is invalid");
         attrs[ATTR_PRIORITY] = patch.priority;
     }
-    for (const [key, attr] of [["importance", ATTR_IMPORTANCE], ["effort", ATTR_EFFORT]] as const) {
+    for (const [key, attr] of [
+        ["importance", ATTR_IMPORTANCE],
+        ["effort", ATTR_EFFORT],
+    ] as const) {
         const value = patch[key];
         if (value !== undefined) {
             if (!Number.isInteger(value) || value! < 1 || value! > 7) throw new Error(`${key} must be integer 1-7`);
             attrs[attr] = String(value);
         }
     }
-    for (const [key, attr] of [["start", ATTR_START], ["due", ATTR_DUE], ["reviewDate", ATTR_REVIEW_DATE]] as const) {
+    for (const [key, attr] of [
+        ["start", ATTR_START],
+        ["due", ATTR_DUE],
+        ["reviewDate", ATTR_REVIEW_DATE],
+    ] as const) {
         const value = patch[key];
         if (value !== undefined) attrs[attr] = value === null ? "" : validateDate(value, key);
     }
-    if (patch.contexts !== undefined) attrs[ATTR_CONTEXT] = uniqueStrings(patch.contexts, "contexts", normalizeMcpContext).join("|");
+    if (patch.contexts !== undefined)
+        attrs[ATTR_CONTEXT] = uniqueStrings(patch.contexts, "contexts", normalizeMcpContext).join("|");
     if (patch.tags !== undefined) attrs[ATTR_TAGS] = uniqueStrings(patch.tags, "tags").join("|");
     if (patch.note !== undefined) {
-        if (patch.note !== null && (typeof patch.note !== "string" || patch.note.length > 4000)) throw new Error("note must be a string <= 4000 characters");
+        if (patch.note !== null && (typeof patch.note !== "string" || patch.note.length > 4000))
+            throw new Error("note must be a string <= 4000 characters");
         attrs[ATTR_NOTE] = patch.note || "";
     }
     if (patch.parentId !== undefined) {
@@ -412,7 +461,7 @@ export function buildTaskAttrsFromMcpPatch(
     }
     if (patch.dependencyIds !== undefined) {
         const ids = [...new Set(uniqueStrings(patch.dependencyIds, "dependencyIds").map(extractBlockId))];
-        if (ids.some(id => !id)) throw new Error("dependencyIds contains invalid block ID");
+        if (ids.some((id) => !id)) throw new Error("dependencyIds contains invalid block ID");
         attrs[ATTR_DEPENDS] = ids.join("|");
     }
     if (patch.dependencyMode !== undefined) {
@@ -437,7 +486,8 @@ export function buildTaskAttrsFromMcpPatch(
         }
         if (patch.reminders.mode === "default") attrs[ATTR_REMINDER] = "";
         else if (patch.reminders.mode === "disabled") attrs[ATTR_REMINDER] = "[]";
-        else if (patch.reminders.mode === "custom") attrs[ATTR_REMINDER] = JSON.stringify(validateReminderItems(patch.reminders.items));
+        else if (patch.reminders.mode === "custom")
+            attrs[ATTR_REMINDER] = JSON.stringify(validateReminderItems(patch.reminders.items));
         else throw new Error("reminders.mode must be default, disabled, or custom");
     }
     if (patch.repeat !== undefined) {
@@ -446,13 +496,16 @@ export function buildTaskAttrsFromMcpPatch(
     }
     if (patch.customFields !== undefined) {
         for (const [key, value] of Object.entries(patch.customFields)) {
-            const field = fields.find(item => item.key === key && item.status === "active");
+            const field = fields.find((item) => item.key === key && item.status === "active");
             if (!field) throw new Error(`Unknown or archived custom field: ${key}`);
-            if (!isCustomFieldApplicable(field, task, taskMap)) throw new Error(`Custom field is not applicable: ${key}`);
-            attrs[ATTR_EXT_PREFIX + key] = value == null ? "" : encodeCustomFieldValue(field, value as CustomFieldInput);
+            if (!isCustomFieldApplicable(field, task, taskMap))
+                throw new Error(`Custom field is not applicable: ${key}`);
+            attrs[ATTR_EXT_PREFIX + key] =
+                value == null ? "" : encodeCustomFieldValue(field, value as CustomFieldInput);
         }
     }
-    if (Object.keys(attrs).length === 0) throw new Error("update_tasks patch must contain at least one attribute field");
+    if (Object.keys(attrs).length === 0)
+        throw new Error("update_tasks patch must contain at least one attribute field");
     return attrs;
 }
 
@@ -485,8 +538,7 @@ export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
             if (operation?.action !== "insert" || !isBlockId(operation.id)) continue;
             const dom = typeof operation.data === "string" ? operation.data : "";
             const typeMatch = dom.match(/data-type=["']([^"']+)["']/i);
-            const paragraphMatch = dom.match(PARAGRAPH_ID_BEFORE_TYPE_RE)
-                || dom.match(PARAGRAPH_TYPE_BEFORE_ID_RE);
+            const paragraphMatch = dom.match(PARAGRAPH_ID_BEFORE_TYPE_RE) || dom.match(PARAGRAPH_TYPE_BEFORE_ID_RE);
             if (paragraphMatch?.[1] && paragraphMatch[1] !== operation.id) {
                 return {
                     id: paragraphMatch[1],
@@ -506,7 +558,10 @@ export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
 }
 
 export function escapeMarkdownText(value: string): string {
-    return value.replace(/[\r\n]+/g, " ").replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1").trim();
+    return value
+        .replace(/[\r\n]+/g, " ")
+        .replace(/([\\`*_[\]{}()#+\-.!>|])/g, "\\$1")
+        .trim();
 }
 
 /**
@@ -524,7 +579,10 @@ export function createNodeId(): string {
         String(now.getMinutes()).padStart(2, "0"),
         String(now.getSeconds()).padStart(2, "0"),
     ].join("");
-    const random = Math.floor(Math.random() * 36 ** 7).toString(36).padStart(7, "0").slice(-7);
+    const random = Math.floor(Math.random() * 36 ** 7)
+        .toString(36)
+        .padStart(7, "0")
+        .slice(-7);
     return `${timestamp}-${random}`;
 }
 
@@ -549,14 +607,16 @@ export function buildListItemBlockDom(title: string, subtype: "u" | "o" | "t" = 
     const updated = listItemId.slice(0, 14);
     const actionClass = normalizedSubtype === "t" ? "protyle-action protyle-action--task" : "protyle-action";
     const icon = normalizedSubtype === "t" ? "Unc" : "Dot";
-    const taskAttr = normalizedSubtype === "t" ? " data-task=\" \"" : "";
+    const taskAttr = normalizedSubtype === "t" ? ' data-task=" "' : "";
 
-    return `<div data-marker="${marker}" data-subtype="${normalizedSubtype}" data-node-id="${listItemId}" data-type="NodeListItem" class="li" updated="${updated}"${taskAttr}>`
-        + `<div class="${actionClass}" draggable="true"><svg><use xlink:href="#icon${icon}"></use></svg></div>`
-        + `<div data-node-id="${paragraphId}" data-type="NodeParagraph" class="p" updated="${updated}">`
-        + `<div contenteditable="true" spellcheck="false">${escapeHtmlText(title)}</div>`
-        + `<div class="protyle-attr" contenteditable="false"></div></div>`
-        + `<div class="protyle-attr" contenteditable="false"></div></div>`;
+    return (
+        `<div data-marker="${marker}" data-subtype="${normalizedSubtype}" data-node-id="${listItemId}" data-type="NodeListItem" class="li" updated="${updated}"${taskAttr}>` +
+        `<div class="${actionClass}" draggable="true"><svg><use xlink:href="#icon${icon}"></use></svg></div>` +
+        `<div data-node-id="${paragraphId}" data-type="NodeParagraph" class="p" updated="${updated}">` +
+        `<div contenteditable="true" spellcheck="false">${escapeHtmlText(title)}</div>` +
+        `<div class="protyle-attr" contenteditable="false"></div></div>` +
+        `<div class="protyle-attr" contenteditable="false"></div></div>`
+    );
 }
 
 export function validateMcpStatus(status: unknown): string {

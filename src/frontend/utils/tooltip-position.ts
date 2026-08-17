@@ -71,10 +71,12 @@ function fits(
     viewportHeight: number,
     margin: number,
 ): boolean {
-    return coordinates.left >= margin
-        && coordinates.top >= margin
-        && coordinates.left + popupWidth <= viewportWidth - margin
-        && coordinates.top + popupHeight <= viewportHeight - margin;
+    return (
+        coordinates.left >= margin &&
+        coordinates.top >= margin &&
+        coordinates.left + popupWidth <= viewportWidth - margin &&
+        coordinates.top + popupHeight <= viewportHeight - margin
+    );
 }
 
 export function calculateTooltipPosition(options: TooltipPositionOptions): TooltipCoordinates {
@@ -106,7 +108,9 @@ export function calculateTooltipPosition(options: TooltipPositionOptions): Toolt
         options.preferred,
         gap,
     );
-    if (fits(preferred, options.popupWidth, options.popupHeight, options.viewportWidth, options.viewportHeight, margin)) {
+    if (
+        fits(preferred, options.popupWidth, options.popupHeight, options.viewportWidth, options.viewportHeight, margin)
+    ) {
         return preferred;
     }
 
@@ -117,7 +121,14 @@ export function calculateTooltipPosition(options: TooltipPositionOptions): Toolt
         opposite(options.preferred),
         gap,
     );
-    const selected = fits(flipped, options.popupWidth, options.popupHeight, options.viewportWidth, options.viewportHeight, margin)
+    const selected = fits(
+        flipped,
+        options.popupWidth,
+        options.popupHeight,
+        options.viewportWidth,
+        options.viewportHeight,
+        margin,
+    )
         ? flipped
         : preferred;
     return {

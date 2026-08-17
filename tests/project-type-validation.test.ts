@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const taskServiceSource = readFileSync(new URL("../src/kernel/task-lifecycle-service.ts", import.meta.url), "utf8");
-const frontendSource = readFileSync(new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url), "utf8");
+const frontendSource = readFileSync(
+    new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url),
+    "utf8",
+);
 const constantsSource = readFileSync(new URL("../src/shared/constants.ts", import.meta.url), "utf8");
 
 test("单块转换在 knownTextBlock 路径也校验项目必须是文档", () => {
@@ -21,9 +24,15 @@ test("属性更新和带子树入口都不能绕过项目类型校验", () => {
 test("任务属性目标只允许文本块和文档块", () => {
     assert.match(taskServiceSource, /blockType !== "p" && blockType !== "h" && blockType !== "d"/);
     assert.match(taskServiceSource, /private async resolveTaskAttributeBlock/);
-    assert.match(taskServiceSource, /blockType === "i"[\s\S]*getChildBlocks[\s\S]*child\.type === "p" \|\| child\.type === "h"/);
+    assert.match(
+        taskServiceSource,
+        /blockType === "i"[\s\S]*getChildBlocks[\s\S]*child\.type === "p" \|\| child\.type === "h"/,
+    );
     assert.match(taskServiceSource, /const cachedTask = this\.cacheManager\.get\(blockId\)/);
-    assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)[\s\S]*this\.assertTaskAttributeBlockType\(blockType\);/);
+    assert.match(
+        taskServiceSource,
+        /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)[\s\S]*this\.assertTaskAttributeBlockType\(blockType\);/,
+    );
 });
 
 test("缓存尚未同步时，已有任务属性仍可更新", () => {

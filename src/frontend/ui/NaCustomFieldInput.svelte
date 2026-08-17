@@ -14,17 +14,19 @@
 
     const dispatch = createEventDispatcher<{ change: { value: string }; open: { value: string } }>();
 
-    $: placeholder = ({
-        text: i18n?.customFieldTypeText || "Text",
-        textarea: i18n?.customFieldTypeTextarea || "Long text",
-        number: i18n?.customFieldTypeNumber || "Number",
-        boolean: i18n?.customFieldTypeBoolean || "Yes / No",
-        date: i18n?.customFieldTypeDate || "Date",
-        datetime: i18n?.customFieldTypeDatetime || "Date & time",
-        singleSelect: i18n?.customFieldTypeSingleSelect || "Single select",
-        multiSelect: i18n?.customFieldTypeMultiSelect || "Multi-select",
-        url: i18n?.customFieldTypeUrl || "URL",
-    } as Record<CustomFieldDef["type"], string>)[def.type];
+    $: placeholder = (
+        {
+            text: i18n?.customFieldTypeText || "Text",
+            textarea: i18n?.customFieldTypeTextarea || "Long text",
+            number: i18n?.customFieldTypeNumber || "Number",
+            boolean: i18n?.customFieldTypeBoolean || "Yes / No",
+            date: i18n?.customFieldTypeDate || "Date",
+            datetime: i18n?.customFieldTypeDatetime || "Date & time",
+            singleSelect: i18n?.customFieldTypeSingleSelect || "Single select",
+            multiSelect: i18n?.customFieldTypeMultiSelect || "Multi-select",
+            url: i18n?.customFieldTypeUrl || "URL",
+        } as Record<CustomFieldDef["type"], string>
+    )[def.type];
 
     $: selectedIds = (() => {
         if (def.type !== "multiSelect") return [] as string[];
@@ -35,10 +37,12 @@
             return [] as string[];
         }
     })();
-    $: optionLabels = Object.fromEntries((def.options || []).map(option => [
-        option.id,
-        option.label + (option.status === "archived" ? (i18n?.customFieldArchivedOptionSuffix || " (archived)") : ""),
-    ]));
+    $: optionLabels = Object.fromEntries(
+        (def.options || []).map((option) => [
+            option.id,
+            option.label + (option.status === "archived" ? i18n?.customFieldArchivedOptionSuffix || " (archived)" : ""),
+        ]),
+    );
 
     function emit(nextValue: string) {
         value = nextValue;
@@ -46,25 +50,43 @@
     }
 
     function searchOptions(query: string, selected: Set<string>) {
-        return Promise.resolve((def.options || [])
-            .filter(option => option.status === "active" || selected.has(option.id))
-            .filter(option => !query || option.label.toLowerCase().includes(query.toLowerCase()))
-            .map(option => ({ id: option.id, label: optionLabels[option.id] })));
+        return Promise.resolve(
+            (def.options || [])
+                .filter((option) => option.status === "active" || selected.has(option.id))
+                .filter((option) => !query || option.label.toLowerCase().includes(query.toLowerCase()))
+                .map((option) => ({ id: option.id, label: optionLabels[option.id] })),
+        );
     }
 </script>
 
 {#if def.type === "textarea"}
-    <textarea class="b3-text-field fn__block" rows="3" {disabled} {placeholder} {value} on:input={(event) => emit(event.currentTarget.value)}></textarea>
+    <textarea
+        class="b3-text-field fn__block"
+        rows="3"
+        {disabled}
+        {placeholder}
+        {value}
+        on:input={(event) => emit(event.currentTarget.value)}
+    ></textarea>
 {:else if def.type === "boolean"}
     <div class="na-custom-field-input__toggle">
-        <NaToggle checked={value === "1" || value === "true"} {disabled} label={def.label} on:change={(event) => emit(event.detail.checked ? "1" : "0")} />
-        <span>{value === "1" || value === "true" ? (i18n?.customFieldBooleanYes || "Yes") : (i18n?.customFieldBooleanNo || "No")}</span>
+        <NaToggle
+            checked={value === "1" || value === "true"}
+            {disabled}
+            label={def.label}
+            on:change={(event) => emit(event.detail.checked ? "1" : "0")}
+        />
+        <span
+            >{value === "1" || value === "true"
+                ? i18n?.customFieldBooleanYes || "Yes"
+                : i18n?.customFieldBooleanNo || "No"}</span
+        >
     </div>
 {:else if def.type === "singleSelect"}
     {@const selected = value || ""}
     <NaSearchSelect
         multi={false}
-        selected={selected}
+        {selected}
         selectedLabel={optionLabels[selected] || ""}
         initialLabels={optionLabels}
         searchFn={(query) => searchOptions(query, new Set(selected ? [selected] : []))}
@@ -75,7 +97,12 @@
         clearLabel={i18n?.clearSelection || "Clear selection"}
         removeLabel={i18n?.removeSelection || "Remove selection"}
         {fixedDropdown}
-        on:change={(event) => emit(Array.isArray(event.detail?.selected) ? (event.detail.selected[0] || "") : String(event.detail?.selected || ""))}
+        on:change={(event) =>
+            emit(
+                Array.isArray(event.detail?.selected)
+                    ? event.detail.selected[0] || ""
+                    : String(event.detail?.selected || ""),
+            )}
     />
 {:else if def.type === "multiSelect"}
     <NaSearchSelect
@@ -90,7 +117,8 @@
         clearLabel={i18n?.clearSelection || "Clear selection"}
         removeLabel={i18n?.removeSelection || "Remove selection"}
         {fixedDropdown}
-        on:change={(event) => emit(JSON.stringify(Array.isArray(event.detail?.selected) ? event.detail.selected.map(String) : []))}
+        on:change={(event) =>
+            emit(JSON.stringify(Array.isArray(event.detail?.selected) ? event.detail.selected.map(String) : []))}
     />
 {:else if def.type === "date" || def.type === "datetime"}
     <NaDatePicker

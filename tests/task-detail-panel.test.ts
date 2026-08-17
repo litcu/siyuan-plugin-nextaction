@@ -9,10 +9,9 @@ const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
 const app = source("../src/frontend/components/NextActionApp.svelte");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
 const stateController = source("../src/frontend/controllers/task-detail-controller.ts");
-const stylesheet = [
-    "../src/frontend/styles/app-shell.scss",
-    "../src/frontend/styles/components.scss",
-].map(source).join("\n");
+const stylesheet = ["../src/frontend/styles/app-shell.scss", "../src/frontend/styles/components.scss"]
+    .map(source)
+    .join("\n");
 const propertyRow = source("../src/frontend/ui/NaPropertyRow.svelte");
 const propertySection = source("../src/frontend/ui/NaPropertySection.svelte");
 const tokens = source("../src/frontend/ui/tokens.scss");
@@ -23,7 +22,10 @@ test("任务属性面板关闭底部操作栏并保持正文独立滚动", () =>
     assert.match(shell, /export let showFooter = true/);
     assert.match(detail, /showFooter=\{false\}/);
     assert.doesNotMatch(detail, /slot="footer(?:Start|End)"/);
-    assert.match(stylesheet, /\.na-app__detail-inner\s*\{[\s\S]*position:\s*absolute;[\s\S]*inset:\s*0;[\s\S]*overflow:\s*hidden/);
+    assert.match(
+        stylesheet,
+        /\.na-app__detail-inner\s*\{[\s\S]*position:\s*absolute;[\s\S]*inset:\s*0;[\s\S]*overflow:\s*hidden/,
+    );
     assert.match(shell, /max-height:\s*100%/);
 });
 
@@ -44,7 +46,10 @@ test("遮罩、关闭按钮和 Esc 统一请求关闭", () => {
 });
 
 test("属性子弹窗提升到打开的任务抽屉之上", () => {
-    assert.match(controller, /querySelectorAll<HTMLElement>\([\s\S]*na-drawer-host--open[\s\S]*na-drawer-host__backdrop/);
+    assert.match(
+        controller,
+        /querySelectorAll<HTMLElement>\([\s\S]*na-drawer-host--open[\s\S]*na-drawer-host__backdrop/,
+    );
     assert.match(controller, /window\.getComputedStyle\(element\)\.zIndex/);
     assert.match(controller, /drawerZIndex >= currentDialogZIndex/);
     assert.match(controller, /dialogRoot\.style\.zIndex = String\(nextZIndex\)/);
@@ -62,17 +67,35 @@ test("自动保存、未保存修改确认和错误状态保持可见", () => {
 });
 
 test("任务草稿显式声明响应式字段依赖", () => {
-    assert.match(detail, /function buildDraft\(\): TaskDetailDraft \{[\s\S]*status,[\s\S]*customFieldValues,[\s\S]*\};/);
+    assert.match(
+        detail,
+        /function buildDraft\(\): TaskDetailDraft \{[\s\S]*status,[\s\S]*customFieldValues,[\s\S]*\};/,
+    );
     assert.match(stateController, /dirtyFieldsFor\(this\.state\.draft, this\.state\.baseline\)/);
     assert.match(detail, /\$:\s*dateError\s*=\s*getDateError\(start, due\)/);
 });
 
 test("全部既有任务属性进入统一保存载荷", () => {
     for (const attribute of [
-        "na-status", "na-priority", "na-importance", "na-effort", "na-due", "na-start",
-        "na-context", "na-tags", "na-parent", "na-task", "na-depends", "na-dep-mode",
-        "na-sequential", "na-note", "na-review-interval", "na-review-date", "na-ext-",
-    ]) assert.match(attribute === "na-ext-" ? detail : stateController, new RegExp(attribute));
+        "na-status",
+        "na-priority",
+        "na-importance",
+        "na-effort",
+        "na-due",
+        "na-start",
+        "na-context",
+        "na-tags",
+        "na-parent",
+        "na-task",
+        "na-depends",
+        "na-dep-mode",
+        "na-sequential",
+        "na-note",
+        "na-review-interval",
+        "na-review-date",
+        "na-ext-",
+    ])
+        assert.match(attribute === "na-ext-" ? detail : stateController, new RegExp(attribute));
 });
 
 test("任务类型与标签保持同行，极窄视口再由公共属性行换行", () => {
@@ -83,8 +106,8 @@ test("任务类型与标签保持同行，极窄视口再由公共属性行换�
 
 test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /childTasks = allTasks[\s\S]*entry\.parentId === task\.blockId/);
-    assert.match(detail, /<NaTaskLinkList items=\{childTasks\}/);
-    assert.match(detail, /<NaSearchSelect multi=\{true\} bind:selected=\{depends\}/);
+    assert.match(detail, /<NaTaskLinkList\s+items=\{childTasks\}/);
+    assert.match(detail, /<NaSearchSelect\s+multi=\{true\}\s+bind:selected=\{depends\}/);
     assert.match(detail, /bind:value=\{depMode\}/);
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
 });

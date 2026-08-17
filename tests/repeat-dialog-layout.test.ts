@@ -3,17 +3,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const editorSource = readFileSync(new URL("../src/frontend/ui/NaRepeatRuleEditor.svelte", import.meta.url), "utf8");
-const controllerSource = readFileSync(new URL("../src/frontend/dialogs/task-property-dialogs.ts", import.meta.url), "utf8");
+const controllerSource = readFileSync(
+    new URL("../src/frontend/dialogs/task-property-dialogs.ts", import.meta.url),
+    "utf8",
+);
 const datePickerSource = readFileSync(new URL("../src/frontend/ui/NaDatePicker.svelte", import.meta.url), "utf8");
 const taskDetailSource = readFileSync(new URL("../src/frontend/components/TaskDetail.svelte", import.meta.url), "utf8");
 const segmentSource = readFileSync(new URL("../src/frontend/ui/NaSegmentControl.svelte", import.meta.url), "utf8");
 const shellSource = readFileSync(new URL("../src/frontend/ui/NaDialogShell.svelte", import.meta.url), "utf8");
 
 test("重复规则编辑器保留频率、月度条件、结束条件和预览", () => {
-    assert.match(editorSource, /NaSegmentControl options=\{frequencyOptions\}/);
+    assert.match(editorSource, /<NaSegmentControl\s+options=\{frequencyOptions\}/);
     assert.match(editorSource, /monthlyType === "dayOfMonth"/);
     assert.match(editorSource, /monthlyType === "nthWeekday"/);
-    assert.match(editorSource, /NaSegmentControl options=\{endOptions\}/);
+    assert.match(editorSource, /<NaSegmentControl\s+options=\{endOptions\}/);
     assert.match(editorSource, /previewRepeatOccurrences/);
 });
 
@@ -42,12 +45,18 @@ test("重复弹窗自身声明满高布局，底部保存区不依赖提醒编�
     assert.match(editorSource, /na-repeat-dialog-container > \.b3-dialog__body/);
     assert.match(editorSource, /flex: 1 1 0/);
     assert.doesNotMatch(editorSource, /na-repeat-dialog-container > \.b3-dialog__body\)[^{]*\{[^}]*height: 100%/);
-    assert.match(editorSource, /na-repeat-rule-editor\) \{ width: 100%; height: 100%/);
-    assert.doesNotMatch(readFileSync(new URL("../src/frontend/ui/NaReminderEditor.svelte", import.meta.url), "utf8"), /na-repeat-dialog-container/);
+    assert.match(editorSource, /na-repeat-rule-editor\)\s*\{\s*width:\s*100%;\s*height:\s*100%/);
+    assert.doesNotMatch(
+        readFileSync(new URL("../src/frontend/ui/NaReminderEditor.svelte", import.meta.url), "utf8"),
+        /na-repeat-dialog-container/,
+    );
 });
 
 test("重复规则的短控件从控制列起始对齐，避免全部贴在窗口右侧", () => {
-    assert.match(editorSource, /na-repeat-rule-editor \.na-property-row__control\) \{ justify-content: flex-start; \}/);
+    assert.match(
+        editorSource,
+        /na-repeat-rule-editor \.na-property-row__control\)\s*\{\s*justify-content:\s*flex-start;/,
+    );
     assert.match(editorSource, /na-repeat-rule-editor \.na-property-row__control > \.b3-select/);
 });
 
@@ -68,6 +77,6 @@ test("对话框日期浮层会根据上下空间自动选择展开方向", () =>
     assert.match(datePickerSource, /const spaceBelow = window\.innerHeight - rect\.bottom/);
     assert.match(datePickerSource, /const spaceAbove = rect\.top/);
     assert.match(datePickerSource, /const openAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow/);
-    assert.match(taskDetailSource, /NaDatePicker bind:value=\{start\}[\s\S]*fixedDropdown=\{true\}/);
-    assert.match(taskDetailSource, /NaDatePicker bind:value=\{due\}[\s\S]*fixedDropdown=\{true\}/);
+    assert.match(taskDetailSource, /<NaDatePicker\s+bind:value=\{start\}[\s\S]*?fixedDropdown=\{true\}/);
+    assert.match(taskDetailSource, /<NaDatePicker\s+bind:value=\{due\}[\s\S]*?fixedDropdown=\{true\}/);
 });

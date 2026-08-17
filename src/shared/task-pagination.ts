@@ -86,7 +86,11 @@ export function paginateCompletedTasks(
         Math.max(1, Math.trunc(options.pageSize || DEFAULT_COMPLETED_PAGE_SIZE)),
     );
     const requestedPage = Math.max(1, Math.trunc(options.page || 1));
-    const sorted = sortCompletedTasks(tasks.filter((task) => task.status === "done"), options.sortBy, options.sortAsc);
+    const sorted = sortCompletedTasks(
+        tasks.filter((task) => task.status === "done"),
+        options.sortBy,
+        options.sortAsc,
+    );
     const total = sorted.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const page = Math.min(requestedPage, totalPages);

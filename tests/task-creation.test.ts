@@ -13,7 +13,7 @@ function source(path: string): string {
 }
 
 test("任务创建设置限制最近目标并保留命名预设", () => {
-    const recentTargets = [0, 1, 2, 3].map(index => ({
+    const recentTargets = [0, 1, 2, 3].map((index) => ({
         type: "document" as const,
         format: "paragraph" as const,
         documentId: `20260808120${index}00-abcdefg`,
@@ -29,14 +29,23 @@ test("任务创建设置限制最近目标并保留命名预设", () => {
 });
 
 test("任务创建设置拒绝非法目标和重复预设 ID", () => {
-    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "nowhere", format: "paragraph" } as any] }) ?? "", /invalid target/);
-    assert.match(validateTaskCreationSettings({ recentTargets: [{ type: "inbox", format: "list" } as any] }) ?? "", /invalid target/);
-    assert.match(validateTaskCreationSettings({
-        presets: [
-            { id: "same", name: "A", target: { type: "inbox", format: "paragraph" } },
-            { id: "same", name: "B", target: { type: "inbox", format: "document" } },
-        ],
-    }) ?? "", /unique/);
+    assert.match(
+        validateTaskCreationSettings({ recentTargets: [{ type: "nowhere", format: "paragraph" } as any] }) ?? "",
+        /invalid target/,
+    );
+    assert.match(
+        validateTaskCreationSettings({ recentTargets: [{ type: "inbox", format: "list" } as any] }) ?? "",
+        /invalid target/,
+    );
+    assert.match(
+        validateTaskCreationSettings({
+            presets: [
+                { id: "same", name: "A", target: { type: "inbox", format: "paragraph" } },
+                { id: "same", name: "B", target: { type: "inbox", format: "document" } },
+            ],
+        }) ?? "",
+        /unique/,
+    );
 });
 
 test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值", () => {
@@ -50,7 +59,7 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     assert.match(kernel, /createTask,\s*\n\s*aiProposalService/);
     assert.match(kernel, /this\.taskCreationService\.create/);
     assert.match(contract, /createTask:\s*defineRpc/);
-    assert.match(rpc, /createTask:\s*\(input\)\s*=>\s*hooks\.createTask/);
+    assert.match(rpc, /createTask:\s*\(input\)\s*=>\s*\(hooks\.createTask/);
     assert.match(rpc, /for \(const method of RPC_METHOD_NAMES\)/);
     assert.match(bridge, /createTask\(input:\s*CreateTaskInput\)/);
     assert.match(dialog, /bridge\.createTask\(input\)/);

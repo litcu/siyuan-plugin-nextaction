@@ -14,16 +14,41 @@ import {
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
-        blockId, parentId: "", status: "todo", priority: "medium", importance: 4, effort: 4,
-        due: "", start: "", context: "", taskType: "1", order: 0, childIds: [], title: blockId,
-        depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "", sort: 0,
-        completed: "", note: "", created: "", tags: "", blocked: false, blockedReason: "",
-        reviewInterval: 0, reviewDate: "", reminder: "", customFields: {}, ...overrides,
+        blockId,
+        parentId: "",
+        status: "todo",
+        priority: "medium",
+        importance: 4,
+        effort: 4,
+        due: "",
+        start: "",
+        context: "",
+        taskType: "1",
+        order: 0,
+        childIds: [],
+        title: blockId,
+        depends: "",
+        depMode: "all",
+        sequential: false,
+        repeat: "",
+        repeatState: "",
+        sort: 0,
+        completed: "",
+        note: "",
+        created: "",
+        tags: "",
+        blocked: false,
+        blockedReason: "",
+        reviewInterval: 0,
+        reviewDate: "",
+        reminder: "",
+        customFields: {},
+        ...overrides,
     };
 }
 
 function rows(tasks: TaskCacheEntry[]): ProjectTreeRow[] {
-    return tasks.map(entry => ({ task: entry, depth: 0, hasChildren: false, childCount: 0 }));
+    return tasks.map((entry) => ({ task: entry, depth: 0, hasChildren: false, childCount: 0 }));
 }
 
 test("甘特日期使用严格自然日并拒绝无效日期", () => {
@@ -96,7 +121,11 @@ test("任务几何区分区间、截止点、开放式起始和错误范围", ()
     ];
     const range = calculateGanttRange(items);
     assert.ok(range);
-    const model = { includedIds: new Set(items.map(entry => entry.blockId)), includedTasks: items, childrenByParent: new Map() };
+    const model = {
+        includedIds: new Set(items.map((entry) => entry.blockId)),
+        includedTasks: items,
+        childrenByParent: new Map(),
+    };
     const geometries = calculateGanttGeometries(items, model, range);
     assert.equal(geometries.get("bar")?.kind, "bar");
     assert.equal(geometries.get("bar")?.durationDays, 3);
@@ -130,7 +159,7 @@ test("项目汇总仅覆盖子任务排期并单独标记项目截止日", () =>
     const range = calculateGanttRange(items);
     assert.ok(range);
     const model = {
-        includedIds: new Set(items.map(entry => entry.blockId)),
+        includedIds: new Set(items.map((entry) => entry.blockId)),
         includedTasks: items,
         childrenByParent: new Map([["project", [child]]]),
     };
@@ -149,11 +178,15 @@ test("项目截止日早于子任务结束时标记计划逾期", () => {
     const items = [project, child];
     const range = calculateGanttRange(items);
     assert.ok(range);
-    const geometry = calculateGanttGeometries(items, {
-        includedIds: new Set(items.map(entry => entry.blockId)),
-        includedTasks: items,
-        childrenByParent: new Map([["project", [child]]]),
-    }, range).get("project");
+    const geometry = calculateGanttGeometries(
+        items,
+        {
+            includedIds: new Set(items.map((entry) => entry.blockId)),
+            includedTasks: items,
+            childrenByParent: new Map([["project", [child]]]),
+        },
+        range,
+    ).get("project");
     assert.equal(geometry?.targetLate, true);
 });
 
@@ -166,14 +199,14 @@ test("依赖箭头只连接可见端点并让显式依赖覆盖顺序链", () =>
     const range = calculateGanttRange(items);
     assert.ok(range);
     const model = {
-        includedIds: new Set(items.map(entry => entry.blockId)),
+        includedIds: new Set(items.map((entry) => entry.blockId)),
         includedTasks: items,
         childrenByParent: new Map([["parent", [a, b, c]]]),
     };
     const geometries = calculateGanttGeometries(items, model, range);
     const edges = calculateGanttEdges(rows([a, b, c]), items, geometries);
-    assert.equal(edges.filter(edge => edge.id.includes("a->b")).length, 1);
-    assert.equal(edges.find(edge => edge.id.includes("a->b"))?.type, "dependency");
-    assert.equal(edges.find(edge => edge.id.includes("b->c"))?.type, "sequential");
+    assert.equal(edges.filter((edge) => edge.id.includes("a->b")).length, 1);
+    assert.equal(edges.find((edge) => edge.id.includes("a->b"))?.type, "dependency");
+    assert.equal(edges.find((edge) => edge.id.includes("b->c"))?.type, "sequential");
     assert.equal(calculateGanttEdges(rows([a, c]), items, geometries).length, 0);
 });

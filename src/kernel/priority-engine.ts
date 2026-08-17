@@ -61,13 +61,20 @@ function calculateStartScore(startDate: string): number {
 // === Effective Importance（合并 importance + priority）===
 function getPriorityOffset(priority: string): number {
     switch (priority) {
-        case "critical": return config.priorityOffsetCritical;
-        case "high": return config.priorityOffsetHigh;
-        case "medium": return config.priorityOffsetMedium;
-        case "low": return config.priorityOffsetLow;
-        case "veryLow": return config.priorityOffsetNone;
-        case "none": return config.priorityOffsetNone;
-        default: return 0;
+        case "critical":
+            return config.priorityOffsetCritical;
+        case "high":
+            return config.priorityOffsetHigh;
+        case "medium":
+            return config.priorityOffsetMedium;
+        case "low":
+            return config.priorityOffsetLow;
+        case "veryLow":
+            return config.priorityOffsetNone;
+        case "none":
+            return config.priorityOffsetNone;
+        default:
+            return 0;
     }
 }
 
@@ -79,7 +86,7 @@ function calculateEffectiveImportance(importance: number, priority: string): num
 // effectiveImportance 0.5-8.5, 中性=4
 // 映射到分数: 0.5→10, 4→50, 8.5→90
 function calculateImportanceScore(effectiveImportance: number): number {
-    return 10 + (effectiveImportance - 0.5) / 8 * 80;
+    return 10 + ((effectiveImportance - 0.5) / 8) * 80;
 }
 
 // === 努力惩罚（锚点在4，默认值中性）===
@@ -97,16 +104,15 @@ export function calculateOrder(entry: TaskCacheEntry, cache?: Record<string, Tas
     const importanceScore = calculateImportanceScore(effectiveImp);
     const effortPenalty = calculateEffortPenalty(entry.effort);
 
-    const baseScore = config.dueWeight * dueScore
-        + config.startWeight * startScore
-        + config.importanceWeight * importanceScore;
+    const baseScore =
+        config.dueWeight * dueScore + config.startWeight * startScore + config.importanceWeight * importanceScore;
 
     const ownScore = baseScore / effortPenalty;
 
     if (entry.taskType === "2" && cache) {
         const maxChildOrder = entry.childIds
-            .map(id => cache[id])
-            .filter(c => c && c.status !== "done")
+            .map((id) => cache[id])
+            .filter((c) => c && c.status !== "done")
             .reduce((max, child) => Math.max(max, child.order), 0);
         return Math.max(ownScore, maxChildOrder);
     }
@@ -141,10 +147,10 @@ export function getBlockedReason(entry: TaskCacheEntry, cache: Record<string, Ta
         }
         if (validDepIds.length > 0) {
             if (entry.depMode === "any") {
-                const allIncomplete = validDepIds.every(id => cache[id].status !== "done");
+                const allIncomplete = validDepIds.every((id) => cache[id].status !== "done");
                 if (allIncomplete) return "dependency";
             } else {
-                const anyIncomplete = validDepIds.some(id => cache[id].status !== "done");
+                const anyIncomplete = validDepIds.some((id) => cache[id].status !== "done");
                 if (anyIncomplete) return "dependency";
             }
         }
@@ -155,15 +161,15 @@ export function getBlockedReason(entry: TaskCacheEntry, cache: Record<string, Ta
         const parent = cache[entry.parentId];
         if (parent?.sequential) {
             const siblings = parent.childIds
-                .map(id => cache[id])
+                .map((id) => cache[id])
                 .filter(Boolean)
                 .sort((a, b) => {
                     if (a.sort !== b.sort) return a.sort - b.sort;
                     return a.blockId.localeCompare(b.blockId);
                 });
-            const myIndex = siblings.findIndex(s => s.blockId === entry.blockId);
+            const myIndex = siblings.findIndex((s) => s.blockId === entry.blockId);
             if (myIndex > 0) {
-                const hasIncompleteBefore = siblings.slice(0, myIndex).some(s => s.status !== "done");
+                const hasIncompleteBefore = siblings.slice(0, myIndex).some((s) => s.status !== "done");
                 if (hasIncompleteBefore) return "sequential";
             }
         }

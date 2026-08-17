@@ -48,9 +48,10 @@ export async function showStatusMenu(
                     try {
                         const updated = await bridge.updateTask(task.blockId, { "na-status": s });
                         const statusLabel = i18n?.[i18nKey] || s;
-                        const template = s === "done"
-                            ? (i18n?.taskMarkedDone || "Marked as done")
-                            : (i18n?.taskStatusUpdated || "Status updated to {status}");
+                        const template =
+                            s === "done"
+                                ? i18n?.taskMarkedDone || "Marked as done"
+                                : i18n?.taskStatusUpdated || "Status updated to {status}";
                         notifyInfo(template.replace("{status}", statusLabel));
                         resolve(updated);
                     } catch (e: any) {

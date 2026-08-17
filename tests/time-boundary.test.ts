@@ -22,17 +22,17 @@ test("具体截止时间跨过后立即变为今日已逾期", () => {
     assert.equal(before.isDueSoon, true);
     assert.equal(after.isOverdue, true);
     assert.equal(formatDueDate(due, localTime(2026, 7, 15, 18, 59), { dueToday: "今日到期" }), "今日到期 19:00");
-    assert.equal(formatDueDate(due, localTime(2026, 7, 15, 19, 20), { overdueToday: "今日已逾期" }), "今日已逾期 19:00");
+    assert.equal(
+        formatDueDate(due, localTime(2026, 7, 15, 19, 20), { overdueToday: "今日已逾期" }),
+        "今日已逾期 19:00",
+    );
 });
 
 test("具体截止时间跨过自然日后按日期计算逾期天数", () => {
     const due = "2026-07-15T17:00";
     const now = localTime(2026, 7, 16, 12, 0);
 
-    assert.equal(
-        formatDueDate(due, now, { overdueDays: "已逾期 {n} 天" }),
-        "已逾期 1 天 17:00",
-    );
+    assert.equal(formatDueDate(due, now, { overdueDays: "已逾期 {n} 天" }), "已逾期 1 天 17:00");
 });
 
 test("纯日期截止日在当天结束前不算逾期", () => {

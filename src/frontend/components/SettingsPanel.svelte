@@ -6,11 +6,21 @@
     import type { AiFeatureId } from "../../shared/ai";
     import type { I18nStrings } from "../../shared/i18n";
     import type { RpcMcpStatus } from "../../shared/rpc-methods";
-    import { DEFAULT_SETTINGS, DEFAULT_PRIORITY_ENGINE, DEFAULT_REMINDER_SETTINGS, DEFAULT_MCP_SETTINGS, DEFAULT_AI_SETTINGS } from "../../shared/settings";
+    import {
+        DEFAULT_SETTINGS,
+        DEFAULT_PRIORITY_ENGINE,
+        DEFAULT_REMINDER_SETTINGS,
+        DEFAULT_MCP_SETTINGS,
+        DEFAULT_AI_SETTINGS,
+    } from "../../shared/settings";
     import { REMINDER_SOUND_IDS, type ReminderSoundId } from "../../shared/constants";
     import { formatOperationError, formatValidationError, notifyInfo, notifyError } from "../notify";
     import type { KernelBridge } from "../kernel-bridge";
-    import { SettingsPanelController, type SettingsAction, type SettingsPage } from "../controllers/settings-panel-controller";
+    import {
+        SettingsPanelController,
+        type SettingsAction,
+        type SettingsPage,
+    } from "../controllers/settings-panel-controller";
     import { playSound, unlockAutoplay } from "../utils/audio-player";
     import { getAiPromptRuntimePreview } from "../ai/ai-feature-service";
     import { reminderSoundI18nKey, translateKey } from "../i18n";
@@ -28,7 +38,14 @@
     export let onClose: () => void;
 
     type ModernTabId = SettingsPage;
-    type DocumentSelection = { id: string; title: string; notebookId: string; notebookName: string; path: string; icon: string };
+    type DocumentSelection = {
+        id: string;
+        title: string;
+        notebookId: string;
+        notebookName: string;
+        path: string;
+        icon: string;
+    };
 
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
     let saving = false;
@@ -41,11 +58,41 @@
     let isDirty = false;
 
     $: modernTabs = [
-        { id: "general" as const, label: i18n?.settingGeneral || "General", desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders", icon: "iconSettings", group: i18n?.settingNavGroupTask || "Workspace" },
-        { id: "customFields" as const, label: i18n?.settingCustomFields || "Custom fields", desc: i18n?.settingCustomFieldsDesc || "Extend task attributes", icon: "iconDatabase", group: i18n?.settingNavGroupTask || "Workspace" },
-        { id: "ai" as const, label: i18n?.settingAi || "AI features", desc: i18n?.settingAiDesc || "Customize prompts used by AI features", icon: "iconSparkles", group: i18n?.settingNavGroupIntegration || "Integrations" },
-        { id: "mcp" as const, label: i18n?.settingMcp || "MCP", desc: i18n?.settingMcpDesc || "Expose task tools to AI clients", icon: "iconCloud", group: i18n?.settingNavGroupIntegration || "Integrations" },
-        { id: "advanced" as const, label: i18n?.settingAdvanced || "Advanced", desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance", icon: "iconSort", group: i18n?.settingNavGroupSystem || "System" },
+        {
+            id: "general" as const,
+            label: i18n?.settingGeneral || "General",
+            desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders",
+            icon: "iconSettings",
+            group: i18n?.settingNavGroupTask || "Workspace",
+        },
+        {
+            id: "customFields" as const,
+            label: i18n?.settingCustomFields || "Custom fields",
+            desc: i18n?.settingCustomFieldsDesc || "Extend task attributes",
+            icon: "iconDatabase",
+            group: i18n?.settingNavGroupTask || "Workspace",
+        },
+        {
+            id: "ai" as const,
+            label: i18n?.settingAi || "AI features",
+            desc: i18n?.settingAiDesc || "Customize prompts used by AI features",
+            icon: "iconSparkles",
+            group: i18n?.settingNavGroupIntegration || "Integrations",
+        },
+        {
+            id: "mcp" as const,
+            label: i18n?.settingMcp || "MCP",
+            desc: i18n?.settingMcpDesc || "Expose task tools to AI clients",
+            icon: "iconCloud",
+            group: i18n?.settingNavGroupIntegration || "Integrations",
+        },
+        {
+            id: "advanced" as const,
+            label: i18n?.settingAdvanced || "Advanced",
+            desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance",
+            icon: "iconSort",
+            group: i18n?.settingNavGroupSystem || "System",
+        },
     ];
 
     let defaultImportance = DEFAULT_SETTINGS.defaultImportance;
@@ -75,7 +122,8 @@
 
     let mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
     let mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
-    let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget = DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
+    let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget =
+        DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
     let taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
     let taskCreationInboxDocument: DocumentSelection | null = null;
     let taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
@@ -92,8 +140,8 @@
     let purgingFieldId = "";
 
     const controller = new SettingsPanelController({
-        formatError: error => formatOperationError(error, i18n),
-        formatValidationError: validationError => formatValidationError(validationError, i18n),
+        formatError: (error) => formatOperationError(error, i18n),
+        formatValidationError: (validationError) => formatValidationError(validationError, i18n),
     });
 
     function syncControllerState() {
@@ -101,7 +149,7 @@
         current = state.saved;
         saving = state.saveState === "saving";
         rebuilding = state.maintenanceBusy.has("cache");
-        purgingFieldId = [...state.maintenanceBusy].find(id => id.startsWith("purge:"))?.slice("purge:".length) || "";
+        purgingFieldId = [...state.maintenanceBusy].find((id) => id.startsWith("purge:"))?.slice("purge:".length) || "";
         error = state.error;
         modernTab = state.page;
         settingsLoaded = state.loadState === "loaded";
@@ -110,13 +158,33 @@
 
     $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
     $: draftRevision = [
-        defaultImportance, defaultEffort, semanticDateParsingEnabled,
-        dueWeight, startWeight, importanceWeight, dueDecayTau, overdueGrowth, overdueCap, startHorizon, effortScale, startPreviewDays,
-        myDayResetHour, myDayDefaultViewMode, myDayDefaultDuration,
-        reminderEnabled, reminderDefaultOffsets, reminderDueSound, reminderReviewSound, reminderSoundEnabled,
-        mcpEnabled, mcpAllowWrite,
-        taskCreationDefaultCreateTarget, taskCreationInboxDocumentId, taskCreationDailyNoteNotebookId,
-        aiPrompts, customFields,
+        defaultImportance,
+        defaultEffort,
+        semanticDateParsingEnabled,
+        dueWeight,
+        startWeight,
+        importanceWeight,
+        dueDecayTau,
+        overdueGrowth,
+        overdueCap,
+        startHorizon,
+        effortScale,
+        startPreviewDays,
+        myDayResetHour,
+        myDayDefaultViewMode,
+        myDayDefaultDuration,
+        reminderEnabled,
+        reminderDefaultOffsets,
+        reminderDueSound,
+        reminderReviewSound,
+        reminderSoundEnabled,
+        mcpEnabled,
+        mcpAllowWrite,
+        taskCreationDefaultCreateTarget,
+        taskCreationInboxDocumentId,
+        taskCreationDailyNoteNotebookId,
+        aiPrompts,
+        customFields,
     ];
     $: if (settingsLoaded && draftRevision) {
         controller.edit(buildSettings());
@@ -167,16 +235,13 @@
 
             try {
                 const diagnostics = await bridge.getCustomFieldDiagnostics();
-                customFieldUsage = Object.fromEntries(diagnostics.fields.map(item => [item.key, item.count]));
+                customFieldUsage = Object.fromEntries(diagnostics.fields.map((item) => [item.key, item.count]));
             } catch (_e) {
                 customFieldUsage = {};
             }
 
             try {
-                [mcpStatus, mcpNotebooks] = await Promise.all([
-                    bridge.getMcpStatus(),
-                    bridge.listMcpTargetNotebooks(),
-                ]);
+                [mcpStatus, mcpNotebooks] = await Promise.all([bridge.getMcpStatus(), bridge.listMcpTargetNotebooks()]);
                 if (taskCreationInboxDocumentId) await loadTaskCreationInboxDocument(taskCreationInboxDocumentId);
             } catch (_e) {
                 mcpStatus = null;
@@ -297,7 +362,7 @@
 
     async function handleSave() {
         controller.edit(buildSettings());
-        const result = await controller.save(settings => bridge.updateSettings(settings));
+        const result = await controller.save((settings) => bridge.updateSettings(settings));
         syncControllerState();
         if (!result) return;
         applySettings(result);
@@ -306,8 +371,8 @@
         } catch (e: unknown) {
             console.error("[NextAction] settings post-save refresh failed:", e);
             controller.reportPostSaveError(
-                i18n?.settingsSavedRefreshFailed
-                || "Settings were saved, but task order refresh failed. Use Refresh or maintenance tools to retry.",
+                i18n?.settingsSavedRefreshFailed ||
+                    "Settings were saved, but task order refresh failed. Use Refresh or maintenance tools to retry.",
             );
             syncControllerState();
         }
@@ -331,7 +396,12 @@
         );
     }
 
-    function requestMaintenanceAction(action: SettingsAction, title: string, message: string, run: () => Promise<void>) {
+    function requestMaintenanceAction(
+        action: SettingsAction,
+        title: string,
+        message: string,
+        run: () => Promise<void>,
+    ) {
         controller.requestAction(action);
         confirm(
             title,
@@ -351,7 +421,8 @@
         requestMaintenanceAction(
             { id: "maintenance:cache", kind: "maintenance" },
             i18n?.rebuildCache || "Rebuild Cache",
-            i18n?.rebuildCacheConfirm || "This will reload all task data from the database. The operation runs immediately and may take a moment.",
+            i18n?.rebuildCacheConfirm ||
+                "This will reload all task data from the database. The operation runs immediately and may take a moment.",
             async () => {
                 try {
                     const running = controller.runMaintenance("cache", () => bridge.rebuildCache());
@@ -385,7 +456,8 @@
         requestDraftAction(
             { id: "reset:priority", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetPriority(),
         );
     }
@@ -400,7 +472,8 @@
         requestDraftAction(
             { id: "reset:defaults", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetDefaults(),
         );
     }
@@ -415,7 +488,8 @@
         requestDraftAction(
             { id: "reset:my-day", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetMyDay(),
         );
     }
@@ -432,7 +506,8 @@
         requestDraftAction(
             { id: "reset:reminder", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetReminder(),
         );
     }
@@ -446,7 +521,8 @@
         requestDraftAction(
             { id: "reset:mcp", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetMcp(),
         );
     }
@@ -462,7 +538,8 @@
         requestDraftAction(
             { id: "reset:task-creation", kind: "draft" },
             i18n?.settingResetSection || "Reset",
-            i18n?.settingResetSectionConfirm || "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
+            i18n?.settingResetSectionConfirm ||
+                "Restore this section's settings to their default values? The reset only takes effect after you click Save, and can still be discarded by cancelling the settings dialog.",
             () => doResetTaskCreation(),
         );
     }
@@ -475,8 +552,11 @@
         requestDraftAction(
             { id: `reset:ai:${feature}`, kind: "draft" },
             i18n?.settingAiPromptReset || "Reset",
-            i18n?.settingAiPromptResetConfirm || "Restore this prompt to its default? Any custom instructions will be lost. The reset only takes effect after you click Save.",
-            () => { aiPrompts = { ...aiPrompts, [feature]: DEFAULT_AI_SETTINGS.prompts[feature] }; },
+            i18n?.settingAiPromptResetConfirm ||
+                "Restore this prompt to its default? Any custom instructions will be lost. The reset only takes effect after you click Save.",
+            () => {
+                aiPrompts = { ...aiPrompts, [feature]: DEFAULT_AI_SETTINGS.prompts[feature] };
+            },
         );
     }
 
@@ -488,10 +568,13 @@
         requestMaintenanceAction(
             { id: `maintenance:purge:${field.id}`, kind: "maintenance" },
             i18n?.purgeCustomField || "Clear field values",
-            i18n?.customFieldPurgeConfirm || "This immediately clears all values for this archived field. The action cannot be undone.",
+            i18n?.customFieldPurgeConfirm ||
+                "This immediately clears all values for this archived field. The action cannot be undone.",
             async () => {
                 try {
-                    const running = controller.runMaintenance(`purge:${field.id}`, () => bridge.purgeCustomField(field.id));
+                    const running = controller.runMaintenance(`purge:${field.id}`, () =>
+                        bridge.purgeCustomField(field.id),
+                    );
                     syncControllerState();
                     const result = await running;
                     if (result.failedBlockIds?.length) {
@@ -501,7 +584,7 @@
                                 .replace("{count}", String(result.failedBlockIds.length)),
                         );
                     } else {
-                        customFields = customFields.filter(item => item.id !== field.id);
+                        customFields = customFields.filter((item) => item.id !== field.id);
                     }
                 } catch (e: unknown) {
                     console.error("[NextAction] purgeCustomField failed:", e);
@@ -534,7 +617,7 @@
     async function loadTaskCreationInboxDocument(documentId: string) {
         try {
             const resolved = await bridge.resolveMcpDocumentTarget(documentId.trim());
-            const notebook = mcpNotebooks.find(item => item.id === resolved.notebookId);
+            const notebook = mcpNotebooks.find((item) => item.id === resolved.notebookId);
             taskCreationInboxDocument = {
                 id: resolved.id,
                 title: resolved.title,
@@ -557,7 +640,9 @@
         try {
             await navigator.clipboard.writeText(mcpEndpoint);
             mcpCopied = true;
-            setTimeout(() => { mcpCopied = false; }, 1600);
+            setTimeout(() => {
+                mcpCopied = false;
+            }, 1600);
         } catch (_e) {
             error = i18n?.settingMcpCopyFailed || "Failed to copy MCP endpoint";
         }
@@ -612,8 +697,15 @@
         {#each [i18n?.settingNavGroupTask || "Workspace", i18n?.settingNavGroupIntegration || "Integrations", i18n?.settingNavGroupSystem || "System"] as group}
             <div class="na-settings-modern__group">
                 <span>{group}</span>
-                {#each modernTabs.filter(tab => tab.group === group) as tab}
-                    <button type="button" class:active={modernTab === tab.id} class="na-settings-modern__nav-item b3-tooltips b3-tooltips__e" on:click={() => selectModernTab(tab.id)} aria-label={tab.label} aria-current={modernTab === tab.id ? "page" : undefined}>
+                {#each modernTabs.filter((tab) => tab.group === group) as tab}
+                    <button
+                        type="button"
+                        class:active={modernTab === tab.id}
+                        class="na-settings-modern__nav-item b3-tooltips b3-tooltips__e"
+                        on:click={() => selectModernTab(tab.id)}
+                        aria-label={tab.label}
+                        aria-current={modernTab === tab.id ? "page" : undefined}
+                    >
                         <NaIcon symbol={tab.icon} size={17} />
                         <span>{tab.label}</span>
                     </button>
@@ -630,11 +722,16 @@
         <div class="na-settings-modern__header">
             <NaPanelHeader
                 eyebrow={i18n?.settingsTitle || "Settings"}
-                title={modernTabs.find(tab => tab.id === modernTab)?.label || ""}
-                description={modernTabs.find(tab => tab.id === modernTab)?.desc || ""}
+                title={modernTabs.find((tab) => tab.id === modernTab)?.label || ""}
+                description={modernTabs.find((tab) => tab.id === modernTab)?.desc || ""}
             >
                 <svelte:fragment slot="actions">
-                    <button type="button" class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n" on:click={requestClose} aria-label={i18n?.cancel || "Close"}>
+                    <button
+                        type="button"
+                        class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n"
+                        on:click={requestClose}
+                        aria-label={i18n?.cancel || "Close"}
+                    >
                         <NaIcon symbol="iconCloseRound" size={18} />
                     </button>
                 </svelte:fragment>
@@ -677,9 +774,21 @@
                     onResetReminder={handleResetReminder}
                 />
             {:else if modernTab === "customFields"}
-                <CustomFieldsSettingsPage {i18n} bind:customFields {customFieldUsage} {purgingFieldId} onPurgeField={handlePurgeCustomField} />
+                <CustomFieldsSettingsPage
+                    {i18n}
+                    bind:customFields
+                    {customFieldUsage}
+                    {purgingFieldId}
+                    onPurgeField={handlePurgeCustomField}
+                />
             {:else if modernTab === "ai"}
-                <AiSettingsPage {i18n} bind:aiPrompts defaultPrompts={DEFAULT_AI_SETTINGS.prompts} getRuntimePreview={getAiPromptRuntimePreview} onResetPrompt={handleResetAiPrompt} />
+                <AiSettingsPage
+                    {i18n}
+                    bind:aiPrompts
+                    defaultPrompts={DEFAULT_AI_SETTINGS.prompts}
+                    getRuntimePreview={getAiPromptRuntimePreview}
+                    onResetPrompt={handleResetAiPrompt}
+                />
             {:else if modernTab === "mcp"}
                 <McpSettingsPage
                     {i18n}
@@ -713,15 +822,24 @@
 
         {#if error}<div class="na-settings-modern__error" role="alert" aria-live="polite">{error}</div>{/if}
         <footer class="na-settings-modern__footer">
-            <div class="na-settings-modern__dirty" class:visible={isDirty}><span></span>{i18n?.settingsUnsaved || "Unsaved changes"}</div>
+            <div class="na-settings-modern__dirty" class:visible={isDirty}>
+                <span></span>{i18n?.settingsUnsaved || "Unsaved changes"}
+            </div>
             <div class="na-settings-modern__footer-actions">
-                <button type="button" class="b3-button b3-button--text" on:click={requestClose}>{i18n?.cancel || "Cancel"}</button>
-                <button type="button" class="b3-button b3-button--primary" on:click={handleSave} disabled={saving || !settingsLoaded || !isDirty}>{saving ? (i18n?.loading || "…") : (i18n?.save || "Save")}</button>
+                <button type="button" class="b3-button b3-button--text" on:click={requestClose}
+                    >{i18n?.cancel || "Cancel"}</button
+                >
+                <button
+                    type="button"
+                    class="b3-button b3-button--primary"
+                    on:click={handleSave}
+                    disabled={saving || !settingsLoaded || !isDirty}
+                    >{saving ? i18n?.loading || "…" : i18n?.save || "Save"}</button
+                >
             </div>
         </footer>
     </main>
 </div>
-
 
 <style lang="scss">
     // ===== Modern settings shell =====
@@ -772,9 +890,21 @@
         padding: 0 7px 8px;
         border-bottom: 1px solid var(--b3-border-color);
 
-        > div { display: flex; flex-direction: column; min-width: 0; }
-        strong { color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 650; }
-        span { margin-top: 1px; color: var(--b3-theme-on-surface-light); font-size: 10px; }
+        > div {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        strong {
+            color: var(--b3-theme-on-surface);
+            font-size: 13px;
+            font-weight: 650;
+        }
+        span {
+            margin-top: 1px;
+            color: var(--b3-theme-on-surface-light);
+            font-size: 10px;
+        }
     }
 
     .na-settings-modern__brand-mark {
@@ -797,7 +927,7 @@
             color: var(--b3-theme-on-surface-light);
             font-size: 9px;
             font-weight: 700;
-            letter-spacing: .12em;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
         }
     }
@@ -814,10 +944,19 @@
         background: transparent;
         cursor: pointer;
         text-align: left;
-        transition: background 130ms ease, color 130ms ease;
+        transition:
+            background 130ms ease,
+            color 130ms ease;
 
-        &:hover { color: var(--b3-theme-on-surface); background: var(--b3-list-hover); }
-        &.active { color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); font-weight: 600; }
+        &:hover {
+            color: var(--b3-theme-on-surface);
+            background: var(--b3-list-hover);
+        }
+        &.active {
+            color: var(--b3-theme-primary);
+            background: var(--b3-theme-primary-lightest);
+            font-weight: 600;
+        }
     }
 
     .na-settings-modern__reset-all {
@@ -838,39 +977,163 @@
         }
     }
 
-    .na-settings-modern__content { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-    .na-settings-modern__header { position: sticky; top: 0; z-index: 2; display: contents; }
-    :global(.na-settings-modern__close) { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--b3-theme-on-surface-light); }
-    .na-settings-modern__body { flex: 1; min-height: 0; overflow: auto; padding: 18px 24px 22px; scrollbar-gutter: stable; }
-    .na-settings-modern__error { flex: 0 0 auto; padding: 9px 24px; border-top: 1px solid color-mix(in srgb, var(--b3-theme-error) 25%, var(--b3-border-color)); color: var(--b3-theme-error); background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-background)); font-size: 11px; line-height: 16px; }
-    .na-settings-modern__footer { position: sticky; z-index: 2; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: 0 0 auto; min-height: 52px; padding: 9px 24px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); }
-    .na-settings-modern__footer-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-    .na-settings-modern__dirty { display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface-light); font-size: 10px; opacity: 0; transition: opacity 130ms ease; }
-    .na-settings-modern__dirty.visible { opacity: 1; }
-    .na-settings-modern__dirty span { width: 6px; height: 6px; border-radius: 50%; background: var(--b3-theme-primary); }
+    .na-settings-modern__content {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+    }
+    .na-settings-modern__header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: contents;
+    }
+    :global(.na-settings-modern__close) {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        color: var(--b3-theme-on-surface-light);
+    }
+    .na-settings-modern__body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 18px 24px 22px;
+        scrollbar-gutter: stable;
+    }
+    .na-settings-modern__error {
+        flex: 0 0 auto;
+        padding: 9px 24px;
+        border-top: 1px solid color-mix(in srgb, var(--b3-theme-error) 25%, var(--b3-border-color));
+        color: var(--b3-theme-error);
+        background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-background));
+        font-size: 11px;
+        line-height: 16px;
+    }
+    .na-settings-modern__footer {
+        position: sticky;
+        z-index: 2;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex: 0 0 auto;
+        min-height: 52px;
+        padding: 9px 24px;
+        border-top: 1px solid var(--b3-border-color);
+        background: var(--b3-theme-surface);
+    }
+    .na-settings-modern__footer-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+    }
+    .na-settings-modern__dirty {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--b3-theme-on-surface-light);
+        font-size: 10px;
+        opacity: 0;
+        transition: opacity 130ms ease;
+    }
+    .na-settings-modern__dirty.visible {
+        opacity: 1;
+    }
+    .na-settings-modern__dirty span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--b3-theme-primary);
+    }
 
     @media (max-width: 720px) {
-        .na-settings-modern { --na-settings-nav-width: 58px; }
-        .na-settings-modern__nav { align-items: center; padding: 13px 7px; }
-        .na-settings-modern__brand { padding: 0 0 9px; border-bottom: 0; }
-        .na-settings-modern__brand > div, .na-settings-modern__group > span, .na-settings-modern__nav-item > span, .na-settings-modern__reset-all > span { display: none; }
-        .na-settings-modern__group { width: 100%; gap: 5px; }
-        .na-settings-modern__nav-item, .na-settings-modern__reset-all { justify-content: center; width: 44px; padding: 0; }
+        .na-settings-modern {
+            --na-settings-nav-width: 58px;
+        }
+        .na-settings-modern__nav {
+            align-items: center;
+            padding: 13px 7px;
+        }
+        .na-settings-modern__brand {
+            padding: 0 0 9px;
+            border-bottom: 0;
+        }
+        .na-settings-modern__brand > div,
+        .na-settings-modern__group > span,
+        .na-settings-modern__nav-item > span,
+        .na-settings-modern__reset-all > span {
+            display: none;
+        }
+        .na-settings-modern__group {
+            width: 100%;
+            gap: 5px;
+        }
+        .na-settings-modern__nav-item,
+        .na-settings-modern__reset-all {
+            justify-content: center;
+            width: 44px;
+            padding: 0;
+        }
     }
 
     @media (max-width: 520px) {
-        .na-settings-modern { flex-direction: column; }
-        .na-settings-modern__nav { position: sticky; flex: 0 0 auto; flex-direction: row; gap: 5px; width: 100%; padding: 7px 9px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--b3-border-color); }
-        .na-settings-modern__brand { flex: 0 0 auto; padding: 0 7px 0 0; }
-        .na-settings-modern__group { flex: 0 0 auto; flex-direction: row; width: auto; }
-        .na-settings-modern__nav-item { width: 38px; min-height: 34px; }
-        .na-settings-modern__reset-all { flex: 0 0 38px; width: 38px; min-height: 34px; margin-top: 0; margin-left: auto; }
-        .na-settings-modern__body { padding: 14px 16px 18px; }
-        .na-settings-modern__footer { padding: 8px 16px; }
-        .na-settings-modern__dirty { display: none; }
+        .na-settings-modern {
+            flex-direction: column;
+        }
+        .na-settings-modern__nav {
+            position: sticky;
+            flex: 0 0 auto;
+            flex-direction: row;
+            gap: 5px;
+            width: 100%;
+            padding: 7px 9px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border-right: 0;
+            border-bottom: 1px solid var(--b3-border-color);
+        }
+        .na-settings-modern__brand {
+            flex: 0 0 auto;
+            padding: 0 7px 0 0;
+        }
+        .na-settings-modern__group {
+            flex: 0 0 auto;
+            flex-direction: row;
+            width: auto;
+        }
+        .na-settings-modern__nav-item {
+            width: 38px;
+            min-height: 34px;
+        }
+        .na-settings-modern__reset-all {
+            flex: 0 0 38px;
+            width: 38px;
+            min-height: 34px;
+            margin-top: 0;
+            margin-left: auto;
+        }
+        .na-settings-modern__body {
+            padding: 14px 16px 18px;
+        }
+        .na-settings-modern__footer {
+            padding: 8px 16px;
+        }
+        .na-settings-modern__dirty {
+            display: none;
+        }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .na-settings-modern__nav-item, .na-settings-modern__dirty { transition: none; }
+        .na-settings-modern__nav-item,
+        .na-settings-modern__dirty {
+            transition: none;
+        }
     }
 </style>

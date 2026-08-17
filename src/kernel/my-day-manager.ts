@@ -49,7 +49,7 @@ export class MyDayManager {
         const currentDayKey = resolveDayKey(new Date(), this.getResetHour());
         try {
             const data = await this.siyuan.storage.get(MY_DAY_DATA_PATH);
-            const parsed = await data.json() as MyDayState;
+            const parsed = (await data.json()) as MyDayState;
             if (parsed && parsed.schema === 1 && parsed.dayKey === currentDayKey) {
                 this.state = parsed;
                 return { ...this.state, tasks: [...this.state.tasks] };
@@ -97,11 +97,9 @@ export class MyDayManager {
 
     private async _addTask(blockId: string): Promise<MyDayState> {
         const current = await this.getState();
-        const existing = current.tasks.find(t => t.blockId === blockId);
+        const existing = current.tasks.find((t) => t.blockId === blockId);
         if (existing) return current;
-        const maxOrder = current.tasks.length > 0
-            ? Math.max(...current.tasks.map(t => t.order))
-            : -1;
+        const maxOrder = current.tasks.length > 0 ? Math.max(...current.tasks.map((t) => t.order)) : -1;
         const entry: MyDayTaskEntry = {
             blockId,
             addedAt: Date.now(),
@@ -136,7 +134,7 @@ export class MyDayManager {
 
     private async _removeTask(blockId: string): Promise<MyDayState> {
         const current = await this.getState();
-        const newTasks = current.tasks.filter(t => t.blockId !== blockId);
+        const newTasks = current.tasks.filter((t) => t.blockId !== blockId);
         if (newTasks.length === current.tasks.length) return current;
         const newState: MyDayState = {
             ...current,
@@ -173,12 +171,12 @@ export class MyDayManager {
 
     private async _reorderTask(blockId: string, afterId?: string): Promise<MyDayState> {
         const current = await this.getState();
-        const idx = current.tasks.findIndex(t => t.blockId === blockId);
+        const idx = current.tasks.findIndex((t) => t.blockId === blockId);
         if (idx === -1) return current;
         const tasks = [...current.tasks];
         const [entry] = tasks.splice(idx, 1);
         if (afterId) {
-            const afterIdx = tasks.findIndex(t => t.blockId === afterId);
+            const afterIdx = tasks.findIndex((t) => t.blockId === afterId);
             if (afterIdx >= 0) {
                 tasks.splice(afterIdx + 1, 0, entry);
             } else {
@@ -187,7 +185,9 @@ export class MyDayManager {
         } else {
             tasks.unshift(entry);
         }
-        tasks.forEach((t, i) => { t.order = i; });
+        tasks.forEach((t, i) => {
+            t.order = i;
+        });
         const newState: MyDayState = { ...current, tasks };
         const savedState = this.state;
         this.state = newState;

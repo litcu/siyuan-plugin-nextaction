@@ -55,10 +55,27 @@
     padding: 12px 10px;
 }
 
-.na-nav-rail__group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.na-nav-rail__group + .na-nav-rail__group { margin-top: 7px; padding-top: 8px; border-top: 1px solid var(--na-color-divider); }
-.na-nav-rail__group-label { padding: 0 12px 3px; color: var(--b3-theme-on-surface-light); font-size: 10px; font-weight: 600; line-height: 16px; }
-.na-nav-rail__group > .na-nav-item { width: 100%; }
+.na-nav-rail__group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.na-nav-rail__group + .na-nav-rail__group {
+    margin-top: 7px;
+    padding-top: 8px;
+    border-top: 1px solid var(--na-color-divider);
+}
+.na-nav-rail__group-label {
+    padding: 0 12px 3px;
+    color: var(--b3-theme-on-surface-light);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+}
+.na-nav-rail__group > .na-nav-item {
+    width: 100%;
+}
 
 .na-nav-rail__spacer {
     flex: 1;
@@ -86,7 +103,11 @@
     border: 1px solid var(--na-color-divider);
     border-radius: 6px;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+    transition:
+        background 0.15s,
+        color 0.15s,
+        border-color 0.15s,
+        opacity 0.15s;
     white-space: nowrap;
     position: relative;
 
@@ -125,9 +146,17 @@
         padding: 7px 0;
     }
 
-    .na-nav-rail__group { width: 100%; align-items: center; }
-    .na-nav-rail__group + .na-nav-rail__group { margin-top: 5px; padding-top: 6px; }
-    .na-nav-rail__group-label { display: none; }
+    .na-nav-rail__group {
+        width: 100%;
+        align-items: center;
+    }
+    .na-nav-rail__group + .na-nav-rail__group {
+        margin-top: 5px;
+        padding-top: 6px;
+    }
+    .na-nav-rail__group-label {
+        display: none;
+    }
 
     .na-nav-rail .na-nav-item__label,
     .na-nav-rail__label,
@@ -144,7 +173,6 @@
         height: 28px;
         padding: 0;
     }
-
 }
 
 .na-nav-rail--compact {
@@ -172,15 +200,37 @@
 
 .na-nav-rail--compact .na-nav-item__label,
 .na-nav-rail--compact .na-nav-rail__label,
-.na-nav-rail--compact .na-nav-rail__action-label { display: none !important; }
-.na-nav-rail--compact .na-nav-rail__group { width: 100%; align-items: center; }
-.na-nav-rail--compact .na-nav-rail__group + .na-nav-rail__group { margin-top: 5px; padding-top: 6px; }
-.na-nav-rail--compact .na-nav-rail__group-label { display: none; }
-.na-nav-rail--compact .na-nav-rail__spacer { display: block !important; min-height: 10px; }
-.na-nav-rail--compact .na-nav-rail__footer { flex: 0 0 auto; padding: 8px 0 12px; }
-.na-nav-rail--compact .na-nav-rail__action-btn { width: 32px; height: 28px; padding: 0; }
+.na-nav-rail--compact .na-nav-rail__action-label {
+    display: none !important;
+}
+.na-nav-rail--compact .na-nav-rail__group {
+    width: 100%;
+    align-items: center;
+}
+.na-nav-rail--compact .na-nav-rail__group + .na-nav-rail__group {
+    margin-top: 5px;
+    padding-top: 6px;
+}
+.na-nav-rail--compact .na-nav-rail__group-label {
+    display: none;
+}
+.na-nav-rail--compact .na-nav-rail__spacer {
+    display: block !important;
+    min-height: 10px;
+}
+.na-nav-rail--compact .na-nav-rail__footer {
+    flex: 0 0 auto;
+    padding: 8px 0 12px;
+}
+.na-nav-rail--compact .na-nav-rail__action-btn {
+    width: 32px;
+    height: 28px;
+    padding: 0;
+}
 
-.na-nav-rail--very-narrow { scrollbar-width: thin; }
+.na-nav-rail--very-narrow {
+    scrollbar-width: thin;
+}
 
 @container nextaction-app (max-width: 520px) {
     .na-task-card {
@@ -191,8 +241,17 @@
         padding-inline: 8px;
     }
 
-    .na-task-card__stats { display: none; }
-    .na-task-card__body--metadata-empty .na-task-card__meta { display: none; }
-    .na-task-card__actions { opacity: 1; padding-left: 3px; }
-    .na-task-card__title { font-size: 12px; }
+    .na-task-card__stats {
+        display: none;
+    }
+    .na-task-card__body--metadata-empty .na-task-card__meta {
+        display: none;
+    }
+    .na-task-card__actions {
+        opacity: 1;
+        padding-left: 3px;
+    }
+    .na-task-card__title {
+        font-size: 12px;
+    }
 }

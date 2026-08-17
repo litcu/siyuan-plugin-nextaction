@@ -25,15 +25,12 @@ export interface TaskTitleDates {
 }
 
 const monthEndParser: Parser = {
-    pattern: () => /(下(?:个)?月(?:底|末))|((?:本月|这个月|当月|月)(?:底|末))|(end\s+of\s+(?:the\s+)?(?:(next|this)\s+)?month)/i,
+    pattern: () =>
+        /(下(?:个)?月(?:底|末))|((?:本月|这个月|当月|月)(?:底|末))|(end\s+of\s+(?:the\s+)?(?:(next|this)\s+)?month)/i,
     extract: (context, match) => {
         const isNextMonth = !!match[1] || match[4]?.toLowerCase() === "next";
         const reference = context.refDate;
-        const lastDay = new Date(
-            reference.getFullYear(),
-            reference.getMonth() + (isNextMonth ? 2 : 1),
-            0,
-        );
+        const lastDay = new Date(reference.getFullYear(), reference.getMonth() + (isNextMonth ? 2 : 1), 0);
         return {
             year: lastDay.getFullYear(),
             month: lastDay.getMonth() + 1,
@@ -55,7 +52,7 @@ function addZhWeekdayGroupCompatibility(parser: Parser): Parser {
     if (!usesNamedWeekdayGroup) return parser;
 
     return {
-        pattern: context => parser.pattern(context),
+        pattern: (context) => parser.pattern(context),
         extract: (context, match) => {
             // Some SiYuan kernel runtimes accept named-group syntax but omit
             // RegExpMatchArray.groups. Chrono's Chinese weekday parsers read
@@ -65,9 +62,7 @@ function addZhWeekdayGroupCompatibility(parser: Parser): Parser {
                 const relation = /(上|下|这)(?:个)?(?:星期|礼拜|周)([天日一二三四五六])/.exec(match[0]);
                 const weekday = relation || /(?:星期|礼拜|周)([天日一二三四五六])/.exec(match[0]);
                 if (weekday) {
-                    match.groups = relation
-                        ? { prefix: relation[1], weekday: relation[2] }
-                        : { weekday: weekday[1] };
+                    match.groups = relation ? { prefix: relation[1], weekday: relation[2] } : { weekday: weekday[1] };
                 }
             }
             return parser.extract(context, match);
@@ -102,10 +97,11 @@ function fromChronoResult(result: ParsedResult, options: NaturalDateOptions): Na
     if (!Number.isFinite(date.getTime())) return null;
 
     const hasExplicitTime = result.start.isCertain("hour") || result.start.isCertain("minute");
-    const hasExplicitDate = result.start.isCertain("year")
-        || result.start.isCertain("month")
-        || result.start.isCertain("day")
-        || result.start.isCertain("weekday");
+    const hasExplicitDate =
+        result.start.isCertain("year") ||
+        result.start.isCertain("month") ||
+        result.start.isCertain("day") ||
+        result.start.isCertain("weekday");
     return {
         value: toLocalValue(date, hasExplicitTime, options),
         text: result.text,
@@ -113,8 +109,9 @@ function fromChronoResult(result: ParsedResult, options: NaturalDateOptions): Na
         endIndex: result.index + result.text.length,
         hasExplicitTime,
         hasExplicitDate,
-        isRelativeWeekday: result.start.isCertain("weekday")
-            && (!result.start.isCertain("year") || !result.start.isCertain("month") || !result.start.isCertain("day")),
+        isRelativeWeekday:
+            result.start.isCertain("weekday") &&
+            (!result.start.isCertain("year") || !result.start.isCertain("month") || !result.start.isCertain("day")),
     };
 }
 
@@ -129,12 +126,18 @@ function combineAdjacentDateAndTime(matches: NaturalDateMatch[], input: string):
         const next = matches[index + 1];
         if (next) {
             const separator = input.slice(current.endIndex, next.index);
-            const dateMatch = current.hasExplicitDate && !current.hasExplicitTime ? current
-                : next.hasExplicitDate && !next.hasExplicitTime ? next
-                    : null;
-            const timeMatch = current.hasExplicitTime && !current.hasExplicitDate ? current
-                : next.hasExplicitTime && !next.hasExplicitDate ? next
-                    : null;
+            const dateMatch =
+                current.hasExplicitDate && !current.hasExplicitTime
+                    ? current
+                    : next.hasExplicitDate && !next.hasExplicitTime
+                      ? next
+                      : null;
+            const timeMatch =
+                current.hasExplicitTime && !current.hasExplicitDate
+                    ? current
+                    : next.hasExplicitTime && !next.hasExplicitDate
+                      ? next
+                      : null;
             if (dateMatch && timeMatch && /^[\s,，的]*$/.test(separator)) {
                 const datePart = dateMatch.value.split("T")[0];
                 const timePart = timeMatch.value.split("T")[1];
@@ -177,29 +180,32 @@ export function parseNaturalDates(text: string, options: NaturalDateOptions = {}
     } catch (_error) {
         // Keep results from the other locale when available.
     }
-    const candidates = [
-        ...zhResults,
-        ...enResults,
-    ]
-        .map(result => fromChronoResult(result, options))
+    const candidates = [...zhResults, ...enResults]
+        .map((result) => fromChronoResult(result, options))
         .filter((result): result is NaturalDateMatch => !!result)
         .sort((left, right) => left.index - right.index || right.text.length - left.text.length);
 
     const merged: NaturalDateMatch[] = [];
     for (const candidate of candidates) {
-        const duplicate = merged.find(existing => existing.index === candidate.index
-            && existing.endIndex === candidate.endIndex
-            && existing.value === candidate.value);
+        const duplicate = merged.find(
+            (existing) =>
+                existing.index === candidate.index &&
+                existing.endIndex === candidate.endIndex &&
+                existing.value === candidate.value,
+        );
         if (duplicate) continue;
 
-        const overlappingIndex = merged.findIndex(existing => overlaps(existing, candidate));
+        const overlappingIndex = merged.findIndex((existing) => overlaps(existing, candidate));
         if (overlappingIndex === -1) {
             merged.push(candidate);
         } else if (candidate.text.length > merged[overlappingIndex].text.length) {
             merged[overlappingIndex] = candidate;
         }
     }
-    return combineAdjacentDateAndTime(merged.sort((left, right) => left.index - right.index), input);
+    return combineAdjacentDateAndTime(
+        merged.sort((left, right) => left.index - right.index),
+        input,
+    );
 }
 
 export function parseNaturalDate(text: string, options: NaturalDateOptions = {}): NaturalDateMatch | null {
@@ -226,7 +232,7 @@ function dateRole(title: string, match: NaturalDateMatch): TaskDateRole | null {
 function localBoundary(value: string, endOfDay: boolean): number {
     const [datePart, timePart = ""] = value.split("T");
     const [year, month, day] = datePart.split("-").map(Number);
-    const [hour, minute] = timePart ? timePart.split(":").map(Number) : (endOfDay ? [23, 59] : [0, 0]);
+    const [hour, minute] = timePart ? timePart.split(":").map(Number) : endOfDay ? [23, 59] : [0, 0];
     return new Date(year, month - 1, day, hour, minute).getTime();
 }
 

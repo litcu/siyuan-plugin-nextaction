@@ -9,9 +9,7 @@
 
     export let i18n: any;
 
-    $: pending = $notificationQueue
-        .filter(r => !r.dismissed)
-        .sort((a, b) => a.triggerTime - b.triggerTime);
+    $: pending = $notificationQueue.filter((r) => !r.dismissed).sort((a, b) => a.triggerTime - b.triggerTime);
 
     function getTypeLabel(type: "due" | "review" | "absolute" | "summary"): string {
         if (type === "due") return i18n?.reminderDue || "截止提醒";
@@ -20,13 +18,28 @@
         return i18n?.reminderReview || "回顾提醒";
     }
 
-    function getDescription(entry: typeof $notificationQueue[0]): string {
+    function getDescription(entry: (typeof $notificationQueue)[0]): string {
         if (entry.type === "summary" && entry.summary) {
             const parts: string[] = [];
-            if (entry.summary.overdue > 0) parts.push((i18n?.reminderSummaryOverdue || "{n} overdue").replace("{n}", String(entry.summary.overdue)));
-            if (entry.summary.dueToday > 0) parts.push((i18n?.reminderSummaryDueToday || "{n} due today").replace("{n}", String(entry.summary.dueToday)));
-            if (entry.summary.nextAction > 0) parts.push((i18n?.reminderSummaryNextAction || "{n} next actions").replace("{n}", String(entry.summary.nextAction)));
-            if (entry.summary.waiting > 0) parts.push((i18n?.reminderSummaryWaiting || "{n} waiting").replace("{n}", String(entry.summary.waiting)));
+            if (entry.summary.overdue > 0)
+                parts.push(
+                    (i18n?.reminderSummaryOverdue || "{n} overdue").replace("{n}", String(entry.summary.overdue)),
+                );
+            if (entry.summary.dueToday > 0)
+                parts.push(
+                    (i18n?.reminderSummaryDueToday || "{n} due today").replace("{n}", String(entry.summary.dueToday)),
+                );
+            if (entry.summary.nextAction > 0)
+                parts.push(
+                    (i18n?.reminderSummaryNextAction || "{n} next actions").replace(
+                        "{n}",
+                        String(entry.summary.nextAction),
+                    ),
+                );
+            if (entry.summary.waiting > 0)
+                parts.push(
+                    (i18n?.reminderSummaryWaiting || "{n} waiting").replace("{n}", String(entry.summary.waiting)),
+                );
             return parts.join(" · ");
         }
         if (entry.type === "review") {
@@ -44,7 +57,8 @@
         const diffMs = entry.dueTime - Date.now();
         if (diffMs <= 0) {
             const overdueMin = Math.round(Math.abs(diffMs) / 60000);
-            if (overdueMin < 60) return (i18n?.reminderOverdueMinutes || "{n}min overdue").replace("{n}", String(overdueMin));
+            if (overdueMin < 60)
+                return (i18n?.reminderOverdueMinutes || "{n}min overdue").replace("{n}", String(overdueMin));
             const h = Math.round(overdueMin / 60);
             if (h < 24) return (i18n?.reminderOverdueHours || "{n}h overdue").replace("{n}", String(h));
             return (i18n?.reminderOverdueDays || "{n}d overdue").replace("{n}", String(Math.round(h / 24)));
@@ -62,7 +76,7 @@
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
-    function handleDismiss(entry: typeof $notificationQueue[0]) {
+    function handleDismiss(entry: (typeof $notificationQueue)[0]) {
         const key = buildDedupKey(entry.blockId, entry.baseDateStr, entry.minutesBefore, entry.type);
         dismissReminder(key);
     }
@@ -77,25 +91,58 @@
     }
 </script>
 
-<NaViewShell empty={pending.length === 0} emptyText={i18n?.reminderNoPending || "暂无待处理提醒"} hint={i18n?.viewHintReminder}>
-    <svelte:fragment slot="toolbar"><NaToolbar compact><span class="na-reminder__summary">{pending.length} {i18n?.reminder || "Reminders"}</span>{#if pending.length > 0}<div class="na-toolbar__actions-content"><NaButton size="sm" variant="text" on:click={handleDismissAll}>{i18n?.reminderDismissAll || "一键已读"}</NaButton></div>{/if}</NaToolbar></svelte:fragment>
-        <div class="na-reminder__list">
-            {#each pending as entry (buildDedupKey(entry.blockId, entry.baseDateStr, entry.minutesBefore, entry.type))}
-                <div class="na-reminder__item na-reminder__item--{entry.type}">
-                    <div class="na-reminder__item-main">
-                        <NaBadge text={getTypeLabel(entry.type)} tone={entry.type === "due" ? "danger" : entry.type === "review" ? "info" : entry.type === "absolute" ? "warning" : "primary"} />
-                        <NaButton variant="text" size="sm" on:click={() => handleJump(entry.blockId)}>{entry.title}</NaButton>
-                        <span class="na-reminder__desc">{getDescription(entry)}</span>
-                        <span class="na-reminder__time">{formatTriggerTime(entry.triggerTime)}</span>
-                    </div>
-                    <NaIconButton symbol="iconClose" label={i18n?.reminderDismiss || "Dismiss"} compact on:click={() => handleDismiss(entry)} />
+<NaViewShell
+    empty={pending.length === 0}
+    emptyText={i18n?.reminderNoPending || "暂无待处理提醒"}
+    hint={i18n?.viewHintReminder}
+>
+    <svelte:fragment slot="toolbar"
+        ><NaToolbar compact
+            ><span class="na-reminder__summary">{pending.length} {i18n?.reminder || "Reminders"}</span
+            >{#if pending.length > 0}<div class="na-toolbar__actions-content">
+                    <NaButton size="sm" variant="text" on:click={handleDismissAll}
+                        >{i18n?.reminderDismissAll || "一键已读"}</NaButton
+                    >
+                </div>{/if}</NaToolbar
+        ></svelte:fragment
+    >
+    <div class="na-reminder__list">
+        {#each pending as entry (buildDedupKey(entry.blockId, entry.baseDateStr, entry.minutesBefore, entry.type))}
+            <div class="na-reminder__item na-reminder__item--{entry.type}">
+                <div class="na-reminder__item-main">
+                    <NaBadge
+                        text={getTypeLabel(entry.type)}
+                        tone={entry.type === "due"
+                            ? "danger"
+                            : entry.type === "review"
+                              ? "info"
+                              : entry.type === "absolute"
+                                ? "warning"
+                                : "primary"}
+                    />
+                    <NaButton variant="text" size="sm" on:click={() => handleJump(entry.blockId)}
+                        >{entry.title}</NaButton
+                    >
+                    <span class="na-reminder__desc">{getDescription(entry)}</span>
+                    <span class="na-reminder__time">{formatTriggerTime(entry.triggerTime)}</span>
                 </div>
-            {/each}
-        </div>
+                <NaIconButton
+                    symbol="iconClose"
+                    label={i18n?.reminderDismiss || "Dismiss"}
+                    compact
+                    on:click={() => handleDismiss(entry)}
+                />
+            </div>
+        {/each}
+    </div>
 </NaViewShell>
 
 <style lang="scss">
-    .na-reminder__summary { color: var(--na-text-secondary); font-size: var(--na-font-size-sm); font-weight: 600; }
+    .na-reminder__summary {
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+        font-weight: 600;
+    }
 
     .na-reminder__list {
         flex: 1;
@@ -189,7 +236,9 @@
         color: var(--b3-theme-on-surface-light);
         border-radius: var(--na-radius-sm, 4px);
         padding: 0;
-        transition: background 0.15s, color 0.15s;
+        transition:
+            background 0.15s,
+            color 0.15s;
 
         &:hover {
             background: var(--b3-theme-surface-lighter);

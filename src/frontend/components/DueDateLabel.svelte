@@ -38,10 +38,6 @@
     });
 </script>
 
-<span
-    class="na-task-card__due"
-    class:overdue={presentation.isOverdue}
-    class:due-soon={presentation.isDueSoon}
->
+<span class="na-task-card__due" class:overdue={presentation.isOverdue} class:due-soon={presentation.isDueSoon}>
     {label}
 </span>

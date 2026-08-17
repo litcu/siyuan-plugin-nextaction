@@ -16,13 +16,13 @@ export class TaskDerivedStateService {
     }
 
     reconcileAll(): string[] {
-        return this.reconcileEntries(new Set(this.cacheManager.getAll().map(entry => entry.blockId)));
+        return this.reconcileEntries(new Set(this.cacheManager.getAll().map((entry) => entry.blockId)));
     }
 
     private reconcileEntries(affected: Set<string>): string[] {
         const cache = this.cacheManager.getCache();
         const entries = [...affected]
-            .map(blockId => cache[blockId])
+            .map((blockId) => cache[blockId])
             .filter((entry): entry is TaskCacheEntry => Boolean(entry));
         const changed = new Set<string>();
 
@@ -36,7 +36,7 @@ export class TaskDerivedStateService {
         }
 
         const projects = entries
-            .filter(entry => entry.taskType === "2")
+            .filter((entry) => entry.taskType === "2")
             .sort((left, right) => this.depth(right) - this.depth(left));
         for (const project of projects) {
             const nextOrder = calculateOrder(project, cache);
@@ -72,7 +72,8 @@ export class TaskDerivedStateService {
                 this.enqueue(queue, entry.parentId);
                 for (const child of this.cacheManager.getByParent(blockId)) this.enqueue(queue, child.blockId);
                 if (entry.parentId) {
-                    for (const sibling of this.cacheManager.getByParent(entry.parentId)) this.enqueue(queue, sibling.blockId);
+                    for (const sibling of this.cacheManager.getByParent(entry.parentId))
+                        this.enqueue(queue, sibling.blockId);
                 }
             }
             for (const dependent of this.cacheManager.getDependents(blockId)) this.enqueue(queue, dependent.blockId);

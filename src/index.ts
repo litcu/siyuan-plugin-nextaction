@@ -23,7 +23,12 @@ export default class NextActionPlugin extends Plugin {
         this.panelHosts = new PanelHostRegistrar(this, asI18nStrings(this.i18n), this.isMobile, () => this.bridge);
         this.panelHosts.register();
 
-        this.taskCommands = new TaskCommandController(this, this.isMobile, () => this.bridge, () => this.panelHosts?.openTaskPanel());
+        this.taskCommands = new TaskCommandController(
+            this,
+            this.isMobile,
+            () => this.bridge,
+            () => this.panelHosts?.openTaskPanel(),
+        );
         this.taskCommands.registerSlashCommands();
     }
 
@@ -31,7 +36,12 @@ export default class NextActionPlugin extends Plugin {
         this.runtime = new FrontendRuntime(this, () => this.taskCommands?.getCurrentDocumentId() || "");
         this.bridge = this.runtime.start();
 
-        this.editorIntegration = new EditorTaskIntegration(this, asI18nStrings(this.i18n), () => this.bridge, this.taskCommands!);
+        this.editorIntegration = new EditorTaskIntegration(
+            this,
+            asI18nStrings(this.i18n),
+            () => this.bridge,
+            this.taskCommands!,
+        );
         this.editorIntegration.start();
 
         this.taskCommands?.registerCommands();
@@ -51,7 +61,8 @@ export default class NextActionPlugin extends Plugin {
     }
 
     openSetting(): void {
-        if (!this.settingsDialog) this.settingsDialog = new SettingsDialogController(this.bridge, asI18nStrings(this.i18n));
+        if (!this.settingsDialog)
+            this.settingsDialog = new SettingsDialogController(this.bridge, asI18nStrings(this.i18n));
         this.settingsDialog.open();
     }
 }

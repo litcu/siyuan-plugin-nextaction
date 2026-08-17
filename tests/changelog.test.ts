@@ -43,10 +43,7 @@ test("发布时封版 Unreleased 并重建固定分类模板", () => {
 
 test("拒绝发布空白或格式不完整的 Unreleased", () => {
     const empty = `# 更新日志\n\n${createUnreleasedSection()}\n`;
-    assert.throws(
-        () => finalizeUnreleased(empty, "0.4.1", "2026-08-07"),
-        /has no release notes/,
-    );
+    assert.throws(() => finalizeUnreleased(empty, "0.4.1", "2026-08-07"), /has no release notes/);
 
     const missingCategory = empty.replace("\n\n### 兼容性说明", "").replace("### 新功能", "### 新功能\n\n- 一项更新");
     assert.throws(
@@ -56,7 +53,8 @@ test("拒绝发布空白或格式不完整的 Unreleased", () => {
 });
 
 test("Action 只提取目标版本并生成固定发布日期格式", () => {
-    const finalized = finalizeUnreleased(changelogWith(`### 新功能
+    const finalized = finalizeUnreleased(
+        changelogWith(`### 新功能
 
 - 新增功能
 
@@ -64,7 +62,10 @@ test("Action 只提取目标版本并生成固定发布日期格式", () => {
 
 ### 问题修复
 
-### 兼容性说明`), "0.4.1", "2026-08-07");
+### 兼容性说明`),
+        "0.4.1",
+        "2026-08-07",
+    );
     const notes = extractReleaseNotes(`${finalized}\n## [0.4.0] - 2026-08-01\n\n- 旧版本\n`, "v0.4.1");
 
     assert.equal(notes, "> 发布日期：2026-08-07\n\n### 新功能\n\n- 新增功能\n");

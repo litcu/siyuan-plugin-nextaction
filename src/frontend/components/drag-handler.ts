@@ -87,8 +87,13 @@ export function createDragHandler(config: DragConfig) {
     function onPointerUp(e: PointerEvent) {
         document.removeEventListener("pointermove", onPointerMove);
         document.removeEventListener("pointerup", onPointerUp);
-        try { (e.target as HTMLElement).releasePointerCapture?.(pointerId); } catch {}
-        if (!isDragging) { dragBlockId = null; return; }
+        try {
+            (e.target as HTMLElement).releasePointerCapture?.(pointerId);
+        } catch {}
+        if (!isDragging) {
+            dragBlockId = null;
+            return;
+        }
         const target = getDropTarget(e);
         if (target) void config.onReorder(dragBlockId!, target.parentId, target.afterId);
         endDrag();
@@ -97,7 +102,10 @@ export function createDragHandler(config: DragConfig) {
     function endDrag() {
         isDragging = false;
         dragBlockId = null;
-        if (ghost) { ghost.remove(); ghost = null; }
+        if (ghost) {
+            ghost.remove();
+            ghost = null;
+        }
         const source = config.container.querySelector(".na-drag-source");
         if (source) source.classList.remove("na-drag-source");
         clearIndicators();
@@ -105,7 +113,7 @@ export function createDragHandler(config: DragConfig) {
     }
 
     function getIndentLevel(task: TaskCacheEntry, tasks: TaskCacheEntry[]): number {
-        const taskMap = new Map(tasks.map(t => [t.blockId, t]));
+        const taskMap = new Map(tasks.map((t) => [t.blockId, t]));
         let level = 0;
         let currentId: string | undefined = task.parentId;
         const visited = new Set<string>();
@@ -120,7 +128,7 @@ export function createDragHandler(config: DragConfig) {
     }
 
     function getAncestorChain(task: TaskCacheEntry, tasks: TaskCacheEntry[]): string[] {
-        const taskMap = new Map(tasks.map(t => [t.blockId, t]));
+        const taskMap = new Map(tasks.map((t) => [t.blockId, t]));
         const chain: string[] = [task.blockId];
         let currentId: string | undefined = task.parentId;
         const visited = new Set<string>();
@@ -143,7 +151,12 @@ export function createDragHandler(config: DragConfig) {
      * hovering near the bottom of a parent card accidentally selects
      * its child card.
      */
-    function findCardAt(mouseX: number, mouseY: number, currentTasks: TaskCacheEntry[], indentWidth: number): HTMLElement | null {
+    function findCardAt(
+        mouseX: number,
+        mouseY: number,
+        currentTasks: TaskCacheEntry[],
+        indentWidth: number,
+    ): HTMLElement | null {
         const cardItems = config.container.querySelectorAll("[data-task-block-id]");
 
         // Collect candidates whose Y range contains the mouse (with tolerance)
@@ -160,7 +173,7 @@ export function createDragHandler(config: DragConfig) {
             if (midDist > cardHeight * 0.75) continue;
 
             const blockId = el.dataset.taskBlockId!;
-            const task = currentTasks.find(t => t.blockId === blockId);
+            const task = currentTasks.find((t) => t.blockId === blockId);
             if (!task) continue;
             const indent = getIndentLevel(task, currentTasks);
 
@@ -191,7 +204,7 @@ export function createDragHandler(config: DragConfig) {
      * Check if `candidateId` is a descendant of `ancestorId` in the task tree.
      */
     function isDescendantOf(candidateId: string, ancestorId: string, tasks: TaskCacheEntry[]): boolean {
-        const taskMap = new Map(tasks.map(t => [t.blockId, t]));
+        const taskMap = new Map(tasks.map((t) => [t.blockId, t]));
         let currentId: string | undefined = candidateId;
         const visited = new Set<string>();
         while (currentId && !visited.has(currentId)) {
@@ -222,7 +235,9 @@ export function createDragHandler(config: DragConfig) {
      */
     function getDropTarget(e: PointerEvent): { parentId: string | null; afterId: string | null } | null {
         let currentTasks: TaskCacheEntry[] = [];
-        taskStore.subscribe(s => { currentTasks = s.allTasks; })();
+        taskStore.subscribe((s) => {
+            currentTasks = s.allTasks;
+        })();
 
         const indentWidth = getIndentWidth();
         const cardItem = findCardAt(e.clientX, e.clientY, currentTasks, indentWidth);
@@ -235,7 +250,7 @@ export function createDragHandler(config: DragConfig) {
         const relY = (e.clientY - rect.top) / rect.height;
         const relX = e.clientX - rect.left;
 
-        const targetTask = currentTasks.find(t => t.blockId === targetBlockId);
+        const targetTask = currentTasks.find((t) => t.blockId === targetBlockId);
         if (!targetTask) return null;
 
         const targetIndent = getIndentLevel(targetTask, currentTasks);
@@ -272,8 +287,8 @@ export function createDragHandler(config: DragConfig) {
 
         // Block: project cannot become child of a non-project task
         if (parentId && dragBlockId) {
-            const dragTask = currentTasks.find(t => t.blockId === dragBlockId);
-            const parentTask = currentTasks.find(t => t.blockId === parentId);
+            const dragTask = currentTasks.find((t) => t.blockId === dragBlockId);
+            const parentTask = currentTasks.find((t) => t.blockId === parentId);
             if (dragTask && dragTask.taskType === "2" && parentTask && parentTask.taskType === "1") {
                 return null;
             }
@@ -284,14 +299,12 @@ export function createDragHandler(config: DragConfig) {
         if (desiredLevel > targetIndent) {
             afterId = null;
         } else {
-            const referenceId = desiredLevel < targetIndent
-                ? ancestorChain[desiredLevel]
-                : targetBlockId;
+            const referenceId = desiredLevel < targetIndent ? ancestorChain[desiredLevel] : targetBlockId;
 
             const siblings = currentTasks
-                .filter(t => (t.parentId || null) === parentId)
+                .filter((t) => (t.parentId || null) === parentId)
                 .sort((a, b) => a.sort - b.sort || a.blockId.localeCompare(b.blockId));
-            const refIdx = siblings.findIndex(t => t.blockId === referenceId);
+            const refIdx = siblings.findIndex((t) => t.blockId === referenceId);
 
             if (relY < 0.5) {
                 afterId = refIdx > 0 ? siblings[refIdx - 1].blockId : null;
@@ -307,7 +320,9 @@ export function createDragHandler(config: DragConfig) {
         clearIndicators();
 
         let currentTasks: TaskCacheEntry[] = [];
-        taskStore.subscribe(s => { currentTasks = s.allTasks; })();
+        taskStore.subscribe((s) => {
+            currentTasks = s.allTasks;
+        })();
 
         const indentWidth = getIndentWidth();
         const cardItem = findCardAt(e.clientX, e.clientY, currentTasks, indentWidth);
@@ -318,7 +333,7 @@ export function createDragHandler(config: DragConfig) {
         const relX = e.clientX - rect.left;
 
         const targetBlockId = cardItem.dataset.taskBlockId!;
-        const targetTask = currentTasks.find(t => t.blockId === targetBlockId);
+        const targetTask = currentTasks.find((t) => t.blockId === targetBlockId);
         if (!targetTask) return;
 
         const targetIndent = getIndentLevel(targetTask, currentTasks);
@@ -344,8 +359,8 @@ export function createDragHandler(config: DragConfig) {
 
         // Block: project cannot become child of a non-project task — show no indicator
         if (desiredLevel > targetIndent && dragBlockId) {
-            const dragTask = currentTasks.find(t => t.blockId === dragBlockId);
-            const targetAsParent = currentTasks.find(t => t.blockId === targetBlockId);
+            const dragTask = currentTasks.find((t) => t.blockId === dragBlockId);
+            const targetAsParent = currentTasks.find((t) => t.blockId === targetBlockId);
             if (dragTask && dragTask.taskType === "2" && targetAsParent && targetAsParent.taskType === "1") {
                 return;
             }
@@ -363,11 +378,18 @@ export function createDragHandler(config: DragConfig) {
     }
 
     function clearIndicators() {
-        config.container.querySelectorAll(
-            ".na-drop-target-before, .na-drop-target-after, .na-drop-target-child, .na-drop-target-promote"
-        ).forEach(el => {
-            el.classList.remove("na-drop-target-before", "na-drop-target-after", "na-drop-target-child", "na-drop-target-promote");
-        });
+        config.container
+            .querySelectorAll(
+                ".na-drop-target-before, .na-drop-target-after, .na-drop-target-child, .na-drop-target-promote",
+            )
+            .forEach((el) => {
+                el.classList.remove(
+                    "na-drop-target-before",
+                    "na-drop-target-after",
+                    "na-drop-target-child",
+                    "na-drop-target-promote",
+                );
+            });
     }
 
     return { onPointerDown };

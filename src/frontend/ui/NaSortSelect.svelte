@@ -10,7 +10,7 @@
     let open = false;
     let containerEl: HTMLElement;
 
-    $: currentLabel = options.find(o => o.value === selected)?.label || "";
+    $: currentLabel = options.find((o) => o.value === selected)?.label || "";
     $: canToggleDirection = selected !== "order";
 
     function toggle() {
@@ -38,7 +38,15 @@
 
 <div class="na-sort-select" bind:this={containerEl}>
     <button class="na-sort-select__trigger" on:click={toggle}>
-        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <svg
+            viewBox="0 0 12 12"
+            width="10"
+            height="10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+        >
             <path d="M3 6l3 3 3-3" />
             <path d="M3 3l3 3 3-3" opacity="0.35" />
         </svg>
@@ -48,15 +56,33 @@
         <button
             class="na-sort-select__dir-btn b3-tooltips b3-tooltips__n"
             on:click={toggleDirection}
-            aria-label={ascending ? (i18n?.sortAsc || "Ascending") : (i18n?.sortDesc || "Descending")}
+            aria-label={ascending ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}
         >
             {#if ascending}
-                <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg
+                    viewBox="0 0 12 12"
+                    width="10"
+                    height="10"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
                     <path d="M6 10V2" />
                     <path d="M3 5l3-3 3 3" />
                 </svg>
             {:else}
-                <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg
+                    viewBox="0 0 12 12"
+                    width="10"
+                    height="10"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
                     <path d="M6 2v8" />
                     <path d="M3 7l3 3 3-3" />
                 </svg>
@@ -74,7 +100,16 @@
                 >
                     <span class="na-sort-select__option-label">{opt.label}</span>
                     {#if opt.value === selected}
-                        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg
+                            viewBox="0 0 12 12"
+                            width="10"
+                            height="10"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
                             <path d="M2 6l3 3 5-5" />
                         </svg>
                     {/if}
@@ -107,7 +142,9 @@
         border-radius: 6px 0 0 6px;
         cursor: pointer;
         white-space: nowrap;
-        transition: border-color 0.15s, background 0.15s;
+        transition:
+            border-color 0.15s,
+            background 0.15s;
 
         &:hover {
             border-color: var(--na-filter-active-border);
@@ -135,7 +172,9 @@
         border-left: none;
         border-radius: 0 6px 6px 0;
         cursor: pointer;
-        transition: background 0.15s, border-color 0.15s;
+        transition:
+            background 0.15s,
+            border-color 0.15s;
 
         &:hover {
             background: var(--b3-theme-surface-light);

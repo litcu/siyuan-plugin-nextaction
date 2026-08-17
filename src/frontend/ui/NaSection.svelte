@@ -101,7 +101,11 @@
     }
 
     @media (max-width: 520px) {
-        .na-section__header { padding: 13px 14px 11px; }
-        .na-section__body { padding: 0 14px; }
+        .na-section__header {
+            padding: 13px 14px 11px;
+        }
+        .na-section__body {
+            padding: 0 14px;
+        }
     }
 </style>

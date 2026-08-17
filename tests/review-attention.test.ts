@@ -1,11 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
-import {
-    countReviewAttentionTasks,
-    isTaskDueOverdue,
-    isTaskReviewDue,
-} from "../src/shared/review.ts";
+import { countReviewAttentionTasks, isTaskDueOverdue, isTaskReviewDue } from "../src/shared/review.ts";
 
 function task(overrides: Partial<TaskCacheEntry>): TaskCacheEntry {
     return {

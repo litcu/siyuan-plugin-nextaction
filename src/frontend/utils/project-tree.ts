@@ -53,15 +53,15 @@ export function buildProjectTreeModel(
     options: ProjectTreeOptions,
 ): ProjectTreeModel {
     const allTasks = [summary.project, ...summary.descendants];
-    const taskById = new Map(allTasks.map(task => [task.blockId, task]));
-    const allowedIds = new Set(summary.descendants.map(task => task.blockId));
+    const taskById = new Map(allTasks.map((task) => [task.blockId, task]));
+    const allowedIds = new Set(summary.descendants.map((task) => task.blockId));
     const childrenByParent = new Map<string, TaskCacheEntry[]>();
     const parentByChild = new Map<string, string>();
 
     const addEdge = (parentId: string, child: TaskCacheEntry, prefer = false) => {
         if (!taskById.has(parentId) || !allowedIds.has(child.blockId) || parentId === child.blockId) return;
         const children = childrenByParent.get(parentId) || [];
-        if (!children.some(entry => entry.blockId === child.blockId)) children.push(child);
+        if (!children.some((entry) => entry.blockId === child.blockId)) children.push(child);
         childrenByParent.set(parentId, children);
         if (prefer || !parentByChild.has(child.blockId)) parentByChild.set(child.blockId, parentId);
     };
@@ -114,17 +114,17 @@ export function buildProjectTreeModel(
         if (includedDescendantMemo.has(taskId)) return includedDescendantMemo.get(taskId) || false;
         if (visiting.has(taskId)) return false;
         const nextVisiting = new Set(visiting).add(taskId);
-        const result = (childrenByParent.get(taskId) || []).some(child => (
-            includedIds.has(child.blockId) || hasIncludedDescendant(child.blockId, nextVisiting)
-        ));
+        const result = (childrenByParent.get(taskId) || []).some(
+            (child) => includedIds.has(child.blockId) || hasIncludedDescendant(child.blockId, nextVisiting),
+        );
         includedDescendantMemo.set(taskId, result);
         return result;
     };
 
     const rowMeta = (task: TaskCacheEntry, depth: number): ProjectTreeRow => {
-        const includedChildren = (childrenByParent.get(task.blockId) || []).filter(child => (
-            includedIds.has(child.blockId) || hasIncludedDescendant(child.blockId)
-        ));
+        const includedChildren = (childrenByParent.get(task.blockId) || []).filter(
+            (child) => includedIds.has(child.blockId) || hasIncludedDescendant(child.blockId),
+        );
         return {
             task,
             depth,
@@ -158,10 +158,11 @@ export function buildProjectTreeModel(
         if (!collapseState.has(task.blockId)) visit(task.blockId, 1);
     }
 
-    const includedTasks = allTasks.filter(task => (
-        includedIds.has(task.blockId)
-        && (task.blockId === summary.project.blockId || options.showCompleted || task.status !== "done")
-    ));
+    const includedTasks = allTasks.filter(
+        (task) =>
+            includedIds.has(task.blockId) &&
+            (task.blockId === summary.project.blockId || options.showCompleted || task.status !== "done"),
+    );
 
     return {
         rows,

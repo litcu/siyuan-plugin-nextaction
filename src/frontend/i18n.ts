@@ -5,8 +5,8 @@ import type { ProjectRiskKind } from "../shared/types";
 import type { ProjectDateBucket } from "./utils/project";
 import type { PRIORITY_LIST, STATUS_LIST } from "./constants";
 
-type Status = typeof STATUS_LIST[number];
-type Priority = typeof PRIORITY_LIST[number] | "none";
+type Status = (typeof STATUS_LIST)[number];
+type Priority = (typeof PRIORITY_LIST)[number] | "none";
 
 const STATUS_KEYS = {
     inbox: "statusInbox",
@@ -68,7 +68,7 @@ function lookup<Key extends string>(map: Readonly<Record<Key, I18nKey>>, value: 
 }
 
 export function translateKey(i18n: I18nStrings, key: I18nKey | undefined, fallback: string): string {
-    return key ? (i18n[key] || fallback) : fallback;
+    return key ? i18n[key] || fallback : fallback;
 }
 
 export const statusI18nKey = (value: string): I18nKey | undefined => lookup(STATUS_KEYS, value);

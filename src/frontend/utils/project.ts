@@ -24,10 +24,10 @@ function risk(kind: ProjectRiskKind, taskId: string, severity: ProjectRisk["seve
 
 function buildChildrenMap(tasks: TaskCacheEntry[]): Map<string, TaskCacheEntry[]> {
     const map = new Map<string, TaskCacheEntry[]>();
-    const taskMap = new Map(tasks.map(task => [task.blockId, task]));
+    const taskMap = new Map(tasks.map((task) => [task.blockId, task]));
     const add = (parentId: string, child: TaskCacheEntry) => {
         const children = map.get(parentId) || [];
-        if (!children.some(entry => entry.blockId === child.blockId)) children.push(child);
+        if (!children.some((entry) => entry.blockId === child.blockId)) children.push(child);
         map.set(parentId, children);
     };
 
@@ -60,7 +60,14 @@ function collectDescendants(project: TaskCacheEntry, childrenMap: Map<string, Ta
 }
 
 function isNextAction(task: TaskCacheEntry, today: string): boolean {
-    if (task.taskType === PROJECT_TYPE || task.status === "done" || task.status === "waiting" || task.status === "someday" || task.status === "inbox") return false;
+    if (
+        task.taskType === PROJECT_TYPE ||
+        task.status === "done" ||
+        task.status === "waiting" ||
+        task.status === "someday" ||
+        task.status === "inbox"
+    )
+        return false;
     if (task.blocked) return false;
     const start = datePart(task.start);
     return !start || dayDifference(start, today) <= 0;
@@ -82,28 +89,33 @@ export function getProjectDateBucket(task: TaskCacheEntry, today = localDateStri
 
 export function buildProjectSummaries(tasks: TaskCacheEntry[], today = localDateString()): ProjectSummary[] {
     const childrenMap = buildChildrenMap(tasks);
-    const projects = tasks.filter(task => task.taskType === PROJECT_TYPE);
+    const projects = tasks.filter((task) => task.taskType === PROJECT_TYPE);
 
-    return projects.map(project => {
+    return projects.map((project) => {
         const descendants = collectDescendants(project, childrenMap);
-        const workItems = descendants.filter(task => task.taskType !== PROJECT_TYPE);
-        const actionable = workItems.filter(task => task.status !== "done");
-        const doneTasks = workItems.filter(task => task.status === "done");
-        const overdueTasks = actionable.filter(task => getProjectDateBucket(task, today) === "overdue");
-        const dueSoonTasks = actionable.filter(task => getProjectDateBucket(task, today) === "thisWeek" || getProjectDateBucket(task, today) === "today");
+        const workItems = descendants.filter((task) => task.taskType !== PROJECT_TYPE);
+        const actionable = workItems.filter((task) => task.status !== "done");
+        const doneTasks = workItems.filter((task) => task.status === "done");
+        const overdueTasks = actionable.filter((task) => getProjectDateBucket(task, today) === "overdue");
+        const dueSoonTasks = actionable.filter(
+            (task) => getProjectDateBucket(task, today) === "thisWeek" || getProjectDateBucket(task, today) === "today",
+        );
         const blockedTasks = actionable.filter(isHardBlocked);
-        const waitingTasks = actionable.filter(task => task.status === "waiting");
-        const nextActions = actionable.filter(task => isNextAction(task, today));
+        const waitingTasks = actionable.filter((task) => task.status === "waiting");
+        const nextActions = actionable.filter((task) => isNextAction(task, today));
         const allWaiting = actionable.length > 0 && waitingTasks.length === actionable.length;
         const risks: ProjectRisk[] = [];
 
         for (const task of overdueTasks) risks.push(risk("overdue", task.blockId, "high"));
         for (const task of blockedTasks) risks.push(risk("blocked", task.blockId, "high"));
-        for (const task of dueSoonTasks.filter(task => !overdueTasks.some(entry => entry.blockId === task.blockId))) {
+        for (const task of dueSoonTasks.filter(
+            (task) => !overdueTasks.some((entry) => entry.blockId === task.blockId),
+        )) {
             risks.push(risk("dueSoon", task.blockId, "medium"));
         }
         if (descendants.length === 0) risks.push(risk("empty", project.blockId, "medium"));
-        else if (nextActions.length === 0 && descendants.length > 0 && !allWaiting) risks.push(risk("noNextAction", project.blockId, "medium"));
+        else if (nextActions.length === 0 && descendants.length > 0 && !allWaiting)
+            risks.push(risk("noNextAction", project.blockId, "medium"));
         if (allWaiting) risks.push(risk("waiting", waitingTasks[0].blockId, "low"));
 
         const doneCount = doneTasks.length;

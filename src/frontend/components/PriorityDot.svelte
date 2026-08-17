@@ -24,4 +24,3 @@
         aria-label={i18n?.[toI18nKey("priority", displayPriority)] || displayPriority}
     ></span>
 {/if}
-

@@ -69,7 +69,10 @@ test("项目看板写入保持 NextActionApp 单一适配边界", () => {
     assert.match(view, /onTaskReorder/);
     assert.doesNotMatch(view, /KernelBridge|bridge\.updateTask|bridge\.reorderTask/);
     assert.match(app, /await bridge\.updateTask\(task\.blockId, attrs\)[\s\S]*taskStore\.applyUpdate\(updated\)/);
-    assert.match(app, /await bridge\.reorderTask\(blockId, parentId, afterId\)[\s\S]*taskStore\.applyUpdate\(updated\)/);
+    assert.match(
+        app,
+        /await bridge\.reorderTask\(blockId, parentId, afterId\)[\s\S]*taskStore\.applyUpdate\(updated\)/,
+    );
     assert.match(app, /onTaskUpdate=\{handleProjectTaskUpdate\}/);
     assert.match(app, /onTaskReorder=\{handleProjectTaskReorder\}/);
 });
@@ -99,7 +102,7 @@ test("设置保存链当前由面板持久化、宿主执行后处理", () => {
     const panel = source("../src/frontend/components/SettingsPanel.svelte");
     const host = source("../src/frontend/controllers/settings-dialog-controller.ts");
 
-    assert.match(panel, /controller\.save\(settings => bridge\.updateSettings\(settings\)\)/);
+    assert.match(panel, /controller\.save\(\(settings\) => bridge\.updateSettings\(settings\)\)/);
     assert.match(panel, /await onSave\(result\)/);
     assert.match(panel, /settingsSavedRefreshFailed/);
     assert.match(host, /await this\.bridge\.recalcAllOrders\(\)/);

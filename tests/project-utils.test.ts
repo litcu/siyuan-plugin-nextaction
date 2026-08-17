@@ -5,11 +5,36 @@ import type { TaskCacheEntry } from "../src/shared/types.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
-        blockId, parentId: "", status: "todo", priority: "medium", importance: 4, effort: 4,
-        due: "", start: "", context: "", taskType: "1", order: 0, childIds: [], title: blockId,
-        depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "", sort: 0,
-        completed: "", note: "", created: "", tags: "", blocked: false, blockedReason: "",
-        reviewInterval: 0, reviewDate: "", reminder: "", customFields: {}, ...overrides,
+        blockId,
+        parentId: "",
+        status: "todo",
+        priority: "medium",
+        importance: 4,
+        effort: 4,
+        due: "",
+        start: "",
+        context: "",
+        taskType: "1",
+        order: 0,
+        childIds: [],
+        title: blockId,
+        depends: "",
+        depMode: "all",
+        sequential: false,
+        repeat: "",
+        repeatState: "",
+        sort: 0,
+        completed: "",
+        note: "",
+        created: "",
+        tags: "",
+        blocked: false,
+        blockedReason: "",
+        reviewInterval: 0,
+        reviewDate: "",
+        reminder: "",
+        customFields: {},
+        ...overrides,
     };
 }
 
@@ -31,11 +56,14 @@ test("项目风险优先级为完成、阻塞、关注、正常", () => {
     const waiting = task("waiting-task", { parentId: "attention-project", status: "waiting" });
     const normal = task("normal-project", { taskType: "2", childIds: ["next"] });
     const next = task("next", { parentId: "normal-project" });
-    const summaries = buildProjectSummaries([complete, blocked, blockedTask, attention, waiting, normal, next], "2026-08-06");
-    assert.equal(summaries.find(item => item.project.blockId === "done-project")?.health, "complete");
-    assert.equal(summaries.find(item => item.project.blockId === "blocked-project")?.health, "blocked");
-    assert.equal(summaries.find(item => item.project.blockId === "attention-project")?.health, "attention");
-    assert.equal(summaries.find(item => item.project.blockId === "normal-project")?.health, "onTrack");
+    const summaries = buildProjectSummaries(
+        [complete, blocked, blockedTask, attention, waiting, normal, next],
+        "2026-08-06",
+    );
+    assert.equal(summaries.find((item) => item.project.blockId === "done-project")?.health, "complete");
+    assert.equal(summaries.find((item) => item.project.blockId === "blocked-project")?.health, "blocked");
+    assert.equal(summaries.find((item) => item.project.blockId === "attention-project")?.health, "attention");
+    assert.equal(summaries.find((item) => item.project.blockId === "normal-project")?.health, "onTrack");
 });
 
 test("项目不会因为存在未完成子任务而显示阻塞", () => {
@@ -76,10 +104,7 @@ test("部分子任务阻塞时项目需关注，只有没有可执行任务时�
     });
     const next = task("next", { parentId: "project" });
     const attention = buildProjectSummaries([project, blocked, next], "2026-08-15")[0];
-    const fullyBlocked = buildProjectSummaries([
-        { ...project, childIds: ["blocked"] },
-        blocked,
-    ], "2026-08-15")[0];
+    const fullyBlocked = buildProjectSummaries([{ ...project, childIds: ["blocked"] }, blocked], "2026-08-15")[0];
     assert.equal(attention.health, "attention");
     assert.equal(fullyBlocked.health, "blocked");
 });
@@ -89,8 +114,8 @@ test("空项目和缺少下一步行动项目会进入关注队列", () => {
     const parent = task("parent", { taskType: "2", childIds: ["child"] });
     const child = task("child", { parentId: "parent", status: "someday" });
     const summaries = buildProjectSummaries([empty, parent, child], "2026-08-06");
-    assert.equal(summaries.find(item => item.project.blockId === "empty")?.risks[0]?.kind, "empty");
-    assert.equal(summaries.find(item => item.project.blockId === "parent")?.risks[0]?.kind, "noNextAction");
+    assert.equal(summaries.find((item) => item.project.blockId === "empty")?.risks[0]?.kind, "empty");
+    assert.equal(summaries.find((item) => item.project.blockId === "parent")?.risks[0]?.kind, "noNextAction");
 });
 
 test("循环父子关系不会导致递归失控", () => {

@@ -16,20 +16,19 @@ const stylesheetSource = [
     "../src/frontend/styles/app-shell.scss",
     "../src/frontend/styles/components.scss",
     "../src/frontend/styles/host-integration.scss",
-].map(read).join("\n");
+]
+    .map(read)
+    .join("\n");
 const zh = JSON.parse(read("../src/i18n/zh-CN.json"));
 const en = JSON.parse(read("../src/i18n/en.json"));
 
 test("紧凑任务卡片没有可见元数据时移除空白第二行", () => {
     assert.match(taskCardSource, /\$: hasCardMetadata = Boolean\(/);
     assert.match(taskCardSource, /class:na-task-card__body--metadata-empty=\{!hasCardMetadata\}/);
+    assert.match(stylesheetSource, /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/);
     assert.match(
         stylesheetSource,
-        /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
-    );
-    assert.match(
-        stylesheetSource,
-        /@container nextaction-app \(max-width: 520px\)[\s\S]*\.na-task-card__body--metadata-empty \.na-task-card__meta \{ display: none; \}/,
+        /@container nextaction-app \(max-width: 520px\)[\s\S]*\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
     );
 });
 

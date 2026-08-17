@@ -1,15 +1,8 @@
 import type * as kernel from "siyuan/kernel";
 import type { PluginSettings } from "../shared/settings";
 import { getErrorMessage } from "./mcp-tool-error";
-import type {
-    McpRegisteredToolStatus,
-    McpStatus,
-    McpToolExecutor,
-} from "./mcp-tool-executor";
-import {
-    getDesiredMcpToolNames,
-    type McpToolName,
-} from "./mcp-utils";
+import type { McpRegisteredToolStatus, McpStatus, McpToolExecutor } from "./mcp-tool-executor";
+import { getDesiredMcpToolNames, type McpToolName } from "./mcp-utils";
 
 export class McpCapabilityManager {
     private settings: PluginSettings;
@@ -49,10 +42,9 @@ export class McpCapabilityManager {
             return;
         }
 
-        const desired = new Set<string>(getDesiredMcpToolNames(
-            settings.mcpSettings.enabled,
-            settings.mcpSettings.allowWrite,
-        ));
+        const desired = new Set<string>(
+            getDesiredMcpToolNames(settings.mcpSettings.enabled, settings.mcpSettings.allowWrite),
+        );
         for (const name of Array.from(this.registered.keys())) {
             if (desired.has(name)) continue;
             try {

@@ -21,33 +21,35 @@
     let documentId = proposal.target?.documentId || defaultDocumentId;
     let busy = false;
     $: tasks = proposal.tasks || [];
-    $: proposalItems = proposal.feature === "planMyDay" ? (proposal.myDay || []) : tasks;
+    $: proposalItems = proposal.feature === "planMyDay" ? proposal.myDay || [] : tasks;
     $: selectedCount = proposalItems.filter((_item, index) => selected.has(index)).length;
-    $: canUseSourceChild = childFromSource && !myDayOnly && tasks.length > 0 && tasks.every(item => !!item.sourceBlockId);
+    $: canUseSourceChild =
+        childFromSource && !myDayOnly && tasks.length > 0 && tasks.every((item) => !!item.sourceBlockId);
     $: if (target === "source_child" && !canUseSourceChild) target = "mcp_default";
 
     function toggle(index: number) {
         const next = new Set(selected);
-        if (next.has(index)) next.delete(index); else next.add(index);
+        if (next.has(index)) next.delete(index);
+        else next.add(index);
         selected = next;
     }
 
     function selectedProposal(): AiProposal {
-        const selectedIndexes = tasks
-            .map((_item, index) => index)
-            .filter(index => selected.has(index));
+        const selectedIndexes = tasks.map((_item, index) => index).filter((index) => selected.has(index));
         const indexMap = new Map(selectedIndexes.map((originalIndex, nextIndex) => [originalIndex, nextIndex]));
         const next: AiProposal = {
             ...proposal,
-            target: myDayOnly ? undefined : {
-                type: target as any,
-                documentId: documentId || undefined,
-                ...(target === "child" && childParentBlockId ? { parentBlockId: childParentBlockId } : {}),
-            },
-            tasks: selectedIndexes.map(originalIndex => {
+            target: myDayOnly
+                ? undefined
+                : {
+                      type: target as any,
+                      documentId: documentId || undefined,
+                      ...(target === "child" && childParentBlockId ? { parentBlockId: childParentBlockId } : {}),
+                  },
+            tasks: selectedIndexes.map((originalIndex) => {
                 const item = tasks[originalIndex];
                 const dependsOnIndexes = item.dependsOnIndexes
-                    ?.map(index => indexMap.get(index))
+                    ?.map((index) => indexMap.get(index))
                     .filter((index): index is number => index !== undefined);
                 return {
                     ...item,
@@ -87,7 +89,10 @@
 
 <div class="nextaction na-ai-proposal">
     <div class="na-ai-proposal__intro">
-        <div class="na-ai-proposal__eyebrow"><span class="na-ai-proposal__eyebrow-dot"></span>{i18n?.aiProposalEyebrow || "AI Proposal · Task Extraction"}</div>
+        <div class="na-ai-proposal__eyebrow">
+            <span class="na-ai-proposal__eyebrow-dot"></span>{i18n?.aiProposalEyebrow ||
+                "AI Proposal · Task Extraction"}
+        </div>
         <h3 class="na-ai-proposal__summary">{proposal.summary}</h3>
         <div class="na-ai-proposal__intro-meta">
             {(i18n?.aiDetectedItems || "Detected {count} items").replace("{count}", String(proposalItems.length))}
@@ -102,11 +107,14 @@
     {#if proposal.feature === "planMyDay"}
         <div class="na-ai-proposal__section-title">{i18n?.aiSuggestedTasks || "建议加入今天"}</div>
         <div class="na-ai-proposal__list">
-            {#each (proposal.myDay || []) as item, index}
+            {#each proposal.myDay || [] as item, index}
                 <label class="na-ai-proposal__row" class:na-ai-proposal__row--selected={selected.has(index)}>
                     <input type="checkbox" checked={selected.has(index)} on:change={() => toggle(index)} />
                     <span class="na-ai-proposal__row-copy">
-                        <strong>{$taskStore.allTasks.find(task => task.blockId === item.blockId)?.title || item.blockId}</strong>
+                        <strong
+                            >{$taskStore.allTasks.find((task) => task.blockId === item.blockId)?.title ||
+                                item.blockId}</strong
+                        >
                         <small>{item.reason}</small>
                     </span>
                 </label>
@@ -120,7 +128,12 @@
                     <input type="checkbox" checked={selected.has(index)} on:change={() => toggle(index)} />
                     <span class="na-ai-proposal__row-copy">
                         <strong>{item.title}</strong>
-                        <small>{item.reason || (item.kind === "project" ? (i18n?.aiProposalKindProject || "Project") : (i18n?.aiProposalKindTask || "Task"))}</small>
+                        <small
+                            >{item.reason ||
+                                (item.kind === "project"
+                                    ? i18n?.aiProposalKindProject || "Project"
+                                    : i18n?.aiProposalKindTask || "Task")}</small
+                        >
                     </span>
                     {#if item.due}<NaBadge text={item.due} />{/if}
                     {#if item.priority}<NaBadge text={item.priority} />{/if}
@@ -135,7 +148,11 @@
             <select bind:value={target}>
                 <option value="mcp_default">{i18n?.aiTargetDefault || "使用默认收集位置"}</option>
                 {#if childParentBlockId}
-                    <option value="child">{i18n?.aiTargetChild || "保存为父任务的子任务"}{childParentTitle ? ` · ${childParentTitle}` : ""}</option>
+                    <option value="child"
+                        >{i18n?.aiTargetChild || "保存为父任务的子任务"}{childParentTitle
+                            ? ` · ${childParentTitle}`
+                            : ""}</option
+                    >
                 {/if}
                 {#if canUseSourceChild}
                     <option value="source_child">{i18n?.aiTargetSourceChild || "保存为来源块的子任务"}</option>
@@ -152,9 +169,11 @@
     {/if}
 
     <div class="na-ai-proposal__actions">
-        <button class="na-button na-button--ghost" on:click={() => dialog.destroy()} disabled={busy}>{i18n?.cancel || "取消"}</button>
+        <button class="na-button na-button--ghost" on:click={() => dialog.destroy()} disabled={busy}
+            >{i18n?.cancel || "取消"}</button
+        >
         <button class="na-button na-button--primary" on:click={apply} disabled={busy}>
-            {busy ? (i18n?.loading || "处理中…") : (i18n?.confirm || "确认应用")}
+            {busy ? i18n?.loading || "处理中…" : i18n?.confirm || "确认应用"}
         </button>
     </div>
 </div>
@@ -177,7 +196,7 @@
         gap: 6px;
         color: var(--b3-theme-primary);
         font-size: 10px;
-        letter-spacing: .12em;
+        letter-spacing: 0.12em;
         font-weight: 700;
         text-transform: uppercase;
     }
@@ -195,7 +214,7 @@
         font-size: 17px !important;
         line-height: 1.42 !important;
         font-weight: 620 !important;
-        letter-spacing: -.01em;
+        letter-spacing: -0.01em;
     }
     .na-ai-proposal__intro-meta {
         display: flex;
@@ -217,7 +236,7 @@
         margin: 13px 1px 7px;
         color: var(--na-ai-muted);
         font-size: 10px;
-        letter-spacing: .1em;
+        letter-spacing: 0.1em;
         font-weight: 650;
         text-transform: uppercase;
     }
@@ -241,7 +260,9 @@
         border-radius: 7px;
         background: color-mix(in srgb, var(--b3-theme-surface) 94%, var(--b3-theme-primary) 6%);
         cursor: pointer;
-        transition: border-color .16s, background .16s;
+        transition:
+            border-color 0.16s,
+            background 0.16s;
     }
     .na-ai-proposal__row:hover {
         border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-ai-line));

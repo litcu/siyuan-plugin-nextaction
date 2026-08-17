@@ -11,7 +11,9 @@
     class:na-status-checkbox--waiting={status === "waiting"}
     class:na-status-checkbox--someday={status === "someday"}
     class:na-status-checkbox--done={status === "done"}
-    on:click|stopPropagation={(e) => { if (onclick) onclick(e); }}
+    on:click|stopPropagation={(e) => {
+        if (onclick) onclick(e);
+    }}
     on:pointerdown|stopPropagation
     aria-label={status}
 ></button>

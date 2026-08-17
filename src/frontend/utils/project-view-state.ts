@@ -29,11 +29,7 @@ export async function executeProjectBoardMove(
         await handlers.updateTask(intent.task, { "na-status": intent.status });
     }
     if (handlers.reorderTask) {
-        await handlers.reorderTask(
-            intent.task.blockId,
-            intent.task.parentId || projectId,
-            intent.afterId,
-        );
+        await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
     }
 }
 
@@ -77,7 +73,7 @@ const DATE_BUCKETS: ProjectDateBucket[] = ["overdue", "today", "thisWeek", "late
 
 export function reconcileProjectTasks(tasks: TaskCacheEntry[], override: TaskCacheEntry | null): TaskCacheEntry[] {
     if (!override) return tasks;
-    return tasks.map(task => task.blockId === override.blockId ? override : task);
+    return tasks.map((task) => (task.blockId === override.blockId ? override : task));
 }
 
 export function buildProjectViewModel(
@@ -88,58 +84,81 @@ export function buildProjectViewModel(
     const sourceTasks = reconcileProjectTasks(tasks, state.selectedTaskOverride);
     const summaries = buildProjectSummaries(sourceTasks);
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
-    const filterCandidates = sourceTasks.filter(task => state.showCompleted || task.status !== "done" || task.taskType === "2");
+    const filterCandidates = sourceTasks.filter(
+        (task) => state.showCompleted || task.status !== "done" || task.taskType === "2",
+    );
     const matchedTasks = taskFiltersActive
         ? applyFilters(filterCandidates, state.filterState, customFields)
         : filterCandidates;
-    const matchedTaskIds = new Set(matchedTasks.map(task => task.blockId));
-    const matchingSummaries = summaries.filter(summary => (
-        (!taskFiltersActive || matchedTaskIds.has(summary.project.blockId) || summary.descendants.some(task => matchedTaskIds.has(task.blockId)))
-        && (state.showCompleted || summary.health !== "complete")
-        && matchesProjectFilters(summary, state)
-    ));
+    const matchedTaskIds = new Set(matchedTasks.map((task) => task.blockId));
+    const matchingSummaries = summaries.filter(
+        (summary) =>
+            (!taskFiltersActive ||
+                matchedTaskIds.has(summary.project.blockId) ||
+                summary.descendants.some((task) => matchedTaskIds.has(task.blockId))) &&
+            (state.showCompleted || summary.health !== "complete") &&
+            matchesProjectFilters(summary, state),
+    );
     const orderedProjectIds = sortTasksBy(
-        matchingSummaries.map(summary => summary.project),
+        matchingSummaries.map((summary) => summary.project),
         state.filterState.sortBy,
         state.filterState.sortAsc,
         customFields,
-    ).map(task => task.blockId);
-    const summaryByProjectId = new Map(matchingSummaries.map(summary => [summary.project.blockId, summary]));
+    ).map((task) => task.blockId);
+    const summaryByProjectId = new Map(matchingSummaries.map((summary) => [summary.project.blockId, summary]));
     const visibleSummaries = orderedProjectIds
-        .map(blockId => summaryByProjectId.get(blockId))
+        .map((blockId) => summaryByProjectId.get(blockId))
         .filter((summary): summary is ProjectSummary => Boolean(summary));
     const containingSelection = state.selectedTaskId
-        ? summaries.find(summary => summary.project.blockId === state.selectedTaskId || summary.descendants.some(task => task.blockId === state.selectedTaskId))
+        ? summaries.find(
+              (summary) =>
+                  summary.project.blockId === state.selectedTaskId ||
+                  summary.descendants.some((task) => task.blockId === state.selectedTaskId),
+          )
         : undefined;
     const preferredProjectId = containingSelection?.project.blockId || state.activeProjectId;
-    const activeProjectId = visibleSummaries.some(summary => summary.project.blockId === preferredProjectId)
+    const activeProjectId = visibleSummaries.some((summary) => summary.project.blockId === preferredProjectId)
         ? preferredProjectId
-        : (visibleSummaries[0]?.project.blockId || "");
-    const selectedSummary = visibleSummaries.find(summary => summary.project.blockId === activeProjectId) || null;
-    const selectedMatchedTaskIds = !selectedSummary || !taskFiltersActive
-        ? null
-        : new Set(selectedSummary.descendants.filter(task => matchedTaskIds.has(task.blockId)).map(task => task.blockId));
-    const projectTreeModel = selectedSummary ? buildProjectTreeModel(selectedSummary, state.collapsedIds, {
-        showCompleted: state.showCompleted,
-        matchedTaskIds: selectedMatchedTaskIds,
-        sortMode: state.mode === "gantt" ? state.ganttSortMode : "manual",
-    }) : null;
-    const detailTasks = (selectedSummary?.descendants || []).filter(task => (
-        (state.showCompleted || task.status !== "done")
-        && (!taskFiltersActive || matchedTaskIds.has(task.blockId))
-    ));
-    const sortedDetailTasks = sortTasksBy(detailTasks, state.filterState.sortBy, state.filterState.sortAsc, customFields);
-    const planGroups = DATE_BUCKETS
-        .map(bucket => ({
-            bucket,
-            tasks: sortedDetailTasks.filter(task => task.taskType !== "2" && getProjectDateBucket(task) === bucket),
-        }))
-        .filter(group => group.tasks.length > 0);
-    const riskItems = visibleSummaries.flatMap(summary => summary.risks.map(risk => ({
-        summary,
-        risk,
-        target: summary.descendants.find(task => task.blockId === risk.taskId) || summary.project,
-    }))).sort((a, b) => riskWeight(b.risk.severity) - riskWeight(a.risk.severity));
+        : visibleSummaries[0]?.project.blockId || "";
+    const selectedSummary = visibleSummaries.find((summary) => summary.project.blockId === activeProjectId) || null;
+    const selectedMatchedTaskIds =
+        !selectedSummary || !taskFiltersActive
+            ? null
+            : new Set(
+                  selectedSummary.descendants
+                      .filter((task) => matchedTaskIds.has(task.blockId))
+                      .map((task) => task.blockId),
+              );
+    const projectTreeModel = selectedSummary
+        ? buildProjectTreeModel(selectedSummary, state.collapsedIds, {
+              showCompleted: state.showCompleted,
+              matchedTaskIds: selectedMatchedTaskIds,
+              sortMode: state.mode === "gantt" ? state.ganttSortMode : "manual",
+          })
+        : null;
+    const detailTasks = (selectedSummary?.descendants || []).filter(
+        (task) =>
+            (state.showCompleted || task.status !== "done") && (!taskFiltersActive || matchedTaskIds.has(task.blockId)),
+    );
+    const sortedDetailTasks = sortTasksBy(
+        detailTasks,
+        state.filterState.sortBy,
+        state.filterState.sortAsc,
+        customFields,
+    );
+    const planGroups = DATE_BUCKETS.map((bucket) => ({
+        bucket,
+        tasks: sortedDetailTasks.filter((task) => task.taskType !== "2" && getProjectDateBucket(task) === bucket),
+    })).filter((group) => group.tasks.length > 0);
+    const riskItems = visibleSummaries
+        .flatMap((summary) =>
+            summary.risks.map((risk) => ({
+                summary,
+                risk,
+                target: summary.descendants.find((task) => task.blockId === risk.taskId) || summary.project,
+            })),
+        )
+        .sort((a, b) => riskWeight(b.risk.severity) - riskWeight(a.risk.severity));
 
     return {
         sourceTasks,
@@ -155,14 +174,21 @@ export function buildProjectViewModel(
         planGroups,
         riskItems,
         metrics: {
-            activeProjects: summaries.filter(summary => summary.health !== "complete").length,
-            attention: summaries.filter(summary => summary.health === "attention" || summary.health === "blocked").length,
+            activeProjects: summaries.filter((summary) => summary.health !== "complete").length,
+            attention: summaries.filter((summary) => summary.health === "attention" || summary.health === "blocked")
+                .length,
             overdue: summaries.reduce((count, summary) => count + summary.overdueTasks.length, 0),
-            dueSoon: summaries.reduce((count, summary) => count + summary.descendants.filter(task => (
-                task.status !== "done"
-                && (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek")
-            )).length, 0),
-            noAction: summaries.filter(summary => summary.risks.some(risk => risk.kind === "noNextAction")).length,
+            dueSoon: summaries.reduce(
+                (count, summary) =>
+                    count +
+                    summary.descendants.filter(
+                        (task) =>
+                            task.status !== "done" &&
+                            (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek"),
+                    ).length,
+                0,
+            ),
+            noAction: summaries.filter((summary) => summary.risks.some((risk) => risk.kind === "noNextAction")).length,
         },
     };
 }
@@ -171,11 +197,16 @@ function matchesProjectFilters(summary: ProjectSummary, state: ProjectViewState)
     if (state.riskFilter === "attention" && summary.health !== "attention") return false;
     if (state.riskFilter === "blocked" && summary.health !== "blocked") return false;
     if (state.dateFilter === "overdue" && summary.overdueTasks.length === 0) return false;
-    if (state.dateFilter === "week" && !summary.descendants.some(task => (
-        task.status !== "done"
-        && (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek")
-    ))) return false;
-    if (state.actionFilter === "missing" && !summary.risks.some(risk => risk.kind === "noNextAction")) return false;
+    if (
+        state.dateFilter === "week" &&
+        !summary.descendants.some(
+            (task) =>
+                task.status !== "done" &&
+                (getProjectDateBucket(task) === "today" || getProjectDateBucket(task) === "thisWeek"),
+        )
+    )
+        return false;
+    if (state.actionFilter === "missing" && !summary.risks.some((risk) => risk.kind === "noNextAction")) return false;
     if (state.actionFilter === "available" && summary.nextActions.length === 0) return false;
     return true;
 }

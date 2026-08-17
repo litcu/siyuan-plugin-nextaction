@@ -37,9 +37,12 @@ test("内部 RPC 拒绝块链接且 echo 保持数组参数语义", async () => 
     service.setIsReady(true);
     registerRpcMethods(service);
     assert.deepEqual([...handlers.keys()].sort(), [...RPC_METHOD_NAMES].sort());
-    assert.equal(RPC_METHOD_NAMES.every(method => typeof RPC_CONTRACT[method].parseParams === "function"), true);
+    assert.equal(
+        RPC_METHOD_NAMES.every((method) => typeof RPC_CONTRACT[method].parseParams === "function"),
+        true,
+    );
 
-    const result = await handlers.get("getTask")?.({ blockId: `siyuan://blocks/${ID}` }) as {
+    const result = (await handlers.get("getTask")?.({ blockId: `siyuan://blocks/${ID}` })) as {
         _rpcError?: { code: number; message: string };
     };
     assert.equal(result._rpcError?.code, -32001);
@@ -48,8 +51,10 @@ test("内部 RPC 拒绝块链接且 echo 保持数组参数语义", async () => 
     const echoed = await handlers.get("echo")?.({ params: [ID, 42] });
     assert.deepEqual(echoed, [ID, 42]);
 
-    service.getNextActions = () => { throw new Error("sensitive task contents"); };
-    const internal = await handlers.get("getNextActions")?.({}) as { _rpcError?: { code: number; message: string } };
+    service.getNextActions = () => {
+        throw new Error("sensitive task contents");
+    };
+    const internal = (await handlers.get("getNextActions")?.({})) as { _rpcError?: { code: number; message: string } };
     assert.deepEqual(internal._rpcError, { code: RPC_ERROR_INTERNAL, message: "Internal error" });
 });
 
@@ -59,12 +64,15 @@ test("KernelBridge 在发起 RPC 前拒绝块链接", async () => {
         kernel: {
             state: { code: 2 },
             rpc: {
-                call: new Proxy({}, {
-                    get: (_target, method: string) => async () => {
-                        calls.push(method);
-                        return null;
+                call: new Proxy(
+                    {},
+                    {
+                        get: (_target, method: string) => async () => {
+                            calls.push(method);
+                            return null;
+                        },
                     },
-                }),
+                ),
                 bind: () => {},
                 unbind: () => {},
             },
@@ -84,13 +92,16 @@ test("KernelBridge 区分未就绪、传输失败和可重试恢复", async () =
         kernel: {
             state: { code: 1 },
             rpc: {
-                call: new Proxy({}, {
-                    get: () => async () => {
-                        calls++;
-                        if (shouldReject) throw new Error("socket closed");
-                        return null;
+                call: new Proxy(
+                    {},
+                    {
+                        get: () => async () => {
+                            calls++;
+                            if (shouldReject) throw new Error("socket closed");
+                            return null;
+                        },
                     },
-                }),
+                ),
                 bind: () => {},
                 unbind: () => {},
             },
@@ -98,7 +109,10 @@ test("KernelBridge 区分未就绪、传输失败和可重试恢复", async () =
     };
     const bridge = new KernelBridge(host);
 
-    await assert.rejects(bridge.getTask(ID), (error: unknown) => error instanceof RpcCallError && error.code === RPC_ERROR_NOT_READY);
+    await assert.rejects(
+        bridge.getTask(ID),
+        (error: unknown) => error instanceof RpcCallError && error.code === RPC_ERROR_NOT_READY,
+    );
     assert.equal(calls, 0);
 
     host.kernel.state.code = 2;

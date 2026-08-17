@@ -25,7 +25,22 @@
 </div>
 
 <style lang="scss">
-    .na-view-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--b3-theme-background); color: var(--b3-theme-on-background); }
-    .na-view-shell__body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
-    .na-view-shell--content .na-view-shell__body { overflow-y: auto; }
+    .na-view-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        background: var(--b3-theme-background);
+        color: var(--b3-theme-on-background);
+    }
+    .na-view-shell__body {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .na-view-shell--content .na-view-shell__body {
+        overflow-y: auto;
+    }
 </style>

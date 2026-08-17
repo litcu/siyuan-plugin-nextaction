@@ -1,11 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-    DEFAULT_MCP_SETTINGS,
-    mergeMcpSettings,
-    validateMcpSettings,
-} from "../src/shared/mcp-settings.ts";
+import { DEFAULT_MCP_SETTINGS, mergeMcpSettings, validateMcpSettings } from "../src/shared/mcp-settings.ts";
 
 test("旧设置迁移时 MCP 默认关闭且写权限关闭", () => {
     const merged = mergeMcpSettings(DEFAULT_MCP_SETTINGS, undefined);
@@ -27,12 +23,6 @@ test("MCP 设置支持部分合并且不丢失既有目标", () => {
 });
 
 test("MCP 设置校验拒绝非法目标类型和非布尔权限", () => {
-    assert.match(
-        validateMcpSettings({ defaultCreateTarget: "somewhere" as any }) ?? "",
-        /defaultCreateTarget/,
-    );
-    assert.match(
-        validateMcpSettings({ allowWrite: "yes" as any }) ?? "",
-        /allowWrite/,
-    );
+    assert.match(validateMcpSettings({ defaultCreateTarget: "somewhere" as any }) ?? "", /defaultCreateTarget/);
+    assert.match(validateMcpSettings({ allowWrite: "yes" as any }) ?? "", /allowWrite/);
 });

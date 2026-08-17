@@ -61,9 +61,10 @@ export function formatDueDate(due: string, nowMs: number, i18n?: DueDateI18n): s
 
     if (hasTime && nowMs >= dueMs) {
         const diffDays = localCalendarDayNumber(new Date(nowMs)) - localCalendarDayNumber(dueDay);
-        const base = diffDays > 0
-            ? (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(diffDays))
-            : i18n?.overdueToday || "Overdue today";
+        const base =
+            diffDays > 0
+                ? (i18n?.overdueDays || "{n} days overdue").replace("{n}", String(diffDays))
+                : i18n?.overdueToday || "Overdue today";
         return timeStr ? `${base} ${timeStr}` : base;
     }
 
@@ -88,9 +89,7 @@ export function formatDueDate(due: string, nowMs: number, i18n?: DueDateI18n): s
 
     const month = dueDate.getMonth() + 1;
     const day = dueDate.getDate();
-    const base = (i18n?.dueDateFormat || "{m}/{d}")
-        .replace("{m}", String(month))
-        .replace("{d}", String(day));
+    const base = (i18n?.dueDateFormat || "{m}/{d}").replace("{m}", String(month)).replace("{d}", String(day));
     return timeStr ? `${base} ${timeStr}` : base;
 }
 

@@ -71,14 +71,14 @@ function runFullSyncCycle() {
     const fullDerivedState = new TaskDerivedStateService(fullCache);
     fullDerivedState.reconcileAll();
     for (const parentId of parentIds) fullCache.getByParent(parentId);
-    const snapshotTasks = fullCache.getAll().map(task => ({
+    const snapshotTasks = fullCache.getAll().map((task) => ({
         ...task,
         childIds: [...task.childIds],
         customFields: { ...task.customFields },
     }));
     const collection = buildTaskCollection(snapshotTasks);
     reduceTaskChanges(collection, {
-        upserts: snapshotTasks.slice(0, 10).map(task => ({ ...task, note: "updated" })),
+        upserts: snapshotTasks.slice(0, 10).map((task) => ({ ...task, note: "updated" })),
         deletedBlockIds: [snapshotTasks[99].blockId],
     });
 }
@@ -105,13 +105,15 @@ const cache = createCache();
 const derivedState = new TaskDerivedStateService(cache);
 derivedState.reconcileAll();
 cache.consumeAffectedIds();
-const parentIds = fixture.filter(task => task.taskType === "2").map(task => task.blockId);
-const changedIds = fixture.slice(0, 100).map(task => task.blockId);
+const parentIds = fixture.filter((task) => task.taskType === "2").map((task) => task.blockId);
+const changedIds = fixture.slice(0, 100).map((task) => task.blockId);
 const reducerCollection = buildTaskCollection(cache.getAll());
 let updatePriority = "high";
 
 console.log(`NextAction phase four sync benchmark (${TASK_COUNT} tasks, ${RUNS} measured runs)`);
-measure("index build", () => { createCache(); });
+measure("index build", () => {
+    createCache();
+});
 measure("parent queries", () => {
     for (const parentId of parentIds) cache.getByParent(parentId);
 });
@@ -121,17 +123,27 @@ measure("single derived change", () => {
     cache.set({ ...current, priority: updatePriority });
     derivedState.reconcile(cache.consumeAffectedIds());
 });
-measure("full derived pass", () => { derivedState.reconcileAll(); });
+measure("full derived pass", () => {
+    derivedState.reconcileAll();
+});
 measure("full snapshot clone", () => {
-    cache.getAll().map(task => ({ ...task, childIds: [...task.childIds], customFields: { ...task.customFields } }));
+    cache.getAll().map((task) => ({ ...task, childIds: [...task.childIds], customFields: { ...task.customFields } }));
 });
 measure("broadcast serialization", () => {
-    const upserts = changedIds.map(id => cache.get(id));
-    JSON.stringify({ schema: 2, type: "delta", streamId: "benchmark", fromRevision: 20, revision: 21, upserts, deletedBlockIds: [] });
+    const upserts = changedIds.map((id) => cache.get(id));
+    JSON.stringify({
+        schema: 2,
+        type: "delta",
+        streamId: "benchmark",
+        fromRevision: 20,
+        revision: 21,
+        upserts,
+        deletedBlockIds: [],
+    });
 });
 measure("array reducer batch", () => {
     reduceTaskChanges(reducerCollection, {
-        upserts: changedIds.slice(0, 10).map(id => ({ ...cache.get(id), note: "updated" })),
+        upserts: changedIds.slice(0, 10).map((id) => ({ ...cache.get(id), note: "updated" })),
         deletedBlockIds: [changedIds[99]],
     });
 });

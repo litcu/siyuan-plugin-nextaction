@@ -21,21 +21,73 @@
 <div class="na-project-plan">
     {#each groups as group (group.bucket)}
         <section class="na-project-plan__group">
-            <header><h3>{bucketLabel(group.bucket)}</h3><span>{group.tasks.length}</span></header>
+            <header>
+                <h3>{bucketLabel(group.bucket)}</h3>
+                <span>{group.tasks.length}</span>
+            </header>
             {#each group.tasks as task (task.blockId)}
-                <div class="na-project-plan__row"><TaskCard {task} selected={task.blockId === selectedTaskId} onSelect={onSelectTask} {onEdit} {onStatusClick} {onContextMenu} {i18n} isRoot={false} />{#if group.bucket !== "unscheduled"}<span class="na-project-plan__date">{task.due || task.start}</span>{/if}</div>
+                <div class="na-project-plan__row">
+                    <TaskCard
+                        {task}
+                        selected={task.blockId === selectedTaskId}
+                        onSelect={onSelectTask}
+                        {onEdit}
+                        {onStatusClick}
+                        {onContextMenu}
+                        {i18n}
+                        isRoot={false}
+                    />{#if group.bucket !== "unscheduled"}<span class="na-project-plan__date"
+                            >{task.due || task.start}</span
+                        >{/if}
+                </div>
             {/each}
         </section>
     {/each}
-    {#if groups.length === 0}<p class="na-project-muted">{i18n?.projectNoPlan || "No dated tasks in this project"}</p>{/if}
+    {#if groups.length === 0}<p class="na-project-muted">
+            {i18n?.projectNoPlan || "No dated tasks in this project"}
+        </p>{/if}
 </div>
 
 <style lang="scss">
-    .na-project-plan { display: flex; flex-direction: column; gap: 10px; }
-    .na-project-plan__group { border-top: 2px solid var(--na-color-divider); background: var(--b3-theme-surface); }
-    .na-project-plan__group > header { display: flex; justify-content: space-between; padding: 9px 10px; border-bottom: 1px solid var(--na-color-divider); color: var(--na-text-secondary); font-size: var(--na-font-size-xs); font-weight: 700; text-transform: uppercase; }
-    .na-project-plan__row { display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px solid color-mix(in srgb, var(--na-color-divider) 60%, transparent); }
-    .na-project-plan__row :global(.na-task-card) { flex: 1; min-width: 0; }
-    .na-project-plan__date { flex: 0 0 82px; color: var(--na-text-secondary); font-size: var(--na-font-size-xs); text-align: right; }
-    .na-project-muted { margin: 4px 0; color: var(--na-text-secondary); font-size: var(--na-font-size-sm); }
+    .na-project-plan {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .na-project-plan__group {
+        border-top: 2px solid var(--na-color-divider);
+        background: var(--b3-theme-surface);
+    }
+    .na-project-plan__group > header {
+        display: flex;
+        justify-content: space-between;
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--na-color-divider);
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-xs);
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .na-project-plan__row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px;
+        border-bottom: 1px solid color-mix(in srgb, var(--na-color-divider) 60%, transparent);
+    }
+    .na-project-plan__row :global(.na-task-card) {
+        flex: 1;
+        min-width: 0;
+    }
+    .na-project-plan__date {
+        flex: 0 0 82px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-xs);
+        text-align: right;
+    }
+    .na-project-muted {
+        margin: 4px 0;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+    }
 </style>

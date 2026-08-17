@@ -45,7 +45,12 @@ test("九种字段类型使用稳定的字符串存储格式", () => {
     assert.equal(encodeCustomFieldValue(field("datetime"), "2026-08-01T09:30"), "2026-08-01T09:30");
     const select = field("singleSelect", { options: [{ id: "home", label: "Home", status: "active" }] });
     assert.equal(encodeCustomFieldValue(select, "home"), "home");
-    const multi = field("multiSelect", { options: [{ id: "home", label: "Home", status: "active" }, { id: "work", label: "Work", status: "active" }] });
+    const multi = field("multiSelect", {
+        options: [
+            { id: "home", label: "Home", status: "active" },
+            { id: "work", label: "Work", status: "active" },
+        ],
+    });
     assert.equal(encodeCustomFieldValue(multi, ["home", "work", "home"]), '["home","work"]');
     assert.deepEqual(decodeCustomFieldValue(multi, '["home"]'), ["home"]);
 });
@@ -60,7 +65,11 @@ test("项目树范围覆盖项目本身和全部后代", () => {
     const project = { blockId: "p", parentId: "", taskType: "2" } as any;
     const child = { blockId: "c", parentId: "p", taskType: "1" } as any;
     const grandChild = { blockId: "g", parentId: "c", taskType: "1" } as any;
-    const taskMap = new Map([[project.blockId, project], [child.blockId, child], [grandChild.blockId, grandChild]]);
+    const taskMap = new Map([
+        [project.blockId, project],
+        [child.blockId, child],
+        [grandChild.blockId, grandChild],
+    ]);
     const scoped = field("text", { scope: { mode: "projectTree", projectIds: ["p"] } });
     assert.equal(isCustomFieldApplicable(scoped, project, taskMap), true);
     assert.equal(isCustomFieldApplicable(scoped, grandChild, taskMap), true);
@@ -70,7 +79,10 @@ test("项目树范围覆盖项目本身和全部后代", () => {
 test("字段定义校验拒绝大写、下划线和重复 Key", () => {
     const invalid = field("text", { key: "Bad_Key" });
     assert.match(validateCustomFieldDefinitions([invalid]) ?? "", /lowercase/);
-    assert.match(validateCustomFieldDefinitions([field("text"), field("text", { id: "other", key: "test-text" })]) ?? "", /unique/);
+    assert.match(
+        validateCustomFieldDefinitions([field("text"), field("text", { id: "other", key: "test-text" })]) ?? "",
+        /unique/,
+    );
 });
 
 test("孤立字段清理兼容完整属性名", () => {

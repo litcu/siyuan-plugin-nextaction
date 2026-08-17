@@ -69,7 +69,9 @@ function nextVersion(current, bump) {
             if (/^\d+\.\d+\.\d+(?:-.+)?$/.test(bump)) {
                 return bump;
             }
-            throw new Error("Usage: pnpm run release:current | release:patch | release:minor | release:major | release:version -- <x.y.z>");
+            throw new Error(
+                "Usage: pnpm run release:current | release:patch | release:minor | release:major | release:version -- <x.y.z>",
+            );
     }
 }
 
@@ -83,7 +85,7 @@ function finalizeChangelog(version) {
     const changelog = fs.readFileSync(changelogPath, "utf8");
     const now = new Date();
     const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
-        .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, "0"))
+        .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
         .join("-");
     return finalizeUnreleased(changelog, version, date);
 }

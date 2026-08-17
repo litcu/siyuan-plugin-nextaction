@@ -19,25 +19,62 @@ export interface RenderedAiPrompt {
  * {{placeholders}} in the request.
  */
 export const AI_PROMPT_VARIABLES = [
-    "feature", "today", "currentDate", "now", "currentDateTime", "timezone",
-    "sourceBlockIds", "selectedBlockIds", "sourceBlocks", "selectedBlocks",
-    "sourceDocument", "sourceDocumentId", "currentDocument", "currentDocumentId",
-    "currentTaskBlock", "currentTaskBlockContent", "currentTaskBlockWithChildren",
-    "currentTaskBlockWithParent", "currentTaskChildren", "currentTaskParent", "currentTaskDoc",
-    "nextaction", "candidateTasks", "allNextActions", "myDay", "myDayTaskIds",
-    "inbox", "waiting", "someday", "overdue", "reviewDue", "activeProjects",
-    "blockedTasks", "review", "reviewGroups", "reviewTasks", "reviewData", "truncated", "availableContexts",
-    "availableTags", "availableStatuses", "availablePriorities", "writeTargets", "outputSchema",
+    "feature",
+    "today",
+    "currentDate",
+    "now",
+    "currentDateTime",
+    "timezone",
+    "sourceBlockIds",
+    "selectedBlockIds",
+    "sourceBlocks",
+    "selectedBlocks",
+    "sourceDocument",
+    "sourceDocumentId",
+    "currentDocument",
+    "currentDocumentId",
+    "currentTaskBlock",
+    "currentTaskBlockContent",
+    "currentTaskBlockWithChildren",
+    "currentTaskBlockWithParent",
+    "currentTaskChildren",
+    "currentTaskParent",
+    "currentTaskDoc",
+    "nextaction",
+    "candidateTasks",
+    "allNextActions",
+    "myDay",
+    "myDayTaskIds",
+    "inbox",
+    "waiting",
+    "someday",
+    "overdue",
+    "reviewDue",
+    "activeProjects",
+    "blockedTasks",
+    "review",
+    "reviewGroups",
+    "reviewTasks",
+    "reviewData",
+    "truncated",
+    "availableContexts",
+    "availableTags",
+    "availableStatuses",
+    "availablePriorities",
+    "writeTargets",
+    "outputSchema",
 ] as const;
 
-type VariableName = typeof AI_PROMPT_VARIABLES[number];
+type VariableName = (typeof AI_PROMPT_VARIABLES)[number];
 const VARIABLE_SET = new Set<string>(AI_PROMPT_VARIABLES);
 const MAX_EXPLICIT_BLOCKS = 8;
 
 function localDateParts(): { date: string; time: string; timezone: string } {
     const now = new Date();
     const date = new Intl.DateTimeFormat("sv-SE").format(now);
-    const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "medium", hour12: false }).format(now);
+    const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "medium", hour12: false }).format(
+        now,
+    );
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "本地时区";
     return { date, time, timezone };
 }
@@ -53,26 +90,52 @@ function valueFor(name: VariableName, input: AiPromptVariableContext): unknown {
     const groups = context.groups || context.reviewGroups;
     const sourceIds = context.sourceBlockIds || context.selectedBlockIds || [];
     const known: Record<string, unknown> = {
-        feature, today: date.date, currentDate: date.date, now: date.time, currentDateTime: date.time, timezone: date.timezone,
-        sourceBlockIds: sourceIds, selectedBlockIds: sourceIds,
+        feature,
+        today: date.date,
+        currentDate: date.date,
+        now: date.time,
+        currentDateTime: date.time,
+        timezone: date.timezone,
+        sourceBlockIds: sourceIds,
+        selectedBlockIds: sourceIds,
         sourceBlocks: context.sourceBlocks || "见请求末尾由思源附加的选定块正文",
         selectedBlocks: context.selectedBlocks || context.sourceBlocks || "见请求末尾由思源附加的选定块正文",
-        sourceDocument: context.sourceDocument, sourceDocumentId: context.sourceDocumentId,
-        currentDocument: context.currentDocument, currentDocumentId: context.currentDocumentId,
-        currentTaskBlock: task, currentTaskBlockContent: context.currentTaskBlockContent || task?.title,
+        sourceDocument: context.sourceDocument,
+        sourceDocumentId: context.sourceDocumentId,
+        currentDocument: context.currentDocument,
+        currentDocumentId: context.currentDocumentId,
+        currentTaskBlock: task,
+        currentTaskBlockContent: context.currentTaskBlockContent || task?.title,
         currentTaskBlockWithChildren: task ? { task, children } : undefined,
         currentTaskBlockWithParent: context.currentTaskBlockWithParent,
-        currentTaskChildren: children, currentTaskParent: context.currentTaskParent, currentTaskDoc: context.currentTaskDoc,
-        nextaction: candidates, candidateTasks: candidates, allNextActions: candidates,
-        myDay: existingMyDay, myDayTaskIds: Array.isArray(existingMyDay) ? existingMyDay.map((x: any) => typeof x === "string" ? x : x.blockId).filter(Boolean) : [],
-        inbox: review.inbox || context.inbox, waiting: review.waiting || context.waiting,
-        someday: review.someday || context.someday, overdue: review.overdue || context.overdue,
-        reviewDue: review.reviewDue || context.reviewDue, activeProjects: review.activeProjects || context.activeProjects,
-        blockedTasks: context.blockedTasks, review: context.review || review, reviewGroups: groups,
-        reviewTasks: context.tasks || review.tasks, reviewData: review, truncated: context.truncated,
-        availableContexts: context.availableContexts, availableTags: context.availableTags,
-        availableStatuses: context.availableStatuses, availablePriorities: context.availablePriorities,
-        writeTargets: context.writeTargets, outputSchema: context.outputSchema,
+        currentTaskChildren: children,
+        currentTaskParent: context.currentTaskParent,
+        currentTaskDoc: context.currentTaskDoc,
+        nextaction: candidates,
+        candidateTasks: candidates,
+        allNextActions: candidates,
+        myDay: existingMyDay,
+        myDayTaskIds: Array.isArray(existingMyDay)
+            ? existingMyDay.map((x: any) => (typeof x === "string" ? x : x.blockId)).filter(Boolean)
+            : [],
+        inbox: review.inbox || context.inbox,
+        waiting: review.waiting || context.waiting,
+        someday: review.someday || context.someday,
+        overdue: review.overdue || context.overdue,
+        reviewDue: review.reviewDue || context.reviewDue,
+        activeProjects: review.activeProjects || context.activeProjects,
+        blockedTasks: context.blockedTasks,
+        review: context.review || review,
+        reviewGroups: groups,
+        reviewTasks: context.tasks || review.tasks,
+        reviewData: review,
+        truncated: context.truncated,
+        availableContexts: context.availableContexts,
+        availableTags: context.availableTags,
+        availableStatuses: context.availableStatuses,
+        availablePriorities: context.availablePriorities,
+        writeTargets: context.writeTargets,
+        outputSchema: context.outputSchema,
     };
     return known[name];
 }

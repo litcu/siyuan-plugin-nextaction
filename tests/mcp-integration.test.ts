@@ -82,9 +82,12 @@ test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引",
     assert.match(creationSource, /knownTextBlock:\s*true/);
     assert.match(creationSource, /knownTextBlockType:\s*kind === "2" \|\| format === "document" \? "d" : "p"/);
     assert.match(creationSource, /parentIdHint:\s*insertedMeta\.parentId/);
-    assert.match(creationSource, /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/);
+    assert.match(
+        creationSource,
+        /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/,
+    );
     assert.match(creationSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
-    assert.match(taskServiceSource, /cleanTitle \|\| await this\.fetchBlockTitle/);
+    assert.match(taskServiceSource, /cleanTitle \|\| \(await this\.fetchBlockTitle/);
 });
 
 test("子任务创建直接写入文本块并停止生成列表项", () => {

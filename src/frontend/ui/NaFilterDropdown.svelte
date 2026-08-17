@@ -25,14 +25,14 @@
 
     function toggleOption(value: string) {
         if (selected.includes(value)) {
-            onChange(selected.filter(v => v !== value));
+            onChange(selected.filter((v) => v !== value));
         } else {
             onChange([...selected, value]);
         }
     }
 
     function selectAll() {
-        onChange(options.map(o => o.value));
+        onChange(options.map((o) => o.value));
     }
 
     function clearAll() {
@@ -54,7 +54,16 @@
         {#if hasSelection}
             <span class="na-filter-dropdown__count">{selected.length}</span>
         {/if}
-        <svg class="na-filter-dropdown__arrow" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <svg
+            class="na-filter-dropdown__arrow"
+            viewBox="0 0 12 12"
+            width="10"
+            height="10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+        >
             <path d="M2.5 4.5l3.5 3.5 3.5-3.5" />
         </svg>
     </button>
@@ -70,10 +79,27 @@
             </div>
             {#each options as opt (opt.value)}
                 <label class="na-filter-dropdown__option">
-                    <input type="checkbox" class="na-filter-dropdown__sr-only" checked={selected.includes(opt.value)} on:change|stopPropagation={() => toggleOption(opt.value)} />
-                    <span class="na-filter-dropdown__checkbox" class:na-filter-dropdown__checkbox--checked={selected.includes(opt.value)}>
+                    <input
+                        type="checkbox"
+                        class="na-filter-dropdown__sr-only"
+                        checked={selected.includes(opt.value)}
+                        on:change|stopPropagation={() => toggleOption(opt.value)}
+                    />
+                    <span
+                        class="na-filter-dropdown__checkbox"
+                        class:na-filter-dropdown__checkbox--checked={selected.includes(opt.value)}
+                    >
                         {#if selected.includes(opt.value)}
-                            <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
                                 <path d="M2 6l3 3 5-5" />
                             </svg>
                         {/if}
@@ -107,7 +133,10 @@
         border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
-        transition: border-color 0.15s, color 0.15s, background 0.15s;
+        transition:
+            border-color 0.15s,
+            color 0.15s,
+            background 0.15s;
 
         &:hover {
             border-color: var(--b3-theme-primary-light);
@@ -229,7 +258,10 @@
         border-radius: 3px;
         flex-shrink: 0;
         color: var(--na-text-secondary);
-        transition: background 0.15s, border-color 0.15s, color 0.15s;
+        transition:
+            background 0.15s,
+            border-color 0.15s,
+            color 0.15s;
 
         svg {
             color: currentColor;

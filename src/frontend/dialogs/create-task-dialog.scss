@@ -76,7 +76,10 @@
     color: var(--b3-theme-on-surface);
     background: var(--b3-theme-background);
     font: 400 12px/1.4 var(--b3-font-family);
-    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+    transition:
+        border-color 120ms ease,
+        background 120ms ease,
+        box-shadow 120ms ease;
 }
 
 .na-create-task-dialog .na-select,
