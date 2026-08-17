@@ -217,6 +217,10 @@ pnpm run release          # Build and deploy to local plugin directory
 pnpm run release:package  # Build package.zip for marketplace/GitHub release
 ```
 
+Before using `pnpm run release`, copy `.env.example` to the ignored `.env.local` file and set
+`SIYUAN_PLUGINS_DIR` to the absolute path of the workspace's `data/plugins` directory. A system environment variable
+with the same name takes precedence, which is useful when temporarily deploying to another workspace.
+
 <details>
 <summary><b>Releasing a new version</b></summary>
 

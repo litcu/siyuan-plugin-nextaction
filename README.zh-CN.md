@@ -217,6 +217,9 @@ pnpm run release          # 构建并部署到本地插件目录
 pnpm run release:package  # 构建市场发布用 package.zip
 ```
 
+运行 `pnpm run release` 前，将 `.env.example` 复制为已被忽略的 `.env.local`，并把
+`SIYUAN_PLUGINS_DIR` 设置为思源工作空间 `data/plugins` 目录的绝对路径。同名系统环境变量优先级更高，可用于临时部署到其他工作空间。
+
 <details>
 <summary><b>发布新版本</b></summary>
 

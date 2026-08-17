@@ -7,11 +7,32 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
 const pluginManifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "plugin.json"), "utf8"));
-const pluginsRoot = "C:\\Users\\xavier\\Documents\\SiYuan\\Test\\data\\plugins";
-const targetDir = path.join(pluginsRoot, pluginManifest.name);
+const pluginsDirectoryEnvironmentVariable = "SIYUAN_PLUGINS_DIR";
 
 const log = (msg) => console.log(`\x1B[36m%s\x1B[0m`, msg);
 const error = (msg) => console.log(`\x1B[31m%s\x1B[0m`, msg);
+
+export function loadLocalDeployEnvironment(root = projectRoot, environment = process.env) {
+    if (environment[pluginsDirectoryEnvironmentVariable]?.trim()) return;
+
+    const localEnvironmentPath = path.join(root, ".env.local");
+    if (fs.existsSync(localEnvironmentPath)) {
+        process.loadEnvFile(localEnvironmentPath);
+    }
+}
+
+export function resolveDeployTarget(pluginName, environment = process.env) {
+    const pluginsRoot = environment[pluginsDirectoryEnvironmentVariable]?.trim();
+    if (!pluginsRoot) {
+        throw new Error(
+            `Missing ${pluginsDirectoryEnvironmentVariable}. Configure it in .env.local or the system environment.`,
+        );
+    }
+    if (!path.isAbsolute(pluginsRoot)) {
+        throw new Error(`${pluginsDirectoryEnvironmentVariable} must be an absolute path: "${pluginsRoot}"`);
+    }
+    return path.join(pluginsRoot, pluginName);
+}
 
 function copyFile(src, dst) {
     if (!fs.existsSync(src)) {
@@ -51,10 +72,21 @@ function copyDirectory(srcDir, dstDir) {
 function main() {
     log(">>> Deploying to SiYuan plugin directory...");
 
+    loadLocalDeployEnvironment();
+
+    let targetDir;
+    try {
+        targetDir = resolveDeployTarget(pluginManifest.name);
+    } catch (cause) {
+        error(cause instanceof Error ? cause.message : String(cause));
+        process.exitCode = 1;
+        return;
+    }
+
     const targetParent = path.dirname(targetDir);
     if (!fs.existsSync(targetParent)) {
         error(`Target parent directory not found: "${targetParent}"`);
-        error("Please check the SiYuan workspace path in scripts/deploy.js");
+        error(`Please check ${pluginsDirectoryEnvironmentVariable} in .env.local or the system environment.`);
         process.exit(1);
     }
 
@@ -104,4 +136,6 @@ function main() {
     log(">>> Deploy complete!");
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main();
+}
