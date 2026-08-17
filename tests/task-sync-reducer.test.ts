@@ -182,27 +182,49 @@ test("reset、stream 变化和非法载荷都通过 V2 snapshot 恢复", async (
     store.disposeSync();
 });
 
-test("旧内核自动退回 V1，并将一批逐 ID 回读交给同一 reducer", async () => {
-    let getAllCalls = 0;
+test("V2 snapshot 获取失败时保留现有集合并暴露错误", async () => {
     const bridge = {
         getTaskSnapshotV2: async () => {
-            throw new Error("unknown RPC method");
+            throw new Error("snapshot unavailable");
         },
-        getAllTasks: async () => {
-            getAllCalls++;
-            return [taskFactory(TASK_A)];
-        },
-        getTask: async (blockId: string) => taskFactory(blockId, { status: "done", context: "legacy" }),
     } as unknown as KernelBridge;
     const store = createTaskStore();
     store.setBridge(bridge);
     await store.loadTasks();
-    store.applyChangeNotification({ changedBlockIds: [TASK_A], changeTypes: { [TASK_A]: "update" } });
+
+    assert.deepEqual(get(store).allTasks, []);
+    assert.equal(get(store).error, "snapshot unavailable");
+    store.disposeSync();
+});
+
+test("内核重连清空旧 stream 并从新快照继续连续增量", async () => {
+    const snapshots = [snapshot("stream-a", 0, [taskFactory(TASK_A)]), snapshot("stream-b", 1, [taskFactory(TASK_B)])];
+    let snapshotCalls = 0;
+    const bridge = {
+        getTaskSnapshotV2: async () => snapshots[Math.min(snapshotCalls++, snapshots.length - 1)],
+    } as unknown as KernelBridge;
+    const store = createTaskStore();
+    store.setBridge(bridge);
+    await store.loadTasks();
+
+    store.resetSync();
+    store.applyChangeSetV2({
+        schema: 2,
+        type: "delta",
+        streamId: "stream-b",
+        fromRevision: 1,
+        revision: 2,
+        upserts: [taskFactory(TASK_B, { priority: "critical" })],
+        deletedBlockIds: [],
+    });
     await tick();
     await tick();
 
-    assert.equal(get(store).allTasks[0].status, "done");
-    assert.deepEqual(get(store).contexts, ["legacy"]);
-    assert.equal(getAllCalls, 1);
+    assert.deepEqual(
+        get(store).allTasks.map((task) => task.blockId),
+        [TASK_B],
+    );
+    assert.equal(get(store).allTasks[0].priority, "critical");
+    assert.equal(snapshotCalls, 2);
     store.disposeSync();
 });

@@ -1,6 +1,5 @@
 import type {
     TaskCacheEntry,
-    TaskChangeNotification,
     TaskSnapshotV2,
     StatisticsResult,
     PluginSettings,
@@ -298,15 +297,5 @@ export class KernelBridge {
         return this.call("markTaskReviewed", {
             blockIds: blockIds.map((blockId, index) => assertBlockId(blockId, `blockIds[${index}]`)),
         });
-    }
-
-    bindTasksChanged(handler: (notification: TaskChangeNotification) => void): void {
-        this.plugin.kernel.rpc.bind("tasksChanged", (...params: unknown[]) => {
-            handler(params[0] as TaskChangeNotification);
-        });
-    }
-
-    unbindTasksChanged(handler: (...params: unknown[]) => void): void {
-        this.plugin.kernel.rpc.unbind("tasksChanged", handler);
     }
 }

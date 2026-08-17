@@ -264,10 +264,6 @@ for (const [path, source] of textByFile) {
 }
 
 const taskStoreSource = readFileSync(join(sourceRoot, "frontend", "stores", "task-store.ts"), "utf8");
-const v1RefreshSection = taskStoreSource.match(/function scheduleV1Refresh\(\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
-if (!v1RefreshSection.includes("2000") || /\b2000\b/.test(taskStoreSource.replace(v1RefreshSection, ""))) {
-    failures.push("the fixed two-second full refresh must remain isolated to V1 compatibility mode");
-}
 const v2ApplySection =
     taskStoreSource.match(/function applyV2Notification\(value: unknown\): void \{[\s\S]*?\n\s{4}\}/)?.[0] || "";
 if (!v2ApplySection || /getAllTasks|setTimeout/.test(v2ApplySection)) {
@@ -281,19 +277,17 @@ if (
 ) {
     failures.push("FrontendRuntime must own exactly one five-minute task calibration timer");
 }
-for (const marker of [
-    'rpc.bind("tasksChanged"',
-    'rpc.bind("tasksChangedV2"',
-    "getTaskSnapshotV2",
-    "TaskSnapshotV2",
-    "TaskChangeSetV2",
-]) {
+for (const marker of ['rpc.bind("tasksChangedV2"', "getTaskSnapshotV2", "TaskSnapshotV2", "TaskChangeSetV2"]) {
     const source = marker.startsWith("rpc.bind")
         ? runtimeSource
         : marker === "getTaskSnapshotV2"
           ? methodsSource + serverSource + bridgeSource
           : readFileSync(join(sourceRoot, "shared", "types.ts"), "utf8");
     if (!source.includes(marker)) failures.push(`revisioned task sync boundary is missing ${marker}`);
+}
+const syncEngineSource = readFileSync(join(sourceRoot, "kernel", "sync-engine.ts"), "utf8");
+if (/(["'])tasksChanged\1/.test(runtimeSource + taskStoreSource + syncEngineSource)) {
+    failures.push("V1 tasksChanged bindings and broadcasts are forbidden");
 }
 
 if (failures.length) {

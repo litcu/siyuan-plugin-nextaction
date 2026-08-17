@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { calculateOrder, getBlockedReason } from "../src/kernel/priority-engine.ts";
+import { ATTR_PARENT, ATTR_SORT, ATTR_TASK } from "../src/shared/constants.ts";
 import { FakeSiyuanApi, taskFactory } from "./helpers/fakes.ts";
 
 const PROJECT_ID = "20260816090000-project";
@@ -31,6 +32,31 @@ test("缓存父子关系在新增、移动和删除后保持一致", () => {
 
     cache.remove(CHILD_A_ID);
     assert.deepEqual(cache.get(OTHER_ID)?.childIds, []);
+});
+
+test("缓存加载保留缺失排序值且不再迁移为隐式顺序", async () => {
+    // Regression: cache loading must not synthesize sort values for old child tasks.
+    const api = new FakeSiyuanApi();
+    let queryCalls = 0;
+    api.query = async <T>() => {
+        queryCalls++;
+        return (
+            queryCalls === 1
+                ? [
+                      { id: CHILD_A_ID, parent_id: PROJECT_ID, content: "A", updated: "20260816090001" },
+                      { id: CHILD_B_ID, parent_id: PROJECT_ID, content: "B", updated: "20260816090002" },
+                  ]
+                : []
+        ) as T[];
+    };
+    const cache = new CacheManager(api);
+    await cache.loadAll(async () => ({
+        [CHILD_A_ID]: { [ATTR_TASK]: "1", [ATTR_PARENT]: PROJECT_ID },
+        [CHILD_B_ID]: { [ATTR_TASK]: "1", [ATTR_PARENT]: PROJECT_ID, [ATTR_SORT]: "10000" },
+    }));
+
+    assert.equal(cache.get(CHILD_A_ID)?.sort, -1);
+    assert.equal(cache.get(CHILD_B_ID)?.sort, 10000);
 });
 
 test("子任务早于父任务写入时仍能在父任务出现后回填索引", () => {

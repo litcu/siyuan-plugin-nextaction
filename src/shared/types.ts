@@ -101,11 +101,6 @@ export interface DismissedRecord {
     [dedupKey: string]: number; // 去重键 → dismissed 时间戳
 }
 
-export interface TaskChangeNotification {
-    changedBlockIds: string[];
-    changeTypes: Record<string, "create" | "update" | "delete">;
-}
-
 export interface TaskSnapshotV2 {
     schema: 2;
     streamId: string;
@@ -131,7 +126,6 @@ export interface TaskResetChangeSetV2 {
 }
 
 export type TaskChangeSetV2 = TaskDeltaChangeSetV2 | TaskResetChangeSetV2;
-export type TaskBroadcastPayload = TaskChangeNotification | TaskChangeSetV2;
 
 export interface StatisticsSummary {
     total: number;

@@ -48,24 +48,6 @@ export class Mutex {
         }
     }
 
-    /**
-     * Legacy compatibility: acquire without release handle.
-     * Callers MUST call release() exactly once.
-     */
-    async acquireLegacy(): Promise<void> {
-        if (!this.locked) {
-            this.locked = true;
-            this._acquiredCount++;
-            return;
-        }
-        return new Promise<void>((resolve) => {
-            this.queue.push(() => {
-                this._acquiredCount++;
-                resolve();
-            });
-        });
-    }
-
     release(): void {
         this._release();
     }

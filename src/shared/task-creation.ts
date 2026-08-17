@@ -80,27 +80,17 @@ export function mergeTaskCreationSettings(
                 ? override.dailyNoteNotebookId
                 : base.dailyNoteNotebookId || "",
         recentTargets: Array.isArray(override?.recentTargets)
-            ? override!.recentTargets.slice(0, 3).map(normalizeTargetMemory)
-            : [...(base.recentTargets || [])].slice(0, 3).map(normalizeTargetMemory),
+            ? override.recentTargets.slice(0, 3).map((target) => ({ ...target }))
+            : [...(base.recentTargets || [])].slice(0, 3).map((target) => ({ ...target })),
         presets: Array.isArray(override?.presets)
-            ? override!.presets.slice(0, 12).map(normalizePreset)
-            : [...(base.presets || [])].slice(0, 12).map(normalizePreset),
+            ? override.presets.slice(0, 12).map(clonePreset)
+            : [...(base.presets || [])].slice(0, 12).map(clonePreset),
     };
 }
 
-function normalizePreset(value: TaskCreatePreset): TaskCreatePreset {
+function clonePreset(value: TaskCreatePreset): TaskCreatePreset {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-    return { ...value, target: normalizeTargetMemory(value.target) };
-}
-
-function normalizeTargetMemory(value: TaskCreateTargetMemory): TaskCreateTargetMemory {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-    const target = value as TaskCreateTargetMemory & { format?: string };
-    return {
-        ...target,
-        // Migrate the removed list format to the text-block format.
-        format: target.format === "document" ? "document" : "paragraph",
-    };
+    return { ...value, target: { ...value.target } };
 }
 
 function isTargetMemory(value: unknown): value is TaskCreateTargetMemory {

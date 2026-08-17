@@ -22,8 +22,9 @@ function rule(partial: Partial<RepeatRuleV2> = {}): RepeatRuleV2 {
     };
 }
 
-test("兼容旧版重复规则并补齐默认值", () => {
-    assert.deepEqual(normalizeRepeatRule({ freq: "week", interval: 2, from: "complete" }), {
+test("仅接受 V2 重复规则并补齐 V2 可选默认值", () => {
+    assert.equal(normalizeRepeatRule({ freq: "week", interval: 2, from: "complete" }), null);
+    assert.deepEqual(normalizeRepeatRule({ version: 2, frequency: "week", interval: 2, basis: "completion" }), {
         version: 2,
         frequency: "week",
         interval: 2,

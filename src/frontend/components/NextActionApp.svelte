@@ -49,8 +49,8 @@
     let viewAfterClose: string | undefined = undefined;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Safety-net refresh: most data is kept in sync by tasksChanged broadcast
-    // and local derivation in applyUpdate/applyChangeNotification. This timer
+    // Safety-net refresh: most data is kept in sync by revisioned task broadcasts
+    // and local derivation in applyUpdate/applyChangeSetV2. This timer
     // only handles edge cases where incremental updates might diverge.
     onMount(() => {
         refreshTimer = setInterval(() => {

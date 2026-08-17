@@ -37,7 +37,6 @@ test("自定义字段新增文案均提供中英文翻译", () => {
         "customFieldProjectIds",
         "customFieldArchivedOptionSuffix",
         "customFieldPurgePartial",
-        "customFieldPurgeSuccess",
         "customFieldInvalidNumber",
         "customFieldInvalidDate",
         "customFieldInvalidDatetime",

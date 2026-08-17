@@ -58,7 +58,7 @@ test("100ms 窗口合并连续提交并保留 revision 区间", async () => {
     assert.equal(delta.upserts.length, 1);
     assert.equal(delta.upserts[0].priority, "critical");
     assert.deepEqual(delta.deletedBlockIds, []);
-    assert.equal(api.broadcasts.filter((item) => item.name === "tasksChanged").length, 1);
+    assert.equal(api.broadcasts.length, 1);
     engine.stop();
 });
 
@@ -115,10 +115,7 @@ test("完整重建取消待发增量并发送小型 reset", async () => {
         streamId: engine.getTaskSnapshotV2().streamId,
         revision: 2,
     });
-    assert.equal(
-        api.broadcasts.some((item) => item.name === "tasksChanged"),
-        false,
-    );
+    assert.equal(api.broadcasts.length, 1);
     engine.stop();
 });
 

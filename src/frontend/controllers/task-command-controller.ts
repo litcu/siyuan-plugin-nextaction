@@ -11,7 +11,6 @@ type CommandProtyle = {
     block?: IProtyle["block"];
     protyle?: IProtyle;
     transaction?: Protyle["transaction"];
-    /** Kept for compatibility with older SiYuan editor instances. */
     wysiwygElement?: HTMLElement;
 };
 
@@ -247,9 +246,6 @@ export class TaskCommandController {
                     },
                 ],
             );
-        } else if (newHTML !== oldHTML) {
-            // Keep the fallback for older editor instances without the public transaction method.
-            nodeElement.dispatchEvent(new Event("input", { bubbles: true }));
         }
         if (blockId && newHTML !== oldHTML) {
             await this.waitForSlashCommandPersistence(blockId, slashCommand);

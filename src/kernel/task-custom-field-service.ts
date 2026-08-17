@@ -59,9 +59,9 @@ export class TaskCustomFieldService {
     }
 
     async purgeOrphanCustomField(key: string): Promise<{ cleared: number; failedBlockIds: string[] }> {
-        const fieldKey = key?.startsWith(ATTR_EXT_PREFIX) ? key.slice(ATTR_EXT_PREFIX.length) : key;
-        if (!fieldKey) throw new Error("key is required");
-        return this.clearCustomFieldValues(fieldKey);
+        if (!key) throw new Error("key is required");
+        if (key.startsWith(ATTR_EXT_PREFIX)) throw new Error("key must be a raw custom field key");
+        return this.clearCustomFieldValues(key);
     }
 
     validateAttrs(blockId: string, attrs: Record<string, string>): string | null {

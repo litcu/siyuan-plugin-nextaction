@@ -1,6 +1,6 @@
 // Plugin settings: type definition, defaults, and validation
 import { type ReminderSoundId, REMINDER_SOUND_IDS } from "./constants";
-import { migrateCustomFieldDefs, validateCustomFieldDefinitions, type CustomFieldDef } from "./custom-fields";
+import { validateCustomFieldDefinitions, type CustomFieldDef } from "./custom-fields";
 import { DEFAULT_MCP_SETTINGS, mergeMcpSettings, validateMcpSettings, type McpSettings } from "./mcp-settings";
 import type { AiFeatureId } from "./ai";
 import {
@@ -11,7 +11,7 @@ import {
 } from "./task-creation";
 
 export { DEFAULT_MCP_SETTINGS } from "./mcp-settings";
-export type { McpSettings, McpCreateTarget } from "./mcp-settings";
+export type { McpSettings } from "./mcp-settings";
 
 export type {
     CustomFieldDef,
@@ -123,19 +123,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
     },
 };
 
-// Prompts shipped before the configurable AI settings page.  They are
-// migrated only when the stored value exactly matches one of these defaults;
-// a user-written short prompt is preserved.
-const LEGACY_AI_PROMPTS: Record<AiFeatureId, string> = {
-    extractTasks: "从提供的笔记内容中识别真正可执行的任务和项目。保留来源块 ID；不要把背景、观点或资料当成任务。",
-    decomposeTask:
-        "把目标拆成少量、明确、可执行的子任务；第一项应是当前真正的下一步行动。使用 dependsOnIndexes 表示必要顺序。",
-    planMyDay: "从候选任务中挑选今天最值得加入 My Day 的任务。只返回建议加入的 blockId，不安排时间，不修改任务属性。",
-    review: "按 GTD 回顾分组分析任务。上下文中的 groups 保存本地分组与任务 ID 的映射，tasks 保存去重后的任务摘要；只返回每个分组的观察、风险和处理建议，不要重复返回任务 ID。指出积压、等待、将来/也许、逾期和缺少下一步行动的项目。只生成报告。",
-};
-
 export interface PluginSettings {
-    customFieldSchemaVersion: 2;
     defaultImportance: number;
     defaultEffort: number;
     semanticDateParsingEnabled: boolean;
@@ -180,7 +168,6 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
 };
 
 export const DEFAULT_SETTINGS: PluginSettings = {
-    customFieldSchemaVersion: 2,
     defaultImportance: 4,
     defaultEffort: 4,
     semanticDateParsingEnabled: true,
@@ -195,6 +182,42 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     taskCreationSettings: { ...DEFAULT_TASK_CREATION_SETTINGS },
     aiSettings: { prompts: { ...DEFAULT_AI_SETTINGS.prompts } },
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateExactKeys(value: unknown, expected: readonly string[], label: string): string | null {
+    if (!isRecord(value)) return `${label} must be an object`;
+    const actual = Object.keys(value).sort();
+    const wanted = [...expected].sort();
+    if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+        return `${label} must use the current settings structure`;
+    }
+    return null;
+}
+
+export function validateStoredSettings(value: unknown): string | null {
+    const topLevelError = validateExactKeys(value, Object.keys(DEFAULT_SETTINGS), "settings");
+    if (topLevelError) return topLevelError;
+    const settings = value as unknown as PluginSettings;
+    for (const [nested, expected, label] of [
+        [settings.priorityEngine, Object.keys(DEFAULT_PRIORITY_ENGINE), "priorityEngine"],
+        [settings.reminderSettings, Object.keys(DEFAULT_REMINDER_SETTINGS), "reminderSettings"],
+        [settings.mcpSettings, Object.keys(DEFAULT_MCP_SETTINGS), "mcpSettings"],
+        [settings.taskCreationSettings, Object.keys(DEFAULT_TASK_CREATION_SETTINGS), "taskCreationSettings"],
+        [settings.aiSettings, ["prompts"], "aiSettings"],
+        [settings.aiSettings?.prompts, Object.keys(DEFAULT_AI_SETTINGS.prompts), "aiSettings.prompts"],
+    ] as const) {
+        const error = validateExactKeys(nested, expected, label);
+        if (error) return error;
+    }
+    try {
+        return validateSettings(settings);
+    } catch (error: unknown) {
+        return error instanceof Error ? error.message : String(error);
+    }
+}
 
 export function validateSettings(settings: Partial<PluginSettings>): string | null {
     if (settings.semanticDateParsingEnabled !== undefined && typeof settings.semanticDateParsingEnabled !== "boolean") {
@@ -319,32 +342,9 @@ export function validateSettings(settings: Partial<PluginSettings>): string | nu
 }
 
 export function mergeSettings(base: PluginSettings, override: Partial<PluginSettings>): PluginSettings {
-    const migratedFields = migrateCustomFieldDefs(override.customFields ?? base.customFields).fields;
     const incomingPrompts: Partial<Record<AiFeatureId, string>> = override.aiSettings?.prompts ?? {};
     const mergedPrompts = { ...base.aiSettings.prompts, ...incomingPrompts };
-    for (const feature of Object.keys(LEGACY_AI_PROMPTS) as AiFeatureId[]) {
-        if (incomingPrompts[feature] === LEGACY_AI_PROMPTS[feature]) {
-            mergedPrompts[feature] = DEFAULT_AI_SETTINGS.prompts[feature];
-        }
-    }
-    const legacyMcp: Partial<McpSettings> = override.mcpSettings || {};
-    const incomingTaskCreation: Partial<TaskCreationSettings> = override.taskCreationSettings || {};
-    const migratedTaskCreation = {
-        ...incomingTaskCreation,
-        // Older versions stored these values under mcpSettings. Prefer the new
-        // general task-creation settings whenever they are present.
-        ...(incomingTaskCreation.defaultCreateTarget === undefined && legacyMcp.defaultCreateTarget !== undefined
-            ? { defaultCreateTarget: legacyMcp.defaultCreateTarget }
-            : {}),
-        ...(incomingTaskCreation.inboxDocumentId === undefined && legacyMcp.inboxDocumentId !== undefined
-            ? { inboxDocumentId: legacyMcp.inboxDocumentId }
-            : {}),
-        ...(incomingTaskCreation.dailyNoteNotebookId === undefined && legacyMcp.dailyNoteNotebookId !== undefined
-            ? { dailyNoteNotebookId: legacyMcp.dailyNoteNotebookId }
-            : {}),
-    };
     return {
-        customFieldSchemaVersion: 2,
         defaultImportance: override.defaultImportance ?? base.defaultImportance,
         defaultEffort: override.defaultEffort ?? base.defaultEffort,
         semanticDateParsingEnabled: override.semanticDateParsingEnabled ?? base.semanticDateParsingEnabled,
@@ -356,7 +356,14 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
         myDayDefaultViewMode: override.myDayDefaultViewMode ?? base.myDayDefaultViewMode,
         myDayDefaultDuration: override.myDayDefaultDuration ?? base.myDayDefaultDuration,
         lastReviewAt: override.lastReviewAt ?? base.lastReviewAt,
-        customFields: migratedFields,
+        customFields: (override.customFields ?? base.customFields).map((field) => ({
+            ...field,
+            scope:
+                field.scope.mode === "projectTree"
+                    ? { ...field.scope, projectIds: [...field.scope.projectIds] }
+                    : { ...field.scope },
+            ...(field.options ? { options: field.options.map((option) => ({ ...option })) } : {}),
+        })),
         reminderSettings: {
             ...base.reminderSettings,
             ...(override.reminderSettings ?? {}),
@@ -364,7 +371,7 @@ export function mergeSettings(base: PluginSettings, override: Partial<PluginSett
         mcpSettings: mergeMcpSettings(base.mcpSettings || DEFAULT_MCP_SETTINGS, override.mcpSettings),
         taskCreationSettings: mergeTaskCreationSettings(
             base.taskCreationSettings || DEFAULT_TASK_CREATION_SETTINGS,
-            migratedTaskCreation,
+            override.taskCreationSettings,
         ),
         aiSettings: {
             ...base.aiSettings,

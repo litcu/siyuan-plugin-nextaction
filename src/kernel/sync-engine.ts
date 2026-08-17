@@ -1,4 +1,4 @@
-import type { TaskCacheEntry, TaskChangeNotification, TaskChangeSetV2, TaskSnapshotV2 } from "../shared/types";
+import type { TaskCacheEntry, TaskChangeSetV2, TaskSnapshotV2 } from "../shared/types";
 import { BROADCAST_DEBOUNCE_MS } from "../shared/constants";
 import type { SiyuanApiPort } from "./siyuan-api";
 
@@ -35,7 +35,7 @@ export class SyncEngine implements TaskChangePublisher {
 
     constructor(
         private readonly api: SiyuanApiPort,
-        private readonly stateSource?: TaskSyncStateSource,
+        private readonly stateSource: TaskSyncStateSource,
     ) {
         this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
     }
@@ -76,7 +76,7 @@ export class SyncEngine implements TaskChangePublisher {
             schema: 2,
             streamId: this.streamId,
             revision: this.revision,
-            tasks: (this.stateSource?.getAll() || []).map(cloneTask),
+            tasks: this.stateSource.getAll().map(cloneTask),
         };
     }
 
@@ -102,17 +102,10 @@ export class SyncEngine implements TaskChangePublisher {
         const changedIds = Object.keys(this.pendingChanges);
         if (changedIds.length === 0 || this.pendingFromRevision === null) return;
 
-        const pendingChanges = this.pendingChanges;
         const fromRevision = this.pendingFromRevision;
         this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
         this.pendingFromRevision = null;
 
-        const changeTypes = Object.create(null) as Record<string, TaskChangeType>;
-        for (const blockId of changedIds) changeTypes[blockId] = pendingChanges[blockId];
-        const legacyNotification: TaskChangeNotification = { changedBlockIds: changedIds, changeTypes };
-        this.safeBroadcast("tasksChanged", legacyNotification);
-
-        if (!this.stateSource) return;
         const upserts: TaskCacheEntry[] = [];
         const deletedBlockIds: string[] = [];
         for (const blockId of changedIds) {
@@ -132,20 +125,16 @@ export class SyncEngine implements TaskChangePublisher {
         this.safeBroadcast("tasksChangedV2", notification);
     }
 
-    private safeBroadcast(
-        name: "tasksChanged" | "tasksChangedV2",
-        payload: TaskChangeNotification | TaskChangeSetV2,
-    ): void {
-        const operation = name === "tasksChanged" ? "broadcastChanges" : "tasksChangedV2";
+    private safeBroadcast(name: "tasksChangedV2", payload: TaskChangeSetV2): void {
         try {
             const broadcast = this.api.broadcast(name, payload);
             if (broadcast) {
                 void broadcast.catch((error: unknown) => {
-                    void this.api.log("error", `${operation} error: ${String(error)}`);
+                    void this.api.log("error", `tasksChangedV2 error: ${String(error)}`);
                 });
             }
         } catch (error: unknown) {
-            void this.api.log("error", `${operation} error: ${String(error)}`);
+            void this.api.log("error", `tasksChangedV2 error: ${String(error)}`);
         }
     }
 }

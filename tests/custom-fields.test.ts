@@ -6,7 +6,7 @@ import {
     decodeCustomFieldValue,
     encodeCustomFieldValue,
     isCustomFieldApplicable,
-    migrateCustomFieldDefs,
+    validateCustomFieldDefinition,
     validateCustomFieldDefinitions,
     type CustomFieldDef,
 } from "../src/shared/custom-fields.ts";
@@ -26,16 +26,13 @@ function field(type: CustomFieldDef["type"], extra: Partial<CustomFieldDef> = {}
     };
 }
 
-test("旧字段迁移为 V2，并将合法 Key 归一为小写", () => {
-    const result = migrateCustomFieldDefs([
-        { key: "delegatedTo", label: "Delegated to", type: "text" },
-        { key: "bad_key", label: "Broken", type: "text" },
-    ]);
-    assert.equal(result.fields[0].key, "delegatedto");
-    assert.equal(result.fields[0].status, "active");
-    assert.equal(result.fields[1].status, "archived");
-    assert.equal(result.fields[1].migrationIssue, "invalid-legacy-key");
-    assert.ok(result.issues.length >= 2);
+test("自定义字段只接受完整 V2 定义", () => {
+    assert.equal(validateCustomFieldDefinition(field("text")), null);
+    assert.match(validateCustomFieldDefinition({ key: "delegatedTo", type: "text" } as any) ?? "", /version/);
+    assert.match(
+        validateCustomFieldDefinition({ ...field("text"), legacyKey: "delegatedTo" } as any) ?? "",
+        /unknown properties/,
+    );
 });
 
 test("九种字段类型使用稳定的字符串存储格式", () => {
@@ -85,7 +82,9 @@ test("字段定义校验拒绝大写、下划线和重复 Key", () => {
     );
 });
 
-test("孤立字段清理兼容完整属性名", () => {
+test("孤立字段清理只接受诊断接口返回的裸字段键", () => {
     const source = readFileSync(new URL("../src/kernel/task-custom-field-service.ts", import.meta.url), "utf8");
-    assert.match(source, /key\?\.startsWith\(ATTR_EXT_PREFIX\) \? key\.slice\(ATTR_EXT_PREFIX\.length\) : key/);
+    const purgeMethod = source.match(/async purgeOrphanCustomField[\s\S]*?\n    \}/)?.[0] || "";
+    assert.match(purgeMethod, /key\.startsWith\(ATTR_EXT_PREFIX\).*raw custom field key/);
+    assert.doesNotMatch(purgeMethod, /key\.slice\(ATTR_EXT_PREFIX\.length\)/);
 });

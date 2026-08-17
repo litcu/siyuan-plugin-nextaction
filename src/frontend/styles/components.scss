@@ -466,23 +466,6 @@
     }
 }
 
-// Priority dot
-.na-priority-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid transparent;
-    cursor: pointer;
-    flex-shrink: 0;
-    vertical-align: middle;
-    transition: transform 0.15s;
-
-    &:hover {
-        transform: scale(1.3);
-    }
-}
-
 // Status checkbox — round version of the original strong-contrast design
 .na-status-checkbox {
     display: inline-flex;

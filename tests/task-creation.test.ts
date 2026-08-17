@@ -107,8 +107,7 @@ test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {
     assert.match(settings, /taskCreationSettings:\s*\{[\s\S]*defaultCreateTarget: taskCreationDefaultCreateTarget/);
     assert.match(general, /settingTaskCreationDefaultTarget/);
     assert.doesNotMatch(mcp, /settingMcpCreateTarget|mcpDefaultCreateTarget/);
-    assert.match(sharedSettings, /Older versions stored these values under mcpSettings/);
-    assert.match(sharedSettings, /incomingTaskCreation\.defaultCreateTarget === undefined/);
+    assert.doesNotMatch(sharedSettings, /legacyMcp|migratedTaskCreation|Older versions stored/);
 });
 
 test("文档选择器只使用思源搜索接口且不暴露 ID 输入", () => {

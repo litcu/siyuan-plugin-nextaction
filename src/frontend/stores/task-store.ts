@@ -1,5 +1,5 @@
 import { writable, derived } from "svelte/store";
-import type { TaskCacheEntry, TaskChangeNotification, MyDayState, PluginSettings } from "../../shared/types";
+import type { TaskCacheEntry, MyDayState, PluginSettings } from "../../shared/types";
 import { type KernelBridge } from "../kernel-bridge";
 import {
     STATUS_LIST,
@@ -83,15 +83,11 @@ export function createTaskStore() {
     let bridge: KernelBridge | null = null;
     let loadSeq = 0;
     let completedLoadSeq = 0;
-    let v1RefreshTimer: ReturnType<typeof setTimeout> | null = null;
     let completedReloadTimer: ReturnType<typeof setTimeout> | null = null;
-    let syncMode: "unknown" | "v1" | "v2" = "unknown";
     let syncStreamId = "";
     let syncRevision = 0;
     let handshakeInProgress = false;
-    let queuedV1Notifications: TaskChangeNotification[] = [];
     let queuedV2Notifications: unknown[] = [];
-    let v1NotificationChain = Promise.resolve();
 
     function getCurrentState(): TaskState {
         let currentState!: TaskState;
@@ -181,32 +177,9 @@ export function createTaskStore() {
         if (completedChanged) invalidateCompletedPage(true);
     }
 
-    function scheduleV1Refresh(): void {
-        if (v1RefreshTimer) clearTimeout(v1RefreshTimer);
-        v1RefreshTimer = setTimeout(() => {
-            v1RefreshTimer = null;
-            void loadTasks();
-        }, 2000);
-    }
-
-    async function applyV1Notification(notification: TaskChangeNotification): Promise<void> {
-        if (!bridge) return;
-        const deletedBlockIds = notification.changedBlockIds.filter(
-            (blockId) => notification.changeTypes[blockId] === "delete",
-        );
-        const upsertIds = notification.changedBlockIds.filter(
-            (blockId) => notification.changeTypes[blockId] !== "delete",
-        );
-        const entries = await Promise.all(upsertIds.map((blockId) => bridge!.getTask(blockId)));
-        commitTaskChanges(
-            entries.filter((entry): entry is TaskCacheEntry => Boolean(entry)),
-            deletedBlockIds,
-        );
-        scheduleV1Refresh();
-    }
-
     function requestV2Recovery(): void {
-        if (syncMode === "v1") syncMode = "unknown";
+        syncStreamId = "";
+        syncRevision = 0;
         void loadTasks();
     }
 
@@ -244,49 +217,18 @@ export function createTaskStore() {
         handshakeInProgress = true;
 
         try {
-            if (syncMode !== "v1") {
-                let rawSnapshot: unknown;
-                try {
-                    rawSnapshot = await bridge.getTaskSnapshotV2();
-                } catch (error: unknown) {
-                    if (syncMode === "v2") throw error;
-                    syncMode = "v1";
-                }
-
-                if (rawSnapshot !== undefined) {
-                    if (!isTaskSnapshotV2(rawSnapshot)) {
-                        rawSnapshot = await bridge.getTaskSnapshotV2();
-                    }
-                    if (!isTaskSnapshotV2(rawSnapshot)) throw new Error("Invalid task snapshot V2 payload");
-                    if (seq !== loadSeq) return;
-
-                    const collection = buildTaskCollection(rawSnapshot.tasks);
-                    syncMode = "v2";
-                    syncStreamId = rawSnapshot.streamId;
-                    syncRevision = rawSnapshot.revision;
-                    update((state) => ({ ...state, ...collection, loading: false, error: null }));
-                    handshakeInProgress = false;
-                    queuedV1Notifications = [];
-                    const queued = queuedV2Notifications;
-                    queuedV2Notifications = [];
-                    for (const notification of queued) applyV2Notification(notification);
-                    if (getCurrentState().showCompleted) invalidateCompletedPage(true);
-                    return;
-                }
-            }
-
-            const allTasks = await bridge.getAllTasks();
+            const rawSnapshot = await bridge.getTaskSnapshotV2();
+            if (!isTaskSnapshotV2(rawSnapshot)) throw new Error("Invalid task snapshot V2 payload");
             if (seq !== loadSeq) return;
-            const collection = buildTaskCollection(allTasks);
-            syncMode = "v1";
+
+            const collection = buildTaskCollection(rawSnapshot.tasks);
+            syncStreamId = rawSnapshot.streamId;
+            syncRevision = rawSnapshot.revision;
             update((state) => ({ ...state, ...collection, loading: false, error: null }));
             handshakeInProgress = false;
+            const queued = queuedV2Notifications;
             queuedV2Notifications = [];
-            const queued = queuedV1Notifications;
-            queuedV1Notifications = [];
-            for (const notification of queued) {
-                v1NotificationChain = v1NotificationChain.then(() => applyV1Notification(notification));
-            }
+            for (const notification of queued) applyV2Notification(notification);
             if (getCurrentState().showCompleted) invalidateCompletedPage(true);
         } catch (error: unknown) {
             console.error("[NextAction] loadTasks failed:", error);
@@ -414,49 +356,28 @@ export function createTaskStore() {
             }));
         },
 
-        applyChangeNotification(notification: TaskChangeNotification) {
-            if (syncMode === "v2") return;
-            if (handshakeInProgress || syncMode === "unknown") {
-                queuedV1Notifications.push(notification);
-                return;
-            }
-            v1NotificationChain = v1NotificationChain.then(() => applyV1Notification(notification));
-        },
-
         applyChangeSetV2(notification: unknown) {
-            if (handshakeInProgress || syncMode === "unknown") {
+            if (handshakeInProgress || !syncStreamId) {
                 queuedV2Notifications.push(notification);
                 if (!handshakeInProgress) void loadTasks();
-                return;
-            }
-            if (syncMode === "v1") {
-                queuedV2Notifications.push(notification);
-                requestV2Recovery();
                 return;
             }
             applyV2Notification(notification);
         },
 
         resetSync() {
-            syncMode = "unknown";
+            loadSeq++;
+            handshakeInProgress = false;
             syncStreamId = "";
             syncRevision = 0;
-            queuedV1Notifications = [];
             queuedV2Notifications = [];
-            if (v1RefreshTimer) {
-                clearTimeout(v1RefreshTimer);
-                v1RefreshTimer = null;
-            }
         },
 
         disposeSync() {
             loadSeq++;
             handshakeInProgress = false;
-            queuedV1Notifications = [];
             queuedV2Notifications = [];
-            if (v1RefreshTimer) clearTimeout(v1RefreshTimer);
             if (completedReloadTimer) clearTimeout(completedReloadTimer);
-            v1RefreshTimer = null;
             completedReloadTimer = null;
         },
     };

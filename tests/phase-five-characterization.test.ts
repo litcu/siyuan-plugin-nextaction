@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { DEFAULT_SETTINGS, mergeSettings } from "../src/shared/settings.ts";
+import { DEFAULT_SETTINGS, mergeSettings, validateStoredSettings } from "../src/shared/settings.ts";
 import { taskDetailDraftKey, type TaskDetailDraft } from "../src/frontend/utils/task-detail-draft.ts";
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -77,11 +77,11 @@ test("项目看板写入保持 NextActionApp 单一适配边界", () => {
     assert.match(app, /onTaskReorder=\{handleProjectTaskReorder\}/);
 });
 
-test("设置迁移保留默认值、旧 MCP 目标和用户 AI 提示词", () => {
+test("当前设置部分更新保留默认值、任务创建目标和用户 AI 提示词", () => {
     const merged = mergeSettings(DEFAULT_SETTINGS, {
         defaultImportance: 7,
-        mcpSettings: {
-            ...DEFAULT_SETTINGS.mcpSettings,
+        taskCreationSettings: {
+            ...DEFAULT_SETTINGS.taskCreationSettings,
             defaultCreateTarget: "daily_note",
         },
         aiSettings: {
@@ -96,6 +96,26 @@ test("设置迁移保留默认值、旧 MCP 目标和用户 AI 提示词", () =>
     assert.equal(merged.defaultEffort, DEFAULT_SETTINGS.defaultEffort);
     assert.equal(merged.taskCreationSettings.defaultCreateTarget, "daily_note");
     assert.equal(merged.aiSettings.prompts.review, "保留我的自定义回顾提示词");
+});
+
+test("持久化设置只接受当前完整结构", () => {
+    const current = mergeSettings(DEFAULT_SETTINGS, {
+        mcpSettings: { enabled: true, allowWrite: false },
+        taskCreationSettings: { ...DEFAULT_SETTINGS.taskCreationSettings, defaultCreateTarget: "daily_note" },
+    });
+    assert.equal(validateStoredSettings(current), null);
+    assert.match(validateStoredSettings({ ...current, taskCreationSettings: undefined }) ?? "", /object/);
+    assert.match(
+        validateStoredSettings({
+            ...current,
+            mcpSettings: { ...current.mcpSettings, defaultCreateTarget: "inbox" },
+        }) ?? "",
+        /current settings structure/,
+    );
+    assert.deepEqual(mergeSettings(DEFAULT_SETTINGS, current), current);
+    assert.match(source("../src/kernel.ts"), /incompatible saved settings, using defaults/);
+    const settingsSource = source("../src/shared/settings.ts");
+    assert.doesNotMatch(settingsSource, /LEGACY_AI_PROMPTS|customFieldSchemaVersion|legacyMcp/);
 });
 
 test("设置保存链当前由面板持久化、宿主执行后处理", () => {

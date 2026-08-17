@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url), "utf8");
 
 test("slash command cleanup uses SiYuan's update transaction path", () => {
+    // Regression: SiYuan 3.8+ cleanup must not fall back to the legacy input event.
     assert.match(
         source,
         /private async clearSlashCommand\(protyle: CommandProtyle, nodeElement: HTMLElement\): Promise<string>/,
@@ -14,6 +15,7 @@ test("slash command cleanup uses SiYuan's update transaction path", () => {
     assert.match(source, /protyle\.transaction\(\s*\[\s*\{[\s\S]*action: "update"/);
     assert.match(source, /data: oldHTML/);
     assert.match(source, /waitForSlashCommandPersistence\(blockId, slashCommand\)/);
+    assert.doesNotMatch(source, /dispatchEvent\(new Event\("input"/);
 });
 
 test("AI extraction slash callback uses the persisted cleanup helper", () => {

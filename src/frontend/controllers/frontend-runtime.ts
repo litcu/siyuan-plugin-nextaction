@@ -6,7 +6,7 @@ import { notifyInfo } from "../notify";
 import { destroyReminderStore, initReminderStore } from "../stores/reminder-store";
 import { taskStore } from "../stores/task-store";
 import { asI18nStrings } from "../../shared/i18n";
-import type { MyDayState, TaskChangeNotification } from "../../shared/types";
+import type { MyDayState } from "../../shared/types";
 
 const TASK_CALIBRATION_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -15,9 +15,6 @@ export class FrontendRuntime {
     private notificationHost?: NotificationHost;
     private calibrationTimer: ReturnType<typeof setInterval> | null = null;
     private disposed = false;
-    private readonly tasksChangedHandler = (...params: unknown[]) => {
-        taskStore.applyChangeNotification(params[0] as TaskChangeNotification);
-    };
     private readonly tasksChangedV2Handler = (...params: unknown[]) => {
         taskStore.applyChangeSetV2(params[0]);
     };
@@ -52,7 +49,6 @@ export class FrontendRuntime {
         void initReminderStore(this.plugin);
         this.notificationHost = new NotificationHost({ target: document.body, props: { i18n: this.plugin.i18n } });
         this.plugin.eventBus.on("kernel-plugin-state-change", this.kernelStateHandler);
-        this.plugin.kernel.rpc.bind("tasksChanged", this.tasksChangedHandler);
         this.plugin.kernel.rpc.bind("tasksChangedV2", this.tasksChangedV2Handler);
         this.plugin.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);
         this.calibrationTimer = setInterval(() => {
@@ -66,7 +62,6 @@ export class FrontendRuntime {
         if (this.disposed) return;
         this.disposed = true;
         if (this.bridge) {
-            this.plugin.kernel.rpc.unbind("tasksChanged", this.tasksChangedHandler);
             this.plugin.kernel.rpc.unbind("tasksChangedV2", this.tasksChangedV2Handler);
             this.plugin.kernel.rpc.unbind("myDayChanged", this.myDayChangedHandler);
         }

@@ -30,16 +30,9 @@ export class TaskRuntimeState {
     }
 
     updateSettings(partial: Partial<PluginSettings>): PluginSettings {
-        const normalized: Partial<PluginSettings> = {
-            ...partial,
-            customFieldSchemaVersion: 2,
-            customFields: partial.customFields
-                ? mergeSettings(DEFAULT_SETTINGS, partial).customFields
-                : partial.customFields,
-        };
-        const error = validateSettings(normalized);
+        const error = validateSettings(partial);
         if (error) throw new RpcContractError(error);
-        this.settings = mergeSettings(this.settings, normalized);
+        this.settings = mergeSettings(this.settings, partial);
         if (partial.priorityEngine) updatePriorityConfig(partial.priorityEngine);
         this.repository.updateSettings(this.settings);
         this.myDayManager.updateSettings(this.settings);

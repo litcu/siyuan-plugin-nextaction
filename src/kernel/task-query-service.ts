@@ -180,9 +180,6 @@ export class TaskQueryService {
             const hasTimeInPeriod = times.some((t) => t >= periodStart && t <= periodEnd);
             if (hasTimeInPeriod) {
                 completedInPeriod++;
-            } else if (times.length === 0) {
-                // na-completed 为空但 status=done（老数据），视为完成
-                completedInPeriod++;
             }
         }
 

@@ -303,7 +303,6 @@
 
     function buildSettings(): PluginSettings {
         return {
-            customFieldSchemaVersion: 2,
             defaultImportance,
             defaultEffort,
             semanticDateParsingEnabled,
@@ -341,11 +340,6 @@
             mcpSettings: {
                 enabled: mcpEnabled,
                 allowWrite: mcpAllowWrite,
-                // Retain legacy values for downgrade compatibility. Runtime
-                // creation now reads taskCreationSettings instead.
-                defaultCreateTarget: current.mcpSettings.defaultCreateTarget,
-                inboxDocumentId: current.mcpSettings.inboxDocumentId,
-                dailyNoteNotebookId: current.mcpSettings.dailyNoteNotebookId,
             },
             taskCreationSettings: {
                 defaultCreateTarget: taskCreationDefaultCreateTarget,

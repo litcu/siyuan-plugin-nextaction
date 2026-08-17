@@ -2,26 +2,14 @@ import type { ReminderItem, ReminderRelative, ReminderAbsolute } from "../../sha
 
 /**
  * Parse the raw `custom-na-reminder` attribute value into ReminderItem[].
- * Handles backward compatibility:
- *   ""         → []
- *   "enabled"  → []
- *   "[60,1440]" → [{type:"relative",minutes:60},{type:"relative",minutes:1440}]
- *   '[{"type":"relative","minutes":60}]' → as-is
+ * Empty values and an explicit empty array both represent no reminders.
  */
 export function parseReminderItems(raw: string): ReminderItem[] {
-    if (!raw || raw === "enabled" || raw === "[]") return [];
+    if (!raw || raw === "[]") return [];
     try {
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
 
-        // Old format: array of numbers → migrate
-        if (parsed.length > 0 && typeof parsed[0] === "number") {
-            return parsed
-                .filter((v: unknown) => typeof v === "number" && Number.isInteger(v) && v > 0)
-                .map((v: number) => ({ type: "relative" as const, minutes: v }));
-        }
-
-        // New format: array of ReminderItem
         const items: ReminderItem[] = [];
         for (const item of parsed) {
             if (!item || typeof item !== "object") continue;

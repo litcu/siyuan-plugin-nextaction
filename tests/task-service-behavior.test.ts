@@ -7,10 +7,12 @@ import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { SyncEngine } from "../src/kernel/sync-engine.ts";
 import {
     ATTR_DUE,
+    ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_REPEAT,
     ATTR_REPEAT_STATE,
     ATTR_STATUS,
+    ATTR_SORT,
     ATTR_TASK,
     RPC_ERROR_TIMEOUT,
 } from "../src/shared/constants.ts";
@@ -120,12 +122,37 @@ test("下一步行动排除已完成和阻塞任务，并按统一优先级排�
     assert.equal(service.getTask(highId)?.priority, "critical");
 });
 
+test("当期完成统计不计入缺少完成时间的任务", () => {
+    // Regression: done tasks without completion history must not count toward the current period.
+    const { cache, service } = setup();
+    const now = new Date();
+    const completed = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T12:00:00`;
+    cache.set(taskFactory("20260816123457-statnow", { status: "done", completed }));
+    cache.set(taskFactory("20260816123458-statold", { status: "done", completed: "" }));
+
+    assert.equal(service.getStatistics("month").summary.completedInPeriod, 1);
+});
+
+test("新建子任务显式写入父级和排序属性", async () => {
+    const { api, cache, service } = setup();
+    const parentId = "20260816123457-parentx";
+    const childId = "20260816123458-childxx";
+    api.addBlock(parentId, "d", "Parent").attrs[ATTR_TASK] = "2";
+    api.addBlock(childId, "p", "Child");
+    cache.set(taskFactory(parentId, { taskType: "2" }));
+
+    await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId });
+
+    assert.equal(api.blocks.get(childId)?.attrs[ATTR_PARENT], parentId);
+    assert.equal(api.blocks.get(childId)?.attrs[ATTR_SORT], "0");
+});
+
 test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功状态", async () => {
     const api = new FakeSiyuanApi();
     api.addBlock(ID, "p", "Write tests");
     api.failBroadcast = true;
     const cache = new CacheManager(api);
-    const publisher = new SyncEngine(api);
+    const publisher = new SyncEngine(api, cache);
     const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
     const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
     service.setIsReady(true);
@@ -134,7 +161,7 @@ test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功�
     await new Promise((resolve) => setTimeout(resolve, 150));
     assert.equal(cache.get(ID)?.blockId, result.blockId);
     assert.equal(
-        api.logs.some((log) => log.level === "error" && log.message.includes("broadcastChanges")),
+        api.logs.some((log) => log.level === "error" && log.message.includes("tasksChangedV2")),
         true,
     );
     publisher.stop();

@@ -36,13 +36,6 @@ export interface CustomFieldDef {
     scope: CustomFieldScope;
     showOnCard: boolean;
     options?: CustomFieldOption[];
-    migrationIssue?: string;
-    legacyKey?: string;
-}
-
-export interface CustomFieldMigrationResult {
-    fields: CustomFieldDef[];
-    issues: string[];
 }
 
 export type CustomFieldInput = string | number | boolean | string[] | null;
@@ -63,127 +56,78 @@ export function normalizeCustomFieldKey(key: string): string {
     return key.trim().toLowerCase();
 }
 
-function stableId(seed: string): string {
-    const safe = seed
-        .replace(/[^a-z0-9-]/gi, "-")
-        .toLowerCase()
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-    return `legacy-${safe || "field"}`;
-}
-
-function optionId(label: string, index: number): string {
-    return `option-${index + 1}-${stableId(label).slice(7) || "value"}`;
-}
-
-function normalizeOptions(raw: unknown): CustomFieldOption[] | undefined {
-    if (!Array.isArray(raw)) return undefined;
-    const seen = new Set<string>();
-    const result: CustomFieldOption[] = [];
-    for (let i = 0; i < raw.length; i++) {
-        const item = raw[i];
-        const source = isRecord(item) ? item : null;
-        const label =
-            typeof item === "string" ? item.trim() : typeof source?.label === "string" ? source.label.trim() : "";
-        if (!label) continue;
-        const requestedId = typeof source?.id === "string" ? source.id : optionId(label, i);
-        const id = requestedId || optionId(label, i);
-        if (seen.has(id)) continue;
-        seen.add(id);
-        result.push({
-            id,
-            label,
-            status: source?.status === "archived" ? "archived" : "active",
-        });
+export function validateCustomFieldDefinition(field: CustomFieldDef): string | null {
+    if (!isRecord(field) || field.version !== 2) return "custom field version must be 2";
+    const allowedKeys = new Set([
+        "version",
+        "id",
+        "key",
+        "label",
+        "description",
+        "type",
+        "status",
+        "scope",
+        "showOnCard",
+        "options",
+    ]);
+    if (Object.keys(field).some((key) => !allowedKeys.has(key))) return "custom field contains unknown properties";
+    if (typeof field.id !== "string" || !field.id) return "custom field id must not be empty";
+    if (typeof field.key !== "string") return "custom field key must be a string";
+    if (!isValidCustomFieldKey(field.key)) return "custom field key must use lowercase letters, digits and hyphens";
+    if (typeof field.label !== "string" || field.label.trim().length === 0)
+        return "custom field label must not be empty";
+    if (typeof field.description !== "string") return "custom field description must be a string";
+    if (!isCustomFieldType(field.type)) return "custom field type is invalid";
+    if (field.status !== "active" && field.status !== "archived") return "custom field status is invalid";
+    if (typeof field.showOnCard !== "boolean") return "custom field showOnCard must be boolean";
+    if (!isRecord(field.scope)) return "custom field scope is invalid";
+    if (!["all", "task", "project", "projectTree"].includes(String(field.scope.mode)))
+        return "custom field scope is invalid";
+    if (
+        field.scope.mode === "projectTree" &&
+        (!Array.isArray(field.scope.projectIds) ||
+            field.scope.projectIds.some((id: unknown) => typeof id !== "string" || !id))
+    ) {
+        return "projectTree scope contains an invalid project id";
     }
-    return result;
-}
-
-export function migrateCustomFieldDefs(raw: unknown): CustomFieldMigrationResult {
-    const fields: CustomFieldDef[] = [];
-    const issues: string[] = [];
-    if (!Array.isArray(raw)) return { fields, issues };
-
-    for (const item of raw) {
-        if (!isRecord(item)) continue;
-        const source = item;
-        const originalKey = typeof source.key === "string" ? source.key.trim() : "";
-        const normalizedKey = normalizeCustomFieldKey(originalKey);
-        const valid = isValidCustomFieldKey(normalizedKey);
-        const key = valid ? normalizedKey : stableId(originalKey);
-        const migrationIssue =
-            valid && originalKey !== normalizedKey
-                ? "legacy-key-normalized"
-                : !valid
-                  ? "invalid-legacy-key"
-                  : undefined;
-        if (migrationIssue) issues.push(`${originalKey || "<empty>"}:${migrationIssue}`);
-
-        const type = isCustomFieldType(source.type) ? source.type : "text";
-        const field: CustomFieldDef = {
-            version: 2,
-            id: typeof source.id === "string" && source.id ? source.id : stableId(originalKey || key),
-            key,
-            label: typeof source.label === "string" && source.label.trim() ? source.label.trim() : key,
-            description: typeof source.description === "string" ? source.description : "",
-            type,
-            status: source.status === "archived" || !valid ? "archived" : "active",
-            scope: normalizeScope(source.scope),
-            showOnCard: source.showOnCard !== false && valid,
-            options: normalizeOptions(source.options),
-            ...(migrationIssue ? { migrationIssue, legacyKey: originalKey } : {}),
-        };
-        fields.push(field);
+    const scopeKeys = Object.keys(field.scope);
+    if (
+        (field.scope.mode === "projectTree" &&
+            (scopeKeys.length !== 2 || !scopeKeys.includes("mode") || !scopeKeys.includes("projectIds"))) ||
+        (field.scope.mode !== "projectTree" && (scopeKeys.length !== 1 || scopeKeys[0] !== "mode"))
+    ) {
+        return "custom field scope contains unknown properties";
     }
-
-    const keyCounts = new Map<string, number>();
-    for (const field of fields) keyCounts.set(field.key, (keyCounts.get(field.key) || 0) + 1);
-    for (const field of fields) {
-        if ((keyCounts.get(field.key) || 0) > 1) {
-            field.status = "archived";
-            field.showOnCard = false;
-            field.migrationIssue = "duplicate-normalized-key";
-            issues.push(`${field.key}:duplicate-normalized-key`);
+    if (field.options !== undefined && !Array.isArray(field.options)) return "custom field options must be an array";
+    if (field.options) {
+        const optionIds = new Set<string>();
+        for (const option of field.options) {
+            if (
+                !isRecord(option) ||
+                Object.keys(option).length !== 3 ||
+                !Object.prototype.hasOwnProperty.call(option, "id") ||
+                !Object.prototype.hasOwnProperty.call(option, "label") ||
+                !Object.prototype.hasOwnProperty.call(option, "status") ||
+                typeof option.id !== "string" ||
+                !option.id ||
+                typeof option.label !== "string" ||
+                !option.label.trim() ||
+                (option.status !== "active" && option.status !== "archived") ||
+                optionIds.has(option.id)
+            ) {
+                return "custom field options must have unique ids, labels and valid statuses";
+            }
+            optionIds.add(option.id);
         }
     }
-    return { fields, issues };
-}
-
-function normalizeScope(scope: unknown): CustomFieldScope {
-    if (!isRecord(scope)) return { mode: "all" };
-    const value = scope;
-    if (value.mode === "task" || value.mode === "project") return { mode: value.mode };
-    if (value.mode === "projectTree") {
-        return {
-            mode: "projectTree",
-            projectIds: Array.isArray(value.projectIds)
-                ? value.projectIds.filter((id: unknown): id is string => typeof id === "string" && !!id)
-                : [],
-        };
-    }
-    return { mode: "all" };
-}
-
-export function validateCustomFieldDefinition(field: CustomFieldDef): string | null {
-    if (!field || field.version !== 2) return "custom field version must be 2";
-    if (!isValidCustomFieldKey(field.key)) return "custom field key must use lowercase letters, digits and hyphens";
-    if (!field.label || field.label.trim().length === 0) return "custom field label must not be empty";
-    if (!CUSTOM_FIELD_TYPES.includes(field.type)) return "custom field type is invalid";
     if (field.type === "singleSelect" || field.type === "multiSelect") {
         if (!field.options || field.options.length === 0) return "select custom fields require at least one option";
-        const ids = new Set<string>();
-        for (const option of field.options) {
-            if (!option.id || ids.has(option.id) || !option.label.trim())
-                return "custom field options must have unique ids and labels";
-            ids.add(option.id);
-        }
     }
-    if (field.scope.mode === "projectTree" && field.scope.projectIds.some((id) => !id))
-        return "projectTree scope contains an invalid project id";
     return null;
 }
 
-export function validateCustomFieldDefinitions(fields: CustomFieldDef[]): string | null {
+export function validateCustomFieldDefinitions(fields: unknown): string | null {
+    if (!Array.isArray(fields)) return "customFields must be an array";
     const keys = new Set<string>();
     const ids = new Set<string>();
     for (const field of fields) {

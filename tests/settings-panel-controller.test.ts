@@ -18,12 +18,13 @@ function deferred<T>() {
     return { promise, resolve };
 }
 
-test("加载统一复用设置合并并迁移旧 MCP 创建目标", () => {
+test("加载当前设置结构并保持任务创建目标", () => {
     const model = controller();
     model.beginLoad();
     const loaded = model.load({
+        ...DEFAULT_SETTINGS,
         defaultImportance: 7,
-        mcpSettings: { ...DEFAULT_SETTINGS.mcpSettings, defaultCreateTarget: "daily_note" },
+        taskCreationSettings: { ...DEFAULT_SETTINGS.taskCreationSettings, defaultCreateTarget: "daily_note" },
     });
     assert.equal(loaded.defaultImportance, 7);
     assert.equal(loaded.defaultEffort, DEFAULT_SETTINGS.defaultEffort);

@@ -24,6 +24,19 @@ test("前端直接引用的 i18n 键均存在", () => {
     assert.deepEqual([...missing].sort(), []);
 });
 
+test("翻译资源不存在零引用键", () => {
+    // Regression: obsolete UI translations must be removed together with their callers.
+    const sourceRoot = fileURLToPath(new URL("../src/", import.meta.url));
+    const sources: string[] = [];
+    for (const relativePath of readdirSync(sourceRoot, { recursive: true }) as string[]) {
+        if (![".ts", ".svelte"].includes(extname(relativePath))) continue;
+        sources.push(readFileSync(join(sourceRoot, relativePath), "utf8"));
+    }
+    const combined = sources.join("\n");
+    const unused = Object.keys(en).filter((key) => !new RegExp("\\b" + key + "\\b").test(combined));
+    assert.deepEqual(unused, []);
+});
+
 test("AI、提醒和共享控件的新增文案提供双语翻译", () => {
     const expected = {
         aiReviewOverdue: ["Overdue", "逾期"],

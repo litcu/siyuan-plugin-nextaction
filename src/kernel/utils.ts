@@ -83,33 +83,20 @@ export function validateTaskAttrs(attrs: Record<string, string>): string | null 
                     if (parsed.length > 7) {
                         return `Invalid attribute value for ${key}: array length must be <= 7`;
                     }
-                    // Old format: array of numbers — still accepted
-                    if (parsed.length > 0 && typeof parsed[0] === "number") {
-                        for (const item of parsed) {
-                            if (!Number.isInteger(item) || item < 0) {
-                                return `Invalid attribute value for ${key}: array items must be non-negative integers`;
-                            }
+                    for (const item of parsed) {
+                        if (!item || typeof item !== "object") {
+                            return `Invalid attribute value for ${key}: array items must be objects`;
                         }
-                    } else {
-                        // New format: array of ReminderItem objects
-                        for (const item of parsed) {
-                            if (!item || typeof item !== "object") {
-                                return `Invalid attribute value for ${key}: array items must be objects`;
+                        if (item.type === "relative") {
+                            if (!Number.isInteger(item.minutes) || item.minutes < 1) {
+                                return `Invalid attribute value for ${key}: relative.minutes must be positive integer`;
                             }
-                            if (item.type === "relative") {
-                                if (!Number.isInteger(item.minutes) || item.minutes < 1) {
-                                    return `Invalid attribute value for ${key}: relative.minutes must be positive integer`;
-                                }
-                            } else if (item.type === "absolute") {
-                                if (
-                                    typeof item.time !== "string" ||
-                                    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)
-                                ) {
-                                    return `Invalid attribute value for ${key}: absolute.time must be YYYY-MM-DDTHH:mm`;
-                                }
-                            } else {
-                                return `Invalid attribute value for ${key}: unknown type "${item.type}"`;
+                        } else if (item.type === "absolute") {
+                            if (typeof item.time !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.time)) {
+                                return `Invalid attribute value for ${key}: absolute.time must be YYYY-MM-DDTHH:mm`;
                             }
+                        } else {
+                            return `Invalid attribute value for ${key}: unknown type "${item.type}"`;
                         }
                     }
                 } catch {

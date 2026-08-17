@@ -7,7 +7,13 @@ import { TaskService } from "./kernel/task-service";
 import { TaskRepository } from "./kernel/task-repository";
 import { registerRpcMethods } from "./kernel/rpc-server";
 import { MyDayManager } from "./kernel/my-day-manager";
-import { DEFAULT_SETTINGS, mergeSettings, validateSettings, type PluginSettings } from "./shared/settings";
+import {
+    DEFAULT_SETTINGS,
+    mergeSettings,
+    validateSettings,
+    validateStoredSettings,
+    type PluginSettings,
+} from "./shared/settings";
 import { McpToolManager } from "./kernel/mcp-tool-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
@@ -141,10 +147,13 @@ class NextActionKernelPlugin {
     private async loadSettings(): Promise<PluginSettings> {
         try {
             const data = await this.siyuan.storage.get("settings.json");
-            const saved = (await data.json()) as Partial<PluginSettings>;
-            if (saved && typeof saved === "object") return mergeSettings(DEFAULT_SETTINGS, saved);
-        } catch (_error) {
-            // First run or unreadable legacy settings: use defaults.
+            const saved = (await data.json()) as unknown;
+            const error = validateStoredSettings(saved);
+            if (!error) return mergeSettings(DEFAULT_SETTINGS, saved as PluginSettings);
+            await this.siyuan.logger.warn("loadSettings: incompatible saved settings, using defaults: " + error);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            await this.siyuan.logger.warn("loadSettings: unreadable saved settings, using defaults: " + message);
         }
         return mergeSettings(DEFAULT_SETTINGS, {});
     }

@@ -158,27 +158,10 @@ export class CacheManager {
 
         // Step 3: Atomically replace the primary cache and relationship indexes.
         this.replaceCache(newCache);
-        // na-sort 迁移：为 sort=-1 的现有子任务分配间距编号
-        this.migrateSortValues();
     }
 
     get(blockId: string): TaskCacheEntry | undefined {
         return this.cache[blockId];
-    }
-
-    private migrateSortValues(): void {
-        const parents = new Set<string>();
-        for (const entry of Object.values(this.cache) as TaskCacheEntry[]) {
-            if (entry.parentId) parents.add(entry.parentId);
-        }
-        for (const parentId of parents) {
-            const children = this.getByParent(parentId).filter((c) => c.sort === -1);
-            if (children.length === 0) continue;
-            children.sort((a, b) => a.blockId.localeCompare(b.blockId));
-            for (let i = 0; i < children.length; i++) {
-                children[i].sort = i * 10000;
-            }
-        }
     }
 
     getAll(): TaskCacheEntry[] {
