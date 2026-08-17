@@ -11,6 +11,8 @@ import {
 } from "../shared/constants";
 
 const ERROR_MESSAGE_MAP: [RegExp, string][] = [
+    [/MCP inbox document is required/i, "errMcpInboxDocumentRequired"],
+    [/Daily note notebook is required/i, "errMcpDailyNoteNotebookRequired"],
     [/cannot depend on ancestor/i, "errDepAncestor"],
     [/due date must not be earlier than start/i, "dueBeforeStart"],
     [/invalid repeat freq/i, "errInvalidRepeatFreq"],

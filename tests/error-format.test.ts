@@ -25,3 +25,35 @@ test("用户操作错误区分 RPC、传输与普通领域消息", () => {
     assert.equal(formatOperationError(new Error("供应商响应解析失败"), i18n), "供应商响应解析失败");
     assert.equal(formatOperationError({}, i18n), "内部错误");
 });
+
+test("MCP 写入目标缺失时前端显示具体配置指引", () => {
+    const i18n = {
+        errInvalidParams: "参数无效",
+        errMcpInboxDocumentRequired: "请先配置收件箱文档",
+        errMcpDailyNoteNotebookRequired: "请先配置日记本",
+    };
+
+    // Regression: 目标缺失的具体 RPC 消息曾被通用“参数无效”覆盖。
+    assert.equal(
+        formatOperationError(
+            {
+                name: "RpcCallError",
+                code: RPC_ERROR_INVALID_PARAMS,
+                message: "MCP inbox document is required",
+            },
+            i18n,
+        ),
+        "请先配置收件箱文档",
+    );
+    assert.equal(
+        formatOperationError(
+            {
+                name: "RpcCallError",
+                code: RPC_ERROR_INVALID_PARAMS,
+                message: "Daily note notebook is required",
+            },
+            i18n,
+        ),
+        "请先配置日记本",
+    );
+});

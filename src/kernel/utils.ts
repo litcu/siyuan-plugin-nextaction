@@ -16,6 +16,7 @@ import {
 } from "../shared/constants";
 import { isBlockId, isBlockIdPipe } from "../shared/block-id";
 import type { RpcFailure } from "../shared/rpc-methods";
+import { McpToolError } from "./mcp-tool-error";
 import { getDefaultSiyuanApi, ProductionSiyuanApi, setDefaultSiyuanApi } from "./siyuan-api";
 import type * as kernel from "siyuan/kernel";
 
@@ -119,11 +120,27 @@ const KNOWN_ERROR_CODES = new Set([
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
 ]);
 
+const MCP_INVALID_PARAMS_CODES = new Set([
+    "INVALID_INPUT",
+    "TARGET_NOT_CONFIGURED",
+    "TARGET_NOT_DOCUMENT",
+    "TARGET_NOT_FOUND",
+    "TARGET_UNSUPPORTED",
+]);
+
 export function rpcError(code: number, message: string): RpcFailure {
     return { _rpcError: { code, message } };
 }
 
 export function errorToRpcError(error: unknown): RpcFailure {
+    if (error instanceof McpToolError) {
+        if (error.mcpCode === "NOT_READY") return rpcError(RPC_ERROR_NOT_READY, error.detail);
+        if (error.mcpCode === "TASK_NOT_FOUND") return rpcError(RPC_ERROR_TASK_NOT_FOUND, error.detail);
+        if (MCP_INVALID_PARAMS_CODES.has(error.mcpCode)) {
+            return rpcError(RPC_ERROR_INVALID_PARAMS, error.detail);
+        }
+        return rpcError(RPC_ERROR_INTERNAL, "Internal error");
+    }
     const candidate = error && typeof error === "object" ? (error as { code?: unknown; message?: unknown }) : null;
     const code =
         typeof candidate?.code === "number" && KNOWN_ERROR_CODES.has(candidate.code)

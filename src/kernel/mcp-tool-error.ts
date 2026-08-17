@@ -7,11 +7,13 @@ import {
 
 export class McpToolError extends Error {
     readonly mcpCode: string;
+    readonly detail: string;
 
     constructor(code: string, message: string) {
         super(`NEXTACTION_${code}: ${message}`);
         this.name = "McpToolError";
         this.mcpCode = code;
+        this.detail = message;
     }
 }
 

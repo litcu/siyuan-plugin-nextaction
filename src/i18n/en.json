@@ -422,6 +422,8 @@
     "removeSelection": "Remove selection",
     "errInvalidParams": "Invalid parameters",
     "errInternal": "Internal error",
+    "errMcpInboxDocumentRequired": "Configure an Inbox document under General > Task creation before enabling MCP write access.",
+    "errMcpDailyNoteNotebookRequired": "Configure a daily note notebook under General > Task creation before enabling MCP write access.",
     "errNotTextBlock": "Only text blocks can be converted to tasks",
     "errProjectRequiresDocument": "Only document blocks can be converted to projects",
     "errTaskNotFound": "Task not found",
