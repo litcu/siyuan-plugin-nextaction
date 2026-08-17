@@ -370,6 +370,16 @@
             );
             syncControllerState();
         }
+        try {
+            mcpStatus = await bridge.getMcpStatus();
+        } catch (e: unknown) {
+            console.error("[NextAction] MCP status refresh after settings save failed:", e);
+            controller.reportPostSaveError(
+                i18n?.settingsSavedMcpRefreshFailed ||
+                    "Settings were saved, but MCP tool status could not be refreshed. Retry or reopen settings.",
+            );
+            syncControllerState();
+        }
     }
 
     function requestDraftAction(action: SettingsAction, title: string, message: string, apply: () => void) {

@@ -51,6 +51,15 @@ test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
     assert.match(mcpSettingsPageSource, /settingMcpBatchOperations/);
 });
 
+test("设置保存后立即刷新 MCP 工具清单", () => {
+    const handleSaveStart = settingsPanelSource.indexOf("async function handleSave()");
+    const handleSaveEnd = settingsPanelSource.indexOf("function requestDraftAction", handleSaveStart);
+    const handleSaveSource = settingsPanelSource.slice(handleSaveStart, handleSaveEnd);
+
+    // Regression: 启用 MCP 并保存后，工具清单曾保留打开面板时的空状态直到重新打开设置。
+    assert.match(handleSaveSource, /if \(!result\) return;[\s\S]*?mcpStatus = await bridge\.getMcpStatus\(\)/);
+});
+
 test("MCP 提供统一的批量 CRUD，并移除重复的单项和状态工具", () => {
     assert.match(executorSource, /create_tasks/);
     assert.match(executorSource, /get_tasks/);

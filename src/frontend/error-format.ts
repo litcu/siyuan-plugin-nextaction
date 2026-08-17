@@ -11,8 +11,8 @@ import {
 } from "../shared/constants";
 
 const ERROR_MESSAGE_MAP: [RegExp, string][] = [
-    [/MCP inbox document is required/i, "errMcpInboxDocumentRequired"],
-    [/Daily note notebook is required/i, "errMcpDailyNoteNotebookRequired"],
+    [/(?:MCP )?inbox document is (?:required|not configured)/i, "errMcpInboxDocumentRequired"],
+    [/Daily note notebook is (?:required|not configured)/i, "errMcpDailyNoteNotebookRequired"],
     [/cannot depend on ancestor/i, "errDepAncestor"],
     [/due date must not be earlier than start/i, "dueBeforeStart"],
     [/invalid repeat freq/i, "errInvalidRepeatFreq"],
@@ -38,7 +38,6 @@ const ERROR_MESSAGE_MAP: [RegExp, string][] = [
 ];
 
 const ERROR_CODE_MAP: Record<number, string> = {
-    [RPC_ERROR_INVALID_PARAMS]: "errInvalidParams",
     [RPC_ERROR_TASK_NOT_FOUND]: "errTaskNotFound",
     [RPC_ERROR_CIRCULAR_REF]: "errCircularRef",
     [RPC_ERROR_DEP_CYCLE]: "errDepCycle",
@@ -50,6 +49,22 @@ const ERROR_CODE_MAP: Record<number, string> = {
 };
 
 export type I18nRecord = Record<string, string> | null | undefined;
+
+const VALIDATION_MESSAGE_MAP: [RegExp, string][] = [
+    [/defaultImportance must be integer 1-7/i, "settingDefaultImportanceDesc"],
+    [/defaultEffort must be integer 1-7/i, "settingDefaultEffortDesc"],
+    [/dueWeight.*must equal 1\.0/i, "settingWeightDistributionDesc"],
+    [/dueDecayTau must be 1-30/i, "errDueDecayTauRange"],
+    [/startHorizon must be 1-60/i, "errStartHorizonRange"],
+    [/effortScale must be 0-0\.5/i, "errEffortScaleRange"],
+    [/startPreviewDays must be integer 0-14/i, "errStartPreviewDaysRange"],
+    [/myDayResetHour must be integer 0-23/i, "settingMyDayResetHourDesc"],
+    [/myDayDefaultViewMode must be/i, "errMyDayViewModeInvalid"],
+    [/myDayDefaultDuration must be integer 15-480/i, "errMyDayDurationRange"],
+    [/custom field key must use lowercase/i, "customFieldKeyInvalid"],
+    [/custom field key must be unique/i, "customFieldKeyDuplicate"],
+    [/custom field label must not be empty/i, "customFieldLabelRequired"],
+];
 
 export function formatError(error: unknown): string {
     if (error instanceof Error) return error.message;
@@ -68,8 +83,29 @@ export function formatRpcError(error: unknown, i18n: I18nRecord): string {
         if (pattern.test(message)) return i18n?.[key] || message;
     }
     const code = Number(record?.code ?? nested?.code);
+    if (code === RPC_ERROR_INVALID_PARAMS) {
+        const fallback = i18n?.errInvalidParams || "Invalid parameters";
+        const detail = message.trim();
+        if (
+            detail &&
+            detail !== "[object Object]" &&
+            !/^undefined|null$/i.test(detail) &&
+            !/^invalid (?:params|parameters)$/i.test(detail)
+        ) {
+            const template = i18n?.errInvalidParamsDetail || `${fallback}: {message}`;
+            return template.replace("{message}", detail);
+        }
+        return fallback;
+    }
     const key = ERROR_CODE_MAP[code];
     return key ? i18n?.[key] || message || key : message;
+}
+
+export function formatValidationError(message: string, i18n: I18nRecord): string {
+    for (const [pattern, key] of VALIDATION_MESSAGE_MAP) {
+        if (pattern.test(message)) return i18n?.[key] || message;
+    }
+    return message;
 }
 
 export function formatOperationError(error: unknown, i18n: I18nRecord): string {
