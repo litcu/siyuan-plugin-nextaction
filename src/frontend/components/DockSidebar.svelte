@@ -7,7 +7,9 @@
     import { showTaskContextMenu } from "./task-context-menu";
     import { showStatusMenu } from "../utils";
     import { Dialog } from "siyuan";
+    import { notifyOperationError } from "../notify";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
+    import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
     import type { TaskCacheEntry } from "../../shared/types";
     import { get } from "svelte/store";
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
@@ -20,6 +22,18 @@
 
     type DockTab = "nextAction" | "myDay" | "inbox";
     let activeTab: DockTab = "nextAction";
+
+    function openCreateChild(task: TaskCacheEntry) {
+        openCreateTaskDialog({
+            bridge,
+            i18n,
+            parentTask: task,
+            onCreated: (createdTask) => {
+                taskStore.applyUpdate(createdTask);
+                void taskStore.loadTasks();
+            },
+        }).catch((error) => notifyOperationError(error, i18n));
+    }
 
     const tabs: { id: DockTab; label: string }[] = [
         { id: "nextAction", label: "" },
@@ -70,6 +84,7 @@
                         bridge,
                         i18n,
                         dialogMode: true,
+                        onCreateChild: openCreateChild,
                         onSave: (updated: TaskCacheEntry) => {
                             taskStore.applyUpdate(updated);
                         },

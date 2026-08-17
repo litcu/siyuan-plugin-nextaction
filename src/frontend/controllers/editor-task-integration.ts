@@ -10,6 +10,7 @@ import { normalizePriority, PRIORITY_LIST } from "../constants";
 import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
+import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
 import type { TaskCommandController } from "./task-command-controller";
 
 type TaskDetailDialog = Dialog & {
@@ -27,6 +28,18 @@ export class EditorTaskIntegration {
         private readonly getBridge: () => KernelBridge,
         private readonly commands: TaskCommandController,
     ) {}
+
+    private openCreateChildDialog = (parentTask: TaskCacheEntry) => {
+        openCreateTaskDialog({
+            bridge: this.getBridge(),
+            i18n: this.i18n,
+            parentTask,
+            onCreated: (createdTask) => {
+                taskStore.applyUpdate(createdTask);
+                void taskStore.loadTasks();
+            },
+        }).catch((error) => notifyOperationError(error, this.plugin.i18n));
+    };
 
     /**
      * Handle clicks on the ::before status checkbox in the editor.
@@ -269,6 +282,7 @@ export class EditorTaskIntegration {
                         bridge: this.getBridge(),
                         i18n: this.i18n,
                         dialogMode: true,
+                        onCreateChild: this.openCreateChildDialog,
                         onSave: (updated: TaskCacheEntry) => {
                             taskStore.applyUpdate(updated);
                         },

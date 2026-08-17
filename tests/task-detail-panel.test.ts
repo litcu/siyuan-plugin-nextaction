@@ -7,6 +7,8 @@ const detail = source("../src/frontend/components/TaskDetail.svelte");
 const shell = source("../src/frontend/ui/NaDialogShell.svelte");
 const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
 const app = source("../src/frontend/components/NextActionApp.svelte");
+const dock = source("../src/frontend/components/DockSidebar.svelte");
+const editorIntegration = source("../src/frontend/controllers/editor-task-integration.ts");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
 const stateController = source("../src/frontend/controllers/task-detail-controller.ts");
 const stylesheet = ["../src/frontend/styles/app-shell.scss", "../src/frontend/styles/components.scss"]
@@ -110,6 +112,14 @@ test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /<NaSearchSelect\s+multi=\{true\}\s+bind:selected=\{depends\}/);
     assert.match(detail, /bind:value=\{depMode\}/);
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
+});
+
+// Regression: Dock 和编辑器任务弹窗曾显示新建子任务按钮，却未提供点击回调。
+test("任务属性弹窗的新建子任务按钮接通创建回调", () => {
+    assert.match(dock, /onCreateChild:\s*openCreateChild/);
+    assert.match(editorIntegration, /onCreateChild:\s*this\.openCreateChildDialog/);
+    assert.match(dock, /openCreateTaskDialog\(\{[\s\S]*parentTask:\s*task/);
+    assert.match(editorIntegration, /openCreateTaskDialog\(\{[\s\S]*parentTask/);
 });
 
 test("极窄布局无横向溢出", () => {
