@@ -64,7 +64,7 @@ export type ToolDefinition = {
     title: string;
     description: string;
     inputSchema: Record<string, unknown>;
-    handler: (input: Record<string, any>) => any | Promise<any>;
+    handler: (input: Record<string, unknown>) => unknown | Promise<unknown>;
 };
 
 const ID_SCHEMA = { type: "string", description: "SiYuan block ID or siyuan://blocks/<id> link" };
@@ -126,7 +126,7 @@ export class McpToolExecutor {
 
     createHandler(name: McpToolName) {
         const handler = this.getCatalog().get(name).handler;
-        return async (input: Record<string, any> = {}) => {
+        return async (input: Record<string, unknown> = {}) => {
             const started = Date.now();
             try {
                 if (!this.settings.mcpSettings.enabled) {
@@ -142,7 +142,7 @@ export class McpToolExecutor {
                     `MCP tool [${name}] success duration=${Date.now() - started}ms${this.affectedIds(result)}`,
                 );
                 return result;
-            } catch (error: any) {
+            } catch (error) {
                 const normalized = this.normalizeError(error);
                 await this.siyuan.logger.warn(
                     `MCP tool [${name}] failed duration=${Date.now() - started}ms error=${normalized.message}`,
@@ -152,9 +152,9 @@ export class McpToolExecutor {
         };
     }
 
-    private affectedIds(result: any): string {
+    private affectedIds(result: unknown): string {
         const ids = new Set<string>();
-        const collect = (value: any, depth: number) => {
+        const collect = (value: unknown, depth: number) => {
             if (!value || depth > 3) return;
             if (typeof value === "string") {
                 const id = extractBlockId(value);
@@ -166,7 +166,8 @@ export class McpToolExecutor {
                 return;
             }
             if (typeof value === "object") {
-                for (const key of ["id", "blockId", "task", "items", "results"]) collect(value[key], depth + 1);
+                const record = value as Record<string, unknown>;
+                for (const key of ["id", "blockId", "task", "items", "results"]) collect(record[key], depth + 1);
             }
         };
         collect(result, 0);
@@ -210,8 +211,8 @@ export class McpToolExecutor {
                 task,
                 new Map(all.map((item) => [item.blockId, item])),
             );
-        } catch (error: any) {
-            throw new McpToolError("INVALID_INPUT", String(error?.message || error));
+        } catch (error) {
+            throw new McpToolError("INVALID_INPUT", error instanceof Error ? error.message : String(error));
         }
     }
 
@@ -301,9 +302,11 @@ export class McpToolExecutor {
                         );
                     }
                     if (Array.isArray(input.priorities) && input.priorities.length) {
-                        tasks = tasks.filter((task) => input.priorities.includes(task.priority));
+                        const priorities = input.priorities;
+                        tasks = tasks.filter((task) => priorities.includes(task.priority));
                     }
-                    const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 20)));
+                    const rawLimit = typeof input.limit === "number" ? input.limit : 20;
+                    const limit = Math.min(100, Math.max(1, Math.trunc(rawLimit)));
                     const ids = new Set(tasks.map((task) => task.blockId));
                     return {
                         items: tasks
@@ -372,7 +375,7 @@ export class McpToolExecutor {
                     },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, (item) => this.createTask(item)),
+                handler: (input) => this.runBatch(input.items, (item: CreateTaskInput) => this.createTask(item)),
             },
             update_tasks: {
                 title: "NextAction · Update tasks",
@@ -395,7 +398,8 @@ export class McpToolExecutor {
                     },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, (item) => this.updateTask(item)),
+                handler: (input) =>
+                    this.runBatch(input.items, (item: Record<string, unknown>) => this.updateTask(item)),
             },
             delete_tasks: {
                 title: "NextAction · Delete tasks",
@@ -439,7 +443,8 @@ export class McpToolExecutor {
                     },
                     required: ["items"],
                 },
-                handler: (input) => this.runBatch(input.items, (item) => this.convertBlock(item)),
+                handler: (input) =>
+                    this.runBatch(input.items, (item: Record<string, unknown>) => this.convertBlock(item)),
             },
             update_my_day: {
                 title: "NextAction · Update My Day",
@@ -466,7 +471,9 @@ export class McpToolExecutor {
                     required: ["items"],
                 },
                 handler: async (input) => {
-                    const batch = await this.runBatch(input.items, (item) => this.setMyDay(item));
+                    const batch = await this.runBatch(input.items, (item: Record<string, unknown>) =>
+                        this.setMyDay(item),
+                    );
                     return { ...batch, myDay: await this.enrichMyDay(await this.taskService.getMyDay()) };
                 },
             },
@@ -558,15 +565,15 @@ export class McpToolExecutor {
         };
     }
 
-    private async runBatch(
+    private async runBatch<T = unknown, R = unknown>(
         values: unknown,
-        operation: (item: any, index: number) => any | Promise<any>,
+        operation: (item: T, index: number) => R | Promise<R>,
         requireObject = true,
     ) {
         if (!Array.isArray(values) || values.length === 0 || values.length > MAX_MCP_BATCH_SIZE) {
             throw new McpToolError("INVALID_INPUT", `items must contain 1-${MAX_MCP_BATCH_SIZE} operations`);
         }
-        const results: Array<Record<string, any>> = [];
+        const results: Array<Record<string, unknown>> = [];
         for (let index = 0; index < values.length; index++) {
             const item = values[index];
             if (requireObject && (!item || typeof item !== "object" || Array.isArray(item))) {
@@ -578,8 +585,8 @@ export class McpToolExecutor {
                 continue;
             }
             try {
-                results.push({ index, success: true, result: await operation(item, index) });
-            } catch (error: any) {
+                results.push({ index, success: true, result: await operation(item as T, index) });
+            } catch (error) {
                 const normalized = this.normalizeError(error);
                 results.push({
                     index,
@@ -600,7 +607,7 @@ export class McpToolExecutor {
         };
     }
 
-    private async getTasks(input: Record<string, any>) {
+    private async getTasks(input: Record<string, unknown>) {
         const relations = input.includeRelations === undefined ? [] : input.includeRelations;
         if (!Array.isArray(relations) || relations.some((value) => value !== "parent" && value !== "children")) {
             throw new McpToolError("INVALID_INPUT", "includeRelations may only contain parent and children");
@@ -612,7 +619,7 @@ export class McpToolExecutor {
             input.ids,
             (value) => {
                 const task = this.requireTask(value);
-                const result: Record<string, any> = {
+                const result: Record<string, unknown> = {
                     task: taskToMcpDto(task, this.fields(), nextIds.has(task.blockId)),
                 };
                 if (includeParent) {
@@ -689,7 +696,7 @@ export class McpToolExecutor {
         return this.createTask(input);
     }
 
-    async convertTaskForPlugin(input: Record<string, any>) {
+    async convertTaskForPlugin(input: Record<string, unknown>) {
         return this.convertBlock(input);
     }
 
@@ -714,14 +721,14 @@ export class McpToolExecutor {
         return this.adaptTaskCreationOutcome(outcome);
     }
 
-    private async convertBlock(input: Record<string, any>) {
+    private async convertBlock(input: Record<string, unknown>) {
         const outcome = await this.creation.convertExisting(input, (task, properties) =>
             this.applyTaskPatch(task, properties),
         );
         return this.adaptConvertedTaskOutcome(outcome);
     }
 
-    private async updateTask(input: Record<string, any>) {
+    private async updateTask(input: Record<string, unknown>) {
         const task = this.requireTask(input.id);
         return { task: this.dto(await this.applyTaskPatch(task, input.patch)) };
     }
@@ -729,8 +736,8 @@ export class McpToolExecutor {
     private async applyTaskPatch(task: TaskCacheEntry, rawPatch: unknown): Promise<TaskCacheEntry> {
         try {
             validateMcpTaskPatch(rawPatch);
-        } catch (error: any) {
-            throw new McpToolError("INVALID_INPUT", String(error?.message || error));
+        } catch (error) {
+            throw new McpToolError("INVALID_INPUT", error instanceof Error ? error.message : String(error));
         }
         const patch = rawPatch as McpTaskPatch;
         const title = patch.title;
@@ -764,7 +771,7 @@ export class McpToolExecutor {
         return updated;
     }
 
-    private async setMyDay(input: Record<string, any>) {
+    private async setMyDay(input: Record<string, unknown>) {
         const task = this.requireTask(input.id);
         let state: MyDayState;
         if (input.action === "add") state = await this.taskService.addTaskToMyDay(task.blockId);

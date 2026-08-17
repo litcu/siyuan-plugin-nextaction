@@ -1,4 +1,7 @@
 import { confirm, Dialog } from "siyuan";
+import { get } from "svelte/store";
+import type { I18nStrings } from "../../shared/i18n";
+import type { RepeatRuleV2 } from "../../shared/repeat";
 import type { TaskCacheEntry } from "../../shared/types";
 import type { KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
@@ -9,6 +12,13 @@ import NaRepeatRuleEditor from "../ui/NaRepeatRuleEditor.svelte";
 
 type DialogCallbacks = {
     onSave?: (updated: TaskCacheEntry) => void;
+};
+
+type SiyuanWindow = Window & {
+    siyuan?: {
+        zIndex?: number;
+        dialogs?: Dialog[];
+    };
 };
 
 function configureDialog(dialog: Dialog, className: string): HTMLElement | null {
@@ -22,7 +32,7 @@ function configureDialog(dialog: Dialog, className: string): HTMLElement | null 
     }, 0);
     const currentDialogZIndex = Number.parseInt(dialogRoot?.style.zIndex || "", 10) || 0;
     if (dialogRoot && drawerZIndex >= currentDialogZIndex) {
-        const siyuan = (window as any).siyuan;
+        const siyuan = (window as SiyuanWindow).siyuan;
         const nextZIndex = Math.max(drawerZIndex, Number(siyuan?.zIndex) || 0) + 1;
         dialogRoot.style.zIndex = String(nextZIndex);
         if (siyuan) siyuan.zIndex = nextZIndex;
@@ -37,7 +47,7 @@ function bindManagedClose(dialog: Dialog, requestClose: () => void): () => void 
     scrim?.addEventListener("click", requestClose);
     const handleKeydown = (event: KeyboardEvent) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;
-        const dialogs = (window as any).siyuan?.dialogs;
+        const dialogs = (window as SiyuanWindow).siyuan?.dialogs;
         if (Array.isArray(dialogs) && dialogs[dialogs.length - 1] !== dialog) return;
         event.preventDefault();
         event.stopPropagation();
@@ -50,7 +60,7 @@ function bindManagedClose(dialog: Dialog, requestClose: () => void): () => void 
 export function openReminderSettingsDialog(
     task: TaskCacheEntry,
     bridge: KernelBridge,
-    i18n: any,
+    i18n: I18nStrings,
     callbacks: DialogCallbacks = {},
 ): void {
     let component: NaReminderEditor | null = null;
@@ -81,7 +91,7 @@ export function openReminderSettingsDialog(
         props: {
             items: currentItems,
             due: task.due,
-            defaultOffsets: taskStoreSnapshot().settings?.reminderSettings?.defaultOffsets ?? [],
+            defaultOffsets: get(taskStore).settings.reminderSettings.defaultOffsets,
             i18n,
         },
     });
@@ -97,7 +107,7 @@ export function openReminderSettingsDialog(
             currentItems = parseReminderItems(updated.reminder);
             component?.$set({ items: currentItems, due: updated.due });
             callbacks.onSave?.(updated);
-        } catch (error: any) {
+        } catch (error) {
             currentItems = previousItems;
             component?.$set({ items: previousItems, error: formatRpcError(error, i18n) });
         } finally {
@@ -109,7 +119,7 @@ export function openReminderSettingsDialog(
 export function openRepeatRuleDialog(
     task: TaskCacheEntry,
     bridge: KernelBridge,
-    i18n: any,
+    i18n: I18nStrings,
     callbacks: DialogCallbacks = {},
 ): void {
     let component: NaRepeatRuleEditor | null = null;
@@ -146,22 +156,14 @@ export function openRepeatRuleDialog(
     unbindClose = bindManagedClose(dialog, requestClose);
     component = new NaRepeatRuleEditor({ target, props: { task, i18n } });
     component.$on("requestClose", requestClose);
-    component.$on("apply", async (event: CustomEvent<{ rule: any }>) => {
+    component.$on("apply", async (event: CustomEvent<{ rule: RepeatRuleV2 }>) => {
         component?.$set({ saving: true, error: "" });
         try {
             const updated = await bridge.setRepeatRule(task.blockId, event.detail.rule);
             callbacks.onSave?.(updated);
             dialog.destroy();
-        } catch (error: any) {
+        } catch (error) {
             component?.$set({ saving: false, error: formatRpcError(error, i18n) });
         }
     });
-}
-
-function taskStoreSnapshot(): any {
-    let snapshot: any;
-    taskStore.subscribe((value) => {
-        snapshot = value;
-    })();
-    return snapshot;
 }

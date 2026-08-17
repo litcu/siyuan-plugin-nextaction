@@ -47,6 +47,14 @@ export interface CustomFieldMigrationResult {
 
 export type CustomFieldInput = string | number | boolean | string[] | null;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isCustomFieldType(value: unknown): value is CustomFieldType {
+    return typeof value === "string" && (CUSTOM_FIELD_TYPES as readonly string[]).includes(value);
+}
+
 export function isValidCustomFieldKey(key: string): boolean {
     return /^[a-z][a-z0-9-]*$/.test(key);
 }
@@ -74,24 +82,18 @@ function normalizeOptions(raw: unknown): CustomFieldOption[] | undefined {
     const result: CustomFieldOption[] = [];
     for (let i = 0; i < raw.length; i++) {
         const item = raw[i];
+        const source = isRecord(item) ? item : null;
         const label =
-            typeof item === "string"
-                ? item.trim()
-                : item && typeof item === "object" && typeof (item as any).label === "string"
-                  ? (item as any).label.trim()
-                  : "";
+            typeof item === "string" ? item.trim() : typeof source?.label === "string" ? source.label.trim() : "";
         if (!label) continue;
-        const requestedId =
-            item && typeof item === "object" && typeof (item as any).id === "string"
-                ? (item as any).id
-                : optionId(label, i);
+        const requestedId = typeof source?.id === "string" ? source.id : optionId(label, i);
         const id = requestedId || optionId(label, i);
         if (seen.has(id)) continue;
         seen.add(id);
         result.push({
             id,
             label,
-            status: item && typeof item === "object" && (item as any).status === "archived" ? "archived" : "active",
+            status: source?.status === "archived" ? "archived" : "active",
         });
     }
     return result;
@@ -103,8 +105,8 @@ export function migrateCustomFieldDefs(raw: unknown): CustomFieldMigrationResult
     if (!Array.isArray(raw)) return { fields, issues };
 
     for (const item of raw) {
-        if (!item || typeof item !== "object") continue;
-        const source = item as any;
+        if (!isRecord(item)) continue;
+        const source = item;
         const originalKey = typeof source.key === "string" ? source.key.trim() : "";
         const normalizedKey = normalizeCustomFieldKey(originalKey);
         const valid = isValidCustomFieldKey(normalizedKey);
@@ -117,7 +119,7 @@ export function migrateCustomFieldDefs(raw: unknown): CustomFieldMigrationResult
                   : undefined;
         if (migrationIssue) issues.push(`${originalKey || "<empty>"}:${migrationIssue}`);
 
-        const type = CUSTOM_FIELD_TYPES.includes(source.type) ? source.type : "text";
+        const type = isCustomFieldType(source.type) ? source.type : "text";
         const field: CustomFieldDef = {
             version: 2,
             id: typeof source.id === "string" && source.id ? source.id : stableId(originalKey || key),
@@ -148,8 +150,8 @@ export function migrateCustomFieldDefs(raw: unknown): CustomFieldMigrationResult
 }
 
 function normalizeScope(scope: unknown): CustomFieldScope {
-    if (!scope || typeof scope !== "object") return { mode: "all" };
-    const value = scope as any;
+    if (!isRecord(scope)) return { mode: "all" };
+    const value = scope;
     if (value.mode === "task" || value.mode === "project") return { mode: value.mode };
     if (value.mode === "projectTree") {
         return {

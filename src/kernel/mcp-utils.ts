@@ -126,6 +126,10 @@ export interface McpSearchTasksInput {
     limit?: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 export interface McpTaskPatch {
     title?: string;
     kind?: "task" | "project";
@@ -257,18 +261,18 @@ function validateReminderItems(value: unknown): ReminderItem[] {
         throw new Error("custom reminders must contain 1-7 items");
     }
     return value.map((item, index) => {
-        if (!item || typeof item !== "object" || Array.isArray(item)) {
+        if (!isRecord(item)) {
             throw new Error(`reminder item ${index + 1} is invalid`);
         }
-        if ((item as any).type === "relative") {
-            const minutes = (item as any).minutes;
-            if (!Number.isInteger(minutes) || minutes <= 0) {
+        if (item.type === "relative") {
+            const minutes = item.minutes;
+            if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes <= 0) {
                 throw new Error(`relative reminder ${index + 1} minutes must be a positive integer`);
             }
             return { type: "relative", minutes };
         }
-        if ((item as any).type === "absolute") {
-            const time = (item as any).time;
+        if (item.type === "absolute") {
+            const time = item.time;
             try {
                 if (typeof time !== "string" || !time.includes("T")) throw new Error();
                 validateDate(time, `absolute reminder ${index + 1}`);
@@ -532,7 +536,7 @@ export interface InsertedBlockMeta {
 export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
     if (!Array.isArray(data)) return { id: "", parentId: "", nodeType: "" };
     for (const transaction of data) {
-        const operations = transaction && typeof transaction === "object" ? (transaction as any).doOperations : null;
+        const operations = isRecord(transaction) ? transaction.doOperations : null;
         if (!Array.isArray(operations)) continue;
         for (const operation of operations) {
             if (operation?.action !== "insert" || !isBlockId(operation.id)) continue;

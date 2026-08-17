@@ -1,9 +1,19 @@
-import { getAllEditor, type Plugin } from "siyuan";
+import { getAllEditor, type IProtyle, type Plugin, type Protyle } from "siyuan";
 import type { KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
 import { notifyError, notifyInfo, notifyOperationError } from "../notify";
 import { runAiExtractTasks } from "../ai/ai-feature-service";
 import { assertBlockId } from "../../shared/block-id";
+
+type CommandProtyle = {
+    toolbar?: IProtyle["toolbar"];
+    wysiwyg?: IProtyle["wysiwyg"];
+    block?: IProtyle["block"];
+    protyle?: IProtyle;
+    transaction?: Protyle["transaction"];
+    /** Kept for compatibility with older SiYuan editor instances. */
+    wysiwygElement?: HTMLElement;
+};
 
 export class TaskCommandController {
     private commandsRegistered = false;
@@ -22,7 +32,7 @@ export class TaskCommandController {
                 filter: [this.plugin.i18n.convertToTask, "convert to task", "ntask", "zrw"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.plugin.i18n.convertToTask}</span></div>`,
                 id: "convertToTask",
-                callback: async (protyle: any, nodeElement: HTMLElement) => {
+                callback: async (protyle: CommandProtyle, nodeElement: HTMLElement) => {
                     const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
@@ -34,7 +44,7 @@ export class TaskCommandController {
                         await this.doConvertToTask(blockId, cleanTitle);
                         notifyInfo(this.plugin.i18n.convertToTaskSuccess);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         console.error("[NextAction] convertToTask error:", e);
                         notifyOperationError(e, this.plugin.i18n);
                     }
@@ -44,7 +54,7 @@ export class TaskCommandController {
                 filter: [this.plugin.i18n.convertToProject, "convert to project", "nproject", "zxm"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.plugin.i18n.convertToProject}</span></div>`,
                 id: "convertToProject",
-                callback: async (protyle: any, nodeElement: HTMLElement) => {
+                callback: async (protyle: CommandProtyle, nodeElement: HTMLElement) => {
                     const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
@@ -56,7 +66,7 @@ export class TaskCommandController {
                         await this.doConvertToTask(blockId, cleanTitle, "2");
                         notifyInfo(this.plugin.i18n.convertToProjectSuccess);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         console.error("[NextAction] convertToProject error:", e);
                         notifyOperationError(e, this.plugin.i18n);
                     }
@@ -71,7 +81,7 @@ export class TaskCommandController {
                 ],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.plugin.i18n.convertToTaskWithChildren}</span></div>`,
                 id: "convertToTaskWithChildren",
-                callback: async (protyle: any, nodeElement: HTMLElement) => {
+                callback: async (protyle: CommandProtyle, nodeElement: HTMLElement) => {
                     const cleanTitle = await this.clearSlashCommand(protyle, nodeElement);
 
                     const blockId = nodeElement.dataset.nodeId;
@@ -86,7 +96,7 @@ export class TaskCommandController {
                             .replace("{skipped}", String(result.skipped));
                         notifyInfo(msg);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         console.error("[NextAction] convertToTaskWithChildren error:", e);
                         notifyOperationError(e, this.plugin.i18n);
                     }
@@ -96,7 +106,7 @@ export class TaskCommandController {
                 filter: [this.plugin.i18n.aiExtractTasks || "AI 提取任务", "extract tasks", "zrw-ai"],
                 html: `<div class="b3-list-item__first"><span class="b3-list-item__text">[NextAction] ${this.plugin.i18n.aiExtractTasks || "AI 提取任务"}</span></div>`,
                 id: "aiExtractTasks",
-                callback: async (protyle: any, nodeElement: HTMLElement) => {
+                callback: async (protyle: CommandProtyle, nodeElement: HTMLElement) => {
                     await this.clearSlashCommand(protyle, nodeElement);
                     const blockId = nodeElement.dataset.nodeId;
                     if (!blockId) {
@@ -109,11 +119,11 @@ export class TaskCommandController {
         ];
     }
 
-    private getEditor(): any {
+    private getEditor(): Protyle | undefined {
         return getAllEditor()[0];
     }
 
-    private getCommandBlockId(protyle?: any): string {
+    private getCommandBlockId(protyle?: CommandProtyle): string {
         const currentProtyle = protyle || this.getEditor()?.protyle;
         const savedRange = currentProtyle?.toolbar?.range;
         const rangeNode = savedRange?.startContainer;
@@ -133,13 +143,13 @@ export class TaskCommandController {
             }
         }
 
-        const selected =
-            currentProtyle?.wysiwygElement?.querySelector(".protyle-wysiwyg--select") ||
-            currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select");
+        const selected = ((currentProtyle as CommandProtyle).wysiwygElement?.querySelector(
+            ".protyle-wysiwyg--select",
+        ) || currentProtyle?.wysiwyg?.element?.querySelector(".protyle-wysiwyg--select")) as HTMLElement | null;
         return selected?.dataset?.nodeId || currentProtyle?.block?.rootID || "";
     }
 
-    private async runConvertCommand(protyle?: any, taskType: string = "1"): Promise<void> {
+    private async runConvertCommand(protyle?: CommandProtyle, taskType: string = "1"): Promise<void> {
         const blockId = this.getCommandBlockId(protyle);
         if (!blockId) return;
         try {
@@ -148,12 +158,12 @@ export class TaskCommandController {
                 taskType === "2" ? this.plugin.i18n.convertToProjectSuccess : this.plugin.i18n.convertToTaskSuccess,
             );
             void taskStore.loadTasks();
-        } catch (e: any) {
+        } catch (e) {
             notifyOperationError(e, this.plugin.i18n);
         }
     }
 
-    private async runConvertWithChildrenCommand(protyle?: any): Promise<void> {
+    private async runConvertWithChildrenCommand(protyle?: CommandProtyle): Promise<void> {
         const blockId = this.getCommandBlockId(protyle);
         if (!blockId) return;
         try {
@@ -163,7 +173,7 @@ export class TaskCommandController {
                 .replace("{skipped}", String(result.skipped));
             notifyInfo(msg);
             void taskStore.loadTasks();
-        } catch (e: any) {
+        } catch (e) {
             notifyOperationError(e, this.plugin.i18n);
         }
     }
@@ -202,7 +212,7 @@ export class TaskCommandController {
      * Remove the slash query and persist the edit through SiYuan's transaction API.
      * Plugin slash callbacks do not receive the built-in menu cleanup automatically.
      */
-    private async clearSlashCommand(protyle: any, nodeElement: HTMLElement): Promise<string> {
+    private async clearSlashCommand(protyle: CommandProtyle, nodeElement: HTMLElement): Promise<string> {
         const oldHTML = nodeElement.outerHTML;
         const savedRange = protyle?.toolbar?.range;
         const selection = window.getSelection();
@@ -252,7 +262,7 @@ export class TaskCommandController {
             await this.getBridge().recalcAllOrders();
             void taskStore.loadTasks();
             notifyInfo(`${this.plugin.i18n.refreshTasks} ✓`);
-        } catch (e: any) {
+        } catch (e) {
             notifyOperationError(e, this.plugin.i18n);
         }
     }
@@ -264,8 +274,11 @@ export class TaskCommandController {
     ): Promise<{ converted: number; skipped: number }> {
         try {
             return await this.getBridge().convertToTaskWithChildren(blockId, cleanTitle, taskType);
-        } catch (rpcErr: any) {
-            console.warn("[NextAction] doConvertToTaskWithChildren RPC failed:", rpcErr.message);
+        } catch (rpcErr) {
+            console.warn(
+                "[NextAction] doConvertToTaskWithChildren RPC failed:",
+                rpcErr instanceof Error ? rpcErr.message : String(rpcErr),
+            );
             throw rpcErr;
         }
     }
@@ -291,7 +304,7 @@ export class TaskCommandController {
             callback: () => {
                 void this.runConvertCommand();
             },
-            editorCallback: (protyle: any) => {
+            editorCallback: (protyle: CommandProtyle) => {
                 void this.runConvertCommand(protyle);
             },
             globalCallback: () => {
@@ -324,7 +337,7 @@ export class TaskCommandController {
             callback: () => {
                 void this.runConvertCommand(undefined, "2");
             },
-            editorCallback: (protyle: any) => {
+            editorCallback: (protyle: CommandProtyle) => {
                 void this.runConvertCommand(protyle, "2");
             },
             globalCallback: () => {
@@ -339,7 +352,7 @@ export class TaskCommandController {
             callback: () => {
                 void this.runConvertWithChildrenCommand();
             },
-            editorCallback: (protyle: any) => {
+            editorCallback: (protyle: CommandProtyle) => {
                 void this.runConvertWithChildrenCommand(protyle);
             },
             globalCallback: () => {
@@ -375,7 +388,7 @@ export class TaskCommandController {
                 const blockId = this.getCommandBlockId();
                 if (blockId) void runAiExtractTasks([blockId]);
             },
-            editorCallback: (protyle: any) => {
+            editorCallback: (protyle: CommandProtyle) => {
                 const blockId = this.getCommandBlockId(protyle);
                 if (blockId) void runAiExtractTasks([blockId]);
             },

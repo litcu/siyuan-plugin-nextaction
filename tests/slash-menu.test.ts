@@ -5,7 +5,10 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url), "utf8");
 
 test("slash command cleanup uses SiYuan's update transaction path", () => {
-    assert.match(source, /private async clearSlashCommand\(protyle: any, nodeElement: HTMLElement\): Promise<string>/);
+    assert.match(
+        source,
+        /private async clearSlashCommand\(protyle: CommandProtyle, nodeElement: HTMLElement\): Promise<string>/,
+    );
     assert.match(source, /const oldHTML = nodeElement\.outerHTML/);
     assert.match(source, /nodeElement\.setAttribute\("data-editing", "true"\)/);
     assert.match(source, /protyle\.transaction\(\s*\[\s*\{[\s\S]*action: "update"/);

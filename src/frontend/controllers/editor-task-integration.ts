@@ -1,8 +1,9 @@
-import { Dialog, Menu, confirm, type Plugin } from "siyuan";
+import { Dialog, Menu, confirm, type IEventBusMap, type Plugin } from "siyuan";
 import { get } from "svelte/store";
 import type TaskDetail from "../components/TaskDetail.svelte";
 import type { KernelBridge } from "../kernel-bridge";
 import type { I18nStrings } from "../../shared/i18n";
+import type { TaskCacheEntry } from "../../shared/types";
 import { taskStore } from "../stores/task-store";
 import { notifyError, notifyInfo, notifyOperationError } from "../notify";
 import { normalizePriority, PRIORITY_LIST } from "../constants";
@@ -11,9 +12,13 @@ import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service"
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import type { TaskCommandController } from "./task-command-controller";
 
+type TaskDetailDialog = Dialog & {
+    _naDetail?: TaskDetail;
+};
+
 export class EditorTaskIntegration {
-    private blockIconHandler: ((event: any) => void) | null = null;
-    private editorTitleIconHandler: ((event: any) => void) | null = null;
+    private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
+    private editorTitleIconHandler: ((event: CustomEvent<IEventBusMap["click-editortitleicon"]>) => void) | null = null;
     private started = false;
 
     constructor(
@@ -65,7 +70,7 @@ export class EditorTaskIntegration {
                                 ? this.plugin.i18n.taskMarkedDone || "Marked as done"
                                 : this.plugin.i18n.taskStatusUpdated || "Status updated to {status}";
                         notifyInfo(template.replace("{status}", statusLabel));
-                    } catch (e: any) {
+                    } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }
                 },
@@ -106,7 +111,7 @@ export class EditorTaskIntegration {
                     try {
                         const updated = await this.getBridge().updateTask(blockId, { "na-priority": p });
                         taskStore.applyUpdate(updated);
-                    } catch (e: any) {
+                    } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }
                 },
@@ -129,7 +134,7 @@ export class EditorTaskIntegration {
                         ? await this.getBridge().removeTaskFromMyDay(blockId)
                         : await this.getBridge().addTaskToMyDay(blockId);
                     taskStore.applyMyDayUpdate(myDayState);
-                } catch (e: any) {
+                } catch (e) {
                     notifyOperationError(e, this.plugin.i18n);
                 }
             },
@@ -178,7 +183,7 @@ export class EditorTaskIntegration {
                         try {
                             await this.getBridge().removeTask(blockId);
                             taskStore.applyRemove(blockId);
-                        } catch (e: any) {
+                        } catch (e) {
                             notifyOperationError(e, this.plugin.i18n);
                         }
                     },
@@ -198,7 +203,7 @@ export class EditorTaskIntegration {
         const task = storeState.allTasks.find((t) => t.blockId === blockId);
         if (!task) return;
 
-        openReminderSettingsDialog(task, this.getBridge(), this.plugin.i18n, {
+        openReminderSettingsDialog(task, this.getBridge(), this.i18n, {
             onSave: (updated) => taskStore.applyUpdate(updated),
         });
     }
@@ -214,7 +219,7 @@ export class EditorTaskIntegration {
                 await this.getBridge().rebuildCache();
                 await taskStore.loadTasks();
                 task = await this.getBridge().getTask(blockId);
-            } catch (error: any) {
+            } catch (error) {
                 notifyOperationError(error, this.plugin.i18n);
                 return;
             }
@@ -234,7 +239,7 @@ export class EditorTaskIntegration {
             disableClose: true,
             hideCloseIcon: true,
             destroyCallback: () => {
-                const comp = (dialog as any)._naDetail;
+                const comp = (dialog as TaskDetailDialog)._naDetail;
                 if (comp) comp.$destroy();
             },
         });
@@ -251,7 +256,7 @@ export class EditorTaskIntegration {
         dialogContainer?.classList.add("na-task-dialog-container");
 
         dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
-            const component = (dialog as any)._naDetail as TaskDetail | undefined;
+            const component = (dialog as TaskDetailDialog)._naDetail;
             component?.requestClose();
         });
 
@@ -264,7 +269,7 @@ export class EditorTaskIntegration {
                         bridge: this.getBridge(),
                         i18n: this.i18n,
                         dialogMode: true,
-                        onSave: (updated: any) => {
+                        onSave: (updated: TaskCacheEntry) => {
                             taskStore.applyUpdate(updated);
                         },
                         onRemove: (removedId: string) => {
@@ -284,9 +289,9 @@ export class EditorTaskIntegration {
                         },
                     },
                 });
-                (dialog as any)._naDetail = comp;
+                (dialog as TaskDetailDialog)._naDetail = comp;
             })
-            .catch((error: any) => {
+            .catch((error) => {
                 dialog.destroy();
                 notifyOperationError(error, this.plugin.i18n);
             });
@@ -296,7 +301,7 @@ export class EditorTaskIntegration {
         if (this.started) return;
         this.started = true;
         // Block icon menu
-        this.blockIconHandler = ({ detail }: any) => {
+        this.blockIconHandler = ({ detail }) => {
             const blockElements = detail.blockElements || [];
             const taskBlock = blockElements.length === 1 && blockElements[0].hasAttribute("custom-na-task");
             const isProjectBlock = taskBlock && blockElements[0].getAttribute("custom-na-task") === "2";
@@ -310,7 +315,9 @@ export class EditorTaskIntegration {
                         label: this.plugin.i18n.aiExtractTasks || "AI 提取任务",
                         click: async () =>
                             runAiExtractTasks(
-                                blockElements.map((element: HTMLElement) => element.dataset.nodeId).filter(Boolean),
+                                blockElements
+                                    .map((element: HTMLElement) => element.dataset.nodeId)
+                                    .filter((id): id is string => Boolean(id)),
                             ),
                     },
                     ...(taskBlock
@@ -342,7 +349,7 @@ export class EditorTaskIntegration {
                             try {
                                 await this.commands.doConvertToTask(blockId);
                                 ok++;
-                            } catch (e: any) {
+                            } catch (e) {
                                 notifyOperationError(e, this.plugin.i18n);
                             }
                         }
@@ -362,7 +369,7 @@ export class EditorTaskIntegration {
                             try {
                                 await this.commands.doConvertToTask(blockId, undefined, "2");
                                 ok++;
-                            } catch (e: any) {
+                            } catch (e) {
                                 notifyOperationError(e, this.plugin.i18n);
                             }
                         }
@@ -384,7 +391,7 @@ export class EditorTaskIntegration {
                                     .replace("{converted}", String(result.converted))
                                     .replace("{skipped}", String(result.skipped));
                                 notifyInfo(msg);
-                            } catch (e: any) {
+                            } catch (e) {
                                 notifyOperationError(e, this.plugin.i18n);
                             }
                         }
@@ -396,7 +403,7 @@ export class EditorTaskIntegration {
         this.plugin.eventBus.on("click-blockicon", this.blockIconHandler);
 
         // Document title icon menu
-        this.editorTitleIconHandler = ({ detail }: any) => {
+        this.editorTitleIconHandler = ({ detail }) => {
             const docId = detail.data?.id;
             if (!docId) return;
             detail.menu.addItem({
@@ -412,7 +419,7 @@ export class EditorTaskIntegration {
                         await this.commands.doConvertToTask(docId);
                         notifyInfo(this.plugin.i18n.convertToTaskSuccess);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }
                 },
@@ -425,7 +432,7 @@ export class EditorTaskIntegration {
                         await this.commands.doConvertToTask(docId, undefined, "2");
                         notifyInfo(this.plugin.i18n.convertToProjectSuccess);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }
                 },
@@ -441,7 +448,7 @@ export class EditorTaskIntegration {
                             .replace("{skipped}", String(result.skipped));
                         notifyInfo(msg);
                         void taskStore.loadTasks();
-                    } catch (e: any) {
+                    } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }
                 },

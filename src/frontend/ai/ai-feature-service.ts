@@ -1,6 +1,7 @@
 import { Dialog } from "siyuan";
 import type { AiFeatureId, AiProposal } from "../../shared/ai";
 import { completeAiReviewGroups, parseAiJson, validateAiProposal } from "../../shared/ai";
+import type { I18nStrings } from "../../shared/i18n";
 import type { TaskCacheEntry, ReviewData } from "../../shared/types";
 import { DEFAULT_AI_SETTINGS } from "../../shared/settings";
 import { RpcCallError, type KernelBridge } from "../kernel-bridge";
@@ -11,9 +12,13 @@ import { renderAiPromptTemplate } from "./ai-prompt-template";
 
 interface AiServiceHost {
     bridge: KernelBridge;
-    i18n: any;
+    i18n: I18nStrings;
     getCurrentDocumentId?: () => string;
 }
+
+type AiDialog = Dialog & {
+    _naAiComponent?: { $destroy?: () => void };
+};
 
 let host: AiServiceHost | null = null;
 
@@ -158,7 +163,7 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
     };
 }
 
-function completeReviewProposal(proposal: AiProposal, context: Record<string, unknown>, i18n: any): AiProposal {
+function completeReviewProposal(proposal: AiProposal, context: Record<string, unknown>, i18n: I18nStrings): AiProposal {
     const groups = context.groups;
     if (!groups || typeof groups !== "object" || Array.isArray(groups)) return proposal;
     return completeAiReviewGroups(proposal, groups as Record<string, string[]>, {
@@ -342,7 +347,12 @@ ${outputExample}
     };
 }
 
-async function requestProposal(feature: AiFeatureId, ids: string[], context: unknown, i18n: any): Promise<AiProposal> {
+async function requestProposal(
+    feature: AiFeatureId,
+    ids: string[],
+    context: unknown,
+    i18n: I18nStrings,
+): Promise<AiProposal> {
     let lastRaw = "";
     let lastErrors: string[] = [];
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -381,7 +391,7 @@ async function openComponent(title: string, loader: () => Promise<any>, props: R
         content: `<div class="nextaction na-ai-dialog-host"></div>`,
         width: "520px",
         destroyCallback: () => {
-            const component = (dialog as any)._naAiComponent;
+            const component = (dialog as AiDialog)._naAiComponent;
             component?.$destroy?.();
         },
     });
@@ -390,13 +400,13 @@ async function openComponent(title: string, loader: () => Promise<any>, props: R
     const hostElement = dialog.element.querySelector(".na-ai-dialog-host");
     if (!hostElement) {
         dialog.destroy();
-        const i18n = props.i18n as any;
+        const i18n = props.i18n as I18nStrings | undefined;
         throw new Error(i18n?.errAiDialogHost || "AI result window cannot be opened. Reload the plugin and try again.");
     }
     const module = await loader();
     const Component = module.default;
     const component = new Component({ target: hostElement, props: { ...props, dialog } });
-    (dialog as any)._naAiComponent = component;
+    (dialog as AiDialog)._naAiComponent = component;
 }
 
 export async function runAiExtractTasks(blockIds: string[]): Promise<void> {

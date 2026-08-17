@@ -203,19 +203,25 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             const actions = Array.isArray(reviewInput.actions) ? reviewInput.actions : [];
             proposal.review = {
                 summary: typeof reviewInput.summary === "string" ? reviewInput.summary : proposal.summary,
-                groups: groups.map((group: any, index) => ({
-                    key: typeof group?.key === "string" ? group.key : `group-${index + 1}`,
-                    title: typeof group?.title === "string" ? group.title : "",
-                    summary: typeof group?.summary === "string" ? group.summary : "",
-                    blockIds: Array.isArray(group?.blockIds)
-                        ? group.blockIds.filter((id: unknown): id is string => typeof id === "string")
-                        : [],
-                })),
-                actions: actions.map((action: any) => ({
-                    blockId: typeof action?.blockId === "string" ? action.blockId : "",
-                    action: typeof action?.action === "string" ? action.action : "",
-                    reason: typeof action?.reason === "string" ? action.reason : "",
-                })),
+                groups: groups.map((group, index) => {
+                    const value = isRecord(group) ? group : {};
+                    return {
+                        key: typeof value.key === "string" ? value.key : `group-${index + 1}`,
+                        title: typeof value.title === "string" ? value.title : "",
+                        summary: typeof value.summary === "string" ? value.summary : "",
+                        blockIds: Array.isArray(value.blockIds)
+                            ? value.blockIds.filter((id: unknown): id is string => typeof id === "string")
+                            : [],
+                    };
+                }),
+                actions: actions.map((action) => {
+                    const value = isRecord(action) ? action : {};
+                    return {
+                        blockId: typeof value.blockId === "string" ? value.blockId : "",
+                        action: typeof value.action === "string" ? value.action : "",
+                        reason: typeof value.reason === "string" ? value.reason : "",
+                    };
+                }),
             };
             for (const group of proposal.review.groups) {
                 for (const id of group.blockIds)
@@ -229,10 +235,13 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
 
     if (proposal.feature === "planMyDay") {
         const suggestions = Array.isArray(input.myDay) ? input.myDay : [];
-        proposal.myDay = suggestions.map((item: any) => ({
-            blockId: typeof item?.blockId === "string" ? item.blockId : "",
-            reason: typeof item?.reason === "string" ? item.reason : "",
-        }));
+        proposal.myDay = suggestions.map((item) => {
+            const value = isRecord(item) ? item : {};
+            return {
+                blockId: typeof value.blockId === "string" ? value.blockId : "",
+                reason: typeof value.reason === "string" ? value.reason : "",
+            };
+        });
         if (proposal.myDay.length > 100) errors.push("myDay must contain at most 100 items");
         for (const item of proposal.myDay) if (!isBlockId(item.blockId)) errors.push("myDay contains invalid block ID");
         return { proposal, errors };
@@ -240,31 +249,33 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
 
     const rawTasks = Array.isArray(input.tasks) ? input.tasks : [];
     if (rawTasks.length > 100) errors.push("tasks must contain at most 100 items");
-    proposal.tasks = rawTasks.map((task: any, index) => {
+    proposal.tasks = rawTasks.map((task, index) => {
+        const value = isRecord(task) ? task : {};
         const item: AiProposedTask = {
-            title: typeof task?.title === "string" ? task.title.trim() : "",
-            kind: task?.kind === "project" ? "project" : "task",
-            sourceBlockId: typeof task?.sourceBlockId === "string" ? task.sourceBlockId : undefined,
-            parentId: task?.parentId === null ? null : typeof task?.parentId === "string" ? task.parentId : undefined,
-            dependsOnIndexes: Array.isArray(task?.dependsOnIndexes)
-                ? task.dependsOnIndexes.filter((value: unknown): value is number => Number.isInteger(value))
+            title: typeof value.title === "string" ? value.title.trim() : "",
+            kind: value.kind === "project" ? "project" : "task",
+            sourceBlockId: typeof value.sourceBlockId === "string" ? value.sourceBlockId : undefined,
+            parentId: value.parentId === null ? null : typeof value.parentId === "string" ? value.parentId : undefined,
+            dependsOnIndexes: Array.isArray(value.dependsOnIndexes)
+                ? value.dependsOnIndexes.filter((entry: unknown): entry is number => Number.isInteger(entry))
                 : undefined,
-            status: typeof task?.status === "string" ? task.status : undefined,
-            priority: typeof task?.priority === "string" ? task.priority : undefined,
-            importance: normalizeOptionalScale(task?.importance),
-            effort: normalizeOptionalScale(task?.effort),
-            start: task?.start === null ? null : typeof task?.start === "string" ? task.start : undefined,
-            due: task?.due === null ? null : typeof task?.due === "string" ? task.due : undefined,
-            contexts: normalizeStringList(task?.contexts, `tasks[${index}].contexts`, errors),
-            tags: normalizeStringList(task?.tags, `tasks[${index}].tags`, errors),
-            note: task?.note === null ? null : typeof task?.note === "string" ? task.note : undefined,
-            reason: typeof task?.reason === "string" ? task.reason : undefined,
+            status: typeof value.status === "string" ? value.status : undefined,
+            priority: typeof value.priority === "string" ? value.priority : undefined,
+            importance: normalizeOptionalScale(value.importance),
+            effort: normalizeOptionalScale(value.effort),
+            start: value.start === null ? null : typeof value.start === "string" ? value.start : undefined,
+            due: value.due === null ? null : typeof value.due === "string" ? value.due : undefined,
+            contexts: normalizeStringList(value.contexts, `tasks[${index}].contexts`, errors),
+            tags: normalizeStringList(value.tags, `tasks[${index}].tags`, errors),
+            note: value.note === null ? null : typeof value.note === "string" ? value.note : undefined,
+            reason: typeof value.reason === "string" ? value.reason : undefined,
         };
         if (!item.title || item.title.length > 512) errors.push(`tasks[${index}].title must contain 1-512 characters`);
         if (item.sourceBlockId && !isBlockId(item.sourceBlockId))
             errors.push(`tasks[${index}].sourceBlockId is invalid`);
         if (item.parentId && !isBlockId(item.parentId)) errors.push(`tasks[${index}].parentId is invalid`);
-        if (item.status && !ALL_STATUSES.includes(item.status as any)) errors.push(`tasks[${index}].status is invalid`);
+        if (item.status && !(ALL_STATUSES as readonly string[]).includes(item.status))
+            errors.push(`tasks[${index}].status is invalid`);
         if (item.priority && !PRIORITIES.has(item.priority)) errors.push(`tasks[${index}].priority is invalid`);
         for (const field of ["importance", "effort"] as const) {
             const value = item[field];
