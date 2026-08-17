@@ -3,6 +3,7 @@ import type { MyDayState, TaskChangeSetV2, TaskCacheEntry } from "../../src/shar
 import type { SiyuanApiPort, SiyuanLogLevel } from "../../src/kernel/siyuan-api";
 import type { TaskChangePublisher } from "../../src/kernel/sync-engine";
 import type { MyDayTaskPort } from "../../src/kernel/task-service";
+import { setMyDayTaskCompletedAt } from "../../src/shared/my-day";
 
 export interface FakeBlock {
     id: string;
@@ -162,10 +163,12 @@ export class FakeMyDayTaskPort implements MyDayTaskPort {
     async removeSchedule(): Promise<MyDayState> {
         return this.state;
     }
-    async markTaskCompleted(): Promise<MyDayState> {
+    async markTaskCompleted(blockId: string, completedAt: number): Promise<MyDayState> {
+        this.state = setMyDayTaskCompletedAt(this.state, blockId, completedAt);
         return this.state;
     }
-    async clearTaskCompleted(): Promise<MyDayState> {
+    async clearTaskCompleted(blockId: string): Promise<MyDayState> {
+        this.state = setMyDayTaskCompletedAt(this.state, blockId, undefined);
         return this.state;
     }
 }

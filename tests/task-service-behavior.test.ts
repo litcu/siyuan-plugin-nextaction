@@ -18,6 +18,7 @@ import {
 } from "../src/shared/constants.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
+import { isMyDayEntryDone } from "../src/shared/my-day.ts";
 
 const ID = "20260816123456-abcdefg";
 
@@ -27,9 +28,10 @@ function setup() {
     const cache = new CacheManager(api);
     const publisher = new FakeTaskChangePublisher();
     const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
-    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    const myDay = new FakeMyDayTaskPort();
+    const service = new TaskService(cache, repository, myDay, api);
     service.setIsReady(true);
-    return { api, cache, publisher, service };
+    return { api, cache, myDay, publisher, service };
 }
 
 test("转换、更新和移除均以权威属性回读驱动缓存与变更发布", async () => {
@@ -100,6 +102,22 @@ test("重复规则写入规则与状态，并以回读结果更新缓存和广�
     assert.ok(api.blocks.get(ID)?.attrs[ATTR_REPEAT_STATE]);
     assert.equal(cache.get(ID)?.repeat, result.repeat);
     assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: ID, type: "update" });
+});
+
+test("重复任务完成推进后保留我的一天本次完成态", async () => {
+    // Regression: repeat advancement reopens the task block but must not erase today's completed occurrence.
+    const { myDay, service } = setup();
+    await service.convertToTask(ID, "Write tests");
+    await service.updateTask(ID, { [ATTR_DUE]: "2026-08-20" });
+    await service.setRepeatRule(ID, { version: 2, frequency: "day", interval: 1 });
+    await myDay.addTask(ID);
+
+    const updated = await service.updateTask(ID, { [ATTR_STATUS]: "done" });
+    const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === ID);
+
+    assert.equal(updated.status, "todo");
+    assert.equal(typeof myDayEntry?.completedAt, "number");
+    assert.equal(isMyDayEntryDone(myDayEntry, updated.status), true);
 });
 
 test("下一步行动排除已完成和阻塞任务，并按统一优先级排序", () => {

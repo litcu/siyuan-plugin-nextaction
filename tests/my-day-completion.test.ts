@@ -69,16 +69,17 @@ test("普通已完成任务仍然根据任务自身状态显示完成", () => {
     assert.equal(isMyDayEntryDone(entry, "todo"), false);
 });
 
-test("任务完成会写入我的一天实例，重复任务内部重开后清除完成状态", () => {
+test("任务完成会写入我的一天实例，重复任务内部重开后保留完成状态", () => {
     assert.match(taskServiceSource, /myDayManager\.markTaskCompleted\(blockId, completedAt\)/);
     assert.match(taskServiceSource, /attrs\[ATTR_STATUS\] !== undefined && attrs\[ATTR_STATUS\] !== "done"/);
     assert.match(taskServiceSource, /advanceRepeatState\([\s\S]*"complete",?\s*\)/);
     assert.match(taskServiceSource, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
     assert.match(taskServiceSource, /\[ATTR_REPEAT_STATE\]: JSON\.stringify\(advanced\.state\)/);
-    assert.match(
-        taskServiceSource,
-        /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/,
+    const repeatAdvanceSection = taskServiceSource.slice(
+        taskServiceSource.indexOf("// 循环/重复任务"),
+        taskServiceSource.indexOf("// 回顾日期推算"),
     );
+    assert.doesNotMatch(repeatAdvanceSection, /myDayManager\.clearTaskCompleted\(blockId\)/);
 });
 
 test("移除我的一天任务后广播最新状态", () => {

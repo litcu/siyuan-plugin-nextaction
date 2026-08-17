@@ -33,7 +33,7 @@ test("内核 RPC 与前端桥接暴露三项系列操作", () => {
     }
 });
 
-test("完成推进清除我的一天完成状态，并广播重开后的最终状态", () => {
+test("完成推进保留我的一天完成状态，并广播重开后的最终状态", () => {
     const section = lifecycleSource.slice(
         lifecycleSource.indexOf("async updateTask("),
         lifecycleSource.indexOf("async updateTaskTitle("),
@@ -41,10 +41,8 @@ test("完成推进清除我的一天完成状态，并广播重开后的最终�
     assert.match(section, /\[ATTR_COMPLETED\]: newCompleted/);
     assert.match(section, /advanceRepeatState\([\s\S]*"complete",?\s*\)/);
     assert.match(section, /repeatAttrs\[ATTR_STATUS\] = "todo"/);
-    assert.match(
-        section,
-        /!advanced\.ended && advanced\.state\.status === "active"[\s\S]*myDayManager\.clearTaskCompleted\(blockId\)/,
-    );
+    const repeatAdvanceSection = section.slice(section.indexOf("// 循环/重复任务"), section.indexOf("// 回顾日期推算"));
+    assert.doesNotMatch(repeatAdvanceSection, /myDayManager\.clearTaskCompleted\(blockId\)/);
     assert.match(section, /cacheConfirmedEntry\(finalEntry\)/);
     assert.match(section, /repository\.publishChanges\(\)/);
 });

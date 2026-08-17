@@ -811,16 +811,6 @@ export class TaskLifecycleService {
                 }
 
                 const finalAttrs = await this.repository.writeAttrs(blockId, repeatAttrs);
-                if (!advanced.ended && advanced.state.status === "active") {
-                    try {
-                        await this.myDayManager.clearTaskCompleted(blockId);
-                    } catch (error: unknown) {
-                        void this.api.log(
-                            "warn",
-                            `updateTask: failed to clear My Day completion after repeat advancement: ${error instanceof Error ? error.message : String(error)}`,
-                        );
-                    }
-                }
                 const finalEntry = this.repository.buildEntry(blockId, finalAttrs, updatedEntry);
                 this.cacheConfirmedEntry(finalEntry);
             }
