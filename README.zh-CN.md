@@ -217,8 +217,6 @@ pnpm run release          # 构建并部署到本地插件目录
 pnpm run release:package  # 构建市场发布用 package.zip
 ```
 
-架构说明见 [docs/ARCHITECTURE.zh-CN.md](./docs/ARCHITECTURE.zh-CN.md)。
-
 <details>
 <summary><b>发布新版本</b></summary>
 

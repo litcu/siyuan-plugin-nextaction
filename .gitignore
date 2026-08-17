@@ -10,5 +10,5 @@ package.zip
 vendor/
 .codegraph
 .playwright-cli/
-docs/
+.doc/
 *.bak

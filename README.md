@@ -217,8 +217,6 @@ pnpm run release          # Build and deploy to local plugin directory
 pnpm run release:package  # Build package.zip for marketplace/GitHub release
 ```
 
-Architecture notes: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
-
 <details>
 <summary><b>Releasing a new version</b></summary>
 
