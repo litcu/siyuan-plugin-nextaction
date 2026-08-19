@@ -88,25 +88,26 @@ test("通用任务更新支持状态、重复规则、类型和标题", () => {
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
     assert.match(creationSource, /extractInsertedBlockMeta/);
     assert.match(creationSource, /resolveInsertedTaskBlock/);
-    assert.match(creationSource, /knownTextBlock:\s*true/);
-    assert.match(creationSource, /knownTextBlockType:\s*kind === "2" \|\| format === "document" \? "d" : "p"/);
-    assert.match(creationSource, /parentIdHint:\s*insertedMeta\.parentId/);
+    assert.match(creationSource, /knownTextBlock:\s*kind === "2" \|\| format === "document"/);
+    assert.match(creationSource, /knownNativeTask:\s*kind !== "2" && format !== "document"/);
+    assert.match(creationSource, /contentBlockId:\s*insertedMeta\.contentBlockId/);
+    assert.match(creationSource, /parentIdHint:\s*parentTaskHint \|\| insertedMeta\.parentId/);
     assert.match(
         creationSource,
-        /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeParagraph"/,
+        /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeListItem"/,
     );
     assert.match(creationSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
     assert.match(taskServiceSource, /cleanTitle \|\| \(await this\.fetchBlockTitle/);
 });
 
-test("子任务创建直接写入文本块并停止生成列表项", () => {
+test("子任务创建统一生成原生任务列表项", () => {
     assert.match(creationSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
     assert.match(targetSource, /containerTypes = new Set\(\[[^\]]*"d"/);
     assert.match(creationSource, /dataType: "markdown"/);
-    assert.match(creationSource, /data: escapeMarkdownText\(title\)/);
+    assert.match(creationSource, /data: `- \[ \] \$\{escapeMarkdownText\(title\)\}`/);
     assert.doesNotMatch(creationSource, /buildListItemBlockDom/);
     assert.match(creationSource, /format: "paragraph"/);
-    assert.match(targetSource, /Inserted list does not contain a text block/);
+    assert.match(targetSource, /Inserted task list does not contain a task item text block/);
     assert.match(creationSource, /await this\.taskService\.addTaskToMyDay\(taskBlockId\)/);
 });
 

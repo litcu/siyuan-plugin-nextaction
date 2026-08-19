@@ -6,6 +6,8 @@ import { paginateCompletedTasks, sortCompletedTasks } from "../src/shared/task-p
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
         blockId,
+        identificationSource: "document",
+        attrHostId: blockId,
         parentId: "",
         status: "done",
         priority: "medium",

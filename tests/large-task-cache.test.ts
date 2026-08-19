@@ -9,15 +9,19 @@ function read(path: string): string {
 test("cache discovery reuses SiYuan's configured SQL row limit until all tasks are loaded", () => {
     const cache = read("src/kernel/cache-manager.ts");
     assert.match(cache, /let lastBlockId = ""/);
-    assert.match(cache, /lastBlockId[\s\S]*sql`SELECT DISTINCT[\s\S]*AND b\.id > \$\{lastBlockId\}/);
-    assert.match(cache, /ORDER BY b\.id/);
+    assert.match(cache, /const stmt = sql`SELECT \* FROM \(/);
+    assert.match(cache, /WHERE \(\$\{lastBlockId\} = '' OR task\.id > \$\{lastBlockId\}\)/);
+    assert.match(cache, /ORDER BY task\.id/);
     assert.doesNotMatch(cache, /TASK_DISCOVERY_PAGE_SIZE|OFFSET \$\{offset\}/);
     assert.match(cache, /rows\.push\(\.\.\.page\)/);
     assert.match(cache, /lastBlockId = nextBlockId/);
     assert.match(cache, /if \(!page \|\| page\.length === 0\) break/);
     assert.match(cache, /COUNT\(DISTINCT a\.block_id\)/);
     assert.match(cache, /INNER JOIN blocks b ON b\.id = a\.block_id/);
-    assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
+    assert.match(cache, /b\.type = 'd'/);
+    assert.match(cache, /task\.type = 'i'/);
+    assert.match(cache, /task\.subtype = 't'/);
+    assert.match(cache, /task_list\.subtype = 't'/);
 });
 
 test("editor detail waits for a task and retries after rebuilding cache", () => {

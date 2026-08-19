@@ -6,6 +6,8 @@ import type { TaskCacheEntry } from "../src/shared/types.ts";
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
         blockId,
+        identificationSource: "document",
+        attrHostId: blockId,
         parentId: "",
         status: "todo",
         priority: "medium",

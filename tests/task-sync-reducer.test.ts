@@ -7,6 +7,7 @@ import {
     buildTaskCollection,
     isTaskChangeSetV2,
     isTaskSnapshotV2,
+    normalizeTaskSnapshotV2,
     reduceTaskChanges,
 } from "../src/frontend/stores/task-sync-reducer.ts";
 import type { TaskSnapshotV2 } from "../src/shared/types.ts";
@@ -61,6 +62,39 @@ test("V2 snapshot 与 delta 校验拒绝缺字段、重复和交叉 ID", () => {
         }),
         false,
     );
+});
+
+test("旧内核快照缺少原生身份字段时归一化为文档任务", () => {
+    const current = taskFactory(TASK_A);
+    const { identificationSource: _source, attrHostId: _host, ...legacyTask } = current;
+    const normalized = normalizeTaskSnapshotV2({ schema: 2, streamId: "legacy", revision: 0, tasks: [legacyTask] });
+    assert.equal(normalized?.tasks[0].identificationSource, "document");
+    assert.equal(normalized?.tasks[0].attrHostId, TASK_A);
+    assert.equal(isTaskSnapshotV2({ schema: 2, streamId: "legacy", revision: 0, tasks: [legacyTask] }), true);
+});
+
+test("旧内核快照缺少新增可选字段时仍保持 V2 同步", () => {
+    // Regression: a valid kernel snapshot must not fall back repeatedly when
+    // only fields introduced after the initial V2 payload are absent.
+    const current = taskFactory(TASK_A);
+    const {
+        identificationSource: _source,
+        attrHostId: _host,
+        contentBlockId: _content,
+        reviewInterval: _reviewInterval,
+        reviewDate: _reviewDate,
+        reminder: _reminder,
+        ...olderTask
+    } = current;
+    const normalized = normalizeTaskSnapshotV2({
+        schema: 2,
+        streamId: "older-kernel",
+        revision: 0,
+        tasks: [olderTask],
+    });
+    assert.equal(normalized?.tasks[0].identificationSource, "document");
+    assert.equal(normalized?.tasks[0].reviewInterval, 0);
+    assert.equal(normalized?.tasks[0].reminder, "");
 });
 
 test("snapshot 握手期间缓存并按 revision 重放 V2 通知", async () => {
@@ -194,6 +228,23 @@ test("V2 snapshot 获取失败时保留现有集合并暴露错误", async () =>
 
     assert.deepEqual(get(store).allTasks, []);
     assert.equal(get(store).error, "snapshot unavailable");
+    store.disposeSync();
+});
+
+test("V2 快照字段不兼容时降级到任务查询而不阻塞任务面板", async () => {
+    const legacyTask = taskFactory(TASK_A, { title: "Legacy native task" });
+    const bridge = {
+        getTaskSnapshotV2: async () => ({ schema: 2, streamId: "bad", revision: 0, tasks: [{ blockId: TASK_A }] }),
+        getAllTasks: async () => [legacyTask],
+    } as unknown as KernelBridge;
+    const store = createTaskStore();
+    store.setBridge(bridge);
+    await store.loadTasks();
+    assert.deepEqual(
+        get(store).allTasks.map((task) => task.title),
+        ["Legacy native task"],
+    );
+    assert.equal(get(store).error, null);
     store.disposeSync();
 });
 

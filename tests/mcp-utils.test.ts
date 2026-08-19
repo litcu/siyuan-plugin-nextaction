@@ -22,6 +22,8 @@ import {
 function task(overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
         blockId: "20260802120000-abcdefg",
+        identificationSource: "document",
+        attrHostId: "20260802120000-abcdefg",
         parentId: "",
         status: "todo",
         priority: "medium",
@@ -218,6 +220,27 @@ test("块 ID、插入结果和 Markdown 标题解析安全", () => {
             id: "20260802120000-abcdefg",
             parentId: "20260802119999-parentx",
             nodeType: "NodeParagraph",
+        },
+    );
+    assert.deepEqual(
+        extractInsertedBlockMeta([
+            {
+                doOperations: [
+                    {
+                        action: "insert",
+                        id: "20260802120000-listabc",
+                        parentID: "20260802119999-parentx",
+                        data: '<div data-node-id="20260802120000-listabc" data-type="NodeList"><div data-node-id="20260802120001-taskitm" data-type="NodeListItem" data-subtype="t"><div data-node-id="20260802120002-tasktxt" data-type="NodeParagraph"><div>Child</div></div></div></div>',
+                    },
+                ],
+            },
+        ]),
+        {
+            id: "20260802120001-taskitm",
+            parentId: "20260802119999-parentx",
+            nodeType: "NodeListItem",
+            contentBlockId: "20260802120002-tasktxt",
+            rootId: "20260802120000-listabc",
         },
     );
     assert.deepEqual(

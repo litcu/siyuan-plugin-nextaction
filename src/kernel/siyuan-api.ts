@@ -10,6 +10,8 @@ export interface SiyuanApiPort {
     setBlockAttrs(blockId: string, attrs: Record<string, string>): Promise<void>;
     batchGetBlockAttrs(blockIds: string[]): Promise<Record<string, Record<string, string>>>;
     batchSetBlockAttrs(blockAttrs: Array<{ id: string; attrs: Record<string, string> }>): Promise<void>;
+    updateTaskListItemMarker(id: string, marker: string): Promise<void>;
+    batchUpdateTaskListItemMarker(items: Array<{ id: string; marker: string }>): Promise<void>;
     query<T = Record<string, unknown>>(statement: string): Promise<T[]>;
     broadcast(name: "tasksChangedV2", payload: TaskChangeSetV2): void | Promise<void>;
     log(level: SiyuanLogLevel, message: string): void | Promise<void>;
@@ -50,6 +52,14 @@ export class ProductionSiyuanApi implements SiyuanApiPort {
         await this.request("/api/attr/batchSetBlockAttrs", { blockAttrs });
     }
 
+    async updateTaskListItemMarker(id: string, marker: string): Promise<void> {
+        await this.request("/api/block/updateTaskListItemMarker", { id, marker });
+    }
+
+    async batchUpdateTaskListItemMarker(items: Array<{ id: string; marker: string }>): Promise<void> {
+        await this.request("/api/block/batchUpdateTaskListItemMarker", { items });
+    }
+
     query<T = Record<string, unknown>>(statement: string): Promise<T[]> {
         return this.request("/api/query/sql", { stmt: statement });
     }
@@ -79,6 +89,12 @@ const uninitializedApi: SiyuanApiPort = {
         throw new Error("SiYuan API not initialized");
     },
     batchSetBlockAttrs: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    updateTaskListItemMarker: async () => {
+        throw new Error("SiYuan API not initialized");
+    },
+    batchUpdateTaskListItemMarker: async () => {
         throw new Error("SiYuan API not initialized");
     },
     query: async () => {

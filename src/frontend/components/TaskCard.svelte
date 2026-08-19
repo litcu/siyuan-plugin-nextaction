@@ -94,7 +94,7 @@
 
     function handleJump(event: MouseEvent): void {
         event.stopPropagation();
-        jumpToBlock(task.blockId);
+        jumpToBlock(task.contentBlockId || task.blockId);
     }
 </script>
 

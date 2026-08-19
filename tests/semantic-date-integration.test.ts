@@ -17,13 +17,10 @@ test("语义日期设置默认开启并支持安全合并和校验", () => {
 
 test("单个和递归转换都通过共享解析器且只填充空日期", () => {
     assert.match(taskServiceSource, /parseTaskTitleDates\(title, new Date\(\)\)/);
-    assert.match(taskServiceSource, /parseTaskTitleDates\(effectiveTitle, semanticDateReference\)/);
-    assert.match(taskServiceSource, /!existingAttrs\[ATTR_START\] && parsedDates\.start/);
-    assert.match(taskServiceSource, /!existingAttrs\[ATTR_DUE\] && parsedDates\.due/);
-    assert.match(taskServiceSource, /!attrs\?\.\[ATTR_START\] && parsedDates\.start/);
-    assert.match(taskServiceSource, /!attrs\?\.\[ATTR_DUE\] && parsedDates\.due/);
+    assert.match(taskServiceSource, /fillMissingDefaults\(existingAttrs, defaults\)/);
+    assert.match(taskServiceSource, /if \(!existingAttrs\[key\]\) result\[key\] = value/);
     assert.match(taskServiceSource, /this\.settings\.semanticDateParsingEnabled/);
-    assert.match(taskServiceSource, /if \(attrs && attrs\[ATTR_TASK\]/);
+    assert.match(taskServiceSource, /await this\.convertToTask\(row\.id/);
 });
 
 test("日期输入框支持回车/失焦解析，并在无效时保留输入", () => {

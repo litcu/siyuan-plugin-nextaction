@@ -6,6 +6,8 @@ import { countReviewAttentionTasks, isTaskDueOverdue, isTaskReviewDue } from "..
 function task(overrides: Partial<TaskCacheEntry>): TaskCacheEntry {
     return {
         blockId: "task",
+        identificationSource: "document",
+        attrHostId: "task",
         parentId: "",
         status: "todo",
         priority: "none",

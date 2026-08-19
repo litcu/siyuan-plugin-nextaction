@@ -15,7 +15,12 @@ import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
-import { buildTaskCollection, isTaskChangeSetV2, isTaskSnapshotV2, reduceTaskChanges } from "./task-sync-reducer";
+import {
+    buildTaskCollection,
+    isTaskChangeSetV2,
+    normalizeTaskSnapshotV2,
+    reduceTaskChanges,
+} from "./task-sync-reducer";
 
 interface TaskState {
     allTasks: TaskCacheEntry[];
@@ -86,6 +91,7 @@ export function createTaskStore() {
     let completedReloadTimer: ReturnType<typeof setTimeout> | null = null;
     let syncStreamId = "";
     let syncRevision = 0;
+    let legacySnapshotMode = false;
     let handshakeInProgress = false;
     let queuedV2Notifications: unknown[] = [];
 
@@ -184,6 +190,7 @@ export function createTaskStore() {
     }
 
     function applyV2Notification(value: unknown): void {
+        if (legacySnapshotMode) return;
         if (!isTaskChangeSetV2(value)) {
             requestV2Recovery();
             return;
@@ -218,12 +225,26 @@ export function createTaskStore() {
 
         try {
             const rawSnapshot = await bridge.getTaskSnapshotV2();
-            if (!isTaskSnapshotV2(rawSnapshot)) throw new Error("Invalid task snapshot V2 payload");
+            const snapshot = normalizeTaskSnapshotV2(rawSnapshot);
+            if (!snapshot) {
+                const legacyTasks = await bridge.getAllTasks({});
+                if (seq !== loadSeq) return;
+                legacySnapshotMode = true;
+                syncStreamId = "";
+                syncRevision = 0;
+                const collection = buildTaskCollection(legacyTasks);
+                update((state) => ({ ...state, ...collection, loading: false, error: null }));
+                handshakeInProgress = false;
+                queuedV2Notifications = [];
+                if (getCurrentState().showCompleted) invalidateCompletedPage(true);
+                return;
+            }
             if (seq !== loadSeq) return;
 
-            const collection = buildTaskCollection(rawSnapshot.tasks);
-            syncStreamId = rawSnapshot.streamId;
-            syncRevision = rawSnapshot.revision;
+            legacySnapshotMode = false;
+            const collection = buildTaskCollection(snapshot.tasks);
+            syncStreamId = snapshot.streamId;
+            syncRevision = snapshot.revision;
             update((state) => ({ ...state, ...collection, loading: false, error: null }));
             handshakeInProgress = false;
             const queued = queuedV2Notifications;
@@ -368,6 +389,7 @@ export function createTaskStore() {
         resetSync() {
             loadSeq++;
             handshakeInProgress = false;
+            legacySnapshotMode = false;
             syncStreamId = "";
             syncRevision = 0;
             queuedV2Notifications = [];

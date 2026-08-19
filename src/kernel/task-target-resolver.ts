@@ -216,11 +216,23 @@ export class TaskTargetResolver {
     }
 
     async resolveInsertedTaskBlock(meta: InsertedBlockMeta): Promise<InsertedBlockMeta> {
-        if (meta.nodeType === "NodeParagraph") return meta;
+        if (meta.nodeType === "NodeListItem" && meta.contentBlockId) return meta;
         if (meta.nodeType !== "NodeList" && meta.nodeType !== "NodeListItem") {
-            throw new McpToolError("SIYUAN_API_ERROR", `Expected NodeParagraph, got ${meta.nodeType || "unknown"}`);
+            throw new McpToolError("SIYUAN_API_ERROR", `Expected NodeListItem, got ${meta.nodeType || "unknown"}`);
         }
         const rootId = meta.rootId || meta.id;
+        if (meta.nodeType === "NodeListItem") {
+            const children = await this.api.request<Array<{ id?: string; type?: string }>>(
+                "/api/block/getChildBlocks",
+                {
+                    id: meta.id,
+                },
+            );
+            const textChild = Array.isArray(children)
+                ? children.find((child) => child?.id && (child.type === "p" || child.type === "h"))
+                : undefined;
+            if (textChild?.id) return { ...meta, contentBlockId: textChild.id, rootId };
+        }
         const queue = [rootId];
         const visited = new Set<string>();
         while (queue.length) {
@@ -237,13 +249,30 @@ export class TaskTargetResolver {
             } catch {
                 children = [];
             }
-            const paragraph = children.find((child) => child?.id && child.type === "p");
-            if (paragraph?.id) return { id: paragraph.id, parentId: currentId, nodeType: "NodeParagraph", rootId };
+            const listItem = children.find((child) => child?.id && child.type === "i");
+            if (listItem?.id) {
+                const itemChildren = await this.api.request<Array<{ id?: string; type?: string }>>(
+                    "/api/block/getChildBlocks",
+                    { id: listItem.id },
+                );
+                const paragraph = Array.isArray(itemChildren)
+                    ? itemChildren.find((child) => child?.id && (child.type === "p" || child.type === "h"))
+                    : undefined;
+                if (paragraph?.id) {
+                    return {
+                        id: listItem.id,
+                        parentId: meta.parentId,
+                        nodeType: "NodeListItem",
+                        contentBlockId: paragraph.id,
+                        rootId,
+                    };
+                }
+            }
             for (const child of children) {
                 if (child?.id && (child.type === "i" || child.type === "l")) queue.push(child.id);
             }
         }
-        throw new McpToolError("SIYUAN_API_ERROR", "Inserted list does not contain a text block");
+        throw new McpToolError("SIYUAN_API_ERROR", "Inserted task list does not contain a task item text block");
     }
 
     async resolveChildTarget(value: unknown): Promise<{

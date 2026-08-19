@@ -1,5 +1,8 @@
 export interface TaskCacheEntry {
     blockId: string;
+    identificationSource: "document" | "native";
+    contentBlockId?: string;
+    attrHostId: string;
     parentId: string;
     status: string;
     priority: string;

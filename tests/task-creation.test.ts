@@ -68,7 +68,7 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     assert.match(dialogHost, /style\.textContent = createTaskDialogStyles/);
 });
 
-test("任务创建支持文本块与文档块并移除列表形式", () => {
+test("任务创建支持原生任务块与文档块", () => {
     const manager = source("../src/kernel/task-creation-service.ts") + source("../src/kernel/mcp-tool-executor.ts");
     const cache = source("../src/kernel/cache-manager.ts");
 
@@ -78,7 +78,9 @@ test("任务创建支持文本块与文档块并移除列表形式", () => {
     assert.match(manager, /block destinations always use paragraph format/);
     assert.doesNotMatch(manager, /format === "list"/);
     assert.match(manager, /insertedMeta = await this\.targets\.resolveInsertedTaskBlock\(insertedMeta\)/);
-    assert.match(cache, /b\.type IN \('p', 'h', 'd'\)/);
+    assert.match(cache, /b\.type = 'd'/);
+    assert.match(cache, /task\.type = 'i'/);
+    assert.match(cache, /task\.subtype = 't'/);
 });
 
 test("项目仅允许指定文档位置并通过文档接口回滚", () => {

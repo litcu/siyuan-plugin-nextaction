@@ -77,6 +77,7 @@ export class TaskCreationService {
         let rollbackBlockId = "";
         let destinationResult: Record<string, unknown> = {};
         let insertedMeta: InsertedBlockMeta = { id: "", parentId: "", nodeType: "" };
+        let parentTaskHint = "";
         let createdDocument = false;
         try {
             if (kind === "2" || format === "document") {
@@ -98,8 +99,9 @@ export class TaskCreationService {
                 const inserted = await this.api.request<unknown[]>("/api/block/appendBlock", {
                     parentID: childTarget.containerId,
                     dataType: "markdown",
-                    data: escapeMarkdownText(title),
+                    data: `- [ ] ${escapeMarkdownText(title)}`,
                 });
+                parentTaskHint = childTarget.taskBlockId;
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
                 rollbackBlockId = insertedMeta.rootId || blockId;
@@ -124,7 +126,7 @@ export class TaskCreationService {
                 const inserted = await this.api.request<unknown[]>("/api/block/appendDailyNoteBlock", {
                     notebook: notebookId,
                     dataType: "markdown",
-                    data: escapeMarkdownText(title),
+                    data: `- [ ] ${escapeMarkdownText(title)}`,
                 });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -143,7 +145,7 @@ export class TaskCreationService {
                 const inserted = await this.api.request<unknown[]>("/api/block/appendBlock", {
                     parentID: document.id,
                     dataType: "markdown",
-                    data: escapeMarkdownText(title),
+                    data: `- [ ] ${escapeMarkdownText(title)}`,
                 });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -154,7 +156,7 @@ export class TaskCreationService {
                 destinationResult = { type: destination.type === "document" ? "document" : "inbox", format, document };
             }
             if (!blockId) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the inserted block ID");
-            const expectedNodeType = kind === "2" || format === "document" ? "NodeDocument" : "NodeParagraph";
+            const expectedNodeType = kind === "2" || format === "document" ? "NodeDocument" : "NodeListItem";
             if (insertedMeta.nodeType !== expectedNodeType) {
                 throw new McpToolError(
                     "SIYUAN_API_ERROR",
@@ -163,9 +165,11 @@ export class TaskCreationService {
             }
 
             let task = await this.taskService.convertToTask(blockId, kind === "2" ? undefined : title, kind, {
-                knownTextBlock: true,
-                knownTextBlockType: kind === "2" || format === "document" ? "d" : "p",
-                parentIdHint: insertedMeta.parentId,
+                knownTextBlock: kind === "2" || format === "document",
+                knownTextBlockType: kind === "2" || format === "document" ? "d" : undefined,
+                knownNativeTask: kind !== "2" && format !== "document",
+                contentBlockId: insertedMeta.contentBlockId,
+                parentIdHint: parentTaskHint || insertedMeta.parentId,
             });
             const taskBlockId = task.blockId;
             const properties = (input.properties || {}) as Record<string, unknown>;

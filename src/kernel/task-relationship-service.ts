@@ -306,6 +306,11 @@ export class TaskRelationshipService {
 
     async findTaskParentHint(parentId: string, blockId: string): Promise<string> {
         if (!parentId || parentId === blockId) return "";
+        if (this.cacheManager.get(parentId)) return parentId;
+        const rows = await this.api.query<{ type?: string; subtype?: string }>(
+            sql`SELECT type, subtype FROM blocks WHERE id = ${parentId} LIMIT 1`,
+        );
+        if (rows?.[0]?.type === "i" && rows[0].subtype === "t") return parentId;
         const attrs = await this.repository.getBlockAttrs(parentId);
         return attrs[ATTR_TASK] ? parentId : "";
     }
@@ -314,18 +319,21 @@ export class TaskRelationshipService {
         // Use a recursive CTE to fetch the entire ancestor chain in one SQL call,
         // then walk it in memory. Include the starting block itself so we can
         // read its parent_id as the entry point for the upward walk.
-        const rows = await this.api.query<{ id: string; parent_id: string; type: string }>(
-            sql`WITH RECURSIVE ancestors(id, parent_id, type) AS (
-                    SELECT id, parent_id, type FROM blocks WHERE id = ${blockId}
+        const rows = await this.api.query<{ id: string; parent_id: string; type: string; subtype: string }>(
+            sql`WITH RECURSIVE ancestors(id, parent_id, type, subtype) AS (
+                    SELECT id, parent_id, type, subtype FROM blocks WHERE id = ${blockId}
                     UNION ALL
-                    SELECT b.id, b.parent_id, b.type FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id
-                ) SELECT id, parent_id, type FROM ancestors`,
+                    SELECT b.id, b.parent_id, b.type, b.subtype FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id
+                ) SELECT id, parent_id, type, subtype FROM ancestors`,
         );
 
         if (!rows || rows.length === 0) return "";
 
         // Build a lookup by id
-        const byId = Object.create(null) as Record<string, { id: string; parent_id: string; type: string }>;
+        const byId = Object.create(null) as Record<
+            string,
+            { id: string; parent_id: string; type: string; subtype: string }
+        >;
         for (let i = 0; i < rows.length; i++) {
             byId[rows[i].id] = rows[i];
         }
@@ -348,48 +356,18 @@ export class TaskRelationshipService {
 
             const ancestorId = ancestor.id;
 
-            // Check if this ancestor itself is a task (works for paragraphs, list items, and document blocks)
+            if (ancestor.type === "i" && ancestor.subtype === "t") {
+                return ancestorId;
+            }
+
+            // Document tasks/projects are identified by custom-na-task.
             const attrs = await this.repository.getBlockAttrs(ancestorId);
             if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
                 return ancestorId;
             }
 
-            // If this ancestor is a list item, check its child paragraphs for na-task.
-            // Skip the starting block's direct container — paragraphs inside it are
-            // peers, not parents.
-            if (ancestor.type === "i" && ancestorId !== directParentId) {
-                const taskParagraph = await this.findTaskParagraphInListItem(ancestorId, blockId);
-                if (taskParagraph && taskParagraph !== blockId) {
-                    return taskParagraph;
-                }
-            }
-
             if (!ancestor.parent_id) break;
             currentId = ancestor.parent_id;
-        }
-
-        return "";
-    }
-
-    /**
-     * Check if a list item (type="i") contains a paragraph with na-task set.
-     * Returns the paragraph blockId if found, empty string otherwise.
-     * @param excludeId A blockId to skip (typically the block we just came from).
-     */
-    private async findTaskParagraphInListItem(listItemId: string, excludeId?: string): Promise<string> {
-        const stmt = excludeId
-            ? sql`SELECT id FROM blocks WHERE parent_id = ${listItemId} AND type = 'p' AND id != ${excludeId}`
-            : sql`SELECT id FROM blocks WHERE parent_id = ${listItemId} AND type = 'p'`;
-
-        const rows = await this.api.query<{ id: string }>(stmt);
-
-        if (!rows || rows.length === 0) return "";
-
-        for (let i = 0; i < rows.length; i++) {
-            const attrs = await this.repository.getBlockAttrs(rows[i].id);
-            if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
-                return rows[i].id;
-            }
         }
 
         return "";

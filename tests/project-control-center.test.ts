@@ -118,7 +118,7 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     assert.match(aiService, /task\.taskType === \"2\"/);
     assert.match(aiService, /i18n\?\.aiDecomposeProject/);
     assert.match(plugin, /custom-na-task["']\) === ["']2["']/);
-    assert.match(plugin, /const isProjectBlock = taskBlock/);
+    assert.match(plugin, /const isProjectBlock = resolvedTask/);
     assert.match(plugin, /this\.plugin\.i18n\.projectProperties/);
     assert.match(plugin, /this\.plugin\.i18n\.removeProject/);
 });

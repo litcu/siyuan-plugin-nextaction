@@ -89,7 +89,7 @@ export function reduceTaskChanges(
     };
 }
 
-function isTaskEntry(value: unknown): value is TaskCacheEntry {
+function isTaskEntry(value: unknown, allowLegacyIdentity = false): value is TaskCacheEntry {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     const task = value as Partial<TaskCacheEntry>;
     const stringFields: Array<keyof TaskCacheEntry> = [
@@ -116,8 +116,15 @@ function isTaskEntry(value: unknown): value is TaskCacheEntry {
     ];
     const numberFields: Array<keyof TaskCacheEntry> = ["importance", "effort", "order", "sort", "reviewInterval"];
     const booleanFields: Array<keyof TaskCacheEntry> = ["sequential", "blocked"];
+    const hasCurrentIdentity =
+        (task.identificationSource === "document" || task.identificationSource === "native") &&
+        typeof task.attrHostId === "string";
+    const hasLegacyIdentity =
+        allowLegacyIdentity && task.identificationSource === undefined && task.attrHostId === undefined;
     return (
         stringFields.every((field) => typeof task[field] === "string") &&
+        (hasCurrentIdentity || hasLegacyIdentity) &&
+        (task.contentBlockId === undefined || typeof task.contentBlockId === "string") &&
         numberFields.every((field) => typeof task[field] === "number" && Number.isFinite(task[field] as number)) &&
         booleanFields.every((field) => typeof task[field] === "boolean") &&
         Array.isArray(task.childIds) &&
@@ -129,22 +136,97 @@ function isTaskEntry(value: unknown): value is TaskCacheEntry {
     );
 }
 
+function normalizeTaskEntry(value: unknown): TaskCacheEntry | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const source = value as Record<string, unknown>;
+    if (typeof source.blockId !== "string" || source.blockId.length === 0) return null;
+    // A payload containing only an id is not a task snapshot entry. These
+    // fields have existed since V2 and distinguish malformed data from an
+    // older, otherwise usable entry missing newer metadata.
+    if (["status", "taskType", "title", "childIds"].some((field) => source[field] === undefined)) return null;
+
+    // V2 snapshots can be served by a kernel bundle that was loaded just before
+    // the current fields were introduced. Keep the wire contract stable by
+    // filling only fields whose absence has a deterministic domain default.
+    const defaults: Record<string, unknown> = {
+        identificationSource: "document",
+        attrHostId: source.blockId,
+        parentId: "",
+        status: "todo",
+        priority: "medium",
+        importance: 0,
+        effort: 0,
+        due: "",
+        start: "",
+        context: "",
+        taskType: "1",
+        order: 0,
+        childIds: [],
+        title: "",
+        depends: "",
+        depMode: "all",
+        sequential: false,
+        repeat: "",
+        repeatState: "",
+        sort: -1,
+        completed: "",
+        note: "",
+        created: "",
+        tags: "",
+        blocked: false,
+        blockedReason: "",
+        reviewInterval: 0,
+        reviewDate: "",
+        reminder: "",
+        customFields: {},
+    };
+    const present = Object.fromEntries(
+        Object.entries(source).filter(([, fieldValue]) => fieldValue !== undefined && fieldValue !== null),
+    );
+    const normalized = { ...defaults, ...present } as Partial<TaskCacheEntry>;
+    if (!isTaskEntry(normalized, true)) return null;
+    return normalized as TaskCacheEntry;
+}
+
 function hasValidTaskSet(tasks: unknown): tasks is TaskCacheEntry[] {
-    if (!Array.isArray(tasks) || !tasks.every(isTaskEntry)) return false;
+    if (!Array.isArray(tasks) || !tasks.every((task) => isTaskEntry(task))) return false;
     return new Set(tasks.map((task) => task.blockId)).size === tasks.length;
 }
 
 export function isTaskSnapshotV2(value: unknown): value is TaskSnapshotV2 {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    return normalizeTaskSnapshotV2(value) !== null;
+}
+
+/**
+ * Accept snapshots emitted by a kernel that predates the native-task identity
+ * fields while the plugin is being hot-reloaded. The wire contract remains V2;
+ * missing identity metadata is deterministically treated as a document task.
+ */
+export function normalizeTaskSnapshotV2(value: unknown): TaskSnapshotV2 | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const snapshot = value as Partial<TaskSnapshotV2>;
-    return (
+    if (
         snapshot.schema === 2 &&
         typeof snapshot.streamId === "string" &&
         snapshot.streamId.length > 0 &&
         Number.isSafeInteger(snapshot.revision) &&
         Number(snapshot.revision) >= 0 &&
-        hasValidTaskSet(snapshot.tasks)
-    );
+        Array.isArray(snapshot.tasks)
+    ) {
+        const streamId = snapshot.streamId;
+        const revision = snapshot.revision as number;
+        const tasks = snapshot.tasks.map(normalizeTaskEntry);
+        if (tasks.some((task) => task === null)) return null;
+        const entries = tasks as TaskCacheEntry[];
+        if (new Set(entries.map((task) => task.blockId)).size !== entries.length) return null;
+        return {
+            schema: 2,
+            streamId,
+            revision,
+            tasks: entries,
+        };
+    }
+    return null;
 }
 
 export function isTaskChangeSetV2(value: unknown): value is TaskChangeSetV2 {

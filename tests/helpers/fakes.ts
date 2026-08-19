@@ -8,6 +8,9 @@ import { setMyDayTaskCompletedAt } from "../../src/shared/my-day";
 export interface FakeBlock {
     id: string;
     type: string;
+    subtype: string;
+    parentId: string;
+    markdown: string;
     content: string;
     box: string;
     hpath: string;
@@ -24,9 +27,32 @@ export class FakeSiyuanApi implements SiyuanApiPort {
     readonly failAtRequest = new Map<string, number>();
     readonly requestCounts = new Map<string, number>();
     failBroadcast = false;
+    private generatedIdCounter = 0;
 
-    addBlock(id: string, type = "p", content = "Task", box = "notebook", hpath = "/Task"): FakeBlock {
-        const block = { id, type, content, box, hpath, attrs: {} };
+    private nextBlockId(): string {
+        this.generatedIdCounter++;
+        return `20260818000000-${this.generatedIdCounter.toString(36).padStart(7, "0")}`;
+    }
+
+    addBlock(
+        id: string,
+        type = "p",
+        content = "Task",
+        box = "notebook",
+        hpath = "/Task",
+        options: { subtype?: string; parentId?: string; markdown?: string } = {},
+    ): FakeBlock {
+        const block = {
+            id,
+            type,
+            subtype: options.subtype || "",
+            parentId: options.parentId || "",
+            markdown: options.markdown || content,
+            content,
+            box,
+            hpath,
+            attrs: {},
+        };
         this.blocks.set(id, block);
         return block;
     }
@@ -43,6 +69,9 @@ export class FakeSiyuanApi implements SiyuanApiPort {
             attrs?: Record<string, string>;
             blockAttrs?: Array<{ id: string; attrs: Record<string, string> }>;
             stmt?: string;
+            parentID?: string;
+            dataType?: string;
+            data?: string;
         };
         if (path === "/api/attr/getBlockAttrs") {
             return { ...(this.blocks.get(input.id || "")?.attrs || {}) } as T;
@@ -68,7 +97,91 @@ export class FakeSiyuanApi implements SiyuanApiPort {
         }
         if (path === "/api/notebook/lsNotebooks") return { notebooks: this.notebooks } as T;
         if (path === "/api/query/sql") return this.queryFromStatement(input.stmt || "") as T;
-        if (path === "/api/block/getChildBlocks") return [] as T;
+        if (path === "/api/block/getChildBlocks") {
+            return [...this.blocks.values()]
+                .filter((block) => block.parentId === input.id)
+                .map((block) => ({ id: block.id, type: block.type, subtype: block.subtype })) as T;
+        }
+        if (path === "/api/block/getBlockDOM") {
+            const block = this.blocks.get(input.id || "");
+            if (!block) return { id: input.id, dom: "" } as T;
+            const textChild = [...this.blocks.values()].find(
+                (child) => child.parentId === block.id && (child.type === "p" || child.type === "h"),
+            );
+            const checked = /\[[^ ]\]/.test(block.markdown);
+            return {
+                id: block.id,
+                dom: `<div data-task="${checked ? "X" : " "}" data-marker="*" data-subtype="${block.subtype}" data-node-id="${block.id}" data-type="NodeListItem" class="li${checked ? " protyle-task--done" : ""}"><div class="protyle-action protyle-action--task"><svg><use xlink:href="#icon${checked ? "Check" : "Uncheck"}"></use></svg></div>${textChild ? `<div data-node-id="${textChild.id}" data-type="NodeParagraph" class="p"><div contenteditable="true">${textChild.content}</div></div>` : ""}</div>`,
+            } as T;
+        }
+        if (path === "/api/block/appendBlock" && /^- \[ \] /.test(input.data || "")) {
+            const rootId = this.nextBlockId();
+            const listItemId = this.nextBlockId();
+            const paragraphId = this.nextBlockId();
+            const title = (input.data || "").replace(/^- \[ \] /, "").replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
+            this.addBlock(rootId, "l", title, "notebook", "/Task", {
+                subtype: "t",
+                parentId: input.parentID || "",
+                markdown: input.data || "",
+            });
+            this.addBlock(listItemId, "i", title, "notebook", "/Task", {
+                subtype: "t",
+                parentId: rootId,
+                markdown: `- [ ] ${title}`,
+            });
+            this.addBlock(paragraphId, "p", title, "notebook", "/Task", { parentId: listItemId });
+            return [
+                {
+                    doOperations: [
+                        {
+                            action: "insert",
+                            id: rootId,
+                            parentID: input.parentID || "",
+                            data: `<div data-node-id="${rootId}" data-type="NodeList" data-subtype="t"><div data-node-id="${listItemId}" data-type="NodeListItem" data-subtype="t" data-task=" "><div data-node-id="${paragraphId}" data-type="NodeParagraph"></div></div></div>`,
+                        },
+                    ],
+                },
+            ] as T;
+        }
+        if (path === "/api/block/updateBlock") {
+            const block = this.blocks.get(input.id || "");
+            if (!block) throw new Error(`Unknown fake block: ${input.id}`);
+            if (input.dataType === "markdown" && /^- \[ \] /.test(input.data || "")) {
+                const title = (input.data || "").replace(/^- \[ \] /, "").replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
+                const listItemId = this.nextBlockId();
+                const paragraphId = this.nextBlockId();
+                block.type = "l";
+                block.subtype = "t";
+                block.content = title;
+                block.markdown = input.data || "";
+                this.addBlock(listItemId, "i", title, block.box, block.hpath, {
+                    subtype: "t",
+                    parentId: block.id,
+                    markdown: `- [ ] ${title}`,
+                });
+                this.addBlock(paragraphId, "p", title, block.box, block.hpath, { parentId: listItemId });
+                return [
+                    {
+                        doOperations: [
+                            {
+                                action: "update",
+                                id: block.id,
+                                parentID: block.parentId,
+                                data: `<div data-node-id="${block.id}" data-type="NodeList" data-subtype="t"><div data-node-id="${listItemId}" data-type="NodeListItem" data-subtype="t" data-task=" "><div data-node-id="${paragraphId}" data-type="NodeParagraph"></div></div></div>`,
+                            },
+                        ],
+                    },
+                ] as T;
+            }
+            if (input.dataType === "dom") {
+                block.subtype = /data-subtype=["']u["']/.test(input.data || "") ? "u" : block.subtype;
+                block.markdown = block.markdown.replace(/\[[^\]]\]\s*/, "");
+            } else {
+                block.content = input.data || "";
+                block.markdown = input.data || "";
+            }
+            return [{ doOperations: [{ action: "update", id: block.id, data: input.data || "" }] }] as T;
+        }
         return null as T;
     }
 
@@ -88,6 +201,17 @@ export class FakeSiyuanApi implements SiyuanApiPort {
         await this.request("/api/attr/batchSetBlockAttrs", { blockAttrs });
     }
 
+    async updateTaskListItemMarker(id: string, marker: string): Promise<void> {
+        await this.request("/api/block/updateTaskListItemMarker", { id, marker });
+        const block = this.blocks.get(id);
+        if (!block) throw new Error(`Unknown fake block: ${id}`);
+        block.markdown = block.markdown.replace(/\[[^\]]\]/, `[${marker}]`);
+    }
+
+    async batchUpdateTaskListItemMarker(items: Array<{ id: string; marker: string }>): Promise<void> {
+        for (const item of items) await this.updateTaskListItemMarker(item.id, item.marker);
+    }
+
     async query<T = Record<string, unknown>>(statement: string): Promise<T[]> {
         return this.request<T[]>("/api/query/sql", { stmt: statement });
     }
@@ -103,14 +227,53 @@ export class FakeSiyuanApi implements SiyuanApiPort {
 
     private queryFromStatement(statement: string): Array<Record<string, string>> {
         const ids = [...statement.matchAll(/'(\d{14}-[0-9a-z]{7})'/g)].map((match) => match[1]);
+        if (/WITH\s+RECURSIVE\s+selected/i.test(statement) && ids[0]) {
+            const selected: FakeBlock[] = [];
+            const queue = [ids[0]];
+            const visited = new Set<string>();
+            while (queue.length) {
+                const id = queue.shift()!;
+                if (visited.has(id)) continue;
+                visited.add(id);
+                const block = this.blocks.get(id);
+                if (!block) continue;
+                selected.push(block);
+                for (const child of this.blocks.values()) if (child.parentId === id) queue.push(child.id);
+            }
+            return selected.map((block, index) => ({
+                id: block.id,
+                parent_id: block.parentId,
+                type: block.type,
+                subtype: block.subtype,
+                sort: String(index),
+            }));
+        }
+        if (/WITH\s+RECURSIVE\s+ancestors/i.test(statement) && ids[0]) {
+            const ancestors: FakeBlock[] = [];
+            let current = this.blocks.get(ids[0]);
+            const visited = new Set<string>();
+            while (current && !visited.has(current.id)) {
+                ancestors.push(current);
+                visited.add(current.id);
+                current = current.parentId ? this.blocks.get(current.parentId) : undefined;
+            }
+            return ancestors.map((block) => ({
+                id: block.id,
+                parent_id: block.parentId,
+                type: block.type,
+                subtype: block.subtype,
+            }));
+        }
         const rows = ids.map((id) => this.blocks.get(id)).filter((block): block is FakeBlock => !!block);
         if (/SELECT\s+type\s+FROM/i.test(statement)) return rows.map((block) => ({ type: block.type }));
         if (/SELECT\s+content\s+FROM/i.test(statement)) return rows.map((block) => ({ content: block.content }));
         return rows.map((block) => ({
             id: block.id,
             type: block.type,
+            subtype: block.subtype,
             content: block.content,
-            parent_id: "",
+            markdown: block.markdown,
+            parent_id: block.parentId,
             box: block.box,
             hpath: block.hpath,
         }));
@@ -176,6 +339,8 @@ export class FakeMyDayTaskPort implements MyDayTaskPort {
 export function taskFactory(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
         blockId,
+        identificationSource: "document",
+        attrHostId: blockId,
         parentId: "",
         status: "todo",
         priority: "medium",

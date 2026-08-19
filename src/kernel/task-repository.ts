@@ -32,7 +32,7 @@ import type { Mutex } from "./mutex";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskChangePublisher } from "./sync-engine";
 import { TaskDerivedStateService } from "./task-derived-state-service";
-import { attrToNumber } from "./utils";
+import { attrToNumber, numberToAttr } from "./utils";
 
 export type TaskChangeType = "create" | "update" | "delete";
 
@@ -57,11 +57,16 @@ export function buildTaskEntryFromAttrs(
     defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">,
     existing?: TaskCacheEntry,
     titleOverride?: string,
+    identity?: Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
+        Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>,
 ): TaskCacheEntry {
     const entry: TaskCacheEntry = {
         blockId,
-        parentId: attrs[ATTR_PARENT] || "",
-        status: attrs[ATTR_STATUS] || "todo",
+        identificationSource: identity?.identificationSource || existing?.identificationSource || "document",
+        contentBlockId: identity?.contentBlockId ?? existing?.contentBlockId,
+        attrHostId: identity?.attrHostId || existing?.attrHostId || blockId,
+        parentId: attrs[ATTR_PARENT] || identity?.parentId || "",
+        status: attrs[ATTR_STATUS] || identity?.status || "todo",
         priority: attrs[ATTR_PRIORITY] || "medium",
         importance: attrToNumber(attrs[ATTR_IMPORTANCE], defaults.defaultImportance),
         effort: attrToNumber(attrs[ATTR_EFFORT], defaults.defaultEffort),
@@ -84,7 +89,7 @@ export function buildTaskEntryFromAttrs(
         customFields: extractCustomFields(attrs),
         blocked: false,
         blockedReason: "",
-        taskType: attrs[ATTR_TASK] || "1",
+        taskType: identity?.taskType || attrs[ATTR_TASK] || "1",
         order: 0,
         childIds: existing ? existing.childIds : [],
         title: titleOverride ?? (existing ? existing.title : ""),
@@ -147,8 +152,34 @@ export class TaskRepository {
     }
 
     async writeAttrs(blockId: string, attrs: Record<string, string>): Promise<Record<string, string>> {
-        await this.api.setBlockAttrs(blockId, attrs);
+        const entry = this.cacheManager.get(blockId);
+        let persistedAttrs = attrs;
+        const clearingNativeTask = attrs[ATTR_TASK] === "" && attrs[ATTR_STATUS] === "";
+        if (entry?.identificationSource === "native" && !clearingNativeTask) {
+            const currentAttrs = await this.api.getBlockAttrs(blockId);
+            const defaults: Record<string, string> = {};
+            const addDefault = (key: string, value: string): void => {
+                if (!currentAttrs[key] && attrs[key] === undefined) defaults[key] = value;
+            };
+            addDefault(ATTR_STATUS, entry.status || "inbox");
+            addDefault(ATTR_PRIORITY, entry.priority || "medium");
+            addDefault(ATTR_IMPORTANCE, numberToAttr(entry.importance || this.settings.defaultImportance));
+            addDefault(ATTR_EFFORT, numberToAttr(entry.effort || this.settings.defaultEffort));
+            addDefault(ATTR_CREATED, entry.created || new Date().toISOString().slice(0, 19));
+            if (entry.parentId) addDefault(ATTR_PARENT, entry.parentId);
+            if (entry.sort >= 0) addDefault(ATTR_SORT, String(entry.sort));
+            persistedAttrs = {
+                ...defaults,
+                ...attrs,
+            };
+            if (attrs[ATTR_TASK] !== "") delete persistedAttrs[ATTR_TASK];
+        }
+        await this.api.setBlockAttrs(blockId, persistedAttrs);
         return this.api.getBlockAttrs(blockId);
+    }
+
+    async restoreAttrs(blockId: string, attrs: Record<string, string>): Promise<void> {
+        await this.api.setBlockAttrs(blockId, attrs);
     }
 
     async batchWriteAttrs(blockAttrs: Array<{ id: string; attrs: Record<string, string> }>): Promise<BatchWriteResult> {
@@ -185,8 +216,10 @@ export class TaskRepository {
         attrs: Record<string, string>,
         existing?: TaskCacheEntry,
         titleOverride?: string,
+        identity?: Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
+            Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>,
     ): TaskCacheEntry {
-        return buildTaskEntryFromAttrs(blockId, attrs, this.settings, existing, titleOverride);
+        return buildTaskEntryFromAttrs(blockId, attrs, this.settings, existing, titleOverride, identity);
     }
 
     cache(entry: TaskCacheEntry): void {

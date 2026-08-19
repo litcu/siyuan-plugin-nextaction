@@ -32,7 +32,12 @@ import type { SiyuanApiPort } from "./siyuan-api";
 interface SqlRow {
     id: string;
     parent_id: string;
-    content: string;
+    content_block_id: string;
+    title_content: string;
+    markdown: string;
+    structural_parent_id: string;
+    source: "document" | "native";
+    sort: number;
     updated: string;
 }
 
@@ -54,32 +59,68 @@ export class CacheManager {
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
-        // Step 1: Query na-task block IDs in stable cursor pages. There is no
-        // explicit LIMIT so SiYuan applies its current search-result limit to
-        // every request. Continue after the last ID until no rows remain.
+        // Discover document tasks/projects and all native task list items through
+        // one stable cursor. Native tasks do not require custom-na-task.
         const rows: SqlRow[] = [];
         let lastBlockId = "";
         for (;;) {
-            const stmt = lastBlockId
-                ? sql`SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
-                    FROM blocks b
-                    INNER JOIN attributes a
-                      ON a.block_id = b.id
-                     AND a.name = 'custom-na-task'
-                    WHERE a.value IS NOT NULL
-                      AND a.value != ''
-                      AND b.type IN ('p', 'h', 'd')
-                      AND b.id > ${lastBlockId}
-                    ORDER BY b.id`
-                : `SELECT DISTINCT b.id, b.parent_id, b.content, b.updated
-                    FROM blocks b
-                    INNER JOIN attributes a
-                      ON a.block_id = b.id
-                     AND a.name = 'custom-na-task'
-                    WHERE a.value IS NOT NULL
-                      AND a.value != ''
-                      AND b.type IN ('p', 'h', 'd')
-                    ORDER BY b.id`;
+            const stmt = sql`SELECT * FROM (
+                    SELECT b.id,
+                           b.parent_id,
+                           '' AS content_block_id,
+                           b.content AS title_content,
+                           b.markdown,
+                           '' AS structural_parent_id,
+                           'document' AS source,
+                           b.sort,
+                           b.updated
+                      FROM blocks b
+                      INNER JOIN attributes a
+                        ON a.block_id = b.id
+                       AND a.name = 'custom-na-task'
+                     WHERE a.value IS NOT NULL
+                       AND a.value != ''
+                       AND b.type = 'd'
+                    UNION ALL
+                    SELECT task.id,
+                           task.parent_id,
+                           COALESCE((SELECT child.id FROM blocks child
+                                      WHERE child.parent_id = task.id
+                                        AND child.type IN ('p', 'h')
+                                      ORDER BY child.sort LIMIT 1), '') AS content_block_id,
+                           COALESCE((SELECT child.content FROM blocks child
+                                      WHERE child.parent_id = task.id
+                                        AND child.type IN ('p', 'h')
+                                      ORDER BY child.sort LIMIT 1), task.content) AS title_content,
+                           task.markdown,
+                           COALESCE(parent_item.id, '') AS structural_parent_id,
+                           'native' AS source,
+                           task.sort,
+                           task.updated
+                      FROM blocks task
+                      LEFT JOIN blocks parent_list
+                        ON parent_list.id = task.parent_id
+                       AND parent_list.type = 'l'
+                      LEFT JOIN blocks parent_item
+                        ON parent_item.id = parent_list.parent_id
+                       AND parent_item.type = 'i'
+                       AND (
+                            parent_item.subtype = 't'
+                            OR EXISTS (
+                                SELECT 1 FROM blocks parent_item_list
+                                 WHERE parent_item_list.id = parent_item.parent_id
+                                   AND parent_item_list.type = 'l'
+                                   AND parent_item_list.subtype = 't'
+                            )
+                       )
+                     WHERE task.type = 'i'
+                       AND (
+                            task.subtype = 't'
+                            OR parent_list.subtype = 't'
+                       )
+                ) task
+                WHERE (${lastBlockId} = '' OR task.id > ${lastBlockId})
+                ORDER BY task.id`;
             const page = await this.api.query<SqlRow>(stmt);
             if (!page || page.length === 0) break;
             rows.push(...page);
@@ -101,29 +142,25 @@ export class CacheManager {
         const ids = rows.map((r) => r.id);
         const batchResult = await readTaskAttributes(ids);
 
-        // Build a title lookup from SQL rows
-        const titleMap: Record<string, string> = Object.create(null) as Record<string, string>;
-        for (let i = 0; i < rows.length; i++) {
-            titleMap[rows[i].id] = rows[i].content ? cleanSlashFromTitle(rows[i].content.substring(0, 100)) : "";
-        }
-
         const newCache: Record<string, TaskCacheEntry> = Object.create(null) as Record<string, TaskCacheEntry>;
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const attrs = batchResult[row.id];
-            if (!attrs) {
-                void this.api.log("warn", `Cache load: batchGetBlockAttrs missing attrs for block ${row.id}, skipping`);
+            const attrs = batchResult[row.id] || {};
+
+            if (row.source === "document" && (!attrs[ATTR_TASK] || attrs[ATTR_TASK] === "")) {
                 continue;
             }
 
-            if (!attrs[ATTR_TASK] || attrs[ATTR_TASK] === "") {
-                continue;
-            }
+            const marker = row.markdown?.match(/\[(.)\]/s)?.[1] || " ";
+            const defaultNativeStatus = marker === " " ? "inbox" : "done";
 
             const entry: TaskCacheEntry = {
                 blockId: row.id,
-                parentId: attrs[ATTR_PARENT] || "",
-                status: attrs[ATTR_STATUS] || "todo",
+                identificationSource: row.source,
+                contentBlockId: row.source === "native" ? row.content_block_id || undefined : undefined,
+                attrHostId: row.id,
+                parentId: attrs[ATTR_PARENT] || (row.source === "native" ? row.structural_parent_id || "" : ""),
+                status: attrs[ATTR_STATUS] || (row.source === "native" ? defaultNativeStatus : "todo"),
                 priority: attrs[ATTR_PRIORITY] || "medium",
                 importance: attrToNumber(attrs[ATTR_IMPORTANCE], DEFAULT_SETTINGS.defaultImportance),
                 effort: attrToNumber(attrs[ATTR_EFFORT], DEFAULT_SETTINGS.defaultEffort),
@@ -135,7 +172,7 @@ export class CacheManager {
                 sequential: attrs[ATTR_SEQUENTIAL] === "1",
                 repeat: attrs[ATTR_REPEAT] || "",
                 repeatState: attrs[ATTR_REPEAT_STATE] || "",
-                sort: attrToNumber(attrs[ATTR_SORT], -1),
+                sort: attrToNumber(attrs[ATTR_SORT], row.source === "native" ? Number(row.sort ?? -1) : -1),
                 completed: attrs[ATTR_COMPLETED] || "",
                 note: attrs[ATTR_NOTE] || "",
                 created: attrs[ATTR_CREATED] || "",
@@ -147,10 +184,10 @@ export class CacheManager {
                 customFields: this.extractCustomFields(attrs),
                 blocked: false, // 将在 childIds 构建后统一计算
                 blockedReason: "",
-                taskType: attrs[ATTR_TASK] || "1",
+                taskType: row.source === "native" ? "1" : attrs[ATTR_TASK] || "1",
                 order: 0,
                 childIds: [],
-                title: titleMap[row.id] || "",
+                title: row.title_content ? cleanSlashFromTitle(row.title_content.substring(0, 100)) : "",
             };
 
             newCache[entry.blockId] = entry;
@@ -234,13 +271,22 @@ export class CacheManager {
     async verifyIntegrity(): Promise<number> {
         try {
             const rows = await this.api.query<{ count: number }>(
-                `SELECT COUNT(DISTINCT a.block_id) as count
-                    FROM attributes a
-                    INNER JOIN blocks b ON b.id = a.block_id
-                    WHERE a.name = 'custom-na-task'
-                      AND a.value IS NOT NULL
-                      AND a.value != ''
-                      AND b.type IN ('p', 'h', 'd')`,
+                `SELECT (
+                    SELECT COUNT(DISTINCT a.block_id)
+                      FROM attributes a
+                      INNER JOIN blocks b ON b.id = a.block_id
+                     WHERE a.name = 'custom-na-task'
+                       AND a.value IS NOT NULL
+                       AND a.value != ''
+                       AND b.type = 'd'
+                ) + (
+                    SELECT COUNT(*) FROM blocks task
+                     LEFT JOIN blocks task_list
+                       ON task_list.id = task.parent_id
+                      AND task_list.type = 'l'
+                    WHERE task.type = 'i'
+                      AND (task.subtype = 't' OR task_list.subtype = 't')
+                ) AS count`,
             );
             const dbCount = rows && rows.length > 0 ? rows[0].count : 0;
             const cacheCount = Object.keys(this.cache).length;

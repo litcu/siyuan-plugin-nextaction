@@ -559,7 +559,7 @@
                 symbol="iconOpenWindow"
                 label={i18n?.jumpToBlock || "Jump to block"}
                 size={14}
-                on:click={() => jump(task.blockId)}
+                on:click={() => jump(task.contentBlockId || task.blockId)}
             />{/if}
         <NaIconButton
             symbol="iconSparkles"

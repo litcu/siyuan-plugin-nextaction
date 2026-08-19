@@ -171,8 +171,8 @@
         content: "";
         position: absolute;
         left: 0;
-        top: 50%;
-        transform: translateY(-50%);
+        top: calc(0.5lh - 8px);
+        transform: none;
         width: 16px;
         height: 16px;
         border-radius: 50%;
@@ -197,7 +197,7 @@
         content: "";
         position: absolute;
         left: 8px;
-        top: 50%;
+        top: 0.5lh;
         width: 0;
         height: 0;
         border-left: 2.5px solid transparent;
@@ -235,6 +235,109 @@
         opacity: 0.55;
         text-decoration: line-through;
     }
+}
+
+// 原生任务列表项直接复用面板的 StatusCheckbox 视觉类，保留思源 action 的布局位置。
+.protyle-wysiwyg
+    :is(
+        [data-type="NodeListItem"][data-subtype="t"],
+        [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
+    )
+    > .protyle-action--task.na-status-checkbox {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    left: 8px;
+    top: calc((1.625em + 8px - 18px) / 2);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    cursor: pointer;
+    vertical-align: middle;
+
+    > svg {
+        visibility: hidden;
+        width: 0;
+        height: 0;
+    }
+
+    // SiYuan uses ::after for its hover circle. It must not compete with
+    // the StatusCheckbox state marker mounted on this same action.
+    &::before,
+    &::after {
+        content: none;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--b3-theme-primary-light);
+        outline-offset: 2px;
+    }
+}
+
+.protyle-wysiwyg
+    :is(
+        [data-type="NodeListItem"][data-subtype="t"],
+        [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
+    )
+    > .protyle-action--task.na-status-checkbox.na-status-checkbox--inbox::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    margin: 0;
+    border-top: 4.5px solid var(--na-color-inbox);
+    border-right: 3px solid transparent;
+    border-left: 3px solid transparent;
+    background: transparent;
+    border-radius: 0;
+    transform: translate(-50%, -35%);
+}
+
+.protyle-wysiwyg
+    :is(
+        [data-type="NodeListItem"][data-subtype="t"],
+        [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
+    )
+    > .protyle-action--task.na-status-checkbox.na-status-checkbox--someday::after {
+    content: "···";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: auto;
+    height: auto;
+    margin: 0;
+    color: var(--na-color-someday);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    transform: translate(-50%, -50%);
+}
+
+.protyle-wysiwyg
+    :is(
+        [data-type="NodeListItem"][data-subtype="t"],
+        [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
+    )
+    > .protyle-action--task.na-status-checkbox.na-status-checkbox--done::after {
+    content: "✓";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: auto;
+    height: auto;
+    margin: 0;
+    color: var(--b3-theme-on-primary);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    transform: translate(-50%, -50%);
 }
 
 // ===================================================================

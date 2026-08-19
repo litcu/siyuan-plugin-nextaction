@@ -38,6 +38,19 @@ const PARAGRAPH_TYPE_BEFORE_ID_RE = new RegExp(
     `data-type=["']NodeParagraph["'][^>]*data-node-id=["'](${BLOCK_ID_SOURCE})["']`,
 );
 
+function extractNodeIdFromDom(dom: string, nodeType: string): string {
+    const escapedType = nodeType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const idBeforeType = new RegExp(
+        `data-node-id=["'](${BLOCK_ID_SOURCE})["'][^>]*data-type=["']${escapedType}["']`,
+        "i",
+    );
+    const typeBeforeId = new RegExp(
+        `data-type=["']${escapedType}["'][^>]*data-node-id=["'](${BLOCK_ID_SOURCE})["']`,
+        "i",
+    );
+    return dom.match(idBeforeType)?.[1] || dom.match(typeBeforeId)?.[1] || "";
+}
+
 export const READ_MCP_TOOL_NAMES = [
     "get_task_metadata",
     "search_tasks",
@@ -529,6 +542,7 @@ export interface InsertedBlockMeta {
     id: string;
     parentId: string;
     nodeType: string;
+    contentBlockId?: string;
     /** 当 markdown 根节点是列表时，记录需要整体回滚的根块。 */
     rootId?: string;
 }
@@ -539,9 +553,21 @@ export function extractInsertedBlockMeta(data: unknown): InsertedBlockMeta {
         const operations = isRecord(transaction) ? transaction.doOperations : null;
         if (!Array.isArray(operations)) continue;
         for (const operation of operations) {
-            if (operation?.action !== "insert" || !isBlockId(operation.id)) continue;
+            if ((operation?.action !== "insert" && operation?.action !== "update") || !isBlockId(operation.id))
+                continue;
             const dom = typeof operation.data === "string" ? operation.data : "";
             const typeMatch = dom.match(/data-type=["']([^"']+)["']/i);
+            const listItemId = extractNodeIdFromDom(dom, "NodeListItem");
+            const contentBlockId = extractNodeIdFromDom(dom, "NodeParagraph");
+            if (listItemId) {
+                return {
+                    id: listItemId,
+                    parentId: isBlockId(operation.parentID) ? operation.parentID : "",
+                    nodeType: "NodeListItem",
+                    contentBlockId: contentBlockId || undefined,
+                    rootId: operation.id,
+                };
+            }
             const paragraphMatch = dom.match(PARAGRAPH_ID_BEFORE_TYPE_RE) || dom.match(PARAGRAPH_TYPE_BEFORE_ID_RE);
             if (paragraphMatch?.[1] && paragraphMatch[1] !== operation.id) {
                 return {

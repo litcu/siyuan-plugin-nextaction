@@ -17,9 +17,15 @@ type TaskDetailDialog = Dialog & {
     _naDetail?: TaskDetail;
 };
 
+const NATIVE_TASK_ITEM_SELECTOR =
+    '[data-type="NodeListItem"][data-subtype="t"], [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]';
+
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
     private editorTitleIconHandler: ((event: CustomEvent<IEventBusMap["click-editortitleicon"]>) => void) | null = null;
+    private nativeTaskObserver: MutationObserver | null = null;
+    private nativeTaskRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    private taskStoreUnsubscribe: (() => void) | null = null;
     private started = false;
 
     constructor(
@@ -46,24 +52,114 @@ export class EditorTaskIntegration {
      * Detects clicks in the left 20px area of a task block, opens a
      * status selection menu.
      */
-    private handleEditorStatusClick = (event: MouseEvent) => {
+    private handleEditorStatusClick = (event: MouseEvent | PointerEvent) => {
         const target = event.target as HTMLElement;
-        // Find the closest block with custom-na-task
-        const taskBlock = target.closest("[data-node-id][custom-na-task]") as HTMLElement;
+        const nativeAction = target.closest(".protyle-action--task") as HTMLElement | null;
+        const nativeTaskBlock = nativeAction?.closest(
+            `[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`,
+        ) as HTMLElement | null;
+        const documentTaskBlock = target.closest("[data-node-id][custom-na-task]") as HTMLElement | null;
+        const taskBlock = nativeTaskBlock || documentTaskBlock;
         if (!taskBlock) return;
 
-        const rect = taskBlock.getBoundingClientRect();
-        // ::before is absolutely positioned at left:0, 14px wide, padding-left:22px
-        if (event.clientX > rect.left + 22 || event.clientX < rect.left) return;
-
-        const blockId = taskBlock.dataset.nodeId;
-        if (!blockId) return;
-        const currentStatus = taskBlock.getAttribute("custom-na-status") || "todo";
-        const currentPriority = normalizePriority(taskBlock.getAttribute("custom-na-priority"));
-        const isProject = taskBlock.getAttribute("custom-na-task") === "2";
+        if (!nativeTaskBlock) {
+            if (event.type !== "click") return;
+            const rect = taskBlock.getBoundingClientRect();
+            if (event.clientX > rect.left + 22 || event.clientX < rect.left) return;
+        }
 
         event.stopPropagation();
         event.preventDefault();
+        if (event.type !== "click") return;
+
+        const blockId = taskBlock.dataset.nodeId;
+        if (!blockId) return;
+        void this.openEditorTaskMenu(taskBlock, blockId, event, !!nativeTaskBlock);
+    };
+
+    private handleEditorStatusKeydown = (event: KeyboardEvent) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const action = (event.target as HTMLElement).closest(".protyle-action--task") as HTMLElement | null;
+        const taskBlock = action?.closest(`[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`) as HTMLElement | null;
+        const blockId = taskBlock?.dataset.nodeId;
+        if (!action || !taskBlock || !blockId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = action.getBoundingClientRect();
+        void this.openEditorTaskMenu(
+            taskBlock,
+            blockId,
+            new MouseEvent("click", { clientX: rect.left, clientY: rect.bottom }),
+            true,
+        );
+    };
+
+    private decorateNativeTaskActions(root: ParentNode): void {
+        const tasksById = new Map(get(taskStore).allTasks.map((task) => [task.blockId, task]));
+        const actions: HTMLElement[] = [];
+        if (root instanceof Element && root.matches(".protyle-action--task")) actions.push(root as HTMLElement);
+        actions.push(...Array.from(root.querySelectorAll<HTMLElement>(".protyle-action--task")));
+        for (const action of actions) {
+            if (!action.closest(NATIVE_TASK_ITEM_SELECTOR)) continue;
+            action.setAttribute("role", "button");
+            action.setAttribute("tabindex", "0");
+            action.setAttribute("aria-haspopup", "menu");
+            action.setAttribute("aria-label", this.plugin.i18n.taskStatus || "Task status");
+            const taskBlock = action.closest(`[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`);
+            const task = taskBlock instanceof HTMLElement ? tasksById.get(taskBlock.dataset.nodeId || "") : undefined;
+            if (taskBlock instanceof HTMLElement) {
+                const status = task?.status || taskBlock.getAttribute("custom-na-status") || "inbox";
+                this.applyNativeTaskStatusVisual(taskBlock, action, status);
+            }
+        }
+    }
+
+    private applyNativeTaskStatusVisual(taskBlock: HTMLElement, action: HTMLElement, status: string): void {
+        const statusClassPrefix = "na-status-checkbox--";
+        for (const className of Array.from(action.classList)) {
+            if (className.startsWith(statusClassPrefix)) action.classList.remove(className);
+        }
+        action.classList.add("na-status-checkbox", `${statusClassPrefix}${status}`);
+        taskBlock.dataset.naStatus = status;
+        taskBlock.setAttribute("custom-na-status", status);
+    }
+
+    private syncNativeTaskDomState(tasks: TaskCacheEntry[]): void {
+        for (const task of tasks) {
+            if (task.identificationSource !== "native") continue;
+            document
+                .querySelectorAll<HTMLElement>(`[data-node-id="${task.blockId}"]:is(${NATIVE_TASK_ITEM_SELECTOR})`)
+                .forEach((element) => {
+                    element.dataset.naStatus = task.status;
+                    element.setAttribute("custom-na-status", task.status);
+                    element
+                        .querySelectorAll<HTMLElement>(".protyle-action--task")
+                        .forEach((action) => this.applyNativeTaskStatusVisual(element, action, task.status));
+                });
+        }
+    }
+
+    private async openEditorTaskMenu(
+        taskBlock: HTMLElement,
+        blockId: string,
+        event: MouseEvent | PointerEvent,
+        isNative: boolean,
+    ): Promise<void> {
+        let task = get(taskStore).allTasks.find((item) => item.blockId === blockId);
+        if (isNative && !task) {
+            try {
+                await this.getBridge().rebuildCache();
+                await taskStore.loadTasks();
+                task = get(taskStore).allTasks.find((item) => item.blockId === blockId);
+            } catch (error) {
+                notifyOperationError(error, this.plugin.i18n);
+                return;
+            }
+        }
+        const currentStatus =
+            task?.status || taskBlock.getAttribute("custom-na-status") || (isNative ? "inbox" : "todo");
+        const currentPriority = normalizePriority(task?.priority || taskBlock.getAttribute("custom-na-priority"));
+        const isProject = task?.taskType === "2" || taskBlock.getAttribute("custom-na-task") === "2";
 
         const menu = new Menu("na-editor-status");
 
@@ -103,8 +199,8 @@ export class EditorTaskIntegration {
                         ? this.plugin.i18n.aiDecomposeProject || "AI 拆解项目"
                         : this.plugin.i18n.aiDecomposeTask || "AI 拆解任务",
                     click: async () => {
-                        const task = get(taskStore).allTasks.find((item) => item.blockId === blockId);
-                        if (task) await runAiDecomposeTask(task);
+                        const currentTask = get(taskStore).allTasks.find((item) => item.blockId === blockId);
+                        if (currentTask) await runAiDecomposeTask(currentTask);
                     },
                 },
             ],
@@ -205,7 +301,89 @@ export class EditorTaskIntegration {
         });
 
         menu.open({ x: event.clientX, y: event.clientY });
-    };
+    }
+
+    private resolveTaskBlock(
+        element: HTMLElement,
+    ): { element: HTMLElement; blockId: string; isNative: boolean } | null {
+        const native = (
+            element.matches('[data-type="NodeListItem"][data-subtype="t"]')
+                ? element
+                : element.closest('[data-type="NodeListItem"][data-subtype="t"]')
+        ) as HTMLElement | null;
+        if (native?.dataset.nodeId) return { element: native, blockId: native.dataset.nodeId, isNative: true };
+        const documentTask = (
+            element.hasAttribute("custom-na-task") ? element : element.closest("[data-node-id][custom-na-task]")
+        ) as HTMLElement | null;
+        if (documentTask?.dataset.nodeId) {
+            return { element: documentTask, blockId: documentTask.dataset.nodeId, isNative: false };
+        }
+        return null;
+    }
+
+    private addNativeTaskManagementItems(
+        menu: { addItem: (options: Parameters<Menu["addItem"]>[0]) => unknown },
+        blockId: string,
+    ): void {
+        const state = get(taskStore);
+        const isInMyDay = state.myDayState?.tasks.some((task) => task.blockId === blockId) ?? false;
+        menu.addItem({
+            icon: isInMyDay ? "iconClose" : "iconBookmark",
+            label: isInMyDay
+                ? this.plugin.i18n.removeFromMyDay || "Remove from My Day"
+                : this.plugin.i18n.addToMyDay || "Add to My Day",
+            click: async () => {
+                try {
+                    const myDayState = isInMyDay
+                        ? await this.getBridge().removeTaskFromMyDay(blockId)
+                        : await this.getBridge().addTaskToMyDay(blockId);
+                    taskStore.applyMyDayUpdate(myDayState);
+                } catch (error) {
+                    notifyOperationError(error, this.plugin.i18n);
+                }
+            },
+        });
+        menu.addItem({
+            icon: "iconClock",
+            label: this.plugin.i18n.reminderAddReminder || "添加提醒",
+            click: () => this.openReminderDialog(blockId),
+        });
+        menu.addItem({
+            icon: "iconEdit",
+            label: this.plugin.i18n.taskProperties || "Task Properties",
+            click: () => void this.openTaskDetailDialog(blockId),
+        });
+        menu.addItem({
+            icon: "iconTrashcan",
+            label: this.plugin.i18n.removeTask || "Remove Task",
+            click: () => {
+                confirm(
+                    this.plugin.i18n.removeTask || "Remove Task",
+                    this.plugin.i18n.confirmRemoveTask ||
+                        "This will convert the native task to a regular list item and clear NextAction fields.",
+                    async () => {
+                        try {
+                            await this.getBridge().removeTask(blockId);
+                            taskStore.applyRemove(blockId);
+                        } catch (error) {
+                            notifyOperationError(error, this.plugin.i18n);
+                        }
+                    },
+                );
+            },
+        });
+    }
+
+    private scheduleNativeTaskRefresh(): void {
+        if (this.nativeTaskRefreshTimer) clearTimeout(this.nativeTaskRefreshTimer);
+        this.nativeTaskRefreshTimer = setTimeout(() => {
+            this.nativeTaskRefreshTimer = null;
+            void this.getBridge()
+                .rebuildCache()
+                .then(() => taskStore.loadTasks())
+                .catch((error) => console.warn("[NextAction] native task discovery refresh failed", error));
+        }, 250);
+    }
 
     /**
      * Open a reminder settings dialog for the given task.
@@ -317,8 +495,9 @@ export class EditorTaskIntegration {
         // Block icon menu
         this.blockIconHandler = ({ detail }) => {
             const blockElements = detail.blockElements || [];
-            const taskBlock = blockElements.length === 1 && blockElements[0].hasAttribute("custom-na-task");
-            const isProjectBlock = taskBlock && blockElements[0].getAttribute("custom-na-task") === "2";
+            const resolvedTask = blockElements.length === 1 ? this.resolveTaskBlock(blockElements[0]) : null;
+            const taskBlock = !!resolvedTask;
+            const isProjectBlock = resolvedTask?.element.getAttribute("custom-na-task") === "2";
             detail.menu.addItem({
                 icon: "iconSparkles",
                 label: `[NextAction] ${this.plugin.i18n.ai || "AI"}`,
@@ -343,7 +522,7 @@ export class EditorTaskIntegration {
                                       : this.plugin.i18n.aiDecomposeTask || "AI 拆解任务",
                                   click: async () => {
                                       const task = get(taskStore).allTasks.find(
-                                          (item) => item.blockId === blockElements[0].dataset.nodeId,
+                                          (item) => item.blockId === resolvedTask?.blockId,
                                       );
                                       if (task) await runAiDecomposeTask(task);
                                   },
@@ -358,7 +537,7 @@ export class EditorTaskIntegration {
                 click: async () => {
                     let ok = 0;
                     for (const blockElement of detail.blockElements) {
-                        const blockId = blockElement.dataset.nodeId;
+                        const blockId = this.resolveTaskBlock(blockElement)?.blockId || blockElement.dataset.nodeId;
                         if (blockId) {
                             try {
                                 await this.commands.doConvertToTask(blockId);
@@ -413,6 +592,10 @@ export class EditorTaskIntegration {
                     void taskStore.loadTasks();
                 },
             });
+            if (resolvedTask?.isNative) {
+                detail.menu.addSeparator();
+                this.addNativeTaskManagementItems(detail.menu, resolvedTask.blockId);
+            }
         };
         this.plugin.eventBus.on("click-blockicon", this.blockIconHandler);
 
@@ -470,14 +653,45 @@ export class EditorTaskIntegration {
         };
         this.plugin.eventBus.on("click-editortitleicon", this.editorTitleIconHandler);
 
-        // Editor status checkbox click listener
+        // Capture native checkbox input before SiYuan toggles its binary marker.
+        document.addEventListener("pointerdown", this.handleEditorStatusClick, true);
+        document.addEventListener("mousedown", this.handleEditorStatusClick, true);
         document.addEventListener("click", this.handleEditorStatusClick, true);
+        document.addEventListener("keydown", this.handleEditorStatusKeydown, true);
+        this.decorateNativeTaskActions(document);
+        this.taskStoreUnsubscribe = taskStore.subscribe((state) => this.syncNativeTaskDomState(state.allTasks));
+        this.nativeTaskObserver = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node instanceof Element) this.decorateNativeTaskActions(node);
+                }
+            }
+            const hasNativeTask = mutations.some((mutation) =>
+                [...mutation.addedNodes].some(
+                    (node) =>
+                        node instanceof Element &&
+                        (node.matches('[data-type="NodeListItem"][data-subtype="t"]') ||
+                            !!node.querySelector('[data-type="NodeListItem"][data-subtype="t"]')),
+                ),
+            );
+            if (hasNativeTask) this.scheduleNativeTaskRefresh();
+        });
+        this.nativeTaskObserver.observe(document.body, { childList: true, subtree: true });
     }
 
     dispose(): void {
         if (!this.started) return;
         this.started = false;
+        document.removeEventListener("pointerdown", this.handleEditorStatusClick, true);
+        document.removeEventListener("mousedown", this.handleEditorStatusClick, true);
         document.removeEventListener("click", this.handleEditorStatusClick, true);
+        document.removeEventListener("keydown", this.handleEditorStatusKeydown, true);
+        this.nativeTaskObserver?.disconnect();
+        this.nativeTaskObserver = null;
+        this.taskStoreUnsubscribe?.();
+        this.taskStoreUnsubscribe = null;
+        if (this.nativeTaskRefreshTimer) clearTimeout(this.nativeTaskRefreshTimer);
+        this.nativeTaskRefreshTimer = null;
         if (this.blockIconHandler) this.plugin.eventBus.off("click-blockicon", this.blockIconHandler);
         if (this.editorTitleIconHandler) this.plugin.eventBus.off("click-editortitleicon", this.editorTitleIconHandler);
         this.blockIconHandler = null;

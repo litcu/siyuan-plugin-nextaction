@@ -37,24 +37,31 @@ function setup() {
 test("转换、更新和移除均以权威属性回读驱动缓存与变更发布", async () => {
     const { api, cache, publisher, service } = setup();
     const created = await service.convertToTask(ID, "Write tests");
-    assert.equal(api.blocks.get(ID)?.attrs[ATTR_TASK], "1");
+    const taskId = created.blockId;
+    assert.notEqual(taskId, ID);
+    assert.equal(api.blocks.get(taskId)?.type, "i");
+    assert.equal(api.blocks.get(taskId)?.subtype, "t");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_TASK], undefined);
     assert.equal(created.status, "inbox");
-    assert.equal(cache.get(ID)?.title, "Write tests");
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: ID, type: "create" });
+    assert.equal(created.identificationSource, "native");
+    assert.ok(created.contentBlockId);
+    assert.equal(cache.get(taskId)?.title, "Write tests");
+    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "create" });
 
-    const updated = await service.updateTask(ID, { [ATTR_STATUS]: "todo", [ATTR_PRIORITY]: "high" });
+    const updated = await service.updateTask(taskId, { [ATTR_STATUS]: "todo", [ATTR_PRIORITY]: "high" });
     assert.equal(updated.status, "todo");
     assert.equal(updated.priority, "high");
-    assert.deepEqual(service.getTask(ID), updated);
+    assert.deepEqual(service.getTask(taskId), updated);
     assert.equal(
-        service.getNextActions().some((task) => task.blockId === ID),
+        service.getNextActions().some((task) => task.blockId === taskId),
         true,
     );
 
-    await service.removeTask(ID);
-    assert.equal(api.blocks.get(ID)?.attrs[ATTR_TASK], "");
-    assert.equal(cache.get(ID), undefined);
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: ID, type: "delete" });
+    await service.removeTask(taskId);
+    assert.equal(api.blocks.get(taskId)?.subtype, "u");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_STATUS], "");
+    assert.equal(cache.get(taskId), undefined);
+    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "delete" });
 });
 
 test("非法内部 URI 在 SQL、属性写入和缓存变化前失败", async () => {
@@ -79,43 +86,45 @@ test("权威回读失败时不产生虚假的缓存成功状态", async () => {
     const { api, cache, service } = setup();
     api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
     await assert.rejects(service.convertToTask(ID, "Write tests"));
-    assert.equal(api.blocks.get(ID)?.attrs[ATTR_TASK], "1");
+    const native = [...api.blocks.values()].find((block) => block.type === "i" && block.subtype === "t");
+    assert.equal(native?.attrs[ATTR_STATUS], "inbox");
     assert.equal(cache.get(ID), undefined);
 });
 
 test("属性写入失败时保留既有权威缓存", async () => {
     const { api, cache, service } = setup();
-    await service.convertToTask(ID, "Write tests");
-    const before = cache.get(ID);
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    const before = cache.get(taskId);
     api.failPaths.add("/api/attr/setBlockAttrs");
-    await assert.rejects(service.updateTask(ID, { [ATTR_PRIORITY]: "critical" }));
-    assert.equal(cache.get(ID), before);
-    assert.equal(cache.get(ID)?.priority, "medium");
+    await assert.rejects(service.updateTask(taskId, { [ATTR_PRIORITY]: "critical" }));
+    assert.equal(cache.get(taskId), before);
+    assert.equal(cache.get(taskId)?.priority, "medium");
 });
 
 test("重复规则写入规则与状态，并以回读结果更新缓存和广播", async () => {
     const { api, cache, publisher, service } = setup();
-    await service.convertToTask(ID, "Write tests");
-    await service.updateTask(ID, { [ATTR_DUE]: "2026-08-20" });
-    const result = await service.setRepeatRule(ID, { version: 2, frequency: "day", interval: 1 });
-    assert.ok(api.blocks.get(ID)?.attrs[ATTR_REPEAT]);
-    assert.ok(api.blocks.get(ID)?.attrs[ATTR_REPEAT_STATE]);
-    assert.equal(cache.get(ID)?.repeat, result.repeat);
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: ID, type: "update" });
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    await service.updateTask(taskId, { [ATTR_DUE]: "2026-08-20" });
+    const result = await service.setRepeatRule(taskId, { version: 2, frequency: "day", interval: 1 });
+    assert.ok(api.blocks.get(taskId)?.attrs[ATTR_REPEAT]);
+    assert.ok(api.blocks.get(taskId)?.attrs[ATTR_REPEAT_STATE]);
+    assert.equal(cache.get(taskId)?.repeat, result.repeat);
+    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "update" });
 });
 
 test("重复任务完成推进后保留我的一天本次完成态", async () => {
     // Regression: repeat advancement reopens the task block but must not erase today's completed occurrence.
-    const { myDay, service } = setup();
-    await service.convertToTask(ID, "Write tests");
-    await service.updateTask(ID, { [ATTR_DUE]: "2026-08-20" });
-    await service.setRepeatRule(ID, { version: 2, frequency: "day", interval: 1 });
-    await myDay.addTask(ID);
+    const { api, myDay, service } = setup();
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    await service.updateTask(taskId, { [ATTR_DUE]: "2026-08-20" });
+    await service.setRepeatRule(taskId, { version: 2, frequency: "day", interval: 1 });
+    await myDay.addTask(taskId);
 
-    const updated = await service.updateTask(ID, { [ATTR_STATUS]: "done" });
-    const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === ID);
+    const updated = await service.updateTask(taskId, { [ATTR_STATUS]: "done" });
+    const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === taskId);
 
     assert.equal(updated.status, "todo");
+    assert.match(api.blocks.get(taskId)!.markdown, /\[ \]/);
     assert.equal(typeof myDayEntry?.completedAt, "number");
     assert.equal(isMyDayEntryDone(myDayEntry, updated.status), true);
 });
@@ -159,10 +168,10 @@ test("新建子任务显式写入父级和排序属性", async () => {
     api.addBlock(childId, "p", "Child");
     cache.set(taskFactory(parentId, { taskType: "2" }));
 
-    await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId });
+    const childTaskId = (await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId })).blockId;
 
-    assert.equal(api.blocks.get(childId)?.attrs[ATTR_PARENT], parentId);
-    assert.equal(api.blocks.get(childId)?.attrs[ATTR_SORT], "0");
+    assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_PARENT], parentId);
+    assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_SORT], "0");
 });
 
 test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功状态", async () => {
@@ -177,7 +186,7 @@ test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功�
 
     const result = await service.convertToTask(ID, "Write tests");
     await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.equal(cache.get(ID)?.blockId, result.blockId);
+    assert.equal(cache.get(result.blockId)?.blockId, result.blockId);
     assert.equal(
         api.logs.some((log) => log.level === "error" && log.message.includes("tasksChangedV2")),
         true,

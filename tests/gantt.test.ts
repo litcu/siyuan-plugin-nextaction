@@ -15,6 +15,8 @@ import {
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
         blockId,
+        identificationSource: "document",
+        attrHostId: blockId,
         parentId: "",
         status: "todo",
         priority: "medium",
