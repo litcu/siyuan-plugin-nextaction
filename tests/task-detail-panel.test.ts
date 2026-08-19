@@ -114,6 +114,26 @@ test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
 });
 
+// Regression: 子任务名称切换详情前必须保存草稿，跳转图标只在弹窗模式关闭。
+test("任务详情子任务导航和跳转关闭行为接线正确", () => {
+    assert.match(detail, /export let onOpenTask: \(\(blockId: string\) => void\) \| undefined/);
+    assert.match(
+        detail,
+        /async function handleOpenTask\(blockId: string\)[\s\S]*flushPendingSave\(\)[\s\S]*onOpenTask/,
+    );
+    assert.match(
+        detail,
+        /async function handleJumpToBlock\(blockId: string\)[\s\S]*await jump\(blockId\)[\s\S]*if \(dialogMode\) onClose/,
+    );
+    assert.match(detail, /onOpen=\{handleJumpToBlock\}[\s\S]*onSelect=\{handleOpenTask\}/);
+    assert.match(app, /onOpenTask=\{handleOpenTaskFromDetail\}/);
+    assert.match(dock, /onOpenTask:\s*\(blockId: string\)[\s\S]*dialog\.destroy\(\)/);
+    assert.match(editorIntegration, /onOpenTask:\s*\(nextBlockId: string\)[\s\S]*dialog\.destroy\(\)/);
+    assert.match(detail, /<NaPropertySection title=\{i18n\?\.detailGroupBasics[\s\S]*label=\{i18n\?\.note/);
+    assert.doesNotMatch(detail, /<NaPropertySection title=\{i18n\?\.detailGroupNotes/);
+    assert.match(detail, /<NaPropertySection title=\{i18n\?\.customFields/);
+});
+
 // Regression: Dock 和编辑器任务弹窗曾显示新建子任务按钮，却未提供点击回调。
 test("任务属性弹窗的新建子任务按钮接通创建回调", () => {
     assert.match(dock, /onCreateChild:\s*openCreateChild/);

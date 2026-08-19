@@ -5,6 +5,7 @@
     export let emptyText: string;
     export let openLabel: string;
     export let onOpen: (blockId: string) => void;
+    export let onSelect: ((blockId: string) => void) | undefined = undefined;
 </script>
 
 {#if items.length === 0}
@@ -15,7 +16,15 @@
             <div class="na-task-link-list__item">
                 <span class="na-task-link-list__status na-task-link-list__status--{item.status}" aria-hidden="true"
                 ></span>
-                <span class="na-task-link-list__title">{item.title}</span>
+                {#if onSelect}
+                    <button
+                        type="button"
+                        class="na-task-link-list__title na-task-link-list__title-button"
+                        on:click={() => onSelect?.(item.blockId)}>{item.title}</button
+                    >
+                {:else}
+                    <span class="na-task-link-list__title">{item.title}</span>
+                {/if}
                 <NaIconButton
                     symbol="iconOpenWindow"
                     label={openLabel}
@@ -72,6 +81,20 @@
         font-size: var(--na-font-size-md);
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+    .na-task-link-list__title-button {
+        padding: 4px 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+    }
+    .na-task-link-list__title-button:hover,
+    .na-task-link-list__title-button:focus-visible {
+        color: var(--b3-theme-primary);
+        outline: 2px solid var(--b3-theme-primary);
+        outline-offset: 2px;
     }
     .na-task-link-list__empty {
         width: 100%;

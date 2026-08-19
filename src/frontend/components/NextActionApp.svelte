@@ -101,6 +101,11 @@
         }
     }
 
+    function handleOpenTaskFromDetail(blockId: string) {
+        const nextTask = get(taskStore).allTasks.find((entry) => entry.blockId === blockId);
+        if (nextTask) handleEdit(nextTask);
+    }
+
     function closeDetailNow() {
         selectedTask = taskAfterClose === undefined ? null : taskAfterClose;
         taskAfterClose = undefined;
@@ -226,7 +231,7 @@
     async function handleRefresh() {
         try {
             await bridge.recalcAllOrders();
-            taskStore.loadTasks();
+            await taskStore.loadTasks();
         } catch (e: any) {
             console.error("[NextAction] recalcAllOrders failed:", e);
             notifyError(formatRpcError(e, i18n));
@@ -236,7 +241,6 @@
     function handleTaskCreated(task: TaskCacheEntry) {
         taskStore.applyUpdate(task);
         selectedTask = task;
-        taskStore.loadTasks();
     }
 
     function openCreate(parentTask: TaskCacheEntry | null = null) {
@@ -379,6 +383,7 @@
                         onSave={handleDetailSave}
                         onRemove={handleDetailRemove}
                         onCreateChild={(task) => openCreate(task)}
+                        onOpenTask={handleOpenTaskFromDetail}
                         onClose={closeDetailNow}
                         onConfirmDiscard={confirmDetailDiscard}
                     />

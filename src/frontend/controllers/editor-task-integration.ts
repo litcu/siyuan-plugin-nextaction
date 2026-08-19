@@ -42,7 +42,6 @@ export class EditorTaskIntegration {
             parentTask,
             onCreated: (createdTask) => {
                 taskStore.applyUpdate(createdTask);
-                void taskStore.loadTasks();
             },
         }).catch((error) => notifyOperationError(error, this.plugin.i18n));
     };
@@ -461,6 +460,10 @@ export class EditorTaskIntegration {
                         i18n: this.i18n,
                         dialogMode: true,
                         onCreateChild: this.openCreateChildDialog,
+                        onOpenTask: (nextBlockId: string) => {
+                            dialog.destroy();
+                            void this.openTaskDetailDialog(nextBlockId);
+                        },
                         onSave: (updated: TaskCacheEntry) => {
                             taskStore.applyUpdate(updated);
                         },

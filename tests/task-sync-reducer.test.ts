@@ -27,12 +27,12 @@ function tick(): Promise<void> {
 
 test("纯 reducer 每批统一更新任务及全部聚合值", () => {
     const current = buildTaskCollection([
-        taskFactory(PROJECT, { taskType: "2", childIds: [TASK_A, TASK_B] }),
-        taskFactory(TASK_A),
-        taskFactory(TASK_B, { status: "done" }),
+        taskFactory(PROJECT, { taskType: "2" }),
+        taskFactory(TASK_A, { parentId: PROJECT }),
+        taskFactory(TASK_B, { parentId: PROJECT, status: "done" }),
     ]);
     const reduction = reduceTaskChanges(current, {
-        upserts: [taskFactory(TASK_A, { status: "done", context: "work|home", tags: "phase-four" })],
+        upserts: [taskFactory(TASK_A, { parentId: PROJECT, status: "done", context: "work|home", tags: "phase-four" })],
         deletedBlockIds: [TASK_B],
     });
 
@@ -45,6 +45,24 @@ test("纯 reducer 每批统一更新任务及全部聚合值", () => {
         [PROJECT],
     );
     assert.equal(reduction.completedChanged, true);
+});
+
+// Regression: 增量新建或移动子任务后，父任务关系不能等待下一次全量快照才更新。
+test("增量任务关系立即重算父级 childIds", () => {
+    const current = buildTaskCollection([taskFactory(PROJECT, { taskType: "2" }), taskFactory(TASK_A)]);
+    const created = taskFactory(TASK_B, { parentId: PROJECT });
+    const createdReduction = reduceTaskChanges(current, { upserts: [created], deletedBlockIds: [] });
+    assert.deepEqual(createdReduction.collection.allTasks.find((task) => task.blockId === PROJECT)?.childIds, [TASK_B]);
+
+    const moved = reduceTaskChanges(createdReduction.collection, {
+        upserts: [taskFactory(TASK_B, { parentId: TASK_A })],
+        deletedBlockIds: [],
+    });
+    assert.deepEqual(moved.collection.allTasks.find((task) => task.blockId === PROJECT)?.childIds, []);
+    assert.deepEqual(moved.collection.allTasks.find((task) => task.blockId === TASK_A)?.childIds, [TASK_B]);
+
+    const removed = reduceTaskChanges(moved.collection, { upserts: [], deletedBlockIds: [TASK_B] });
+    assert.deepEqual(removed.collection.allTasks.find((task) => task.blockId === TASK_A)?.childIds, []);
 });
 
 test("V2 snapshot 与 delta 校验拒绝缺字段、重复和交叉 ID", () => {

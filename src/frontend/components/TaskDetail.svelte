@@ -44,6 +44,7 @@
     export let onConfirmDiscard: ((confirmDiscard: () => void, cancelClose: () => void) => void) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onOpenTask: ((blockId: string) => void) | undefined = undefined;
     export let showJumpToBlock = true;
     export let dialogMode = false;
 
@@ -306,6 +307,16 @@
         openReminderSettingsDialog(task, bridge, i18n, { onSave: applyExternalUpdate });
     }
 
+    async function handleOpenTask(blockId: string) {
+        if (!(await flushPendingSave())) return;
+        onOpenTask?.(blockId);
+    }
+
+    async function handleJumpToBlock(blockId: string) {
+        await jump(blockId);
+        if (dialogMode) onClose?.();
+    }
+
     async function openRepeatSettings() {
         if (!start && !due) {
             repeatDateError = i18n?.repeatNeedsDate || "Set a start or due date first";
@@ -559,7 +570,7 @@
                 symbol="iconOpenWindow"
                 label={i18n?.jumpToBlock || "Jump to block"}
                 size={14}
-                on:click={() => jump(task.contentBlockId || task.blockId)}
+                on:click={() => handleJumpToBlock(task.contentBlockId || task.blockId)}
             />{/if}
         <NaIconButton
             symbol="iconSparkles"
@@ -581,7 +592,7 @@
         <div class="na-task-detail__notice"><NaInlineNotice message={noticeMessage} tone={noticeTone} /></div>
     {/if}
 
-    <NaPropertySection title={i18n?.detailGroupBasics || "Core properties"}>
+    <NaPropertySection title={i18n?.detailGroupBasics || i18n?.detailGroupNotes || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
             <select class="b3-select fn__block" bind:value={status} on:change={handleChange}>
                 {#each STATUS_LIST as item}<option value={item}>{translateKey(i18n, statusI18nKey(item), item)}</option
@@ -608,6 +619,10 @@
         >
         <NaPropertyRow label={i18n?.effort || "Effort"}
             ><NaDotRating count={7} bind:value={effort} on:change={handleChange} /></NaPropertyRow
+        >
+        <NaPropertyRow label={i18n?.note || "Note"} stacked={true}
+            ><textarea class="b3-text-field fn__block" rows="3" bind:value={note} on:input={handleChange}
+            ></textarea></NaPropertyRow
         >
     </NaPropertySection>
 
@@ -746,7 +761,8 @@
                 items={childTasks}
                 emptyText={i18n?.noSubtasks || "No subtasks"}
                 openLabel={i18n?.jumpToBlock || "Jump to block"}
-                onOpen={jump}
+                onOpen={handleJumpToBlock}
+                onSelect={handleOpenTask}
             />
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.dependencies || "Depends on"}>
@@ -817,13 +833,6 @@
                     }}
                 /></NaPropertyRow
             >{/if}
-    </NaPropertySection>
-
-    <NaPropertySection title={i18n?.detailGroupNotes || "Notes"}>
-        <NaPropertyRow label={i18n?.note || "Note"} stacked={true}
-            ><textarea class="b3-text-field fn__block" rows="3" bind:value={note} on:input={handleChange}
-            ></textarea></NaPropertyRow
-        >
     </NaPropertySection>
 
     {#if customFieldDefs.length > 0}

@@ -76,12 +76,16 @@ export function reduceTaskChanges(
     for (const blockId of changes.deletedBlockIds) byId.delete(blockId);
     for (const entry of changes.upserts) byId.set(entry.blockId, entry);
 
-    const deletedIds = new Set(changes.deletedBlockIds);
-    const allTasks = [...byId.values()].map((task) =>
-        task.childIds.some((childId) => deletedIds.has(childId))
-            ? { ...task, childIds: task.childIds.filter((childId) => !deletedIds.has(childId)) }
-            : task,
-    );
+    const entries = [...byId.values()];
+    const allTasks = entries.map((task) => {
+        const childIds = entries
+            .filter((candidate) => candidate.parentId === task.blockId)
+            .map((candidate) => candidate.blockId);
+        const childIdsUnchanged =
+            task.childIds.length === childIds.length &&
+            task.childIds.every((childId, index) => childId === childIds[index]);
+        return childIdsUnchanged ? task : { ...task, childIds };
+    });
     const afterDone = changes.upserts.some((entry) => entry.status === "done");
     return {
         collection: buildTaskCollection(allTasks),

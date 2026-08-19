@@ -30,7 +30,6 @@
             parentTask: task,
             onCreated: (createdTask) => {
                 taskStore.applyUpdate(createdTask);
-                void taskStore.loadTasks();
             },
         }).catch((error) => notifyOperationError(error, i18n));
     }
@@ -85,6 +84,15 @@
                         i18n,
                         dialogMode: true,
                         onCreateChild: openCreateChild,
+                        onOpenTask: (blockId: string) => {
+                            dialog.destroy();
+                            void bridge
+                                .getTask(blockId)
+                                .then((nextTask) => {
+                                    if (nextTask) handleEdit(nextTask);
+                                })
+                                .catch((error) => notifyOperationError(error, i18n));
+                        },
                         onSave: (updated: TaskCacheEntry) => {
                             taskStore.applyUpdate(updated);
                         },
