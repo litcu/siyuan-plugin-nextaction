@@ -65,6 +65,35 @@ test("增量任务关系立即重算父级 childIds", () => {
     assert.deepEqual(removed.collection.allTasks.find((task) => task.blockId === TASK_A)?.childIds, []);
 });
 
+// Regression: 单个任务增量不能为每个任务重复扫描完整任务集合。
+test("增量任务关系以线性次数读取 parentId", () => {
+    const taskCount = 200;
+    const taskIds = Array.from({ length: taskCount }, (_, index) => `20260821000000-${String(index).padStart(7, "0")}`);
+    let parentIdReads = 0;
+    const tasks = taskIds.map((blockId, index) => {
+        const parentId = index === 0 ? "" : taskIds[0];
+        const task = taskFactory(blockId, { parentId, taskType: index === 0 ? "2" : "1" });
+        Object.defineProperty(task, "parentId", {
+            configurable: true,
+            enumerable: true,
+            get: () => {
+                parentIdReads++;
+                return parentId;
+            },
+        });
+        return task;
+    });
+    const current = buildTaskCollection(tasks);
+    parentIdReads = 0;
+
+    reduceTaskChanges(current, {
+        upserts: [taskFactory(taskIds[1], { parentId: taskIds[0], status: "doing" })],
+        deletedBlockIds: [],
+    });
+
+    assert.ok(parentIdReads <= taskCount * 2, `expected linear parentId reads, got ${parentIdReads}`);
+});
+
 test("V2 snapshot 与 delta 校验拒绝缺字段、重复和交叉 ID", () => {
     assert.equal(isTaskSnapshotV2(snapshot("stream-a", 0)), true);
     assert.equal(isTaskSnapshotV2({ ...snapshot("stream-a", 0), tasks: [{ blockId: TASK_A }] }), false);

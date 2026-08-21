@@ -77,10 +77,15 @@ export function reduceTaskChanges(
     for (const entry of changes.upserts) byId.set(entry.blockId, entry);
 
     const entries = [...byId.values()];
+    const childIdsByParent = new Map<string, string[]>();
+    for (const entry of entries) {
+        if (!entry.parentId) continue;
+        const childIds = childIdsByParent.get(entry.parentId);
+        if (childIds) childIds.push(entry.blockId);
+        else childIdsByParent.set(entry.parentId, [entry.blockId]);
+    }
     const allTasks = entries.map((task) => {
-        const childIds = entries
-            .filter((candidate) => candidate.parentId === task.blockId)
-            .map((candidate) => candidate.blockId);
+        const childIds = childIdsByParent.get(task.blockId) || [];
         const childIdsUnchanged =
             task.childIds.length === childIds.length &&
             task.childIds.every((childId, index) => childId === childIds[index]);

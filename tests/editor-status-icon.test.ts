@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { getOwnedNativeTaskActions } from "../src/frontend/controllers/native-task-dom.ts";
 
 const source = readFileSync(new URL("../src/frontend/styles/host-integration.scss", import.meta.url), "utf8");
 const tokens = readFileSync(new URL("../src/frontend/ui/tokens.scss", import.meta.url), "utf8");
@@ -41,4 +42,29 @@ test("原生任务 checkbox 使用六态样式并在 capture 阶段阻止 SiYuan
     assert.match(integration, /document\.addEventListener\("click", this\.handleEditorStatusClick, true\)/);
     assert.match(integration, /event\.stopPropagation\(\);[\s\S]*event\.preventDefault\(\)/);
     assert.match(integration, /if \(event\.type !== "click"\) return/);
+});
+
+// Regression: 父任务状态同步不能覆盖嵌套子任务自己的六态图标。
+test("原生任务状态同步仅处理归属于当前列表项的按钮", () => {
+    let parentTask!: HTMLElement;
+    let childTask!: HTMLElement;
+    const parentAction = {
+        closest: () => parentTask,
+    } as unknown as HTMLElement;
+    const childAction = {
+        closest: () => childTask,
+    } as unknown as HTMLElement;
+    parentTask = {
+        querySelectorAll: () => [parentAction, childAction],
+    } as unknown as HTMLElement;
+    childTask = {
+        querySelectorAll: () => [childAction],
+    } as unknown as HTMLElement;
+    const appliedStatuses = new Map<HTMLElement, string>();
+
+    for (const action of getOwnedNativeTaskActions(childTask)) appliedStatuses.set(action, "doing");
+    for (const action of getOwnedNativeTaskActions(parentTask)) appliedStatuses.set(action, "waiting");
+
+    assert.equal(appliedStatuses.get(parentAction), "waiting");
+    assert.equal(appliedStatuses.get(childAction), "doing");
 });

@@ -11,14 +11,12 @@ import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+import { getOwnedNativeTaskActions, NATIVE_TASK_ITEM_SELECTOR } from "./native-task-dom";
 import type { TaskCommandController } from "./task-command-controller";
 
 type TaskDetailDialog = Dialog & {
     _naDetail?: TaskDetail;
 };
-
-const NATIVE_TASK_ITEM_SELECTOR =
-    '[data-type="NodeListItem"][data-subtype="t"], [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]';
 
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
@@ -131,9 +129,9 @@ export class EditorTaskIntegration {
                 .forEach((element) => {
                     element.dataset.naStatus = task.status;
                     element.setAttribute("custom-na-status", task.status);
-                    element
-                        .querySelectorAll<HTMLElement>(".protyle-action--task")
-                        .forEach((action) => this.applyNativeTaskStatusVisual(element, action, task.status));
+                    getOwnedNativeTaskActions(element).forEach((action) =>
+                        this.applyNativeTaskStatusVisual(element, action, task.status),
+                    );
                 });
         }
     }
