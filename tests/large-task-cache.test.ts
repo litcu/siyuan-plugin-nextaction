@@ -9,7 +9,7 @@ function read(path: string): string {
 test("cache discovery reuses SiYuan's configured SQL row limit until all tasks are loaded", () => {
     const cache = read("src/kernel/cache-manager.ts");
     assert.match(cache, /let lastBlockId = ""/);
-    assert.match(cache, /const stmt = sql`SELECT \* FROM \(/);
+    assert.match(cache, /const stmt = sql`WITH RECURSIVE native_tasks/);
     assert.match(cache, /WHERE \(\$\{lastBlockId\} = '' OR task\.id > \$\{lastBlockId\}\)/);
     assert.match(cache, /ORDER BY task\.id/);
     assert.doesNotMatch(cache, /TASK_DISCOVERY_PAGE_SIZE|OFFSET \$\{offset\}/);

@@ -64,7 +64,62 @@ export class CacheManager {
         const rows: SqlRow[] = [];
         let lastBlockId = "";
         for (;;) {
-            const stmt = sql`SELECT * FROM (
+            const stmt = sql`WITH RECURSIVE native_tasks(id) AS (
+                    SELECT task.id
+                      FROM blocks task
+                      LEFT JOIN blocks task_list
+                        ON task_list.id = task.parent_id
+                       AND task_list.type = 'l'
+                     WHERE task.type = 'i'
+                       AND (
+                            task.subtype = 't'
+                            OR task_list.subtype = 't'
+                       )
+                ), ancestor_walk(task_id, ancestor_id, parent_id, type, subtype, depth, path) AS (
+                    SELECT task.id,
+                           parent.id,
+                           parent.parent_id,
+                           parent.type,
+                           parent.subtype,
+                           1,
+                           ',' || parent.id || ','
+                      FROM native_tasks task
+                      INNER JOIN blocks child ON child.id = task.id
+                      INNER JOIN blocks parent ON parent.id = child.parent_id
+                    UNION ALL
+                    SELECT walk.task_id,
+                           parent.id,
+                           parent.parent_id,
+                           parent.type,
+                           parent.subtype,
+                           walk.depth + 1,
+                           walk.path || parent.id || ','
+                      FROM ancestor_walk walk
+                      INNER JOIN blocks parent ON parent.id = walk.parent_id
+                     WHERE walk.type != 'd'
+                       AND INSTR(walk.path, ',' || parent.id || ',') = 0
+                ), task_ancestors(task_id, ancestor_id, depth) AS (
+                    SELECT walk.task_id, walk.ancestor_id, walk.depth
+                      FROM ancestor_walk walk
+                     WHERE walk.type = 'i'
+                       AND (
+                            walk.subtype = 't'
+                            OR EXISTS (
+                                SELECT 1 FROM blocks ancestor_list
+                                 WHERE ancestor_list.id = walk.parent_id
+                                   AND ancestor_list.type = 'l'
+                                   AND ancestor_list.subtype = 't'
+                            )
+                       )
+                ), structural_parents(task_id, ancestor_id) AS (
+                    SELECT candidate.task_id, candidate.ancestor_id
+                      FROM task_ancestors candidate
+                     WHERE candidate.depth = (
+                            SELECT MIN(nearest.depth)
+                              FROM task_ancestors nearest
+                             WHERE nearest.task_id = candidate.task_id
+                       )
+                ) SELECT * FROM (
                     SELECT b.id,
                            b.parent_id,
                            '' AS content_block_id,
@@ -93,31 +148,14 @@ export class CacheManager {
                                         AND child.type IN ('p', 'h')
                                       ORDER BY child.sort LIMIT 1), task.content) AS title_content,
                            task.markdown,
-                           COALESCE(parent_item.id, '') AS structural_parent_id,
+                           COALESCE(structural_parent.ancestor_id, '') AS structural_parent_id,
                            'native' AS source,
                            task.sort,
                            task.updated
-                      FROM blocks task
-                      LEFT JOIN blocks parent_list
-                        ON parent_list.id = task.parent_id
-                       AND parent_list.type = 'l'
-                      LEFT JOIN blocks parent_item
-                        ON parent_item.id = parent_list.parent_id
-                       AND parent_item.type = 'i'
-                       AND (
-                            parent_item.subtype = 't'
-                            OR EXISTS (
-                                SELECT 1 FROM blocks parent_item_list
-                                 WHERE parent_item_list.id = parent_item.parent_id
-                                   AND parent_item_list.type = 'l'
-                                   AND parent_item_list.subtype = 't'
-                            )
-                       )
-                     WHERE task.type = 'i'
-                       AND (
-                            task.subtype = 't'
-                            OR parent_list.subtype = 't'
-                       )
+                      FROM native_tasks discovered_task
+                      INNER JOIN blocks task ON task.id = discovered_task.id
+                      LEFT JOIN structural_parents structural_parent
+                        ON structural_parent.task_id = task.id
                 ) task
                 WHERE (${lastBlockId} = '' OR task.id > ${lastBlockId})
                 ORDER BY task.id`;

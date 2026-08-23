@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 
 import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { Mutex } from "../src/kernel/mutex.ts";
@@ -94,7 +95,64 @@ test("缓存双路发现文档任务与无属性原生任务", async () => {
     assert.match(statements[0], /b\.type = 'd'/);
     assert.match(statements[0], /task\.type = 'i'/);
     assert.match(statements[0], /task\.subtype = 't'/);
-    assert.match(statements[0], /parent_list\.subtype = 't'/);
+    assert.match(statements[0], /task_list\.subtype = 't'/);
+});
+
+test("缓存识别跨普通列表容器嵌套的原生子任务", async () => {
+    // Regression: 普通段落和无序列表夹在两个任务之间时，孙任务曾被错误识别为根任务。
+    const db = new DatabaseSync(":memory:");
+    db.exec(`
+        CREATE TABLE blocks (
+            id TEXT PRIMARY KEY,
+            parent_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            subtype TEXT NOT NULL,
+            content TEXT NOT NULL,
+            markdown TEXT NOT NULL,
+            sort INTEGER NOT NULL,
+            updated TEXT NOT NULL
+        );
+        CREATE TABLE attributes (
+            block_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            value TEXT
+        );
+    `);
+    const insert = db.prepare(
+        "INSERT INTO blocks (id, parent_id, type, subtype, content, markdown, sort, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    const outsideTaskId = "20260823130000-hiddenx";
+    const documentId = "20260823130001-docroot";
+    const parentTaskId = "20260823130653-ph774ex";
+    const childTaskId = "20260823130705-swrypcg";
+    const rows = [
+        [outsideTaskId, "", "i", "t", "Outside", "- [ ] Outside", 0, "0"],
+        [documentId, outsideTaskId, "d", "", "Document", "Document", 1, "1"],
+        ["20260823130650-ify71an", documentId, "l", "t", "", "", 2, "2"],
+        [parentTaskId, "20260823130650-ify71an", "i", "t", "Parent", "- [ ] Parent", 3, "3"],
+        ["20260823130653-parentp", parentTaskId, "p", "", "Parent", "Parent", 4, "4"],
+        ["20260823130659-l9lds9z", parentTaskId, "l", "u", "", "", 5, "5"],
+        ["20260823130704-mkdueow", "20260823130659-l9lds9z", "i", "u", "Container", "- Container", 6, "6"],
+        ["20260823130704-contain", "20260823130704-mkdueow", "p", "", "Container", "Container", 7, "7"],
+        ["20260823130706-wufqpsz", "20260823130704-mkdueow", "l", "t", "", "", 8, "8"],
+        [childTaskId, "20260823130706-wufqpsz", "i", "t", "Child", "- [ ] Child", 9, "9"],
+        ["20260823130705-childpp", childTaskId, "p", "", "Child", "Child", 10, "10"],
+    ] as const;
+    for (const row of rows) insert.run(...row);
+
+    const api = {
+        query: async <T>(statement: string) => db.prepare(statement).all() as T[],
+        log: () => {},
+    } as unknown as FakeSiyuanApi;
+    const cache = new CacheManager(api);
+
+    try {
+        await cache.loadAll(async () => ({}));
+        assert.equal(cache.get(parentTaskId)?.parentId, "");
+        assert.equal(cache.get(childTaskId)?.parentId, parentTaskId);
+    } finally {
+        db.close();
+    }
 });
 
 test("普通任务创建返回 NodeListItem ID 并把默认属性写在列表项", async () => {
