@@ -2,16 +2,13 @@ import type { TaskCacheEntry, TaskChangeSetV2, TaskSnapshotV2 } from "../shared/
 import { BROADCAST_DEBOUNCE_MS } from "../shared/constants";
 import type { SiyuanApiPort } from "./siyuan-api";
 
-type TaskChangeType = "create" | "update" | "delete";
-
 export interface TaskSyncStateSource {
     get(blockId: string): TaskCacheEntry | undefined;
     getAll(): TaskCacheEntry[];
 }
 
 export interface TaskChangePublisher {
-    addPendingChange(blockId: string, type: TaskChangeType): void;
-    broadcastChanges(): void;
+    publishChanges(blockIds: readonly string[]): void;
 }
 
 function createStreamId(): string {
@@ -28,7 +25,7 @@ function cloneTask(entry: TaskCacheEntry): TaskCacheEntry {
 
 export class SyncEngine implements TaskChangePublisher {
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    private pendingChanges: Record<string, TaskChangeType>;
+    private pendingChanges: Set<string>;
     private pendingFromRevision: number | null = null;
     private readonly streamId = createStreamId();
     private revision = 0;
@@ -37,7 +34,7 @@ export class SyncEngine implements TaskChangePublisher {
         private readonly api: SiyuanApiPort,
         private readonly stateSource: TaskSyncStateSource,
     ) {
-        this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
+        this.pendingChanges = new Set();
     }
 
     stop(): void {
@@ -45,25 +42,13 @@ export class SyncEngine implements TaskChangePublisher {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
-        this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
+        this.pendingChanges.clear();
         this.pendingFromRevision = null;
     }
 
-    addPendingChange(blockId: string, type: TaskChangeType): void {
-        const current = this.pendingChanges[blockId];
-        if (type === "delete") {
-            this.pendingChanges[blockId] = "delete";
-        } else if (current === "delete") {
-            // V2 resolves delete/recreate from the final cache at flush time.
-        } else if (type === "create") {
-            this.pendingChanges[blockId] = "create";
-        } else {
-            this.pendingChanges[blockId] = current || "update";
-        }
-    }
-
-    broadcastChanges(): void {
-        if (Object.keys(this.pendingChanges).length === 0) return;
+    publishChanges(blockIds: readonly string[]): void {
+        for (const blockId of blockIds) this.pendingChanges.add(blockId);
+        if (this.pendingChanges.size === 0) return;
 
         if (this.pendingFromRevision === null) this.pendingFromRevision = this.revision;
         this.revision++;
@@ -85,7 +70,7 @@ export class SyncEngine implements TaskChangePublisher {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
-        this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
+        this.pendingChanges.clear();
         this.pendingFromRevision = null;
         this.revision++;
         const notification: TaskChangeSetV2 = {
@@ -99,11 +84,11 @@ export class SyncEngine implements TaskChangePublisher {
 
     private flushChanges(): void {
         this.debounceTimer = null;
-        const changedIds = Object.keys(this.pendingChanges);
+        const changedIds = [...this.pendingChanges];
         if (changedIds.length === 0 || this.pendingFromRevision === null) return;
 
         const fromRevision = this.pendingFromRevision;
-        this.pendingChanges = Object.create(null) as Record<string, TaskChangeType>;
+        this.pendingChanges.clear();
         this.pendingFromRevision = null;
 
         const upserts: TaskCacheEntry[] = [];

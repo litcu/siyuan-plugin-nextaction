@@ -128,7 +128,7 @@ test("不影响派生值的任务更新不会产生额外派生通知", () => {
     assert.deepEqual(reconcile(cache), []);
 });
 
-test("Repository 提交点自动登记间接受影响的顺序兄弟", () => {
+test("Repository 提交点自动登记间接受影响的顺序兄弟", async () => {
     const api = new FakeSiyuanApi();
     const cache = new CacheManager(api);
     const publisher = new FakeTaskChangePublisher();
@@ -139,28 +139,28 @@ test("Repository 提交点自动登记间接受影响的顺序兄弟", () => {
     repository.reconcileAllDerivedState();
     cache.consumeAffectedIds();
 
-    repository.cache({ ...cache.get(CHILD_A)!, status: "done" });
-    repository.recordChange(CHILD_A, "update");
-    repository.publishChanges();
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry({ ...cache.get(CHILD_A)!, status: "done" });
+    });
 
-    assert.ok(publisher.changes.some((change) => change.blockId === CHILD_B && change.type === "update"));
+    assert.ok(publisher.changes.includes(CHILD_B));
     assert.equal(cache.get(CHILD_B)?.blocked, false);
 });
 
-test("Repository 提交点广播仅 childIds 变化的项目父任务", () => {
+test("Repository 提交点广播仅 childIds 变化的项目父任务", async () => {
     const api = new FakeSiyuanApi();
     const cache = new CacheManager(api);
     const publisher = new FakeTaskChangePublisher();
     const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
-    repository.cache(taskFactory(PROJECT_A, { taskType: "2", importance: 8, priority: "critical" }));
-    repository.recordChange(PROJECT_A, "create");
-    repository.publishChanges();
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry(taskFactory(PROJECT_A, { taskType: "2", importance: 8, priority: "critical" }));
+    });
     publisher.changes.length = 0;
 
-    repository.cache(taskFactory(CHILD_A, { parentId: PROJECT_A, importance: 1, effort: 8 }));
-    repository.recordChange(CHILD_A, "create");
-    repository.publishChanges();
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry(taskFactory(CHILD_A, { parentId: PROJECT_A, importance: 1, effort: 8 }));
+    });
 
     assert.deepEqual(cache.get(PROJECT_A)?.childIds, [CHILD_A]);
-    assert.ok(publisher.changes.some((change) => change.blockId === PROJECT_A && change.type === "update"));
+    assert.ok(publisher.changes.includes(PROJECT_A));
 });

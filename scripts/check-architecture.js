@@ -237,6 +237,7 @@ if (/\bbridge\s*:\s*any\b/.test(typedBridgeSource)) {
 const derivedStateOwner = "src/kernel/task-derived-state-service.ts";
 const cacheOwner = "src/kernel/cache-manager.ts";
 const nonTaskOrderOwner = "src/kernel/my-day-manager.ts";
+const confirmedChangeOwner = "src/kernel/task-repository.ts";
 for (const [path, source] of textByFile) {
     const name = projectPath(path);
     if (
@@ -251,6 +252,18 @@ for (const [path, source] of textByFile) {
     }
     if (/\bcacheManager\.(?:set|remove)\s*\(/.test(source) && name !== "src/kernel/task-repository.ts") {
         failures.push(`${name}: cache writes must be routed through TaskRepository`);
+    }
+}
+
+for (const [path, source] of textByFile) {
+    const name = projectPath(path);
+    if (!name.startsWith("src/kernel/") || name === confirmedChangeOwner) continue;
+    if (
+        /\brepository\.(?:acquireWithTimeout|writeAttrs|batchWriteAttrs|buildEntry|cache|removeFromCache|recordChange|publishChanges|restoreAttrs)\s*\(/.test(
+            source,
+        )
+    ) {
+        failures.push(`${name}: confirmed task changes must use TaskRepository.withConfirmedChanges`);
     }
 }
 

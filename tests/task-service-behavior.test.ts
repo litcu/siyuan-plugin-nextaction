@@ -14,6 +14,7 @@ import {
     ATTR_STATUS,
     ATTR_SORT,
     ATTR_TASK,
+    RPC_ERROR_CIRCULAR_REF,
     RPC_ERROR_TIMEOUT,
 } from "../src/shared/constants.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
@@ -21,6 +22,7 @@ import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 import { isMyDayEntryDone } from "../src/shared/my-day.ts";
 
 const ID = "20260816123456-abcdefg";
+const OTHER_ID = "20260816123457-hijklmn";
 
 function setup() {
     const api = new FakeSiyuanApi();
@@ -46,7 +48,7 @@ test("转换、更新和移除均以权威属性回读驱动缓存与变更发�
     assert.equal(created.identificationSource, "native");
     assert.ok(created.contentBlockId);
     assert.equal(cache.get(taskId)?.title, "Write tests");
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "create" });
+    assert.equal(publisher.changes[publisher.changes.length - 1], taskId);
 
     const updated = await service.updateTask(taskId, { [ATTR_STATUS]: "todo", [ATTR_PRIORITY]: "high" });
     assert.equal(updated.status, "todo");
@@ -61,7 +63,7 @@ test("转换、更新和移除均以权威属性回读驱动缓存与变更发�
     assert.equal(api.blocks.get(taskId)?.subtype, "u");
     assert.equal(api.blocks.get(taskId)?.attrs[ATTR_STATUS], "");
     assert.equal(cache.get(taskId), undefined);
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "delete" });
+    assert.equal(publisher.changes[publisher.changes.length - 1], taskId);
 });
 
 test("非法内部 URI 在 SQL、属性写入和缓存变化前失败", async () => {
@@ -82,12 +84,44 @@ test("内部 parent、after 与查询关系字段同样只接受 raw ID", async 
     assert.equal(api.requests.length, 0);
 });
 
+test("未缓存任务更新校验失败时不写入缓存或发布变更", async () => {
+    // Regression: building an uncached update candidate must not mutate the cache before validation succeeds.
+    const api = new FakeSiyuanApi();
+    const block = api.addBlock(ID, "d", "Uncached project");
+    Object.assign(block.attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "todo",
+        [ATTR_PRIORITY]: "medium",
+    });
+    const originalAttrs = { ...block.attrs };
+    const cache = new CacheManager(api);
+    const publisher = new FakeTaskChangePublisher();
+    const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    await assert.rejects(
+        service.updateTask(ID, { [ATTR_PARENT]: ID }),
+        (error: unknown) =>
+            error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_CIRCULAR_REF,
+    );
+
+    assert.deepEqual(block.attrs, originalAttrs);
+    assert.equal(cache.get(ID), undefined);
+    assert.equal(
+        api.requests.some((request) => request.path === "/api/attr/setBlockAttrs"),
+        false,
+    );
+    assert.equal(publisher.broadcasts, 0);
+    assert.deepEqual(publisher.changes, []);
+});
+
 test("权威回读失败时不产生虚假的缓存成功状态", async () => {
     const { api, cache, service } = setup();
     api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
     await assert.rejects(service.convertToTask(ID, "Write tests"));
     const native = [...api.blocks.values()].find((block) => block.type === "i" && block.subtype === "t");
-    assert.equal(native?.attrs[ATTR_STATUS], "inbox");
+    assert.equal(native?.attrs[ATTR_STATUS], undefined);
     assert.equal(cache.get(ID), undefined);
 });
 
@@ -109,24 +143,94 @@ test("重复规则写入规则与状态，并以回读结果更新缓存和广�
     assert.ok(api.blocks.get(taskId)?.attrs[ATTR_REPEAT]);
     assert.ok(api.blocks.get(taskId)?.attrs[ATTR_REPEAT_STATE]);
     assert.equal(cache.get(taskId)?.repeat, result.repeat);
-    assert.deepEqual(publisher.changes[publisher.changes.length - 1], { blockId: taskId, type: "update" });
+    assert.equal(publisher.changes[publisher.changes.length - 1], taskId);
 });
 
-test("重复任务完成推进后保留我的一天本次完成态", async () => {
+test("重复任务完成推进后保留我的一天本次完成态并只发布最终状态", async () => {
     // Regression: repeat advancement reopens the task block but must not erase today's completed occurrence.
-    const { api, myDay, service } = setup();
+    const { api, cache, myDay, publisher, service } = setup();
     const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
     await service.updateTask(taskId, { [ATTR_DUE]: "2026-08-20" });
     await service.setRepeatRule(taskId, { version: 2, frequency: "day", interval: 1 });
     await myDay.addTask(taskId);
+    const broadcastsBefore = publisher.broadcasts;
+    const changesBefore = publisher.changes.length;
 
     const updated = await service.updateTask(taskId, { [ATTR_STATUS]: "done" });
     const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === taskId);
 
     assert.equal(updated.status, "todo");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_STATUS], "todo");
+    assert.equal(cache.get(taskId), updated);
     assert.match(api.blocks.get(taskId)!.markdown, /\[ \]/);
     assert.equal(typeof myDayEntry?.completedAt, "number");
     assert.equal(isMyDayEntryDone(myDayEntry, updated.status), true);
+    assert.equal(publisher.broadcasts, broadcastsBefore + 1);
+    assert.ok(publisher.changes.slice(changesBefore).includes(taskId));
+});
+
+test("跳过重复发生只推进状态且保留我的一天任务", async () => {
+    const { api, cache, myDay, publisher, service } = setup();
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    await service.updateTask(taskId, { [ATTR_DUE]: "2026-08-20" });
+    await service.setRepeatRule(taskId, { version: 2, frequency: "day", interval: 1 });
+    await myDay.addTask(taskId);
+    await myDay.markTaskCompleted(taskId, Date.now());
+    const broadcastsBefore = publisher.broadcasts;
+    const changesBefore = publisher.changes.length;
+
+    const updated = await service.skipRepeatOccurrence(taskId);
+    const state = JSON.parse(updated.repeatState) as { processed: number; status: string };
+    const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === taskId);
+
+    assert.equal(state.processed, 1);
+    assert.equal(state.status, "active");
+    assert.equal(updated.status, "todo");
+    assert.equal(updated.completed, "");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_REPEAT_STATE], updated.repeatState);
+    assert.equal(cache.get(taskId), updated);
+    assert.ok(myDayEntry);
+    assert.equal(myDayEntry?.completedAt, undefined);
+    assert.equal(publisher.broadcasts, broadcastsBefore + 1);
+    assert.ok(publisher.changes.slice(changesBefore).includes(taskId));
+});
+
+test("暂停和恢复重复系列写回状态，恢复已完成任务时重开同一块", async () => {
+    const { api, cache, myDay, publisher, service } = setup();
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    await service.updateTask(taskId, { [ATTR_DUE]: "2026-08-20" });
+    await service.setRepeatRule(taskId, { version: 2, frequency: "day", interval: 1 });
+    const broadcastsBeforePause = publisher.broadcasts;
+    const changesBeforePause = publisher.changes.length;
+
+    const paused = await service.setRepeatPaused(taskId, true);
+    assert.equal((JSON.parse(paused.repeatState) as { status: string }).status, "paused");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_REPEAT_STATE], paused.repeatState);
+    assert.equal(cache.get(taskId), paused);
+    assert.equal(publisher.broadcasts, broadcastsBeforePause + 1);
+    assert.ok(publisher.changes.slice(changesBeforePause).includes(taskId));
+
+    api.blocks.get(taskId)!.attrs[ATTR_STATUS] = "done";
+    await api.updateTaskListItemMarker(taskId, "X");
+    cache.set({ ...paused, status: "done" });
+    await myDay.addTask(taskId);
+    await myDay.markTaskCompleted(taskId, Date.now());
+    const broadcastsBefore = publisher.broadcasts;
+    const changesBefore = publisher.changes.length;
+
+    const resumed = await service.setRepeatPaused(taskId, false);
+    const state = JSON.parse(resumed.repeatState) as { status: string };
+    const myDayEntry = myDay.state.tasks.find((entry) => entry.blockId === taskId);
+
+    assert.equal(state.status, "active");
+    assert.equal(resumed.status, "todo");
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_STATUS], "todo");
+    assert.match(api.blocks.get(taskId)!.markdown, /\[ \]/);
+    assert.equal(cache.get(taskId), resumed);
+    assert.ok(myDayEntry);
+    assert.equal(myDayEntry?.completedAt, undefined);
+    assert.equal(publisher.broadcasts, broadcastsBefore + 1);
+    assert.ok(publisher.changes.slice(changesBefore).includes(taskId));
 });
 
 test("下一步行动排除已完成和阻塞任务，并按统一优先级排序", () => {
@@ -197,18 +301,16 @@ test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功�
 test("Repository 严格按写入、权威回读顺序确认状态", async () => {
     const api = new FakeSiyuanApi();
     api.addBlock(ID);
-    const repository = new TaskRepository(
-        api,
-        new CacheManager(api),
-        new Mutex(),
-        new FakeTaskChangePublisher(),
-        DEFAULT_SETTINGS,
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const entry = await repository.withConfirmedChanges((changes) =>
+        changes.upsertAttrs({ blockId: ID, attrs: { [ATTR_PRIORITY]: "high" } }),
     );
-    const attrs = await repository.writeAttrs(ID, { [ATTR_PRIORITY]: "high" });
-    assert.equal(attrs[ATTR_PRIORITY], "high");
+    assert.equal(entry.priority, "high");
+    assert.equal(cache.get(ID), entry);
     assert.deepEqual(
-        api.requests.slice(-2).map((request) => request.path),
-        ["/api/attr/setBlockAttrs", "/api/attr/getBlockAttrs"],
+        api.requests.slice(-3).map((request) => request.path),
+        ["/api/attr/getBlockAttrs", "/api/attr/setBlockAttrs", "/api/attr/getBlockAttrs"],
     );
 });
 
@@ -223,11 +325,13 @@ test("Repository 批量写失败时只返回逐块确认成功项", async () => 
         new FakeTaskChangePublisher(),
         DEFAULT_SETTINGS,
     );
-    const result = await repository.batchWriteAttrs([
-        { id: ID, attrs: { [ATTR_PRIORITY]: "high" } },
-        { id: missingId, attrs: { [ATTR_PRIORITY]: "low" } },
-    ]);
-    assert.equal(result.attrsByBlockId[ID][ATTR_PRIORITY], "high");
+    const result = await repository.withConfirmedChanges((changes) =>
+        changes.upsertAttrsBatch([
+            { blockId: ID, attrs: { [ATTR_PRIORITY]: "high" } },
+            { blockId: missingId, attrs: { [ATTR_PRIORITY]: "low" } },
+        ]),
+    );
+    assert.equal(result.entries[0].priority, "high");
     assert.deepEqual(result.failedBlockIds, [missingId]);
 });
 
@@ -243,15 +347,17 @@ test("Repository 并发锁超时返回编码错误且不会窃取锁", async () 
         DEFAULT_SETTINGS,
         5,
     );
-    await assert.rejects(repository.acquireWithTimeout(), (error: unknown) => {
-        return error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_TIMEOUT;
-    });
+    await assert.rejects(
+        repository.withConfirmedChanges(async () => {}),
+        (error: unknown) => {
+            return error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_TIMEOUT;
+        },
+    );
     held.release();
-    const next = await repository.acquireWithTimeout();
-    next.release();
+    await repository.withConfirmedChanges(async () => {});
 });
 
-test("Repository 广播失败只记录日志，不回滚已确认缓存", () => {
+test("Repository 广播失败只记录日志，不回滚已确认缓存", async () => {
     const api = new FakeSiyuanApi();
     const cache = new CacheManager(api);
     const repository = new TaskRepository(
@@ -259,20 +365,56 @@ test("Repository 广播失败只记录日志，不回滚已确认缓存", () => 
         cache,
         new Mutex(),
         {
-            addPendingChange: () => {},
-            broadcastChanges: () => {
+            publishChanges: () => {
                 throw new Error("broadcast unavailable");
             },
         },
         DEFAULT_SETTINGS,
     );
     const entry = taskFactory(ID);
-    repository.cache(entry);
-    repository.recordChange(ID, "update");
-    repository.publishChanges();
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry(entry);
+    });
     assert.equal(cache.get(ID), entry);
     assert.equal(
         api.logs.some((log) => log.level === "error" && log.message.includes("broadcast unavailable")),
         true,
     );
+});
+
+test("Repository 分组确认多项变更只发布一次", async () => {
+    const api = new FakeSiyuanApi();
+    const cache = new CacheManager(api);
+    const publisher = new FakeTaskChangePublisher();
+    const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
+
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry(taskFactory(ID));
+        changes.upsertEntry(taskFactory(OTHER_ID));
+    });
+
+    assert.equal(publisher.broadcasts, 1);
+    assert.deepEqual(new Set(publisher.changes), new Set([ID, OTHER_ID]));
+});
+
+test("Repository 回调失败释放锁且不会把未发布变更泄漏到下一次提交", async () => {
+    const api = new FakeSiyuanApi();
+    const cache = new CacheManager(api);
+    const publisher = new FakeTaskChangePublisher();
+    const repository = new TaskRepository(api, cache, new Mutex(), publisher, DEFAULT_SETTINGS);
+
+    await assert.rejects(
+        repository.withConfirmedChanges(async (changes) => {
+            changes.upsertEntry(taskFactory(ID));
+            throw new Error("later domain step failed");
+        }),
+        /later domain step failed/,
+    );
+    assert.equal(publisher.broadcasts, 0);
+
+    await repository.withConfirmedChanges(async (changes) => {
+        changes.upsertEntry(taskFactory(OTHER_ID));
+    });
+    assert.equal(publisher.broadcasts, 1);
+    assert.deepEqual(publisher.changes, [OTHER_ID]);
 });

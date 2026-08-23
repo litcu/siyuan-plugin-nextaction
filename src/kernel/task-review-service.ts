@@ -93,8 +93,7 @@ export class TaskReviewService {
         if (!blockIds || blockIds.length === 0) return [];
         blockIds = blockIds.map((blockId, index) => assertBlockId(blockId, `blockIds[${index}]`));
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             const results: TaskCacheEntry[] = [];
             const td4 = new Date();
             const today = `${td4.getFullYear()}-${String(td4.getMonth() + 1).padStart(2, "0")}-${String(td4.getDate()).padStart(2, "0")}`;
@@ -104,17 +103,15 @@ export class TaskReviewService {
                 if (!entry || entry.reviewInterval <= 0) continue;
 
                 const nextReviewDate = addLocalDays(today, entry.reviewInterval);
-                const finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
-                const updated = this.repository.buildEntry(blockId, finalAttrs, entry);
-                this.repository.cache(updated);
-                this.repository.recordChange(blockId, "update");
+                const updated = await changes.upsertAttrs({
+                    blockId,
+                    attrs: { [ATTR_REVIEW_DATE]: nextReviewDate },
+                    existing: entry,
+                });
                 results.push(updated);
             }
 
-            this.repository.publishChanges();
             return results;
-        } finally {
-            lock.release();
-        }
+        });
     }
 }

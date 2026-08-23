@@ -43,11 +43,9 @@ test("100ms 窗口合并连续提交并保留 revision 区间", async () => {
     const engine = new SyncEngine(api, cache);
 
     cache.set(taskFactory(TASK_A));
-    engine.addPendingChange(TASK_A, "create");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_A]);
     cache.set(taskFactory(TASK_A, { priority: "critical" }));
-    engine.addPendingChange(TASK_A, "update");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_A]);
     await waitForBroadcast();
 
     const [delta] = v2Broadcasts(api);
@@ -69,18 +67,14 @@ test("合并结果以最终缓存为准处理删除重建与创建删除", async
     cache.set(taskFactory(TASK_A));
 
     cache.remove(TASK_A);
-    engine.addPendingChange(TASK_A, "delete");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_A]);
     cache.set(taskFactory(TASK_A, { title: "Recreated" }));
-    engine.addPendingChange(TASK_A, "create");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_A]);
 
     cache.set(taskFactory(TASK_B));
-    engine.addPendingChange(TASK_B, "create");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_B]);
     cache.remove(TASK_B);
-    engine.addPendingChange(TASK_B, "delete");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_B]);
     await waitForBroadcast();
 
     const [delta] = v2Broadcasts(api);
@@ -102,8 +96,7 @@ test("完整重建取消待发增量并发送小型 reset", async () => {
     const cache = new CacheManager(api);
     const engine = new SyncEngine(api, cache);
     cache.set(taskFactory(TASK_A));
-    engine.addPendingChange(TASK_A, "create");
-    engine.broadcastChanges();
+    engine.publishChanges([TASK_A]);
 
     engine.broadcastReset();
     await waitForBroadcast();

@@ -28,60 +28,50 @@ export class TaskRelationshipService {
     }
 
     async rebuildParentRelationships(): Promise<number> {
-        const allEntries = this.cacheManager.getAll();
-        const cacheIds = new Set(allEntries.map((e) => e.blockId));
-        let fixed = 0;
-        const fixedIds: string[] = [];
+        return this.repository.withConfirmedChanges(async (changes) => {
+            const allEntries = this.cacheManager.getAll();
+            const cacheIds = new Set(allEntries.map((e) => e.blockId));
+            let fixed = 0;
 
-        for (let i = 0; i < allEntries.length; i++) {
-            const entry = allEntries[i];
-            const needsFix = await this.isParentIdInvalid(entry, cacheIds);
+            for (let i = 0; i < allEntries.length; i++) {
+                const entry = allEntries[i];
+                const needsFix = await this.isParentIdInvalid(entry, cacheIds);
 
-            if (!needsFix) continue;
+                if (!needsFix) continue;
 
-            let ancestorId = "";
-            try {
-                const resolved = await this.identities.resolveTarget({
+                let ancestorId = "";
+                try {
+                    const resolved = await this.identities.resolveTarget({
+                        blockId: entry.blockId,
+                        taskType: "1",
+                        mode: "conversion",
+                        readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                    });
+                    ancestorId =
+                        resolved.kind === "convert-text"
+                            ? resolved.structuralParentId
+                            : resolved.identity.structuralParentId;
+                } catch (_error: unknown) {
+                    /* ignore */
+                }
+
+                const correctParent = ancestorId || "";
+                if (entry.parentId === correctParent) continue;
+
+                await changes.upsertAttrs({
                     blockId: entry.blockId,
-                    taskType: "1",
-                    mode: "conversion",
-                    readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                    attrs: { [ATTR_PARENT]: correctParent },
+                    existing: entry,
                 });
-                ancestorId =
-                    resolved.kind === "convert-text"
-                        ? resolved.structuralParentId
-                        : resolved.identity.structuralParentId;
-            } catch (_error: unknown) {
-                /* ignore */
+                fixed++;
+
+                if ((i + 1) % 20 === 0) {
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+                }
             }
 
-            const correctParent = ancestorId || "";
-
-            if (entry.parentId === correctParent) continue;
-
-            // Update the block attribute
-            const confirmedAttrs = await this.repository.writeAttrs(entry.blockId, { [ATTR_PARENT]: correctParent });
-
-            // Update cache via set() which maintains childIds reverse index.
-            // Must create a new object so set() can see the old vs new parentId.
-            const updated = this.repository.buildEntry(entry.blockId, confirmedAttrs, entry);
-            this.repository.cache(updated);
-            fixedIds.push(entry.blockId);
-            fixed++;
-
-            if ((i + 1) % 20 === 0) {
-                await new Promise<void>((resolve) => setTimeout(resolve, 0));
-            }
-        }
-
-        if (fixed > 0) {
-            for (const id of fixedIds) {
-                this.repository.recordChange(id, "update");
-            }
-            this.repository.publishChanges();
-        }
-
-        return fixed;
+            return fixed;
+        });
     }
 
     /**
@@ -173,11 +163,14 @@ export class TaskRelationshipService {
             }
         }
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             // 更新 na-parent
             if (newParentId !== undefined && newParentId !== entry.parentId) {
-                await this.repository.writeAttrs(blockId, { [ATTR_PARENT]: newParentId ?? "" });
+                await changes.upsertAttrs({
+                    blockId,
+                    attrs: { [ATTR_PARENT]: newParentId ?? "" },
+                    existing: entry,
+                });
             }
 
             // 获取目标位置的兄弟列表（排除被拖任务自身）
@@ -228,15 +221,13 @@ export class TaskRelationshipService {
                 }));
                 for (const { sibling, sort } of plannedSiblings) {
                     try {
-                        const siblingAttrs = await this.repository.writeAttrs(sibling.blockId, {
-                            [ATTR_SORT]: String(sort),
-                        });
                         const cachedSibling = this.cacheManager.get(sibling.blockId);
                         if (cachedSibling) {
-                            this.repository.cache(
-                                this.repository.buildEntry(sibling.blockId, siblingAttrs, cachedSibling),
-                            );
-                            this.repository.recordChange(sibling.blockId, "update");
+                            await changes.upsertAttrs({
+                                blockId: sibling.blockId,
+                                attrs: { [ATTR_SORT]: String(sort) },
+                                existing: cachedSibling,
+                            });
                         }
                     } catch (error: unknown) {
                         const message = error instanceof Error ? error.message : String(error);
@@ -249,16 +240,12 @@ export class TaskRelationshipService {
                 newSort = insertIndex * step;
             }
 
-            const finalAttrs = await this.repository.writeAttrs(blockId, { [ATTR_SORT]: String(newSort) });
-            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-            this.repository.cache(finalEntry);
-            this.repository.recordChange(blockId, "update");
-
-            this.repository.publishChanges();
-            return finalEntry;
-        } finally {
-            lock.release();
-        }
+            return changes.upsertAttrs({
+                blockId,
+                attrs: { [ATTR_SORT]: String(newSort) },
+                existing: this.cacheManager.get(blockId) ?? entry,
+            });
+        });
     }
 
     // ---- Helper methods ----
@@ -332,17 +319,20 @@ export class TaskRelationshipService {
 
         if (!rows || rows.length === 0) return;
 
-        for (let i = 0; i < rows.length; i++) {
-            const childId = rows[i].id;
-            const childEntry = this.cacheManager.get(childId);
+        await this.repository.withConfirmedChanges(async (changes) => {
+            for (let i = 0; i < rows.length; i++) {
+                const childId = rows[i].id;
+                const childEntry = this.cacheManager.get(childId);
 
-            if (childEntry && (!childEntry.parentId || childEntry.parentId === "")) {
-                const attrs = await this.repository.writeAttrs(childId, { [ATTR_PARENT]: blockId });
-                // Update parentId
-                this.repository.cache(this.repository.buildEntry(childId, attrs, childEntry));
-                this.repository.recordChange(childId, "update");
+                if (childEntry && (!childEntry.parentId || childEntry.parentId === "")) {
+                    await changes.upsertAttrs({
+                        blockId: childId,
+                        attrs: { [ATTR_PARENT]: blockId },
+                        existing: childEntry,
+                    });
+                }
             }
-        }
+        });
     }
 
     /**

@@ -27,6 +27,7 @@ import {
 } from "../shared/constants";
 import type { PluginSettings } from "../shared/settings";
 import type { TaskCacheEntry } from "../shared/types";
+import { sql } from "../shared/sql";
 import type { CacheManager } from "./cache-manager";
 import type { Mutex } from "./mutex";
 import type { SiyuanApiPort } from "./siyuan-api";
@@ -34,11 +35,27 @@ import type { TaskChangePublisher } from "./sync-engine";
 import { TaskDerivedStateService } from "./task-derived-state-service";
 import { attrToNumber, numberToAttr } from "./utils";
 
-export type TaskChangeType = "create" | "update" | "delete";
+type TaskEntryIdentity = Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
+    Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>;
 
-export interface BatchWriteResult {
-    attrsByBlockId: Record<string, Record<string, string>>;
+export interface TaskAttrUpsert {
+    blockId: string;
+    attrs: Record<string, string>;
+    existing?: TaskCacheEntry;
+    titleOverride?: string;
+    identity?: TaskEntryIdentity;
+}
+
+export interface ConfirmedTaskBatchResult {
+    entries: TaskCacheEntry[];
     failedBlockIds: string[];
+}
+
+export interface ConfirmedTaskChanges {
+    upsertAttrs(request: TaskAttrUpsert): Promise<TaskCacheEntry>;
+    upsertAttrsBatch(requests: TaskAttrUpsert[]): Promise<ConfirmedTaskBatchResult>;
+    upsertEntry(entry: TaskCacheEntry): void;
+    deleteEntry(blockId: string): void;
 }
 
 function extractCustomFields(attrs: Record<string, string>): Record<string, string> {
@@ -51,14 +68,13 @@ function extractCustomFields(attrs: Record<string, string>): Record<string, stri
     return result;
 }
 
-export function buildTaskEntryFromAttrs(
+function buildTaskEntryFromAttrs(
     blockId: string,
     attrs: Record<string, string>,
     defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">,
     existing?: TaskCacheEntry,
     titleOverride?: string,
-    identity?: Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
-        Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>,
+    identity?: TaskEntryIdentity,
 ): TaskCacheEntry {
     const entry: TaskCacheEntry = {
         blockId,
@@ -100,7 +116,6 @@ export function buildTaskEntryFromAttrs(
 export class TaskRepository {
     private settings: Pick<PluginSettings, "defaultImportance" | "defaultEffort">;
     private readonly derivedState: TaskDerivedStateService;
-    private readonly pendingDirectChanges = new Set<string>();
 
     constructor(
         private readonly api: SiyuanApiPort,
@@ -118,7 +133,41 @@ export class TaskRepository {
         this.settings = settings;
     }
 
-    async acquireWithTimeout(): Promise<{ release: () => void }> {
+    async withConfirmedChanges<T>(work: (changes: ConfirmedTaskChanges) => Promise<T>): Promise<T> {
+        const lock = await this.acquireWithTimeout();
+        const changedIds = new Set<string>();
+        const changes: ConfirmedTaskChanges = {
+            upsertAttrs: (request) => this.upsertAttrs(request, changedIds),
+            upsertAttrsBatch: (requests) => this.upsertAttrsBatch(requests, changedIds),
+            upsertEntry: (entry) => {
+                this.cacheManager.set(entry);
+                changedIds.add(entry.blockId);
+            },
+            deleteEntry: (blockId) => {
+                this.cacheManager.remove(blockId);
+                changedIds.add(blockId);
+            },
+        };
+        try {
+            const result = await work(changes);
+            if (changedIds.size > 0) this.publishConfirmedChanges(changedIds);
+            return result;
+        } catch (error: unknown) {
+            try {
+                this.discardUnpublishedChanges();
+            } catch (discardError: unknown) {
+                void this.api.log(
+                    "error",
+                    `TaskRepository: failed to discard unpublished task changes: ${this.errorMessage(discardError)}`,
+                );
+            }
+            throw error;
+        } finally {
+            lock.release();
+        }
+    }
+
+    private async acquireWithTimeout(): Promise<{ release: () => void }> {
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
         const { promise: acquirePromise, cancel: cancelAcquire } = this.mutex.acquire();
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -151,12 +200,13 @@ export class TaskRepository {
         return this.api.batchGetBlockAttrs(blockIds);
     }
 
-    async writeAttrs(blockId: string, attrs: Record<string, string>): Promise<Record<string, string>> {
-        const entry = this.cacheManager.get(blockId);
-        let persistedAttrs = attrs;
+    private async upsertAttrs(request: TaskAttrUpsert, changedIds: Set<string>): Promise<TaskCacheEntry> {
+        const { blockId, attrs } = request;
+        const entry = request.existing ?? this.cacheManager.get(blockId);
+        const currentAttrs = await this.api.getBlockAttrs(blockId);
+        let persistedAttrs = { ...attrs };
         const clearingNativeTask = attrs[ATTR_TASK] === "" && attrs[ATTR_STATUS] === "";
         if (entry?.identificationSource === "native" && !clearingNativeTask) {
-            const currentAttrs = await this.api.getBlockAttrs(blockId);
             const defaults: Record<string, string> = {};
             const addDefault = (key: string, value: string): void => {
                 if (!currentAttrs[key] && attrs[key] === undefined) defaults[key] = value;
@@ -173,85 +223,155 @@ export class TaskRepository {
             };
             if (attrs[ATTR_TASK] !== "") delete persistedAttrs[ATTR_TASK];
         }
-        await this.api.setBlockAttrs(blockId, persistedAttrs);
-        return this.api.getBlockAttrs(blockId);
-    }
 
-    async restoreAttrs(blockId: string, attrs: Record<string, string>): Promise<void> {
-        await this.api.setBlockAttrs(blockId, attrs);
-    }
+        const identificationSource = request.identity?.identificationSource ?? entry?.identificationSource;
+        let oldMarker = " ";
+        let markerChanged = false;
+        if (identificationSource === "native" && attrs[ATTR_STATUS] !== undefined) {
+            const rows = await this.api.query<{ markdown?: string }>(
+                sql`SELECT markdown FROM blocks WHERE id = ${blockId} LIMIT 1`,
+            );
+            oldMarker = rows?.[0]?.markdown?.match(/\[(.)\]/s)?.[1] || (entry?.status === "done" ? "X" : " ");
+            const nextMarker = attrs[ATTR_STATUS] === "done" ? "X" : " ";
+            if (nextMarker !== oldMarker) {
+                await this.api.updateTaskListItemMarker(blockId, nextMarker);
+                markerChanged = true;
+            }
+        }
 
-    async batchWriteAttrs(blockAttrs: Array<{ id: string; attrs: Record<string, string> }>): Promise<BatchWriteResult> {
-        if (blockAttrs.length === 0) return { attrsByBlockId: {}, failedBlockIds: [] };
         try {
-            await this.api.batchSetBlockAttrs(blockAttrs);
-            const attrsByBlockId = await this.api.batchGetBlockAttrs(blockAttrs.map((item) => item.id));
-            const failedBlockIds = blockAttrs.map((item) => item.id).filter((blockId) => !attrsByBlockId[blockId]);
-            return { attrsByBlockId, failedBlockIds };
+            await this.api.setBlockAttrs(blockId, persistedAttrs);
+            const confirmedAttrs = await this.api.getBlockAttrs(blockId);
+            for (const [key, value] of Object.entries(persistedAttrs)) {
+                if ((confirmedAttrs[key] || "") !== value) {
+                    throw new Error(`Task attribute confirmation failed for ${blockId}: ${key}`);
+                }
+            }
+            const confirmedEntry = buildTaskEntryFromAttrs(
+                blockId,
+                confirmedAttrs,
+                this.settings,
+                entry,
+                request.titleOverride,
+                request.identity,
+            );
+            this.cacheManager.set(confirmedEntry);
+            changedIds.add(blockId);
+            return confirmedEntry;
+        } catch (error: unknown) {
+            const rollbackAttrs: Record<string, string> = {};
+            for (const key of Object.keys(persistedAttrs)) rollbackAttrs[key] = currentAttrs[key] || "";
+            try {
+                await this.api.setBlockAttrs(blockId, rollbackAttrs);
+            } catch (rollbackError: unknown) {
+                void this.api.log(
+                    "error",
+                    `TaskRepository: attribute rollback failed for ${blockId}: ${this.errorMessage(rollbackError)}`,
+                );
+            }
+            if (markerChanged) {
+                try {
+                    await this.api.updateTaskListItemMarker(blockId, oldMarker);
+                } catch (rollbackError: unknown) {
+                    void this.api.log(
+                        "error",
+                        `TaskRepository: marker rollback failed for ${blockId}: ${this.errorMessage(rollbackError)}`,
+                    );
+                }
+            }
+            throw error;
+        }
+    }
+
+    private async upsertAttrsBatch(
+        requests: TaskAttrUpsert[],
+        changedIds: Set<string>,
+    ): Promise<ConfirmedTaskBatchResult> {
+        if (requests.length === 0) return { entries: [], failedBlockIds: [] };
+        if (
+            requests.some((request) => {
+                const existing = request.existing ?? this.cacheManager.get(request.blockId);
+                return existing?.identificationSource === "native" && request.attrs[ATTR_STATUS] !== undefined;
+            })
+        ) {
+            return this.upsertAttrsIndividually(requests, changedIds);
+        }
+
+        try {
+            await this.api.batchSetBlockAttrs(
+                requests.map((request) => ({ id: request.blockId, attrs: request.attrs })),
+            );
+            const attrsByBlockId = await this.api.batchGetBlockAttrs(requests.map((request) => request.blockId));
+            const entries: TaskCacheEntry[] = [];
+            const failedBlockIds: string[] = [];
+            for (const request of requests) {
+                const attrs = attrsByBlockId[request.blockId];
+                const confirmed =
+                    attrs && Object.entries(request.attrs).every(([key, value]) => (attrs[key] || "") === value);
+                if (!confirmed) {
+                    failedBlockIds.push(request.blockId);
+                    continue;
+                }
+                const entry = buildTaskEntryFromAttrs(
+                    request.blockId,
+                    attrs,
+                    this.settings,
+                    request.existing ?? this.cacheManager.get(request.blockId),
+                    request.titleOverride,
+                    request.identity,
+                );
+                this.cacheManager.set(entry);
+                changedIds.add(entry.blockId);
+                entries.push(entry);
+            }
+            return { entries, failedBlockIds };
         } catch (batchError: unknown) {
             void this.api.log(
                 "warn",
                 `TaskRepository: batch attribute write failed, using compatibility fallback: ${this.errorMessage(batchError)}`,
             );
-            const attrsByBlockId: Record<string, Record<string, string>> = {};
-            const failedBlockIds: string[] = [];
-            for (const item of blockAttrs) {
-                try {
-                    attrsByBlockId[item.id] = await this.writeAttrs(item.id, item.attrs);
-                } catch (error: unknown) {
-                    failedBlockIds.push(item.id);
-                    void this.api.log(
-                        "warn",
-                        `TaskRepository: attribute write failed for ${item.id}: ${this.errorMessage(error)}`,
-                    );
-                }
-            }
-            return { attrsByBlockId, failedBlockIds };
+            return this.upsertAttrsIndividually(requests, changedIds);
         }
     }
 
-    buildEntry(
-        blockId: string,
-        attrs: Record<string, string>,
-        existing?: TaskCacheEntry,
-        titleOverride?: string,
-        identity?: Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
-            Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>,
-    ): TaskCacheEntry {
-        return buildTaskEntryFromAttrs(blockId, attrs, this.settings, existing, titleOverride, identity);
+    private async upsertAttrsIndividually(
+        requests: TaskAttrUpsert[],
+        changedIds: Set<string>,
+    ): Promise<ConfirmedTaskBatchResult> {
+        const entries: TaskCacheEntry[] = [];
+        const failedBlockIds: string[] = [];
+        for (const request of requests) {
+            try {
+                entries.push(await this.upsertAttrs(request, changedIds));
+            } catch (error: unknown) {
+                failedBlockIds.push(request.blockId);
+                void this.api.log(
+                    "warn",
+                    `TaskRepository: attribute write failed for ${request.blockId}: ${this.errorMessage(error)}`,
+                );
+            }
+        }
+        return { entries, failedBlockIds };
     }
 
-    cache(entry: TaskCacheEntry): void {
-        this.cacheManager.set(entry);
-    }
-
-    removeFromCache(blockId: string): void {
-        this.cacheManager.remove(blockId);
-    }
-
-    recordChange(blockId: string, type: TaskChangeType): void {
-        this.pendingDirectChanges.add(blockId);
-        this.changePublisher.addPendingChange(blockId, type);
-    }
-
-    publishChanges(): void {
+    private publishConfirmedChanges(directChanges: Set<string>): void {
         try {
             const relationshipChanges = this.cacheManager.consumeRelationshipChangedIds();
             const derivedChanges = this.derivedState.reconcile(this.cacheManager.consumeAffectedIds());
-            for (const blockId of new Set([...relationshipChanges, ...derivedChanges])) {
-                if (!this.pendingDirectChanges.has(blockId)) {
-                    this.changePublisher.addPendingChange(blockId, "update");
-                }
-            }
-            this.changePublisher.broadcastChanges();
+            this.changePublisher.publishChanges([
+                ...new Set([...directChanges, ...relationshipChanges, ...derivedChanges]),
+            ]);
         } catch (error: unknown) {
             void this.api.log(
                 "error",
                 `TaskRepository: failed to broadcast confirmed task changes: ${this.errorMessage(error)}`,
             );
-        } finally {
-            this.pendingDirectChanges.clear();
         }
+    }
+
+    private discardUnpublishedChanges(): void {
+        this.cacheManager.consumeRelationshipChangedIds();
+        this.derivedState.reconcile(this.cacheManager.consumeAffectedIds());
     }
 
     reconcileAllDerivedState(): string[] {

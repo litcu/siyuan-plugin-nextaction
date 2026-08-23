@@ -337,14 +337,11 @@ export class FakeSiyuanApi implements SiyuanApiPort {
 }
 
 export class FakeTaskChangePublisher implements TaskChangePublisher {
-    readonly changes: Array<{ blockId: string; type: "create" | "update" | "delete" }> = [];
+    readonly changes: string[] = [];
     broadcasts = 0;
 
-    addPendingChange(blockId: string, type: "create" | "update" | "delete"): void {
-        this.changes.push({ blockId, type });
-    }
-
-    broadcastChanges(): void {
+    publishChanges(blockIds: readonly string[]): void {
+        this.changes.push(...blockIds);
         this.broadcasts++;
     }
 }

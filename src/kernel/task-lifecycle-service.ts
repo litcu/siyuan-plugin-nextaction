@@ -42,7 +42,7 @@ import {
     ATTR_EXT_PREFIX,
 } from "../shared/constants";
 import { type CacheManager } from "./cache-manager";
-import { numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
+import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
 import { assertBlockId } from "../shared/block-id";
 import { sql } from "../shared/sql";
 import type { SiyuanApiPort } from "./siyuan-api";
@@ -147,10 +147,6 @@ export class TaskLifecycleService {
         this.runtime.assertReady();
     }
 
-    private cacheConfirmedEntry(entry: TaskCacheEntry): void {
-        this.repository.cache(entry);
-    }
-
     private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
         const attempts = waitForIndex ? 20 : 1;
         for (let attempt = 0; attempt < attempts; attempt++) {
@@ -162,10 +158,6 @@ export class TaskLifecycleService {
             await new Promise((resolve) => setTimeout(resolve, 100));
         }
         return "";
-    }
-
-    private statusMarker(status: string): " " | "X" {
-        return status === "done" ? "X" : " ";
     }
 
     private buildDefaultAttrs(title: string, status: string, taskType?: string): Record<string, string> {
@@ -302,95 +294,92 @@ export class TaskLifecycleService {
         });
         let title = cleanTitle || (resolved.kind === "convert-text" ? resolved.title : resolved.identity.title);
 
-        const lock = await this.repository.acquireWithTimeout();
         let convertedRootId = "";
-        try {
-            if (resolved.kind === "convert-text") {
-                const originalBlockId = resolved.blockId;
-                title = cleanTitle || title || (await this.fetchBlockTitle(originalBlockId));
-                const result = await this.api.request<unknown[]>("/api/block/updateBlock", {
-                    id: originalBlockId,
-                    dataType: "markdown",
-                    data: `- [ ] ${escapeMarkdownText(title)}`,
-                    lockType: false,
-                });
-                const meta = extractInsertedBlockMeta(result);
-                if (!meta.id || meta.nodeType !== "NodeListItem") {
-                    throw new Error("SiYuan did not return the converted native task item");
-                }
-                convertedRootId = meta.rootId || originalBlockId;
-                resolved = await this.identities.resolveTarget({
-                    blockId: meta.id,
-                    taskType: "1",
-                    mode: "conversion",
-                    parentIdHint: resolved.structuralParentId || options.parentIdHint,
-                    evidence: {
-                        kind: "inserted-native",
-                        blockId: meta.id,
-                        contentBlockId: meta.contentBlockId,
-                        parentId: meta.parentId,
-                        title,
-                    },
-                    readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
-                });
-            }
-
-            if (resolved.kind === "convert-text") throw new Error("Task target conversion did not resolve");
-            const identity = resolved.identity;
-            blockId = identity.blockId;
-            const existingAttrs = await this.repository.getBlockAttrs(blockId);
-            const isNative = identity.identificationSource === "native";
-            const contentBlockId = identity.contentBlockId || "";
-            if (isNative && !title && contentBlockId) title = await this.fetchBlockTitle(contentBlockId);
-            if (!isNative && !title) title = await this.fetchBlockTitle(blockId);
-
-            const defaultStatus = identity.defaultStatus === "todo" ? "inbox" : identity.defaultStatus;
-            const defaults = this.buildDefaultAttrs(title, defaultStatus, isNative ? undefined : taskType);
-            const missingDefaults = this.fillMissingDefaults(existingAttrs, defaults);
-            if (!existingAttrs[ATTR_PARENT] && options.parentIdHint && identity.effectiveParentId) {
-                missingDefaults[ATTR_PARENT] = identity.effectiveParentId;
-            }
-            if (!existingAttrs[ATTR_PARENT] && identity.structuralParentId) {
-                const siblings = this.cacheManager.getByParent(identity.structuralParentId);
-                const maxSort = siblings.reduce((max, sibling) => Math.max(max, sibling.sort), -1);
-                missingDefaults[ATTR_SORT] = String(maxSort < 0 ? 0 : maxSort + 10000);
-            }
-            if (isNative && existingAttrs[ATTR_TASK]) missingDefaults[ATTR_TASK] = "";
-            if (!isNative && existingAttrs[ATTR_TASK] !== taskType) missingDefaults[ATTR_TASK] = taskType;
-
-            const finalAttrs = Object.keys(missingDefaults).length
-                ? await this.repository.writeAttrs(blockId, missingDefaults)
-                : existingAttrs;
-            const existing = this.cacheManager.get(blockId);
-            const entry = this.repository.buildEntry(blockId, finalAttrs, existing, title, {
-                identificationSource: isNative ? "native" : "document",
-                attrHostId: blockId,
-                contentBlockId: isNative ? contentBlockId || undefined : undefined,
-                status: defaultStatus,
-                parentId: identity.structuralParentId,
-                taskType: isNative ? "1" : taskType,
-            });
-            this.repository.cache(entry);
-            this.repository.recordChange(blockId, existing ? "update" : "create");
-            this.repository.publishChanges();
-            return entry;
-        } catch (error: unknown) {
-            if (convertedRootId) {
-                try {
-                    await this.api.request("/api/block/updateBlock", {
-                        id: convertedRootId,
+        return this.repository.withConfirmedChanges(async (changes) => {
+            try {
+                if (resolved.kind === "convert-text") {
+                    const originalBlockId = resolved.blockId;
+                    title = cleanTitle || title || (await this.fetchBlockTitle(originalBlockId));
+                    const result = await this.api.request<unknown[]>("/api/block/updateBlock", {
+                        id: originalBlockId,
                         dataType: "markdown",
-                        data: escapeMarkdownText(title),
+                        data: `- [ ] ${escapeMarkdownText(title)}`,
                         lockType: false,
                     });
-                } catch {
-                    // Preserve the original conversion error; rollback is best effort.
+                    const meta = extractInsertedBlockMeta(result);
+                    if (!meta.id || meta.nodeType !== "NodeListItem") {
+                        throw new Error("SiYuan did not return the converted native task item");
+                    }
+                    convertedRootId = meta.rootId || originalBlockId;
+                    resolved = await this.identities.resolveTarget({
+                        blockId: meta.id,
+                        taskType: "1",
+                        mode: "conversion",
+                        parentIdHint: resolved.structuralParentId || options.parentIdHint,
+                        evidence: {
+                            kind: "inserted-native",
+                            blockId: meta.id,
+                            contentBlockId: meta.contentBlockId,
+                            parentId: meta.parentId,
+                            title,
+                        },
+                        readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                    });
                 }
+
+                if (resolved.kind === "convert-text") throw new Error("Task target conversion did not resolve");
+                const identity = resolved.identity;
+                blockId = identity.blockId;
+                const existingAttrs = await this.repository.getBlockAttrs(blockId);
+                const isNative = identity.identificationSource === "native";
+                const contentBlockId = identity.contentBlockId || "";
+                if (isNative && !title && contentBlockId) title = await this.fetchBlockTitle(contentBlockId);
+                if (!isNative && !title) title = await this.fetchBlockTitle(blockId);
+
+                const defaultStatus = identity.defaultStatus === "todo" ? "inbox" : identity.defaultStatus;
+                const defaults = this.buildDefaultAttrs(title, defaultStatus, isNative ? undefined : taskType);
+                const missingDefaults = this.fillMissingDefaults(existingAttrs, defaults);
+                if (!existingAttrs[ATTR_PARENT] && options.parentIdHint && identity.effectiveParentId) {
+                    missingDefaults[ATTR_PARENT] = identity.effectiveParentId;
+                }
+                if (!existingAttrs[ATTR_PARENT] && identity.structuralParentId) {
+                    const siblings = this.cacheManager.getByParent(identity.structuralParentId);
+                    const maxSort = siblings.reduce((max, sibling) => Math.max(max, sibling.sort), -1);
+                    missingDefaults[ATTR_SORT] = String(maxSort < 0 ? 0 : maxSort + 10000);
+                }
+                if (isNative && existingAttrs[ATTR_TASK]) missingDefaults[ATTR_TASK] = "";
+                if (!isNative && existingAttrs[ATTR_TASK] !== taskType) missingDefaults[ATTR_TASK] = taskType;
+
+                return changes.upsertAttrs({
+                    blockId,
+                    attrs: missingDefaults,
+                    existing: this.cacheManager.get(blockId),
+                    titleOverride: title,
+                    identity: {
+                        identificationSource: isNative ? "native" : "document",
+                        attrHostId: blockId,
+                        contentBlockId: isNative ? contentBlockId || undefined : undefined,
+                        status: defaultStatus,
+                        parentId: identity.structuralParentId,
+                        taskType: isNative ? "1" : taskType,
+                    },
+                });
+            } catch (error: unknown) {
+                if (convertedRootId) {
+                    try {
+                        await this.api.request("/api/block/updateBlock", {
+                            id: convertedRootId,
+                            dataType: "markdown",
+                            data: escapeMarkdownText(title),
+                            lockType: false,
+                        });
+                    } catch {
+                        // Preserve the original conversion error; rollback is best effort.
+                    }
+                }
+                throw error;
             }
-            throw error;
-        } finally {
-            lock.release();
-        }
+        });
     }
 
     async convertToTaskWithChildren(
@@ -471,23 +460,19 @@ export class TaskLifecycleService {
             throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
         }
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        await this.repository.withConfirmedChanges(async (changes) => {
             // Re-point child tasks' na-parent to this entry's parentId
             const grandParentId = entry.parentId;
             for (let i = 0; i < entry.childIds.length; i++) {
                 const childId = entry.childIds[i];
                 try {
-                    const childAttrs = await this.repository.writeAttrs(childId, {
-                        [ATTR_PARENT]: grandParentId || "",
-                    });
-
-                    // Update cache for child
                     const childEntry = this.cacheManager.get(childId);
                     if (childEntry) {
-                        const confirmedChild = this.repository.buildEntry(childId, childAttrs, childEntry);
-                        this.repository.cache(confirmedChild);
-                        this.repository.recordChange(childId, "update");
+                        await changes.upsertAttrs({
+                            blockId: childId,
+                            attrs: { [ATTR_PARENT]: grandParentId || "" },
+                            existing: childEntry,
+                        });
                     }
                 } catch (_error: unknown) {
                     // Continue with other children even if one fails
@@ -530,10 +515,7 @@ export class TaskLifecycleService {
                 }
             }
 
-            const confirmedAttrs = await this.repository.writeAttrs(entry.attrHostId, clearAttrs);
-            if (confirmedAttrs[ATTR_TASK]) {
-                throw new Error(`Failed to clear task attributes for ${blockId}`);
-            }
+            await changes.upsertAttrs({ blockId: entry.attrHostId, attrs: clearAttrs, existing: entry });
 
             // Remove from My Day if present
             try {
@@ -545,14 +527,8 @@ export class TaskLifecycleService {
                 );
             }
 
-            // Remove from cache
-            this.repository.removeFromCache(blockId);
-
-            this.repository.recordChange(blockId, "delete");
-            this.repository.publishChanges();
-        } finally {
-            lock.release();
-        }
+            changes.deleteEntry(blockId);
+        });
     }
 
     async updateTask(blockId: string, rawAttrs: Record<string, string>): Promise<TaskCacheEntry> {
@@ -668,56 +644,52 @@ export class TaskLifecycleService {
             attrs[ATTR_REPEAT_STATE] = "";
         }
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
-            const previousEntry =
-                this.cacheManager.get(blockId) ||
-                (resolvedUncached
-                    ? this.repository.buildEntry(
-                          blockId,
-                          resolvedUncached.attrs,
-                          undefined,
-                          resolvedUncached.identity.title,
-                          {
-                              identificationSource: resolvedUncached.identity.identificationSource,
-                              attrHostId: resolvedUncached.identity.attrHostId,
-                              contentBlockId: resolvedUncached.identity.contentBlockId,
-                              status: resolvedUncached.identity.defaultStatus,
-                              parentId: resolvedUncached.identity.effectiveParentId,
-                              taskType: resolvedUncached.identity.taskType,
-                          },
-                      )
-                    : undefined);
+        return this.repository.withConfirmedChanges(async (changes) => {
+            const previousEntry = this.cacheManager.get(blockId);
+            const uncachedAttrs = resolvedUncached?.attrs;
+            const uncachedIdentity = resolvedUncached?.identity;
+            const hasPreviousState = !!previousEntry || !!resolvedUncached;
+            const previousIdentificationSource =
+                previousEntry?.identificationSource ?? uncachedIdentity?.identificationSource;
+            const previousTitle = previousEntry?.title ?? uncachedIdentity?.title ?? "";
+            const previousStatus =
+                previousEntry?.status ?? uncachedAttrs?.[ATTR_STATUS] ?? uncachedIdentity?.defaultStatus ?? "inbox";
+            const previousParentId = previousEntry?.parentId ?? uncachedIdentity?.effectiveParentId ?? "";
+            const previousSort = previousEntry?.sort ?? attrToNumber(uncachedAttrs?.[ATTR_SORT], -1);
+            const previousRepeat = previousEntry?.repeat ?? uncachedAttrs?.[ATTR_REPEAT] ?? "";
+            const previousRepeatState = previousEntry?.repeatState ?? uncachedAttrs?.[ATTR_REPEAT_STATE] ?? "";
+            const previousStart = previousEntry?.start ?? uncachedAttrs?.[ATTR_START] ?? "";
+            const previousDue = previousEntry?.due ?? uncachedAttrs?.[ATTR_DUE] ?? "";
+            const previousCompleted = previousEntry?.completed ?? uncachedAttrs?.[ATTR_COMPLETED] ?? "";
             const authoritativeOldAttrs = await this.repository.getBlockAttrs(blockId);
             let structuralParentFallback = "";
-            if (previousEntry?.identificationSource === "native") {
-                const defaults = this.buildDefaultAttrs(previousEntry.title, previousEntry.status);
+            if (previousIdentificationSource === "native") {
+                const defaults = this.buildDefaultAttrs(previousTitle, previousStatus);
                 const requestedAttrs = { ...attrs };
                 Object.assign(attrs, this.fillMissingDefaults(authoritativeOldAttrs, defaults), requestedAttrs);
                 if (!authoritativeOldAttrs[ATTR_PARENT] && attrs[ATTR_PARENT] === undefined) {
-                    structuralParentFallback = previousEntry.parentId;
+                    structuralParentFallback = previousParentId;
                 } else if (attrs[ATTR_PARENT] === "") {
                     structuralParentFallback = resolvedExisting?.identity.structuralParentId || "";
                 }
-                if (!authoritativeOldAttrs[ATTR_SORT] && previousEntry.sort >= 0 && attrs[ATTR_SORT] === undefined) {
-                    attrs[ATTR_SORT] = String(previousEntry.sort);
+                if (!authoritativeOldAttrs[ATTR_SORT] && previousSort >= 0 && attrs[ATTR_SORT] === undefined) {
+                    attrs[ATTR_SORT] = String(previousSort);
                 }
                 if (authoritativeOldAttrs[ATTR_TASK]) attrs[ATTR_TASK] = "";
                 else delete attrs[ATTR_TASK];
             }
             let preparedRepeat: { rule: RepeatRuleV2; state: RepeatStateV1 } | null = null;
-            if (attrs[ATTR_STATUS] === "done" && previousEntry && previousEntry.status !== "done") {
-                const effectiveRepeat = repeatAttr !== undefined ? repeatAttr : previousEntry.repeat;
+            if (attrs[ATTR_STATUS] === "done" && hasPreviousState && previousStatus !== "done") {
+                const effectiveRepeat = repeatAttr !== undefined ? repeatAttr : previousRepeat;
                 if (effectiveRepeat) {
                     const rule = parseRepeatRule(effectiveRepeat);
                     if (!rule) {
                         throw codedError("Invalid repeat rule", RPC_ERROR_INVALID_PARAMS);
                     }
-                    const effectiveStart = attrs[ATTR_START] !== undefined ? attrs[ATTR_START] : previousEntry.start;
-                    const effectiveDue = attrs[ATTR_DUE] !== undefined ? attrs[ATTR_DUE] : previousEntry.due;
+                    const effectiveStart = attrs[ATTR_START] !== undefined ? attrs[ATTR_START] : previousStart;
+                    const effectiveDue = attrs[ATTR_DUE] !== undefined ? attrs[ATTR_DUE] : previousDue;
                     const state =
-                        parseRepeatState(previousEntry.repeatState) ||
-                        createRepeatState(rule, effectiveStart, effectiveDue);
+                        parseRepeatState(previousRepeatState) || createRepeatState(rule, effectiveStart, effectiveDue);
                     if (!state) {
                         throw codedError("Repeat task requires a start or due date", RPC_ERROR_INVALID_PARAMS);
                     }
@@ -746,57 +718,31 @@ export class TaskLifecycleService {
                 }
             }
 
-            // Native status is a two-phase projection: marker first, then attrs.
-            // If attribute persistence fails, restore the authoritative old marker.
-            let oldNativeMarker = " ";
-            let markerChanged = false;
-            if (previousEntry?.identificationSource === "native" && attrs[ATTR_STATUS] !== undefined) {
-                const rows = await this.api.query<{ markdown?: string }>(
-                    sql`SELECT markdown FROM blocks WHERE id = ${blockId} LIMIT 1`,
-                );
-                oldNativeMarker = rows?.[0]?.markdown?.match(/\[(.)\]/s)?.[1] || " ";
-                const nextMarker = this.statusMarker(attrs[ATTR_STATUS]);
-                if (nextMarker !== oldNativeMarker) {
-                    await this.api.updateTaskListItemMarker(blockId, nextMarker);
-                    markerChanged = true;
-                }
-            }
-
-            let fullAttrs: Record<string, string>;
-            try {
-                fullAttrs = await this.repository.writeAttrs(blockId, attrs);
-            } catch (error: unknown) {
-                const rollbackAttrs: Record<string, string> = {};
-                for (const key of Object.keys(attrs)) rollbackAttrs[key] = authoritativeOldAttrs[key] || "";
-                try {
-                    await this.repository.restoreAttrs(blockId, rollbackAttrs);
-                } catch (rollbackError: unknown) {
-                    void this.api.log(
-                        "error",
-                        `updateTask: attribute rollback failed for ${blockId}: ${String(rollbackError)}`,
-                    );
-                }
-                if (markerChanged) {
-                    try {
-                        await this.api.updateTaskListItemMarker(blockId, oldNativeMarker);
-                    } catch (rollbackError: unknown) {
-                        void this.api.log(
-                            "error",
-                            `updateTask: marker rollback failed for ${blockId}: ${String(rollbackError)}`,
-                        );
-                    }
-                }
-                throw error;
-            }
+            let currentEntry = await changes.upsertAttrs({
+                blockId,
+                attrs,
+                existing: previousEntry,
+                identity:
+                    previousIdentificationSource === "native"
+                        ? {
+                              identificationSource: "native",
+                              attrHostId: previousEntry?.attrHostId ?? uncachedIdentity?.attrHostId ?? blockId,
+                              contentBlockId: previousEntry?.contentBlockId ?? uncachedIdentity?.contentBlockId,
+                              parentId: structuralParentFallback,
+                          }
+                        : undefined,
+            });
 
             // 自动追加完成时间：status 变为 done 时（不是已经是 done）
-            let existing = previousEntry;
-            if (attrs[ATTR_STATUS] === "done" && existing && existing.status !== "done") {
-                const existingCompleted = existing.completed || "";
+            if (attrs[ATTR_STATUS] === "done" && hasPreviousState && previousStatus !== "done") {
                 const completedAt = Date.now();
                 const now = new Date(completedAt).toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss UTC
-                const newCompleted = existingCompleted ? existingCompleted + "|" + now : now;
-                fullAttrs = await this.repository.writeAttrs(blockId, { [ATTR_COMPLETED]: newCompleted });
+                const newCompleted = previousCompleted ? previousCompleted + "|" + now : now;
+                currentEntry = await changes.upsertAttrs({
+                    blockId,
+                    attrs: { [ATTR_COMPLETED]: newCompleted },
+                    existing: currentEntry,
+                });
                 try {
                     await this.myDayManager.markTaskCompleted(blockId, completedAt);
                 } catch (error: unknown) {
@@ -816,33 +762,14 @@ export class TaskLifecycleService {
                 }
             }
 
-            // Build updated entry
-            existing = this.cacheManager.get(blockId) || previousEntry;
-            const entry = this.repository.buildEntry(
-                blockId,
-                fullAttrs,
-                existing,
-                undefined,
-                existing?.identificationSource === "native"
-                    ? {
-                          identificationSource: "native",
-                          attrHostId: existing.attrHostId,
-                          contentBlockId: existing.contentBlockId,
-                          parentId: structuralParentFallback,
-                      }
-                    : undefined,
-            );
-
             // Fill missing title
-            if (!entry.title) {
-                entry.title = await this.fetchBlockTitle(blockId);
+            if (!currentEntry.title) {
+                currentEntry = { ...currentEntry, title: await this.fetchBlockTitle(blockId) };
+                changes.upsertEntry(currentEntry);
             }
 
-            this.repository.cache(entry);
-
             // 循环/重复任务：完成当前发生后推进轻量状态，不生成新块。
-            const updatedEntry = this.cacheManager.get(blockId);
-            if (updatedEntry && preparedRepeat) {
+            if (preparedRepeat) {
                 const advanced = advanceRepeatState(
                     preparedRepeat.rule,
                     preparedRepeat.state,
@@ -859,55 +786,29 @@ export class TaskLifecycleService {
                     if (advanced.state.currentStart) repeatAttrs[ATTR_START] = advanced.state.currentStart;
                 }
 
-                const repeatResetsNativeMarker =
-                    updatedEntry.identificationSource === "native" && repeatAttrs[ATTR_STATUS] === "todo";
-                if (repeatResetsNativeMarker) await this.api.updateTaskListItemMarker(blockId, " ");
-                let finalAttrs: Record<string, string>;
-                try {
-                    finalAttrs = await this.repository.writeAttrs(blockId, repeatAttrs);
-                } catch (error: unknown) {
-                    const rollbackRepeatAttrs: Record<string, string> = {};
-                    for (const key of Object.keys(repeatAttrs)) rollbackRepeatAttrs[key] = fullAttrs[key] || "";
-                    try {
-                        await this.repository.restoreAttrs(blockId, rollbackRepeatAttrs);
-                    } catch {
-                        // Preserve the repeat persistence error.
-                    }
-                    if (repeatResetsNativeMarker) {
-                        try {
-                            await this.api.updateTaskListItemMarker(blockId, "X");
-                        } catch {
-                            // Preserve the attribute error.
-                        }
-                    }
-                    throw error;
-                }
-                const finalEntry = this.repository.buildEntry(blockId, finalAttrs, updatedEntry);
-                this.cacheConfirmedEntry(finalEntry);
+                currentEntry = await changes.upsertAttrs({
+                    blockId,
+                    attrs: repeatAttrs,
+                    existing: currentEntry,
+                });
             }
 
             // 回顾日期推算：status 变为 done 且有 review-interval 时，自动推算下次 review-date
-            if (attrs[ATTR_STATUS] === "done" && updatedEntry && updatedEntry.reviewInterval > 0) {
+            if (attrs[ATTR_STATUS] === "done" && currentEntry.reviewInterval > 0) {
                 const td3 = new Date();
                 const today = `${td3.getFullYear()}-${String(td3.getMonth() + 1).padStart(2, "0")}-${String(td3.getDate()).padStart(2, "0")}`;
-                const nextReviewDate = addLocalDays(today, updatedEntry.reviewInterval);
-                const reviewAttrs = await this.repository.writeAttrs(blockId, { [ATTR_REVIEW_DATE]: nextReviewDate });
-                const reviewEntry = this.repository.buildEntry(blockId, reviewAttrs, this.cacheManager.get(blockId)!);
-                this.repository.cache(reviewEntry);
+                const nextReviewDate = addLocalDays(today, currentEntry.reviewInterval);
+                currentEntry = await changes.upsertAttrs({
+                    blockId,
+                    attrs: { [ATTR_REVIEW_DATE]: nextReviewDate },
+                    existing: currentEntry,
+                });
             }
-
-            this.repository.recordChange(blockId, "update");
-
-            this.repository.publishChanges();
-
-            const result = this.cacheManager.get(blockId)!;
             if (hasSequentialConflict) {
-                return { ...result, _warning: "sequentialConflict" };
+                return { ...currentEntry, _warning: "sequentialConflict" };
             }
-            return result;
-        } finally {
-            lock.release();
-        }
+            return currentEntry;
+        });
     }
 
     async updateTaskTitle(blockId: string, rawTitle: string): Promise<TaskCacheEntry> {
@@ -921,8 +822,7 @@ export class TaskLifecycleService {
         if (!existing) {
             throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
         }
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             let baseEntry = existing;
             if (existing.identificationSource === "native") {
                 const resolved = existing.contentBlockId
@@ -946,8 +846,7 @@ export class TaskLifecycleService {
                     data: markdown,
                     lockType: true,
                 });
-                const confirmedAttrs = await this.repository.writeAttrs(blockId, {});
-                baseEntry = { ...this.repository.buildEntry(blockId, confirmedAttrs, existing), contentBlockId };
+                baseEntry = { ...(await changes.upsertAttrs({ blockId, attrs: {}, existing })), contentBlockId };
             } else {
                 const blockType = await this.getBlockType(blockId, true);
                 if (blockType !== "d") {
@@ -956,13 +855,9 @@ export class TaskLifecycleService {
                 await this.api.request("/api/filetree/renameDocByID", { id: blockId, title });
             }
             const updated = { ...baseEntry, title };
-            this.repository.cache(updated);
-            this.repository.recordChange(blockId, "update");
-            this.repository.publishChanges();
+            changes.upsertEntry(updated);
             return updated;
-        } finally {
-            lock.release();
-        }
+        });
     }
 
     async rebuildCache(): Promise<void> {
@@ -993,15 +888,9 @@ export class TaskLifecycleService {
         this.checkReady();
         const entry = this.cacheManager.get(blockId);
         if (entry?.identificationSource === "native" && !entry.created) {
-            const lock = await this.repository.acquireWithTimeout();
-            try {
-                const confirmedAttrs = await this.repository.writeAttrs(blockId, {});
-                this.repository.cache(this.repository.buildEntry(blockId, confirmedAttrs, entry));
-                this.repository.recordChange(blockId, "update");
-                this.repository.publishChanges();
-            } finally {
-                lock.release();
-            }
+            await this.repository.withConfirmedChanges(async (changes) => {
+                await changes.upsertAttrs({ blockId, attrs: {}, existing: entry });
+            });
         }
         return this.myDayManager.addTask(blockId);
     }

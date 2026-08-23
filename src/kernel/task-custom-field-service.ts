@@ -96,25 +96,14 @@ export class TaskCustomFieldService {
             .getAll()
             .filter((entry) => Object.prototype.hasOwnProperty.call(entry.customFields || {}, fieldKey));
         if (targets.length === 0) return { cleared: 0, failedBlockIds: [] };
-        const lock = await this.repository.acquireWithTimeout();
-        try {
-            const blockAttrs = targets.map((entry) => ({
-                id: entry.blockId,
+        return this.repository.withConfirmedChanges(async (changes) => {
+            const requests = targets.map((entry) => ({
+                blockId: entry.blockId,
                 attrs: { [ATTR_EXT_PREFIX + fieldKey]: "" },
+                existing: entry,
             }));
-            const result = await this.repository.batchWriteAttrs(blockAttrs);
-            const clearedIds = Object.keys(result.attrsByBlockId);
-            for (const blockId of clearedIds) {
-                const entry = this.cacheManager.get(blockId);
-                if (!entry) continue;
-                const attrs = result.attrsByBlockId[blockId];
-                this.repository.cache(this.repository.buildEntry(blockId, attrs, entry));
-                this.repository.recordChange(blockId, "update");
-            }
-            if (clearedIds.length > 0) this.repository.publishChanges();
-            return { cleared: clearedIds.length, failedBlockIds: result.failedBlockIds };
-        } finally {
-            lock.release();
-        }
+            const result = await changes.upsertAttrsBatch(requests);
+            return { cleared: result.entries.length, failedBlockIds: result.failedBlockIds };
+        });
     }
 }

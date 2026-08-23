@@ -1,16 +1,10 @@
 import type { TaskCacheEntry } from "../shared/types";
 import {
     ATTR_DUE,
-    ATTR_CREATED,
-    ATTR_EFFORT,
-    ATTR_IMPORTANCE,
-    ATTR_PARENT,
-    ATTR_PRIORITY,
     ATTR_REPEAT,
     ATTR_REPEAT_STATE,
     ATTR_START,
     ATTR_STATUS,
-    ATTR_SORT,
     RPC_ERROR_INVALID_PARAMS,
     RPC_ERROR_TASK_NOT_FOUND,
 } from "../shared/constants";
@@ -28,7 +22,6 @@ import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import type { MyDayTaskPort } from "./task-lifecycle-service";
-import { sql } from "../shared/sql";
 
 function localActionDate(date: Date = new Date()): string {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -50,57 +43,6 @@ export class RepeatTaskService {
         private readonly runtime: TaskRuntimeState,
     ) {}
 
-    private cacheConfirmedEntry(entry: TaskCacheEntry): void {
-        this.repository.cache(entry);
-    }
-
-    private async writeAttrsWithNativeMarker(
-        entry: TaskCacheEntry,
-        attrs: Record<string, string>,
-    ): Promise<Record<string, string>> {
-        if (entry.identificationSource !== "native" || attrs[ATTR_STATUS] === undefined) {
-            return this.repository.writeAttrs(entry.blockId, attrs);
-        }
-        const rows = await this.api.query<{ markdown?: string }>(
-            sql`SELECT markdown FROM blocks WHERE id = ${entry.blockId} LIMIT 1`,
-        );
-        const oldMarker = rows?.[0]?.markdown?.match(/\[(.)\]/s)?.[1] || (entry.status === "done" ? "X" : " ");
-        const nextMarker = attrs[ATTR_STATUS] === "done" ? "X" : " ";
-        const markerChanged = oldMarker !== nextMarker;
-        const oldAttrs = await this.repository.getBlockAttrs(entry.blockId);
-        if (markerChanged) await this.api.updateTaskListItemMarker(entry.blockId, nextMarker);
-        try {
-            return await this.repository.writeAttrs(entry.blockId, attrs);
-        } catch (error: unknown) {
-            const rollbackAttrs: Record<string, string> = {};
-            for (const key of new Set([
-                ...Object.keys(attrs),
-                ATTR_STATUS,
-                ATTR_PRIORITY,
-                ATTR_IMPORTANCE,
-                ATTR_EFFORT,
-                ATTR_CREATED,
-                ATTR_PARENT,
-                ATTR_SORT,
-            ])) {
-                rollbackAttrs[key] = oldAttrs[key] || "";
-            }
-            try {
-                await this.repository.restoreAttrs(entry.blockId, rollbackAttrs);
-            } catch {
-                // Preserve the original write error.
-            }
-            if (markerChanged) {
-                try {
-                    await this.api.updateTaskListItemMarker(entry.blockId, oldMarker);
-                } catch {
-                    // Preserve the attribute persistence error.
-                }
-            }
-            throw error;
-        }
-    }
-
     async setRepeatRule(blockId: string, rawRule: unknown): Promise<TaskCacheEntry> {
         blockId = assertBlockId(blockId);
         const rule = normalizeRepeatRule(rawRule);
@@ -109,8 +51,7 @@ export class RepeatTaskService {
         }
         this.runtime.assertReady();
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
                 throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
@@ -125,23 +66,15 @@ export class RepeatTaskService {
                 [ATTR_REPEAT_STATE]: JSON.stringify(state),
             };
             if (entry.status === "done") attrs[ATTR_STATUS] = "todo";
-            const finalAttrs = await this.writeAttrsWithNativeMarker(entry, attrs);
-            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-            this.cacheConfirmedEntry(finalEntry);
-            this.repository.recordChange(blockId, "update");
-            this.repository.publishChanges();
-            return finalEntry;
-        } finally {
-            lock.release();
-        }
+            return changes.upsertAttrs({ blockId, attrs, existing: entry });
+        });
     }
 
     async skipRepeatOccurrence(blockId: string): Promise<TaskCacheEntry> {
         blockId = assertBlockId(blockId);
         this.runtime.assertReady();
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
                 throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
@@ -168,7 +101,7 @@ export class RepeatTaskService {
                 if (advanced.state.currentDue) attrs[ATTR_DUE] = advanced.state.currentDue;
                 if (advanced.state.currentStart) attrs[ATTR_START] = advanced.state.currentStart;
             }
-            const finalAttrs = await this.writeAttrsWithNativeMarker(entry, attrs);
+            const finalEntry = await changes.upsertAttrs({ blockId, attrs, existing: entry });
             try {
                 await this.myDayManager.clearTaskCompleted(blockId);
             } catch (error: unknown) {
@@ -178,14 +111,8 @@ export class RepeatTaskService {
                 );
             }
 
-            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-            this.cacheConfirmedEntry(finalEntry);
-            this.repository.recordChange(blockId, "update");
-            this.repository.publishChanges();
             return finalEntry;
-        } finally {
-            lock.release();
-        }
+        });
     }
 
     async setRepeatPaused(blockId: string, paused: boolean): Promise<TaskCacheEntry> {
@@ -195,8 +122,7 @@ export class RepeatTaskService {
         }
         this.runtime.assertReady();
 
-        const lock = await this.repository.acquireWithTimeout();
-        try {
+        return this.repository.withConfirmedChanges(async (changes) => {
             const entry = this.cacheManager.get(blockId);
             if (!entry) {
                 throw codedError("Task not found", RPC_ERROR_TASK_NOT_FOUND);
@@ -220,7 +146,7 @@ export class RepeatTaskService {
                 if (nextState.currentDue) attrs[ATTR_DUE] = nextState.currentDue;
                 if (nextState.currentStart) attrs[ATTR_START] = nextState.currentStart;
             }
-            const finalAttrs = await this.writeAttrsWithNativeMarker(entry, attrs);
+            const finalEntry = await changes.upsertAttrs({ blockId, attrs, existing: entry });
             if (!paused && entry.status === "done") {
                 try {
                     await this.myDayManager.clearTaskCompleted(blockId);
@@ -232,13 +158,7 @@ export class RepeatTaskService {
                 }
             }
 
-            const finalEntry = this.repository.buildEntry(blockId, finalAttrs, entry);
-            this.cacheConfirmedEntry(finalEntry);
-            this.repository.recordChange(blockId, "update");
-            this.repository.publishChanges();
             return finalEntry;
-        } finally {
-            lock.release();
-        }
+        });
     }
 }
