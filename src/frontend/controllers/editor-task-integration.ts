@@ -1,6 +1,5 @@
-import { Dialog, Menu, confirm, type IEventBusMap, type Plugin } from "siyuan";
+import { Menu, confirm, type IEventBusMap, type Plugin } from "siyuan";
 import { get } from "svelte/store";
-import type TaskDetail from "../components/TaskDetail.svelte";
 import type { KernelBridge } from "../kernel-bridge";
 import type { I18nStrings } from "../../shared/i18n";
 import type { TaskCacheEntry } from "../../shared/types";
@@ -11,6 +10,7 @@ import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+import { openTaskDetailDialog as openSharedTaskDetailDialog } from "../dialogs/task-detail-dialog";
 import {
     closestTaskTarget,
     containsNativeTaskTarget,
@@ -18,10 +18,6 @@ import {
     scanNativeTaskTargets,
 } from "./editor-task-dom";
 import type { TaskCommandController } from "./task-command-controller";
-
-type TaskDetailDialog = Dialog & {
-    _naDetail?: TaskDetail;
-};
 
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
@@ -390,93 +386,12 @@ export class EditorTaskIntegration {
      * Used from the editor status icon menu.
      */
     private async openTaskDetailDialog(blockId: string) {
-        let task = await this.getBridge().getTask(blockId);
-        if (!task) {
-            try {
-                await this.getBridge().rebuildCache();
-                await taskStore.loadTasks();
-                task = await this.getBridge().getTask(blockId);
-            } catch (error) {
-                notifyOperationError(error, this.plugin.i18n);
-                return;
-            }
-        }
-        if (!task) {
-            notifyError(
-                this.plugin.i18n?.errItemNotFound || this.plugin.i18n?.errTaskNotFound || "Project or task not found",
-            );
-            return;
-        }
-
-        const dialog = new Dialog({
-            title: "",
-            content: `<div class="nextaction na-task-dialog-content"></div>`,
-            width: "min(520px, calc(100vw - 24px))",
-            height: "min(720px, calc(100vh - 24px))",
-            disableClose: true,
-            hideCloseIcon: true,
-            destroyCallback: () => {
-                const comp = (dialog as TaskDetailDialog)._naDetail;
-                if (comp) comp.$destroy();
-            },
+        await openSharedTaskDetailDialog({
+            blockId,
+            bridge: this.getBridge(),
+            i18n: this.i18n,
+            onCreateChild: this.openCreateChildDialog,
         });
-
-        const containerEl = dialog.element.querySelector(".na-task-dialog-content");
-        if (!containerEl) return;
-
-        // Remove the empty header bar to avoid double title
-        const header = dialog.element.querySelector(".b3-dialog__header");
-        if (header) header.remove();
-
-        // Constrain dialog max-height so body scrolls
-        const dialogContainer = dialog.element.querySelector(".b3-dialog__container") as HTMLElement;
-        dialogContainer?.classList.add("na-task-dialog-container");
-
-        dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
-            const component = (dialog as TaskDetailDialog)._naDetail;
-            component?.requestClose();
-        });
-
-        import("../components/TaskDetail.svelte")
-            .then(({ default: TaskDetailComp }) => {
-                const comp = new TaskDetailComp({
-                    target: containerEl as HTMLElement,
-                    props: {
-                        task,
-                        bridge: this.getBridge(),
-                        i18n: this.i18n,
-                        dialogMode: true,
-                        onCreateChild: this.openCreateChildDialog,
-                        onOpenTask: (nextBlockId: string) => {
-                            dialog.destroy();
-                            void this.openTaskDetailDialog(nextBlockId);
-                        },
-                        onSave: (updated: TaskCacheEntry) => {
-                            taskStore.applyUpdate(updated);
-                        },
-                        onRemove: (removedId: string) => {
-                            taskStore.applyRemove(removedId);
-                            dialog.destroy();
-                        },
-                        onClose: () => {
-                            dialog.destroy();
-                        },
-                        onConfirmDiscard: (confirmDiscard: () => void, cancelClose: () => void) => {
-                            confirm(
-                                this.plugin.i18n?.unsavedChangesTitle || "Unsaved changes",
-                                this.plugin.i18n?.unsavedChangesMessage || "Discard unsaved changes?",
-                                confirmDiscard,
-                                cancelClose,
-                            );
-                        },
-                    },
-                });
-                (dialog as TaskDetailDialog)._naDetail = comp;
-            })
-            .catch((error) => {
-                dialog.destroy();
-                notifyOperationError(error, this.plugin.i18n);
-            });
     }
 
     start(): void {

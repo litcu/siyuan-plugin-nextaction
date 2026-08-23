@@ -178,6 +178,62 @@ test("snapshot 握手期间缓存并按 revision 重放 V2 通知", async () => 
     store.disposeSync();
 });
 
+// Regression: 实时详情在首个任务快照完成前不能把“集合尚未加载”误判为任务已删除。
+test("任务观察器等待首个快照，并转发 V2 更新与明确删除", async () => {
+    const bridge = {
+        getTaskSnapshotV2: async () => snapshot("stream-a", 0, [taskFactory(TASK_A, { title: "Initial" })]),
+    } as unknown as KernelBridge;
+    const store = createTaskStore();
+    const events: Array<string | null> = [];
+    const unsubscribe = store.observeTask(TASK_A, (entry) => events.push(entry?.title || null));
+    assert.deepEqual(events, []);
+
+    store.setBridge(bridge);
+    await store.loadTasks();
+    store.applyChangeSetV2({
+        schema: 2,
+        type: "delta",
+        streamId: "stream-a",
+        fromRevision: 0,
+        revision: 1,
+        upserts: [taskFactory(TASK_A, { title: "Updated" })],
+        deletedBlockIds: [],
+    });
+    store.applyChangeSetV2({
+        schema: 2,
+        type: "delta",
+        streamId: "stream-a",
+        fromRevision: 1,
+        revision: 2,
+        upserts: [],
+        deletedBlockIds: [TASK_A],
+    });
+
+    assert.deepEqual(events, ["Initial", "Updated", null]);
+    unsubscribe();
+    store.disposeSync();
+});
+
+test("权威快照恢复会向任务观察器报告缺失任务", async () => {
+    const snapshots = [snapshot("stream-a", 0, [taskFactory(TASK_A)]), snapshot("stream-b", 1, [taskFactory(TASK_B)])];
+    let snapshotCalls = 0;
+    const bridge = {
+        getTaskSnapshotV2: async () => snapshots[Math.min(snapshotCalls++, snapshots.length - 1)],
+    } as unknown as KernelBridge;
+    const store = createTaskStore();
+    store.setBridge(bridge);
+    await store.loadTasks();
+    const events: Array<string | null> = [];
+    const unsubscribe = store.observeTask(TASK_A, (entry) => events.push(entry?.blockId || null));
+
+    store.resetSync();
+    await store.loadTasks();
+    assert.deepEqual(events, [TASK_A, null]);
+
+    unsubscribe();
+    store.disposeSync();
+});
+
 test("revision 缺口触发 snapshot 恢复且过期通知被忽略", async () => {
     const snapshots = [
         snapshot("stream-a", 0, [taskFactory(TASK_A)]),

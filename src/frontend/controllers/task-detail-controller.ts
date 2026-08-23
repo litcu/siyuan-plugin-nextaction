@@ -3,10 +3,9 @@ import { normalizePriority } from "../constants";
 import { isTaskDateRangeValid, type TaskDetailDraft } from "../utils/task-detail-draft";
 
 export type TaskDetailSaveState = "idle" | "pending" | "saving" | "saved" | "error";
-export type TaskDetailCloseDecision = "close" | "confirm-discard";
 export type TaskDetailDraftField = keyof TaskDetailDraft;
 
-export interface TaskDetailControllerSnapshot {
+interface TaskDetailDraftSnapshot {
     task: TaskCacheEntry;
     baseline: TaskDetailDraft;
     draft: TaskDetailDraft;
@@ -19,8 +18,9 @@ export interface TaskDetailControllerSnapshot {
     closeRequested: boolean;
 }
 
-export interface TaskDetailControllerOptions {
+interface TaskDetailDraftControllerOptions {
     save(blockId: string, draft: TaskDetailDraft): Promise<TaskCacheEntry>;
+    commit(task: TaskCacheEntry): void;
     formatError(error: unknown): string;
     debounceMs?: number;
     savedStateMs?: number;
@@ -28,6 +28,54 @@ export interface TaskDetailControllerOptions {
 
 export interface TaskDetailDisposeOptions {
     bestEffort?: boolean;
+}
+
+export interface TaskDetailTaskSource {
+    resolve(blockId: string): Promise<TaskCacheEntry | null>;
+    observe(blockId: string, listener: (task: TaskCacheEntry | null) => void): () => void;
+    commit(task: TaskCacheEntry): void;
+    remove(blockId: string): void;
+}
+
+export type TaskDetailTransition = { type: "close" } | { type: "task"; blockId: string };
+export type TaskDetailTransitionDecision = "applied" | "confirm-discard" | "blocked";
+export type TaskDetailAvailability = "available" | "removed";
+export type TaskDetailRemovalReason = "local" | "external";
+
+export class TaskDetailTransitionQueue {
+    private tail: Promise<void> | null = null;
+
+    run(
+        target: TaskDetailTransition,
+        transition: (target: TaskDetailTransition) => Promise<boolean>,
+    ): Promise<boolean> {
+        const result = this.tail ? this.tail.then(() => transition(target)) : transition(target);
+        const tail = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        this.tail = tail;
+        void tail.then(() => {
+            if (this.tail === tail) this.tail = null;
+        });
+        return result;
+    }
+}
+
+export interface TaskDetailSessionSnapshot extends TaskDetailDraftSnapshot {
+    availability: TaskDetailAvailability;
+    removalReason: TaskDetailRemovalReason | null;
+    pendingTransition: TaskDetailTransition | null;
+}
+
+export interface TaskDetailSessionOptions {
+    source: TaskDetailTaskSource;
+    save(blockId: string, draft: TaskDetailDraft): Promise<TaskCacheEntry>;
+    remove(blockId: string): Promise<void>;
+    formatError(error: unknown): string;
+    missingTaskMessage: string;
+    debounceMs?: number;
+    savedStateMs?: number;
 }
 
 const DRAFT_FIELDS: TaskDetailDraftField[] = [
@@ -110,11 +158,11 @@ function cloneDraftField<T>(value: T): T {
     return value;
 }
 
-export class TaskDetailController {
-    private readonly listeners = new Set<(snapshot: TaskDetailControllerSnapshot) => void>();
+class TaskDetailDraftController {
+    private readonly listeners = new Set<(snapshot: TaskDetailDraftSnapshot) => void>();
     private readonly debounceMs: number;
     private readonly savedStateMs: number;
-    private state: TaskDetailControllerSnapshot;
+    private state: TaskDetailDraftSnapshot;
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private savedStateTimer: ReturnType<typeof setTimeout> | null = null;
     private activeSave: Promise<boolean> | null = null;
@@ -123,7 +171,7 @@ export class TaskDetailController {
 
     constructor(
         task: TaskCacheEntry,
-        private readonly options: TaskDetailControllerOptions,
+        private readonly options: TaskDetailDraftControllerOptions,
     ) {
         const draft = taskToTaskDetailDraft(task);
         this.debounceMs = options.debounceMs ?? 500;
@@ -142,11 +190,11 @@ export class TaskDetailController {
         };
     }
 
-    get snapshot(): TaskDetailControllerSnapshot {
+    get snapshot(): TaskDetailDraftSnapshot {
         return this.state;
     }
 
-    subscribe(listener: (snapshot: TaskDetailControllerSnapshot) => void): () => void {
+    subscribe(listener: (snapshot: TaskDetailDraftSnapshot) => void): () => void {
         this.listeners.add(listener);
         listener(this.state);
         return () => this.listeners.delete(listener);
@@ -168,6 +216,7 @@ export class TaskDetailController {
         const incoming = taskToTaskDetailDraft(task);
         if (task.blockId !== this.state.task.blockId) {
             this.clearTimers();
+            this.discarded = false;
             this.state = {
                 ...this.state,
                 task,
@@ -196,6 +245,7 @@ export class TaskDetailController {
     }
 
     async flush(): Promise<boolean> {
+        if (this.disposed) return false;
         this.clearDebounceTimer();
         if (this.activeSave) {
             const succeeded = await this.activeSave;
@@ -225,7 +275,7 @@ export class TaskDetailController {
         return succeeded;
     }
 
-    async requestClose(): Promise<TaskDetailCloseDecision> {
+    async requestClose(): Promise<"close" | "confirm-discard"> {
         this.patchState({ closeRequested: true });
         while (this.activeSave) await this.activeSave;
         if (!this.state.dirty) {
@@ -236,7 +286,7 @@ export class TaskDetailController {
         return "confirm-discard";
     }
 
-    confirmDiscard(): TaskDetailCloseDecision {
+    confirmDiscard(): "close" {
         this.discarded = true;
         this.clearDebounceTimer();
         this.patchState({ closeRequested: false });
@@ -265,7 +315,12 @@ export class TaskDetailController {
         const draft = cloneDraft(this.state.draft);
         this.disposed = true;
         this.listeners.clear();
-        if (shouldSave) void this.options.save(taskId, draft).catch(() => undefined);
+        if (shouldSave) {
+            void this.options
+                .save(taskId, draft)
+                .then((task) => this.options.commit(task))
+                .catch(() => undefined);
+        }
     }
 
     private async saveGeneration(taskId: string, savingDraft: TaskDetailDraft): Promise<boolean> {
@@ -282,6 +337,7 @@ export class TaskDetailController {
                 saveError: "",
             };
             this.refreshDerivedState();
+            this.options.commit(updated);
             if (this.state.dirty) {
                 this.state = { ...this.state, saveState: "pending" };
             } else {
@@ -296,7 +352,7 @@ export class TaskDetailController {
         }
     }
 
-    private updateDraft(draft: TaskDetailDraft, patch: Partial<TaskDetailControllerSnapshot>): void {
+    private updateDraft(draft: TaskDetailDraft, patch: Partial<TaskDetailDraftSnapshot>): void {
         this.state = { ...this.state, ...patch, draft };
         this.refreshDerivedState();
         this.emit();
@@ -340,13 +396,210 @@ export class TaskDetailController {
         this.savedStateTimer = null;
     }
 
-    private patchState(patch: Partial<TaskDetailControllerSnapshot>): void {
+    private patchState(patch: Partial<TaskDetailDraftSnapshot>): void {
         this.state = { ...this.state, ...patch };
         this.emit();
     }
 
     private emit(): void {
         for (const listener of this.listeners) listener(this.state);
+    }
+}
+
+export class TaskDetailSession {
+    private readonly listeners = new Set<(snapshot: TaskDetailSessionSnapshot) => void>();
+    private readonly controller: TaskDetailDraftController;
+    private readonly unsubscribeController: () => void;
+    private unsubscribeTask: (() => void) | null = null;
+    private availability: TaskDetailAvailability = "available";
+    private removalReason: TaskDetailRemovalReason | null = null;
+    private pendingTransition: TaskDetailTransition | null = null;
+    private pendingTask: TaskCacheEntry | null = null;
+    private activeTransition: Promise<TaskDetailTransitionDecision> | null = null;
+    private disposed = false;
+
+    constructor(
+        task: TaskCacheEntry,
+        private readonly options: TaskDetailSessionOptions,
+    ) {
+        this.controller = new TaskDetailDraftController(task, {
+            save: options.save,
+            commit: (updated) => options.source.commit(updated),
+            formatError: options.formatError,
+            debounceMs: options.debounceMs,
+            savedStateMs: options.savedStateMs,
+        });
+        this.unsubscribeController = this.controller.subscribe(() => this.emit());
+        this.observeTask(task.blockId);
+    }
+
+    get snapshot(): TaskDetailSessionSnapshot {
+        return {
+            ...this.controller.snapshot,
+            availability: this.availability,
+            removalReason: this.removalReason,
+            pendingTransition: this.pendingTransition,
+        };
+    }
+
+    subscribe(listener: (snapshot: TaskDetailSessionSnapshot) => void): () => void {
+        this.listeners.add(listener);
+        listener(this.snapshot);
+        return () => this.listeners.delete(listener);
+    }
+
+    edit(patch: Partial<TaskDetailDraft>): void {
+        if (this.availability === "available") this.controller.edit(patch);
+    }
+
+    flush(): Promise<boolean> {
+        return this.availability === "available" ? this.controller.flush() : Promise.resolve(false);
+    }
+
+    transition(target: TaskDetailTransition): Promise<TaskDetailTransitionDecision> {
+        if (this.disposed) return Promise.resolve("blocked");
+        if (this.activeTransition) {
+            return this.activeTransition.then(() => this.transition(target));
+        }
+        const transition = this.prepareTransition(target);
+        this.activeTransition = transition;
+        return transition.finally(() => {
+            if (this.activeTransition === transition) this.activeTransition = null;
+        });
+    }
+
+    async confirmTransition(): Promise<TaskDetailTransitionDecision> {
+        const target = this.pendingTransition;
+        const task = this.pendingTask;
+        if (!target) return "blocked";
+        this.controller.confirmDiscard();
+        this.clearPendingTransition();
+        return this.applyTransition(target, task);
+    }
+
+    cancelTransition(): void {
+        if (!this.pendingTransition) return;
+        this.clearPendingTransition();
+        this.controller.cancelClose();
+    }
+
+    receiveAuthoritativeTask(task: TaskCacheEntry): void {
+        if (this.disposed || this.availability === "removed") return;
+        if (task.blockId === this.controller.snapshot.task.blockId) this.controller.receiveExternalTask(task);
+        this.options.source.commit(task);
+    }
+
+    async removeCurrent(): Promise<boolean> {
+        if (this.disposed || this.availability === "removed") return false;
+        const blockId = this.controller.snapshot.task.blockId;
+        try {
+            await this.options.remove(blockId);
+            this.controller.confirmDiscard();
+            this.removalReason = "local";
+            this.options.source.remove(blockId);
+            this.markRemoved("local");
+            return true;
+        } catch (error: unknown) {
+            this.controller.reportError(this.options.formatError(error));
+            return false;
+        }
+    }
+
+    reportError(message: string): void {
+        this.controller.reportError(message);
+    }
+
+    dispose(options: TaskDetailDisposeOptions = {}): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.unsubscribeTask?.();
+        this.unsubscribeTask = null;
+        this.unsubscribeController();
+        this.controller.dispose({ bestEffort: this.availability === "available" && options.bestEffort });
+        this.listeners.clear();
+    }
+
+    private async prepareTransition(target: TaskDetailTransition): Promise<TaskDetailTransitionDecision> {
+        if (this.availability === "removed") return target.type === "close" ? "applied" : "blocked";
+        let targetTask: TaskCacheEntry | null = null;
+        if (target.type === "task") {
+            if (target.blockId === this.controller.snapshot.task.blockId) return "applied";
+            try {
+                targetTask = await this.options.source.resolve(target.blockId);
+            } catch (error: unknown) {
+                this.controller.reportError(this.options.formatError(error));
+                return "blocked";
+            }
+            if (!targetTask) {
+                this.controller.reportError(this.options.missingTaskMessage);
+                return "blocked";
+            }
+        }
+
+        if (this.isRemoved()) return target.type === "close" ? "applied" : "blocked";
+        const flushed = await this.controller.flush();
+        if (this.isRemoved()) return target.type === "close" ? "applied" : "blocked";
+        if (!flushed && this.controller.snapshot.dirty) {
+            this.pendingTransition = target;
+            this.pendingTask = targetTask;
+            await this.controller.requestClose();
+            this.emit();
+            return "confirm-discard";
+        }
+        return this.applyTransition(target, targetTask);
+    }
+
+    private applyTransition(
+        target: TaskDetailTransition,
+        targetTask: TaskCacheEntry | null,
+    ): TaskDetailTransitionDecision {
+        if (target.type === "close") return "applied";
+        if (!targetTask) {
+            this.controller.reportError(this.options.missingTaskMessage);
+            return "blocked";
+        }
+        this.unsubscribeTask?.();
+        this.unsubscribeTask = null;
+        this.controller.receiveExternalTask(targetTask);
+        this.observeTask(targetTask.blockId);
+        return "applied";
+    }
+
+    private observeTask(blockId: string): void {
+        this.unsubscribeTask = this.options.source.observe(blockId, (task) => {
+            if (this.disposed || blockId !== this.controller.snapshot.task.blockId) return;
+            if (!task) {
+                this.markRemoved("external");
+                return;
+            }
+            this.controller.receiveExternalTask(task);
+        });
+    }
+
+    private markRemoved(reason: TaskDetailRemovalReason): void {
+        if (this.availability === "removed") return;
+        this.availability = "removed";
+        this.removalReason = this.removalReason || reason;
+        this.clearPendingTransition();
+        this.unsubscribeTask?.();
+        this.unsubscribeTask = null;
+        this.controller.dispose();
+        this.emit();
+    }
+
+    private clearPendingTransition(): void {
+        this.pendingTransition = null;
+        this.pendingTask = null;
+    }
+
+    private isRemoved(): boolean {
+        return this.availability === "removed";
+    }
+
+    private emit(): void {
+        if (this.disposed) return;
+        const snapshot = this.snapshot;
+        for (const listener of this.listeners) listener(snapshot);
     }
 }
 

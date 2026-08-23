@@ -8,8 +8,8 @@
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
-    import { taskStore } from "../stores/task-store";
-    import { formatRpcError, notifyInfo } from "../notify";
+    import { createTaskDetailTaskSource, taskStore } from "../stores/task-store";
+    import { formatRpcError, notifyError, notifyInfo } from "../notify";
     import { jumpToBlock as jump } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { parseReminderItems } from "../utils/reminder-utils";
@@ -17,10 +17,12 @@
     import { openReminderSettingsDialog, openRepeatRuleDialog } from "../dialogs/task-property-dialogs";
     import { isTaskDateRangeValid, taskDetailDraftKey, type TaskDetailDraft } from "../utils/task-detail-draft";
     import {
-        TaskDetailController,
+        TaskDetailSession,
+        TaskDetailTransitionQueue,
         taskDetailDraftToAttrs,
-        type TaskDetailControllerSnapshot,
+        type TaskDetailSessionSnapshot,
         type TaskDetailSaveState,
+        type TaskDetailTransition,
     } from "../controllers/task-detail-controller";
     import NaCustomFieldInput from "../ui/NaCustomFieldInput.svelte";
     import NaDatePicker from "../ui/NaDatePicker.svelte";
@@ -38,13 +40,11 @@
     export let task: TaskCacheEntry;
     export let bridge: KernelBridge;
     export let i18n: I18nStrings;
-    export let onSave: ((updatedEntry: TaskCacheEntry) => void) | undefined = undefined;
-    export let onRemove: ((blockId: string) => void) | undefined = undefined;
     export let onClose: (() => void) | undefined = undefined;
     export let onConfirmDiscard: ((confirmDiscard: () => void, cancelClose: () => void) => void) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onOpenTask: ((blockId: string) => void) | undefined = undefined;
+    export let onTaskChange: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let showJumpToBlock = true;
     export let dialogMode = false;
 
@@ -68,7 +68,6 @@
     let reviewIntervalMode = "0";
     let reviewIntervalCustom = "";
     let customFieldValues: Record<string, string> = {};
-    let activeClose: Promise<boolean> | null = null;
     let saveState: TaskDetailSaveState = "idle";
     let saveError = "";
     let depError = "";
@@ -78,7 +77,9 @@
     let repeatDateNoticeTaskId = "";
     let repeatDateErrorTimer: ReturnType<typeof setTimeout> | null = null;
     let shellElement: HTMLDivElement | undefined;
-    let appliedControllerTask: TaskCacheEntry | null = null;
+    let appliedSessionTask: TaskCacheEntry | null = null;
+    let removedHandled = false;
+    const transitionQueue = new TaskDetailTransitionQueue();
 
     $: allTasks = $taskStore.allTasks || [];
     $: allContexts = $taskStore.contexts || [];
@@ -103,7 +104,6 @@
     $: repeatRuntimeState = parseRepeatState(task.repeatState);
     $: repeatStatus = repeatRuntimeState?.status || (task.repeat ? "active" : "");
     $: dateError = getDateError(start, due);
-    let dirty = false;
     $: noticeMessage = dateError || depError || customFieldError || saveError || repeatDateError;
     $: noticeTone = (
         dateError || depError || customFieldError || saveError ? "error" : repeatDateError ? "warning" : "info"
@@ -180,7 +180,15 @@
         };
     }
 
-    function applyControllerSnapshot(snapshot: TaskDetailControllerSnapshot) {
+    function applySessionSnapshot(snapshot: TaskDetailSessionSnapshot) {
+        if (snapshot.availability === "removed" && !removedHandled) {
+            removedHandled = true;
+            if (snapshot.removalReason === "external") {
+                notifyError(i18n?.errItemNotFound || i18n?.errTaskNotFound || "Project or task not found");
+            }
+            onClose?.();
+            return;
+        }
         const incomingKey = taskDetailDraftKey(snapshot.draft);
         if (incomingKey !== taskDetailDraftKey(buildDraft())) {
             const draft = snapshot.draft;
@@ -209,22 +217,23 @@
             reviewIntervalCustom = reviewIntervalMode === "custom" ? String(reviewInterval) : "";
             customFieldValues = { ...draft.customFieldValues };
         }
-        if (appliedControllerTask !== snapshot.task) {
-            appliedControllerTask = snapshot.task;
+        if (appliedSessionTask !== snapshot.task) {
+            appliedSessionTask = snapshot.task;
             task = snapshot.task;
+            onTaskChange?.(snapshot.task);
             repeatEnabled = !!snapshot.task.repeat;
             depError = "";
             customFieldError = "";
             repeatDateError = "";
         }
-        dirty = snapshot.dirty;
         saveState = snapshot.saveState;
         saveError = snapshot.saveError;
     }
 
     class CustomFieldDraftError extends Error {}
 
-    const controller = new TaskDetailController(task, {
+    const session = new TaskDetailSession(task, {
+        source: createTaskDetailTaskSource((blockId) => bridge.getTask(blockId)),
         save: async (blockId, draft) => {
             const customAttrs: Record<string, string> = {};
             for (const def of customFieldDefs) {
@@ -237,19 +246,13 @@
                     throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
                 }
             }
-            const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
-            onSave?.(updated);
-            return updated;
+            return bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
         },
+        remove: (blockId) => bridge.removeTask(blockId),
         formatError: (error) => (error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n)),
+        missingTaskMessage: i18n?.errItemNotFound || i18n?.errTaskNotFound || "Project or task not found",
     });
-    const unsubscribeController = controller.subscribe(applyControllerSnapshot);
-
-    $: if (task !== controller.snapshot.task) controller.receiveExternalTask(task);
-
-    function syncFromTask(entry: TaskCacheEntry) {
-        controller.receiveExternalTask(entry);
-    }
+    const unsubscribeSession = session.subscribe(applySessionSnapshot);
 
     function getDateError(startValue: string, dueValue: string): string {
         if (!startValue || !dueValue) return "";
@@ -262,44 +265,48 @@
         depError = "";
         customFieldError = "";
         saveError = "";
-        controller.edit(buildDraft());
+        session.edit(buildDraft());
     }
 
     export async function flushPendingSave(): Promise<boolean> {
-        return controller.flush();
+        return session.flush();
+    }
+
+    async function requestTransition(target: TaskDetailTransition): Promise<boolean> {
+        return transitionQueue.run(target, async (queuedTarget) => {
+            const decision = await session.transition(queuedTarget);
+            if (decision === "applied") return true;
+            if (decision === "blocked") return false;
+            return new Promise<boolean>((resolve) => {
+                const confirmDiscard = () => {
+                    void session.confirmTransition().then((result) => resolve(result === "applied"));
+                };
+                const cancelTransition = () => {
+                    session.cancelTransition();
+                    resolve(false);
+                };
+                if (onConfirmDiscard) {
+                    onConfirmDiscard(confirmDiscard, cancelTransition);
+                } else {
+                    confirm(
+                        i18n?.unsavedChangesTitle || "Unsaved changes",
+                        i18n?.unsavedChangesMessage || "Discard unsaved changes?",
+                        confirmDiscard,
+                        cancelTransition,
+                    );
+                }
+            });
+        });
+    }
+
+    export async function openTask(blockId: string): Promise<boolean> {
+        return requestTransition({ type: "task", blockId });
     }
 
     export async function requestClose(): Promise<boolean> {
-        if (activeClose) return activeClose;
-        const closePromise = (async () => {
-            const decision = await controller.requestClose();
-            if (decision === "close") {
-                onClose?.();
-                return true;
-            }
-            return new Promise<boolean>((resolve) => {
-                if (!onConfirmDiscard) {
-                    controller.cancelClose();
-                    resolve(false);
-                    return;
-                }
-                onConfirmDiscard(
-                    () => {
-                        controller.confirmDiscard();
-                        onClose?.();
-                        resolve(true);
-                    },
-                    () => {
-                        controller.cancelClose();
-                        resolve(false);
-                    },
-                );
-            });
-        })();
-        activeClose = closePromise;
-        const result = await closePromise;
-        if (activeClose === closePromise) activeClose = null;
-        return result;
+        const closed = await requestTransition({ type: "close" });
+        if (closed) onClose?.();
+        return closed;
     }
 
     async function openReminders() {
@@ -308,11 +315,12 @@
     }
 
     async function handleOpenTask(blockId: string) {
-        if (!(await flushPendingSave())) return;
-        onOpenTask?.(blockId);
+        await openTask(blockId);
     }
 
     async function handleJumpToBlock(blockId: string) {
+        if (dialogMode && !(await requestTransition({ type: "close" }))) return;
+        if (!dialogMode && !(await flushPendingSave())) return;
         await jump(blockId);
         if (dialogMode) onClose?.();
     }
@@ -337,9 +345,7 @@
     }
 
     function applyExternalUpdate(updated: TaskCacheEntry) {
-        task = updated;
-        syncFromTask(updated);
-        onSave?.(updated);
+        session.receiveAuthoritativeTask(updated);
     }
 
     async function handleRepeatToggle(event: CustomEvent<{ checked: boolean }>) {
@@ -355,7 +361,7 @@
                 const updated = await bridge.updateTask(task.blockId, { "na-repeat": "" });
                 applyExternalUpdate(updated);
             } catch (error: any) {
-                controller.reportError(formatRpcError(error, i18n));
+                session.reportError(formatRpcError(error, i18n));
             } finally {
                 operationBusy = false;
             }
@@ -368,7 +374,7 @@
         try {
             applyExternalUpdate(await bridge.setRepeatPaused(task.blockId, repeatStatus !== "paused"));
         } catch (error: any) {
-            controller.reportError(formatRpcError(error, i18n));
+            session.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -380,7 +386,7 @@
         try {
             applyExternalUpdate(await bridge.skipRepeatOccurrence(task.blockId));
         } catch (error: any) {
-            controller.reportError(formatRpcError(error, i18n));
+            session.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -394,7 +400,7 @@
                 : await bridge.addTaskToMyDay(task.blockId);
             taskStore.applyMyDayUpdate(state);
         } catch (error: any) {
-            controller.reportError(formatRpcError(error, i18n));
+            session.reportError(formatRpcError(error, i18n));
         } finally {
             operationBusy = false;
         }
@@ -495,24 +501,15 @@
                 throw new Error("unsupported protocol");
             }
         } catch {
-            controller.reportError(i18n?.customFieldInvalidLink || "Invalid link");
+            session.reportError(i18n?.customFieldInvalidLink || "Invalid link");
         }
     }
 
     function handleRemove() {
-        if (!onRemove) return;
         confirm(removeLabel, removeConfirmMessage, async () => {
-            controller.confirmDiscard();
             operationBusy = true;
-            try {
-                await bridge.removeTask(task.blockId);
-                onRemove?.(task.blockId);
-                onClose?.();
-            } catch (error: any) {
-                controller.reportError(formatRpcError(error, i18n));
-            } finally {
-                operationBusy = false;
-            }
+            await session.removeCurrent();
+            operationBusy = false;
         });
     }
 
@@ -541,8 +538,8 @@
 
     onDestroy(() => {
         if (repeatDateErrorTimer) clearTimeout(repeatDateErrorTimer);
-        unsubscribeController();
-        controller.dispose({ bestEffort: true });
+        unsubscribeSession();
+        session.dispose({ bestEffort: true });
     });
 </script>
 

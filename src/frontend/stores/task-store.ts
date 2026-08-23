@@ -15,6 +15,7 @@ import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
 import type { FilterState } from "../utils/filter";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
+import type { TaskDetailTaskSource } from "../controllers/task-detail-controller";
 import {
     buildTaskCollection,
     isTaskChangeSetV2,
@@ -94,6 +95,7 @@ export function createTaskStore() {
     let legacySnapshotMode = false;
     let handshakeInProgress = false;
     let queuedV2Notifications: unknown[] = [];
+    let taskCollectionReady = false;
 
     function getCurrentState(): TaskState {
         let currentState!: TaskState;
@@ -233,6 +235,7 @@ export function createTaskStore() {
                 syncStreamId = "";
                 syncRevision = 0;
                 const collection = buildTaskCollection(legacyTasks);
+                taskCollectionReady = true;
                 update((state) => ({ ...state, ...collection, loading: false, error: null }));
                 handshakeInProgress = false;
                 queuedV2Notifications = [];
@@ -245,6 +248,7 @@ export function createTaskStore() {
             const collection = buildTaskCollection(snapshot.tasks);
             syncStreamId = snapshot.streamId;
             syncRevision = snapshot.revision;
+            taskCollectionReady = true;
             update((state) => ({ ...state, ...collection, loading: false, error: null }));
             handshakeInProgress = false;
             const queued = queuedV2Notifications;
@@ -263,6 +267,24 @@ export function createTaskStore() {
 
     return {
         subscribe,
+        getTask(blockId: string): TaskCacheEntry | null {
+            return getCurrentState().allTasks.find((task) => task.blockId === blockId) || null;
+        },
+        observeTask(blockId: string, listener: (task: TaskCacheEntry | null) => void): () => void {
+            let lastTask: TaskCacheEntry | null | undefined;
+            return subscribe((state) => {
+                const nextTask = state.allTasks.find((task) => task.blockId === blockId) || null;
+                if (nextTask) {
+                    if (nextTask !== lastTask) listener(nextTask);
+                    lastTask = nextTask;
+                    return;
+                }
+                if (taskCollectionReady && lastTask !== null) {
+                    lastTask = null;
+                    listener(null);
+                }
+            });
+        },
         setBridge(b: KernelBridge) {
             bridge = b;
         },
@@ -399,6 +421,7 @@ export function createTaskStore() {
             loadSeq++;
             handshakeInProgress = false;
             queuedV2Notifications = [];
+            taskCollectionReady = false;
             if (completedReloadTimer) clearTimeout(completedReloadTimer);
             completedReloadTimer = null;
         },
@@ -406,6 +429,23 @@ export function createTaskStore() {
 }
 
 export const taskStore = createTaskStore();
+
+export function createTaskDetailTaskSource(
+    resolveRemote: (blockId: string) => Promise<TaskCacheEntry | null>,
+): TaskDetailTaskSource {
+    return {
+        async resolve(blockId) {
+            const current = taskStore.getTask(blockId);
+            if (current) return current;
+            const resolved = await resolveRemote(blockId);
+            if (resolved) taskStore.applyUpdate(resolved);
+            return resolved;
+        },
+        observe: (blockId, listener) => taskStore.observeTask(blockId, listener),
+        commit: (task) => taskStore.applyUpdate(task),
+        remove: (blockId) => taskStore.applyRemove(blockId),
+    };
+}
 
 /** Shared read-only index used by task cards and detail views. */
 export const taskById = derived(taskStore, ($state) => {

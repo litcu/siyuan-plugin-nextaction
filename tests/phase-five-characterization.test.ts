@@ -8,21 +8,23 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), "u
 
 test("任务详情的抽屉与独立 Dialog 共享保存和关闭契约", () => {
     const detail = source("../src/frontend/components/TaskDetail.svelte");
-    const controller = source("../src/frontend/controllers/task-detail-controller.ts");
+    const session = source("../src/frontend/controllers/task-detail-controller.ts");
     const app = source("../src/frontend/components/NextActionApp.svelte");
     const editor = source("../src/frontend/controllers/editor-task-integration.ts");
+    const dialog = source("../src/frontend/dialogs/task-detail-dialog.ts");
 
     assert.match(app, /<TaskDetail[\s\S]*bind:this=\{detailComponent\}/);
-    assert.match(editor, /new TaskDetailComp\([\s\S]*dialogMode: true/);
+    assert.match(editor, /openSharedTaskDetailDialog\(\{/);
+    assert.match(dialog, /new TaskDetail\([\s\S]*dialogMode: true/);
     assert.match(app, /detailComponent\.requestClose\(\)/);
-    assert.match(editor, /component\?\.requestClose\(\)/);
-    assert.match(detail, /new TaskDetailController\(task/);
-    assert.match(controller, /options\.debounceMs \?\? 500/);
+    assert.match(dialog, /detail\?\.requestClose\(\)/);
+    assert.match(detail, /new TaskDetailSession\(task/);
+    assert.match(session, /options\.debounceMs \?\? 500/);
     assert.match(detail, /event\.key\.toLowerCase\(\) === "s"/);
     assert.match(detail, /export async function requestClose\(\)/);
     assert.match(detail, /onConfirmDiscard/);
     assert.match(detail, /onDestroy\(\(\) =>/);
-    assert.match(app, /taskAfterClose/);
+    assert.doesNotMatch(app, /taskAfterClose/);
     assert.match(app, /viewAfterClose/);
 });
 

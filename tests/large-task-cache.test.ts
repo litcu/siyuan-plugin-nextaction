@@ -27,9 +27,12 @@ test("cache discovery reuses SiYuan's configured SQL row limit until all tasks a
 });
 
 test("editor detail waits for a task and retries after rebuilding cache", () => {
-    const source = read("src/frontend/controllers/editor-task-integration.ts");
-    assert.match(source, /private async openTaskDetailDialog/);
-    assert.match(source, /await this\.getBridge\(\)\.rebuildCache\(\)/);
-    assert.match(source, /if \(!task\) \{[\s\S]*errTaskNotFound[\s\S]*return;/);
-    assert.doesNotMatch(source, /new Dialog\([\s\S]{0,1500}this\.bridge\.getTask\(blockId\)\.then/);
+    const editor = read("src/frontend/controllers/editor-task-integration.ts");
+    const dialog = read("src/frontend/dialogs/task-detail-dialog.ts");
+    assert.match(editor, /await openSharedTaskDetailDialog\(\{/);
+    assert.match(dialog, /let task = await options\.bridge\.getTask\(options\.blockId\)/);
+    assert.match(dialog, /await options\.bridge\.rebuildCache\(\)/);
+    assert.match(dialog, /await taskStore\.loadTasks\(\)/);
+    assert.match(dialog, /if \(!task\) \{[\s\S]*errTaskNotFound[\s\S]*return;/);
+    assert.doesNotMatch(editor, /new Dialog\(/);
 });

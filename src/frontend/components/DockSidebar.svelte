@@ -6,7 +6,6 @@
     import DockInbox from "./DockInbox.svelte";
     import { showTaskContextMenu } from "./task-context-menu";
     import { showStatusMenu } from "../utils";
-    import { Dialog } from "siyuan";
     import { notifyOperationError } from "../notify";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
@@ -15,6 +14,7 @@
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
     import NaIconButton from "../ui/NaIconButton.svelte";
+    import { openTaskDetailDialog } from "../dialogs/task-detail-dialog";
 
     export let bridge: KernelBridge;
     export let i18n: any;
@@ -47,66 +47,11 @@
     }
 
     function handleEdit(task: TaskCacheEntry) {
-        const dialog = new Dialog({
-            title: "",
-            content: `<div class="nextaction na-task-dialog-content"></div>`,
-            width: "min(520px, calc(100vw - 24px))",
-            height: "min(720px, calc(100vh - 24px))",
-            disableClose: true,
-            hideCloseIcon: true,
-            destroyCallback: () => {
-                const comp = (dialog as any)._naDetail;
-                if (comp) comp.$destroy();
-            },
-        });
-
-        const containerEl = dialog.element.querySelector(".na-task-dialog-content");
-        if (!containerEl) return;
-
-        const header = dialog.element.querySelector(".b3-dialog__header");
-        if (header) header.remove();
-
-        const dialogContainer = dialog.element.querySelector(".b3-dialog__container") as HTMLElement;
-        dialogContainer?.classList.add("na-task-dialog-container");
-
-        dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
-            (dialog as any)._naDetail?.requestClose();
-        });
-
-        import("./TaskDetail.svelte").then(({ default: TaskDetailComp }) => {
-            bridge.getTask(task.blockId).then((freshTask) => {
-                if (!freshTask) return;
-                const comp = new TaskDetailComp({
-                    target: containerEl as HTMLElement,
-                    props: {
-                        task: freshTask,
-                        bridge,
-                        i18n,
-                        dialogMode: true,
-                        onCreateChild: openCreateChild,
-                        onOpenTask: (blockId: string) => {
-                            dialog.destroy();
-                            void bridge
-                                .getTask(blockId)
-                                .then((nextTask) => {
-                                    if (nextTask) handleEdit(nextTask);
-                                })
-                                .catch((error) => notifyOperationError(error, i18n));
-                        },
-                        onSave: (updated: TaskCacheEntry) => {
-                            taskStore.applyUpdate(updated);
-                        },
-                        onRemove: (removedId: string) => {
-                            taskStore.applyRemove(removedId);
-                            dialog.destroy();
-                        },
-                        onClose: () => {
-                            dialog.destroy();
-                        },
-                    },
-                });
-                (dialog as any)._naDetail = comp;
-            });
+        void openTaskDetailDialog({
+            blockId: task.blockId,
+            bridge,
+            i18n,
+            onCreateChild: openCreateChild,
         });
     }
 

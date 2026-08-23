@@ -9,6 +9,7 @@ const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
 const app = source("../src/frontend/components/NextActionApp.svelte");
 const dock = source("../src/frontend/components/DockSidebar.svelte");
 const editorIntegration = source("../src/frontend/controllers/editor-task-integration.ts");
+const dialogAdapter = source("../src/frontend/dialogs/task-detail-dialog.ts");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
 const stateController = source("../src/frontend/controllers/task-detail-controller.ts");
 const stylesheet = ["../src/frontend/styles/app-shell.scss", "../src/frontend/styles/components.scss"]
@@ -59,9 +60,9 @@ test("属性子弹窗提升到打开的任务抽屉之上", () => {
 });
 
 test("自动保存、未保存修改确认和错误状态保持可见", () => {
-    assert.match(detail, /const decision = await controller\.requestClose\(\)/);
+    assert.match(detail, /const decision = await session\.transition\(queuedTarget\)/);
     assert.match(detail, /onConfirmDiscard/);
-    assert.match(detail, /controller\.edit\(buildDraft\(\)\)/);
+    assert.match(detail, /session\.edit\(buildDraft\(\)\)/);
     assert.match(stateController, /options\.debounceMs \?\? 500/);
     assert.match(stateController, /void this\.flush\(\)/);
     assert.match(detail, /<div class="na-task-detail__notice"><NaInlineNotice message=\{noticeMessage\}/);
@@ -114,21 +115,22 @@ test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
 });
 
-// Regression: 子任务名称切换详情前必须保存草稿，跳转图标只在弹窗模式关闭。
-test("任务详情子任务导航和跳转关闭行为接线正确", () => {
-    assert.match(detail, /export let onOpenTask: \(\(blockId: string\) => void\) \| undefined/);
+test("任务详情子任务导航和跳转使用统一 Session 与 Dialog 静态接线", () => {
+    assert.match(detail, /export async function openTask\(blockId: string\)/);
+    assert.match(detail, /async function handleOpenTask\(blockId: string\)[\s\S]*await openTask\(blockId\)/);
     assert.match(
         detail,
-        /async function handleOpenTask\(blockId: string\)[\s\S]*flushPendingSave\(\)[\s\S]*onOpenTask/,
-    );
-    assert.match(
-        detail,
-        /async function handleJumpToBlock\(blockId: string\)[\s\S]*await jump\(blockId\)[\s\S]*if \(dialogMode\) onClose/,
+        /async function handleJumpToBlock\(blockId: string\)[\s\S]*requestTransition\(\{ type: "close" \}\)[\s\S]*await jump\(blockId\)/,
     );
     assert.match(detail, /onOpen=\{handleJumpToBlock\}[\s\S]*onSelect=\{handleOpenTask\}/);
-    assert.match(app, /onOpenTask=\{handleOpenTaskFromDetail\}/);
-    assert.match(dock, /onOpenTask:\s*\(blockId: string\)[\s\S]*dialog\.destroy\(\)/);
-    assert.match(editorIntegration, /onOpenTask:\s*\(nextBlockId: string\)[\s\S]*dialog\.destroy\(\)/);
+    assert.match(app, /detailComponent\.openTask\(task\.blockId\)/);
+    assert.match(app, /onTaskChange=\{handleDetailTaskChange\}/);
+    assert.match(dock, /openTaskDetailDialog\(\{/);
+    assert.match(editorIntegration, /openSharedTaskDetailDialog\(\{/);
+    assert.match(dialogAdapter, /onConfirmDiscard:[\s\S]*confirm\(/);
+    assert.match(dialogAdapter, /taskStore\.applyUpdate\(task\)/);
+    assert.doesNotMatch(dialogAdapter, /onOpenTask/);
+    assert.match(detail, /snapshot\.removalReason === "external"/);
     assert.match(detail, /<NaPropertySection title=\{i18n\?\.detailGroupBasics[\s\S]*label=\{i18n\?\.note/);
     assert.doesNotMatch(detail, /<NaPropertySection title=\{i18n\?\.detailGroupNotes/);
     assert.match(detail, /<NaPropertySection title=\{i18n\?\.customFields/);

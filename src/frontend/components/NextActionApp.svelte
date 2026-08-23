@@ -45,7 +45,6 @@
     let activeView: string = VIEW_NEXT_ACTION;
     let selectedTask: TaskCacheEntry | null = null;
     let detailComponent: TaskDetail | null = null;
-    let taskAfterClose: TaskCacheEntry | null | undefined = undefined;
     let viewAfterClose: string | undefined = undefined;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -67,7 +66,6 @@
     function switchView(view: string) {
         if (selectedTask) {
             viewAfterClose = view;
-            taskAfterClose = null;
             requestDetailClose();
             return;
         }
@@ -80,35 +78,24 @@
         taskStore.setActiveView(view);
     }
 
-    function handleSelectTask(task: TaskCacheEntry) {
+    async function handleSelectTask(task: TaskCacheEntry) {
         if (selectedTask && selectedTask.blockId === task.blockId) {
-            taskAfterClose = null;
-            requestDetailClose();
-        } else if (selectedTask) {
-            taskAfterClose = task;
-            requestDetailClose();
-        } else {
-            selectedTask = task;
+            await requestDetailClose();
+            return;
         }
+        await handleEdit(task);
     }
 
-    function handleEdit(task: TaskCacheEntry) {
-        if (selectedTask && selectedTask.blockId !== task.blockId) {
-            taskAfterClose = task;
-            requestDetailClose();
-        } else {
-            selectedTask = task;
+    async function handleEdit(task: TaskCacheEntry) {
+        if (detailComponent && selectedTask) {
+            await detailComponent.openTask(task.blockId);
+            return;
         }
-    }
-
-    function handleOpenTaskFromDetail(blockId: string) {
-        const nextTask = get(taskStore).allTasks.find((entry) => entry.blockId === blockId);
-        if (nextTask) handleEdit(nextTask);
+        selectedTask = task;
     }
 
     function closeDetailNow() {
-        selectedTask = taskAfterClose === undefined ? null : taskAfterClose;
-        taskAfterClose = undefined;
+        selectedTask = null;
         if (viewAfterClose !== undefined) {
             const nextView = viewAfterClose;
             viewAfterClose = undefined;
@@ -120,7 +107,6 @@
         if (detailComponent) {
             const closed = await detailComponent.requestClose();
             if (!closed) {
-                taskAfterClose = undefined;
                 viewAfterClose = undefined;
             }
         } else {
@@ -137,16 +123,8 @@
         );
     }
 
-    function handleDetailSave(updated: TaskCacheEntry) {
-        taskStore.applyUpdate(updated);
-        if (selectedTask && selectedTask.blockId === updated.blockId) {
-            selectedTask = updated;
-        }
-    }
-
-    function handleDetailRemove(blockId: string) {
-        taskStore.applyRemove(blockId);
-        selectedTask = null;
+    function handleDetailTaskChange(currentTask: TaskCacheEntry) {
+        selectedTask = currentTask;
     }
 
     function handleContextMenu(task: TaskCacheEntry, event: MouseEvent) {
@@ -240,7 +218,7 @@
 
     function handleTaskCreated(task: TaskCacheEntry) {
         taskStore.applyUpdate(task);
-        selectedTask = task;
+        void handleEdit(task);
     }
 
     function openCreate(parentTask: TaskCacheEntry | null = null) {
@@ -374,20 +352,16 @@
     <NaDrawerHost open={selectedTask !== null} label={i18n?.close || "Close"} on:requestClose={requestDetailClose}>
         {#if selectedTask}
             <div class="na-app__detail-inner">
-                {#key selectedTask.blockId}
-                    <TaskDetail
-                        bind:this={detailComponent}
-                        task={selectedTask}
-                        {bridge}
-                        {i18n}
-                        onSave={handleDetailSave}
-                        onRemove={handleDetailRemove}
-                        onCreateChild={(task) => openCreate(task)}
-                        onOpenTask={handleOpenTaskFromDetail}
-                        onClose={closeDetailNow}
-                        onConfirmDiscard={confirmDetailDiscard}
-                    />
-                {/key}
+                <TaskDetail
+                    bind:this={detailComponent}
+                    task={selectedTask}
+                    {bridge}
+                    {i18n}
+                    onCreateChild={(task) => openCreate(task)}
+                    onTaskChange={handleDetailTaskChange}
+                    onClose={closeDetailNow}
+                    onConfirmDiscard={confirmDetailDiscard}
+                />
             </div>
         {/if}
     </NaDrawerHost>
