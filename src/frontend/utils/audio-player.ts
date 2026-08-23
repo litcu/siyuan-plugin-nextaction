@@ -6,11 +6,11 @@ let autoplayUnlocked = false;
 
 function getAudioUrl(soundId: ReminderSoundId): string {
     const map: Record<string, string> = {
-        chime: new URL("../../assets/sounds/chime.mp3", import.meta.url).href,
-        soft: new URL("../../assets/sounds/soft.mp3", import.meta.url).href,
-        bell: new URL("../../assets/sounds/bell.mp3", import.meta.url).href,
-        ping: new URL("../../assets/sounds/ping.mp3", import.meta.url).href,
-        gentle: new URL("../../assets/sounds/gentle.mp3", import.meta.url).href,
+        chime: new URL("../../assets/sounds/chime.wav", import.meta.url).href,
+        soft: new URL("../../assets/sounds/soft.wav", import.meta.url).href,
+        bell: new URL("../../assets/sounds/bell.wav", import.meta.url).href,
+        ping: new URL("../../assets/sounds/ping.wav", import.meta.url).href,
+        gentle: new URL("../../assets/sounds/gentle.wav", import.meta.url).href,
     };
     return map[soundId] || map.chime;
 }
