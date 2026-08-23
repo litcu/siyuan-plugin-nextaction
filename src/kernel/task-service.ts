@@ -11,6 +11,7 @@ import { TaskReviewService } from "./task-review-service";
 import { TaskRelationshipService } from "./task-relationship-service";
 import { RepeatTaskService } from "./repeat-task-service";
 import { TaskLifecycleService, type ConvertToTaskOptions, type MyDayTaskPort } from "./task-lifecycle-service";
+import { TaskIdentityResolver } from "./task-identity-resolver";
 
 export type { ConvertToTaskOptions, MyDayTaskPort } from "./task-lifecycle-service";
 
@@ -29,12 +30,13 @@ export class TaskService {
         repository: TaskRepository,
         myDayManager: MyDayTaskPort,
         api: SiyuanApiPort,
+        identities = new TaskIdentityResolver(api),
     ) {
         this.runtime = new TaskRuntimeState(repository, myDayManager);
         this.query = new TaskQueryService(cacheManager, this.runtime);
         this.customFields = new TaskCustomFieldService(cacheManager, repository, this.runtime);
         this.review = new TaskReviewService(cacheManager, repository, this.runtime);
-        this.relationships = new TaskRelationshipService(cacheManager, repository, api, this.runtime);
+        this.relationships = new TaskRelationshipService(cacheManager, repository, api, this.runtime, identities);
         this.repeat = new RepeatTaskService(cacheManager, repository, myDayManager, api, this.runtime);
         this.lifecycle = new TaskLifecycleService(
             cacheManager,
@@ -44,6 +46,7 @@ export class TaskService {
             this.runtime,
             this.customFields,
             this.relationships,
+            identities,
         );
     }
 

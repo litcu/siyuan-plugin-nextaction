@@ -2,40 +2,96 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const taskServiceSource = readFileSync(new URL("../src/kernel/task-lifecycle-service.ts", import.meta.url), "utf8");
+import { CacheManager } from "../src/kernel/cache-manager.ts";
+import { Mutex } from "../src/kernel/mutex.ts";
+import { TaskRepository } from "../src/kernel/task-repository.ts";
+import { TaskService } from "../src/kernel/task-service.ts";
+import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
+import { ATTR_STATUS, ATTR_TASK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../src/shared/constants.ts";
+import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher } from "./helpers/fakes.ts";
+
 const frontendSource = readFileSync(
     new URL("../src/frontend/controllers/task-command-controller.ts", import.meta.url),
     "utf8",
 );
 const constantsSource = readFileSync(new URL("../src/shared/constants.ts", import.meta.url), "utf8");
 
-test("单块转换在 knownTextBlock 路径也校验项目必须是文档", () => {
-    assert.match(taskServiceSource, /type: options\.knownTextBlockType \|\| "p"/);
-    assert.match(taskServiceSource, /if \(taskType === "2" && info\.type !== "d"\)/);
-    assert.match(taskServiceSource, /errProjectRequiresDocument/);
-});
+function serviceFor(api: FakeSiyuanApi): TaskService {
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    return service;
+}
 
-test("属性更新和带子树入口都不能绕过项目类型校验", () => {
-    assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2"\)/);
-    assert.match(taskServiceSource, /async convertToTaskWithChildren/);
-    assert.match(taskServiceSource, /if \(taskType === "2"\)[\s\S]*?errProjectRequiresDocument/);
-});
+function hasCode(code: number): (error: unknown) => boolean {
+    return (error) => error instanceof Error && (error as Error & { code?: number }).code === code;
+}
 
-test("任务目标允许文档和原生任务，段落标题通过结构转换进入原生模型", () => {
-    assert.match(
-        taskServiceSource,
-        /info\.type !== "d" && info\.type !== "p" && info\.type !== "h" && info\.type !== "i"/,
+test("单块转换校验项目必须是文档", async () => {
+    const api = new FakeSiyuanApi();
+    const paragraphId = "20260823160000-paragra";
+    api.addBlock(paragraphId, "p", "Paragraph");
+    await assert.rejects(
+        serviceFor(api).convertToTask(paragraphId, undefined, "2"),
+        hasCode(RPC_ERROR_PROJECT_REQUIRES_DOCUMENT),
     );
-    assert.match(taskServiceSource, /parentInfo\.type === "i" && parentInfo\.subtype === "t"/);
-    assert.match(taskServiceSource, /let cachedTask = this\.cacheManager\.get\(blockId\)/);
-    assert.match(taskServiceSource, /Native task list items are valid without custom-na-task/);
 });
 
-test("缓存尚未同步时，已有任务属性仍可更新", () => {
-    assert.match(taskServiceSource, /let existingAttrsForValidation: Record<string, string> \| null = null;/);
-    assert.match(taskServiceSource, /existingAttrsForValidation = await this\.repository\.getBlockAttrs\(blockId\);/);
-    assert.match(taskServiceSource, /const hasExistingTaskAttrs = !!existingAttrsForValidation\?\.\[ATTR_TASK\];/);
-    assert.match(taskServiceSource, /if \(attrs\[ATTR_TASK\] === "2" \|\| \(!cachedTask && !hasExistingTaskAttrs\)\)/);
+test("属性更新和带子树入口都不能绕过项目类型校验", async () => {
+    const api = new FakeSiyuanApi();
+    const itemId = "20260823160001-taskitm";
+    const textId = "20260823160002-tasktxt";
+    api.addBlock(itemId, "i", "Task", "notebook", "/Task", { subtype: "t", markdown: "- [ ] Task" });
+    api.addBlock(textId, "p", "Task", "notebook", "/Task", { parentId: itemId });
+    const service = serviceFor(api);
+    await service.convertToTask(itemId);
+
+    await assert.rejects(
+        service.updateTask(itemId, { [ATTR_TASK]: "2" }),
+        hasCode(RPC_ERROR_PROJECT_REQUIRES_DOCUMENT),
+    );
+    await assert.rejects(
+        service.convertToTaskWithChildren(itemId, undefined, "2"),
+        hasCode(RPC_ERROR_PROJECT_REQUIRES_DOCUMENT),
+    );
+});
+
+test("任务目标允许文档和两种原生结构，普通段落通过转换进入原生模型", async () => {
+    const api = new FakeSiyuanApi();
+    const documentId = "20260823160003-doctask";
+    const listId = "20260823160004-tasklst";
+    const itemId = "20260823160005-taskitm";
+    const textId = "20260823160006-tasktxt";
+    const paragraphId = "20260823160007-paragra";
+    api.addBlock(documentId, "d", "Document");
+    api.addBlock(listId, "l", "", "notebook", "/Document", { parentId: documentId, subtype: "t" });
+    api.addBlock(itemId, "i", "Native", "notebook", "/Document", {
+        parentId: listId,
+        subtype: "u",
+        markdown: "- [ ] Native",
+    });
+    api.addBlock(textId, "p", "Native", "notebook", "/Document", { parentId: itemId });
+    api.addBlock(paragraphId, "p", "Paragraph", "notebook", "/Document", { parentId: documentId });
+    const service = serviceFor(api);
+
+    assert.equal((await service.convertToTask(documentId)).identificationSource, "document");
+    assert.equal((await service.convertToTask(itemId)).blockId, itemId);
+    const converted = await service.convertToTask(paragraphId);
+    assert.equal(converted.identificationSource, "native");
+    assert.notEqual(converted.blockId, paragraphId);
+});
+
+test("缓存尚未同步时，已有文档任务属性仍可更新", async () => {
+    const api = new FakeSiyuanApi();
+    const documentId = "20260823160008-uncachd";
+    const document = api.addBlock(documentId, "d", "Document task");
+    document.attrs[ATTR_TASK] = "1";
+    document.attrs[ATTR_STATUS] = "todo";
+    const updated = await serviceFor(api).updateTask(documentId, { [ATTR_STATUS]: "doing" });
+    assert.equal(updated.blockId, documentId);
+    assert.equal(updated.identificationSource, "document");
+    assert.equal(updated.status, "doing");
 });
 
 test("内核错误码覆盖项目校验且前端不再保留直连回退", () => {

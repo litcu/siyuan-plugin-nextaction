@@ -88,16 +88,16 @@ test("通用任务更新支持状态、重复规则、类型和标题", () => {
 test("MCP 创建任务使用思源插入事务元数据，不等待 SQL 索引", () => {
     assert.match(creationSource, /extractInsertedBlockMeta/);
     assert.match(creationSource, /resolveInsertedTaskBlock/);
-    assert.match(creationSource, /knownTextBlock:\s*kind === "2" \|\| format === "document"/);
-    assert.match(creationSource, /knownNativeTask:\s*kind !== "2" && format !== "document"/);
-    assert.match(creationSource, /contentBlockId:\s*insertedMeta\.contentBlockId/);
+    assert.match(creationSource, /kind: "verified-document", blockId, title/);
+    assert.match(creationSource, /kind: "inserted-native"/);
+    assert.match(creationSource, /contentBlockId: insertedMeta\.contentBlockId/);
     assert.match(creationSource, /parentIdHint:\s*parentTaskHint \|\| insertedMeta\.parentId/);
     assert.match(
         creationSource,
         /expectedNodeType = kind === "2" \|\| format === "document" \? "NodeDocument" : "NodeListItem"/,
     );
     assert.match(creationSource, /extractInsertedBlockMeta\([\s\S]*parentID/);
-    assert.match(taskServiceSource, /cleanTitle \|\| \(await this\.fetchBlockTitle/);
+    assert.match(taskServiceSource, /title = cleanTitle \|\| title \|\| \(await this\.fetchBlockTitle/);
 });
 
 test("子任务创建统一生成原生任务列表项", () => {

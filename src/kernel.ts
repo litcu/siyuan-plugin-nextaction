@@ -18,6 +18,7 @@ import { McpToolManager } from "./kernel/mcp-tool-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
 import { ProductionSiyuanApi } from "./kernel/siyuan-api";
+import { TaskIdentityResolver } from "./kernel/task-identity-resolver";
 import { RpcContractError } from "./shared/rpc-methods";
 import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
@@ -45,8 +46,9 @@ class NextActionKernelPlugin {
 
         setSiyuan(this.siyuan);
         const api = new ProductionSiyuanApi(this.siyuan);
+        const taskIdentities = new TaskIdentityResolver(api);
         this.mutex = new Mutex();
-        this.cacheManager = new CacheManager(api);
+        this.cacheManager = new CacheManager(api, taskIdentities);
         this.syncEngine = new SyncEngine(api, this.cacheManager);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
         const taskRepository = new TaskRepository(
@@ -56,7 +58,7 @@ class NextActionKernelPlugin {
             this.syncEngine,
             DEFAULT_SETTINGS,
         );
-        this.taskService = new TaskService(this.cacheManager, taskRepository, myDayManager, api);
+        this.taskService = new TaskService(this.cacheManager, taskRepository, myDayManager, api, taskIdentities);
         const loadedSettings = await this.loadSettings();
         try {
             this.taskService.updateSettings(loadedSettings);

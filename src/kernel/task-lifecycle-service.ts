@@ -37,7 +37,6 @@ import {
     RPC_ERROR_TASK_NOT_FOUND,
     RPC_ERROR_CIRCULAR_REF,
     RPC_ERROR_DEP_CYCLE,
-    RPC_ERROR_NOT_TEXT_BLOCK,
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
     ALL_STATUSES,
     ATTR_EXT_PREFIX,
@@ -72,6 +71,8 @@ import type { TaskCustomFieldService } from "./task-custom-field-service";
 import { addLocalDays } from "./task-date-utils";
 import type { TaskRelationshipService } from "./task-relationship-service";
 import { escapeMarkdownText, extractInsertedBlockMeta } from "./mcp-utils";
+import type { TaskIdentityResolver, ResolveTaskEvidence, ResolvedTaskTarget } from "./task-identity-resolver";
+import { isNativeTaskStructure } from "../shared/task-identity";
 
 function localActionDate(date: Date = new Date()): string {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -84,16 +85,18 @@ function codedError(message: string, code: number): Error & { code: number } {
     return error;
 }
 
+function replaceRootBlockSubtype(dom: string, nodeType: "NodeList" | "NodeListItem", subtype: "t" | "u"): string {
+    const openingTag = dom.match(/^\s*<[^>]+>/)?.[0] || "";
+    if (!openingTag || !new RegExp(`data-type=["']${nodeType}["']`, "i").test(openingTag)) return "";
+    const updatedTag = /data-subtype=(["'])[^"']*\1/i.test(openingTag)
+        ? openingTag.replace(/data-subtype=(["'])[^"']*\1/i, `data-subtype="${subtype}"`)
+        : openingTag.replace(/>$/, ` data-subtype="${subtype}">`);
+    return updatedTag + dom.slice(openingTag.length);
+}
+
 export interface ConvertToTaskOptions {
-    /** The caller has just created the block and verified its text DOM. */
-    knownTextBlock?: boolean;
-    /** Verified short block type for a newly inserted text block. */
-    knownTextBlockType?: "p" | "h" | "d";
-    /** The caller has just inserted and verified a native task list item. */
-    knownNativeTask?: boolean;
-    /** Direct text child of a native task list item. */
-    contentBlockId?: string;
-    /** Direct parent returned by SiYuan's insert transaction. */
+    /** Typed evidence for a just-inserted block whose SQL index may still lag. */
+    evidence?: ResolveTaskEvidence;
     parentIdHint?: string;
 }
 
@@ -121,6 +124,7 @@ export class TaskLifecycleService {
         private readonly runtime: TaskRuntimeState,
         private readonly customFields: TaskCustomFieldService,
         private readonly relationships: TaskRelationshipService,
+        private readonly identities: TaskIdentityResolver,
     ) {
         this.cacheManager = cacheManager;
         this.repository = repository;
@@ -160,53 +164,8 @@ export class TaskLifecycleService {
         return "";
     }
 
-    private async getBlockInfo(
-        blockId: string,
-        waitForIndex = false,
-    ): Promise<{ id: string; type: string; subtype: string; parent_id: string; content: string; markdown: string }> {
-        const attempts = waitForIndex ? 20 : 1;
-        for (let attempt = 0; attempt < attempts; attempt++) {
-            const rows = await this.api.query<{
-                id?: string;
-                type?: string;
-                subtype?: string;
-                parent_id?: string;
-                content?: string;
-                markdown?: string;
-            }>(sql`SELECT id, type, subtype, parent_id, content, markdown FROM blocks WHERE id = ${blockId} LIMIT 1`);
-            const row = rows?.[0];
-            if (row?.type || attempt === attempts - 1) {
-                return {
-                    id: row?.id || blockId,
-                    type: row?.type || "",
-                    subtype: row?.subtype || "",
-                    parent_id: row?.parent_id || "",
-                    content: row?.content || "",
-                    markdown: row?.markdown || "",
-                };
-            }
-            await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        return { id: blockId, type: "", subtype: "", parent_id: "", content: "", markdown: "" };
-    }
-
-    private nativeStatusFromMarkdown(markdown: string): string {
-        const marker = markdown.match(/\[(.)\]/s)?.[1] || " ";
-        return marker === " " ? "inbox" : "done";
-    }
-
     private statusMarker(status: string): " " | "X" {
         return status === "done" ? "X" : " ";
-    }
-
-    private async getDirectTextChildId(listItemId: string): Promise<string> {
-        const children = await this.api.request<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
-            id: listItemId,
-        });
-        const child = Array.isArray(children)
-            ? children.find((item) => item?.id && (item.type === "p" || item.type === "h"))
-            : undefined;
-        return child?.id || "";
     }
 
     private buildDefaultAttrs(title: string, status: string, taskType?: string): Record<string, string> {
@@ -226,6 +185,78 @@ export class TaskLifecycleService {
         return attrs;
     }
 
+    private async getBlockDom(blockId: string, nodeType: "NodeList" | "NodeListItem"): Promise<string> {
+        const result = await this.api.request<{ dom?: string }>("/api/block/getBlockDOM", { id: blockId });
+        const dom = result?.dom || "";
+        if (!replaceRootBlockSubtype(dom, nodeType, "u")) {
+            throw new Error(`${nodeType} DOM unavailable: ${blockId}`);
+        }
+        return dom;
+    }
+
+    private async updateBlockDom(blockId: string, dom: string): Promise<void> {
+        await this.api.request("/api/block/updateBlock", {
+            id: blockId,
+            dataType: "dom",
+            data: dom,
+            lockType: false,
+        });
+    }
+
+    private async convertNativeTaskToUnorderedItem(blockId: string): Promise<void> {
+        const rows = await this.api.query<{
+            subtype?: string;
+            parent_id?: string;
+            parent_type?: string;
+            parent_subtype?: string;
+        }>(sql`
+            SELECT item.subtype,
+                   item.parent_id,
+                   parent.type AS parent_type,
+                   parent.subtype AS parent_subtype
+              FROM blocks item
+              LEFT JOIN blocks parent ON parent.id = item.parent_id
+             WHERE item.id = ${blockId}
+             LIMIT 1
+        `);
+        const structure = rows?.[0];
+        const parentListId = structure?.parent_id || "";
+        const parentOwnsTaskIdentity =
+            structure?.parent_type === "l" && structure.parent_subtype === "t" && !!parentListId;
+
+        const originalDom = await this.getBlockDom(blockId, "NodeListItem");
+        const unorderedDom = replaceRootBlockSubtype(originalDom, "NodeListItem", "u")
+            .replace(/\sdata-task=(["'])[^"']*\1/i, "")
+            .replace(/\sprotyle-task--done\b/g, "")
+            .replace(/protyle-action--task\b/g, "")
+            .replace(/#icon(?:Uncheck|Check)/g, "#iconDot");
+        if (unorderedDom !== originalDom) await this.updateBlockDom(blockId, unorderedDom);
+
+        if (!parentOwnsTaskIdentity) {
+            if (unorderedDom === originalDom) {
+                throw new Error(`Native task list item could not be converted to an unordered item: ${blockId}`);
+            }
+            return;
+        }
+
+        const siblings = await this.api.request<Array<{ id?: string; type?: string }>>("/api/block/getChildBlocks", {
+            id: parentListId,
+        });
+        for (const sibling of siblings || []) {
+            if (!sibling.id || sibling.id === blockId || sibling.type !== "i") continue;
+            const siblingDom = await this.getBlockDom(sibling.id, "NodeListItem");
+            const taskDom = replaceRootBlockSubtype(siblingDom, "NodeListItem", "t");
+            if (taskDom !== siblingDom) await this.updateBlockDom(sibling.id, taskDom);
+        }
+
+        const parentDom = await this.getBlockDom(parentListId, "NodeList");
+        const unorderedListDom = replaceRootBlockSubtype(parentDom, "NodeList", "u");
+        if (unorderedListDom === parentDom) {
+            throw new Error(`Native task list could not be converted to an unordered list: ${parentListId}`);
+        }
+        await this.updateBlockDom(parentListId, unorderedListDom);
+    }
+
     private fillMissingDefaults(
         existingAttrs: Record<string, string>,
         defaults: Record<string, string>,
@@ -235,42 +266,6 @@ export class TaskLifecycleService {
             if (!existingAttrs[key]) result[key] = value;
         }
         return result;
-    }
-
-    private assertProjectBlockType(taskType: string, blockType: string): void {
-        if (taskType === "2" && blockType !== "d") {
-            throw codedError("errProjectRequiresDocument", RPC_ERROR_PROJECT_REQUIRES_DOCUMENT);
-        }
-    }
-
-    private assertTaskAttributeBlockType(blockType: string): void {
-        if (blockType !== "p" && blockType !== "h" && blockType !== "d") {
-            throw codedError("errNotTextBlock", RPC_ERROR_NOT_TEXT_BLOCK);
-        }
-    }
-
-    /**
-     * Resolve a logical list item to the text block that may carry task attrs.
-     * Lists and other non-text blocks remain unsupported because they may contain
-     * multiple or no text blocks and therefore have no unambiguous task identity.
-     */
-    private async resolveTaskAttributeBlock(blockId: string): Promise<{ id: string; type: string }> {
-        const blockType = await this.getBlockType(blockId);
-        if (blockType === "p" || blockType === "h" || blockType === "d") {
-            return { id: blockId, type: blockType };
-        }
-        if (blockType === "i") {
-            const children = await this.api.request<Array<{ id?: string; type?: string }>>(
-                "/api/block/getChildBlocks",
-                { id: blockId },
-            );
-            const textChild = Array.isArray(children)
-                ? children.find((child) => child?.id && (child.type === "p" || child.type === "h"))
-                : undefined;
-            if (textChild?.id && textChild.type) return { id: textChild.id, type: textChild.type };
-        }
-        this.assertTaskAttributeBlockType(blockType);
-        return { id: blockId, type: blockType };
     }
 
     // ---- Write operations ----
@@ -283,63 +278,38 @@ export class TaskLifecycleService {
     ): Promise<TaskCacheEntry> {
         blockId = assertBlockId(blockId);
         if (options.parentIdHint) assertBlockId(options.parentIdHint, "parentIdHint");
-        if (options.contentBlockId) assertBlockId(options.contentBlockId, "contentBlockId");
+        if (options.evidence) {
+            assertBlockId(options.evidence.blockId, "evidence.blockId");
+            if (options.evidence.kind === "inserted-native") {
+                if (options.evidence.contentBlockId) {
+                    assertBlockId(options.evidence.contentBlockId, "evidence.contentBlockId");
+                }
+                if (options.evidence.parentId) assertBlockId(options.evidence.parentId, "evidence.parentId");
+            }
+        }
         this.checkReady();
         if (taskType !== "1" && taskType !== "2") {
             throw codedError("Invalid task type: " + taskType, RPC_ERROR_INVALID_PARAMS);
         }
-
-        let info = options.knownNativeTask
-            ? { id: blockId, type: "i", subtype: "t", parent_id: "", content: cleanTitle || "", markdown: "- [ ]" }
-            : options.knownTextBlock
-              ? {
-                    id: blockId,
-                    type: options.knownTextBlockType || "p",
-                    subtype: "",
-                    parent_id: "",
-                    content: cleanTitle || "",
-                    markdown: "",
-                }
-              : await this.getBlockInfo(blockId);
-
-        let contentBlockId = options.contentBlockId || "";
-        if (taskType === "1" && (info.type === "p" || info.type === "h") && info.parent_id) {
-            const parentInfo = await this.getBlockInfo(info.parent_id);
-            if (parentInfo.type === "i" && parentInfo.subtype === "t") {
-                contentBlockId = blockId;
-                blockId = parentInfo.id;
-                info = parentInfo;
-            }
-        }
-
-        if (taskType === "2" && info.type !== "d") {
-            throw codedError("errProjectRequiresDocument", RPC_ERROR_PROJECT_REQUIRES_DOCUMENT);
-        }
-        if (taskType === "1" && info.type !== "d" && info.type !== "p" && info.type !== "h" && info.type !== "i") {
-            throw codedError("errNotTextBlock", RPC_ERROR_NOT_TEXT_BLOCK);
-        }
-        if (info.type === "i" && info.subtype !== "t") {
-            throw codedError("errNotTextBlock", RPC_ERROR_NOT_TEXT_BLOCK);
-        }
-
-        let title = cleanTitle || info.content || "";
-        let structuralParentId = "";
-        const hintedParentId = options.parentIdHint
-            ? await this.relationships.findTaskParentHint(options.parentIdHint, blockId)
-            : "";
-        try {
-            structuralParentId = hintedParentId || (await this.relationships.findAncestorTask(blockId));
-        } catch {
-            structuralParentId = hintedParentId;
-        }
+        const requestedTaskType = taskType as "1" | "2";
+        let resolved: ResolvedTaskTarget = await this.identities.resolveTarget({
+            blockId,
+            taskType: requestedTaskType,
+            mode: "conversion",
+            parentIdHint: options.parentIdHint,
+            evidence: options.evidence,
+            readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+        });
+        let title = cleanTitle || (resolved.kind === "convert-text" ? resolved.title : resolved.identity.title);
 
         const lock = await this.repository.acquireWithTimeout();
         let convertedRootId = "";
         try {
-            if (taskType === "1" && (info.type === "p" || info.type === "h")) {
-                title = cleanTitle || (await this.fetchBlockTitle(blockId));
+            if (resolved.kind === "convert-text") {
+                const originalBlockId = resolved.blockId;
+                title = cleanTitle || title || (await this.fetchBlockTitle(originalBlockId));
                 const result = await this.api.request<unknown[]>("/api/block/updateBlock", {
-                    id: blockId,
+                    id: originalBlockId,
                     dataType: "markdown",
                     data: `- [ ] ${escapeMarkdownText(title)}`,
                     lockType: false,
@@ -348,24 +318,40 @@ export class TaskLifecycleService {
                 if (!meta.id || meta.nodeType !== "NodeListItem") {
                     throw new Error("SiYuan did not return the converted native task item");
                 }
-                convertedRootId = meta.rootId || blockId;
-                blockId = meta.id;
-                contentBlockId = meta.contentBlockId || (await this.getDirectTextChildId(blockId));
-                info = { id: blockId, type: "i", subtype: "t", parent_id: "", content: title, markdown: "- [ ]" };
+                convertedRootId = meta.rootId || originalBlockId;
+                resolved = await this.identities.resolveTarget({
+                    blockId: meta.id,
+                    taskType: "1",
+                    mode: "conversion",
+                    parentIdHint: resolved.structuralParentId || options.parentIdHint,
+                    evidence: {
+                        kind: "inserted-native",
+                        blockId: meta.id,
+                        contentBlockId: meta.contentBlockId,
+                        parentId: meta.parentId,
+                        title,
+                    },
+                    readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                });
             }
 
+            if (resolved.kind === "convert-text") throw new Error("Task target conversion did not resolve");
+            const identity = resolved.identity;
+            blockId = identity.blockId;
             const existingAttrs = await this.repository.getBlockAttrs(blockId);
-            const isNative = info.type === "i";
-            if (isNative && !contentBlockId) contentBlockId = await this.getDirectTextChildId(blockId);
+            const isNative = identity.identificationSource === "native";
+            const contentBlockId = identity.contentBlockId || "";
             if (isNative && !title && contentBlockId) title = await this.fetchBlockTitle(contentBlockId);
             if (!isNative && !title) title = await this.fetchBlockTitle(blockId);
 
-            const defaultStatus = isNative ? this.nativeStatusFromMarkdown(info.markdown) : "inbox";
+            const defaultStatus = identity.defaultStatus === "todo" ? "inbox" : identity.defaultStatus;
             const defaults = this.buildDefaultAttrs(title, defaultStatus, isNative ? undefined : taskType);
             const missingDefaults = this.fillMissingDefaults(existingAttrs, defaults);
-            if (!existingAttrs[ATTR_PARENT] && structuralParentId) {
-                missingDefaults[ATTR_PARENT] = structuralParentId;
-                const siblings = this.cacheManager.getByParent(structuralParentId);
+            if (!existingAttrs[ATTR_PARENT] && options.parentIdHint && identity.effectiveParentId) {
+                missingDefaults[ATTR_PARENT] = identity.effectiveParentId;
+            }
+            if (!existingAttrs[ATTR_PARENT] && identity.structuralParentId) {
+                const siblings = this.cacheManager.getByParent(identity.structuralParentId);
                 const maxSort = siblings.reduce((max, sibling) => Math.max(max, sibling.sort), -1);
                 missingDefaults[ATTR_SORT] = String(maxSort < 0 ? 0 : maxSort + 10000);
             }
@@ -381,7 +367,7 @@ export class TaskLifecycleService {
                 attrHostId: blockId,
                 contentBlockId: isNative ? contentBlockId || undefined : undefined,
                 status: defaultStatus,
-                parentId: structuralParentId,
+                parentId: identity.structuralParentId,
                 taskType: isNative ? "1" : taskType,
             });
             this.repository.cache(entry);
@@ -440,16 +426,31 @@ export class TaskLifecycleService {
             ) SELECT id, parent_id, type, subtype, sort FROM selected ORDER BY sort, id`);
         if (!rows?.length) return { converted: 0, skipped: 0 };
 
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const nativeItems = rows.filter((row) => {
+            const parent = byId.get(row.parent_id);
+            return isNativeTaskStructure({
+                type: row.type,
+                subtype: row.subtype,
+                parentType: parent?.type,
+                parentSubtype: parent?.subtype,
+            });
+        });
         const nativeTextChildren = new Set(
-            rows
-                .filter((row) => row.type === "i" && row.subtype === "t")
-                .flatMap((row) => rows.filter((candidate) => candidate.parent_id === row.id).map((child) => child.id)),
+            nativeItems.flatMap((row) =>
+                rows
+                    .filter(
+                        (candidate) =>
+                            candidate.parent_id === row.id && (candidate.type === "p" || candidate.type === "h"),
+                    )
+                    .map((child) => child.id),
+            ),
         );
         let converted = 0;
         let skipped = 0;
 
         for (const row of rows) {
-            if (row.type === "i" && row.subtype === "t") {
+            if (nativeItems.includes(row)) {
                 skipped++;
                 continue;
             }
@@ -494,26 +495,7 @@ export class TaskLifecycleService {
             }
 
             if (entry.identificationSource === "native") {
-                const blockDom = await this.api.request<{ dom?: string }>("/api/block/getBlockDOM", { id: blockId });
-                const originalDom = blockDom?.dom || "";
-                if (!originalDom || !/data-type=["']NodeListItem["']/i.test(originalDom)) {
-                    throw new Error(`Native task list item DOM unavailable: ${blockId}`);
-                }
-                const unorderedDom = originalDom
-                    .replace(/data-subtype=(["'])t\1/i, 'data-subtype="u"')
-                    .replace(/\sdata-task=(["'])[^"']*\1/i, "")
-                    .replace(/\sprotyle-task--done\b/g, "")
-                    .replace(/protyle-action--task\b/g, "")
-                    .replace(/#icon(?:Uncheck|Check)/g, "#iconDot");
-                if (unorderedDom === originalDom) {
-                    throw new Error(`Native task list item could not be converted to an unordered item: ${blockId}`);
-                }
-                await this.api.request("/api/block/updateBlock", {
-                    id: blockId,
-                    dataType: "dom",
-                    data: unorderedDom,
-                    lockType: false,
-                });
+                await this.convertNativeTaskToUnorderedItem(blockId);
             }
 
             // Clear all na-* attributes on the authoritative attribute host.
@@ -601,41 +583,29 @@ export class TaskLifecycleService {
 
         this.checkReady();
         let cachedTask = this.cacheManager.get(blockId);
+        let resolvedUncached: Exclude<ResolvedTaskTarget, { kind: "convert-text" }> | null = null;
+        let resolvedExisting: Exclude<ResolvedTaskTarget, { kind: "convert-text" }> | null = null;
         // The editor can issue a write before the incremental cache catches up.
         // In that window an existing task is still a valid update target even
         // though it is not present in the cache yet. Read the authoritative
         // attributes before rejecting the block based on the eventually-
         // consistent SQL type index.
-        let existingAttrsForValidation: Record<string, string> | null = null;
-        let uncachedBlockInfo: {
-            id: string;
-            type: string;
-            subtype: string;
-            parent_id: string;
-            content: string;
-            markdown: string;
-        } | null = null;
-        if (!cachedTask) {
-            existingAttrsForValidation = await this.repository.getBlockAttrs(blockId);
-            uncachedBlockInfo = await this.getBlockInfo(blockId);
-            if (uncachedBlockInfo.type === "i" && uncachedBlockInfo.subtype === "t") {
+        if (!cachedTask || attrs[ATTR_TASK] === "2" || attrs[ATTR_PARENT] === "") {
+            const resolved = await this.identities.resolveTarget({
+                blockId,
+                taskType: attrs[ATTR_TASK] === "2" ? "2" : "1",
+                mode: "existing",
+                readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+            });
+            if (resolved.kind === "convert-text" || resolved.identity.blockId !== blockId) {
+                throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
+            }
+            resolvedExisting = resolved;
+            if (!cachedTask) resolvedUncached = resolved;
+            if (!cachedTask && resolved.identity.identificationSource === "native") {
                 await this.cacheManager.rebuild((blockIds) => this.repository.batchGetBlockAttrs(blockIds));
                 this.repository.reconcileAllDerivedState();
                 cachedTask = this.cacheManager.get(blockId);
-            }
-        }
-        // Cache entries can only come from the filtered p/h/d discovery query or
-        // convertToTask's validated target. Reuse that invariant for immediate
-        // post-create patches because SiYuan's SQL block index may still lag.
-        // Uncached targets and project conversions still require a fresh type check.
-        const hasExistingTaskAttrs = !!existingAttrsForValidation?.[ATTR_TASK];
-        if (attrs[ATTR_TASK] === "2" || (!cachedTask && !hasExistingTaskAttrs)) {
-            const blockType = uncachedBlockInfo?.type || (await this.getBlockType(blockId));
-            if (blockType === "i" && uncachedBlockInfo?.subtype === "t" && attrs[ATTR_TASK] !== "2") {
-                // Native task list items are valid without custom-na-task.
-            } else {
-                if (attrs[ATTR_TASK] === "2") this.assertProjectBlockType("2", blockType);
-                this.assertTaskAttributeBlockType(blockType);
             }
         }
 
@@ -700,14 +670,34 @@ export class TaskLifecycleService {
 
         const lock = await this.repository.acquireWithTimeout();
         try {
-            const previousEntry = this.cacheManager.get(blockId);
+            const previousEntry =
+                this.cacheManager.get(blockId) ||
+                (resolvedUncached
+                    ? this.repository.buildEntry(
+                          blockId,
+                          resolvedUncached.attrs,
+                          undefined,
+                          resolvedUncached.identity.title,
+                          {
+                              identificationSource: resolvedUncached.identity.identificationSource,
+                              attrHostId: resolvedUncached.identity.attrHostId,
+                              contentBlockId: resolvedUncached.identity.contentBlockId,
+                              status: resolvedUncached.identity.defaultStatus,
+                              parentId: resolvedUncached.identity.effectiveParentId,
+                              taskType: resolvedUncached.identity.taskType,
+                          },
+                      )
+                    : undefined);
             const authoritativeOldAttrs = await this.repository.getBlockAttrs(blockId);
+            let structuralParentFallback = "";
             if (previousEntry?.identificationSource === "native") {
                 const defaults = this.buildDefaultAttrs(previousEntry.title, previousEntry.status);
                 const requestedAttrs = { ...attrs };
                 Object.assign(attrs, this.fillMissingDefaults(authoritativeOldAttrs, defaults), requestedAttrs);
-                if (!authoritativeOldAttrs[ATTR_PARENT] && previousEntry.parentId && attrs[ATTR_PARENT] === undefined) {
-                    attrs[ATTR_PARENT] = previousEntry.parentId;
+                if (!authoritativeOldAttrs[ATTR_PARENT] && attrs[ATTR_PARENT] === undefined) {
+                    structuralParentFallback = previousEntry.parentId;
+                } else if (attrs[ATTR_PARENT] === "") {
+                    structuralParentFallback = resolvedExisting?.identity.structuralParentId || "";
                 }
                 if (!authoritativeOldAttrs[ATTR_SORT] && previousEntry.sort >= 0 && attrs[ATTR_SORT] === undefined) {
                     attrs[ATTR_SORT] = String(previousEntry.sort);
@@ -761,8 +751,10 @@ export class TaskLifecycleService {
             let oldNativeMarker = " ";
             let markerChanged = false;
             if (previousEntry?.identificationSource === "native" && attrs[ATTR_STATUS] !== undefined) {
-                const authoritativeInfo = await this.getBlockInfo(blockId);
-                oldNativeMarker = authoritativeInfo.markdown.match(/\[(.)\]/s)?.[1] || " ";
+                const rows = await this.api.query<{ markdown?: string }>(
+                    sql`SELECT markdown FROM blocks WHERE id = ${blockId} LIMIT 1`,
+                );
+                oldNativeMarker = rows?.[0]?.markdown?.match(/\[(.)\]/s)?.[1] || " ";
                 const nextMarker = this.statusMarker(attrs[ATTR_STATUS]);
                 if (nextMarker !== oldNativeMarker) {
                     await this.api.updateTaskListItemMarker(blockId, nextMarker);
@@ -825,8 +817,21 @@ export class TaskLifecycleService {
             }
 
             // Build updated entry
-            existing = this.cacheManager.get(blockId);
-            const entry = this.repository.buildEntry(blockId, fullAttrs, existing);
+            existing = this.cacheManager.get(blockId) || previousEntry;
+            const entry = this.repository.buildEntry(
+                blockId,
+                fullAttrs,
+                existing,
+                undefined,
+                existing?.identificationSource === "native"
+                    ? {
+                          identificationSource: "native",
+                          attrHostId: existing.attrHostId,
+                          contentBlockId: existing.contentBlockId,
+                          parentId: structuralParentFallback,
+                      }
+                    : undefined,
+            );
 
             // Fill missing title
             if (!entry.title) {
@@ -920,7 +925,17 @@ export class TaskLifecycleService {
         try {
             let baseEntry = existing;
             if (existing.identificationSource === "native") {
-                const contentBlockId = existing.contentBlockId || (await this.getDirectTextChildId(blockId));
+                const resolved = existing.contentBlockId
+                    ? null
+                    : await this.identities.resolveTarget({
+                          blockId,
+                          taskType: "1",
+                          mode: "existing",
+                          readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                      });
+                const contentBlockId =
+                    existing.contentBlockId ||
+                    (resolved && resolved.kind !== "convert-text" ? resolved.identity.contentBlockId : "");
                 if (!contentBlockId) {
                     throw codedError("Native task text block not found", RPC_ERROR_TASK_NOT_FOUND);
                 }

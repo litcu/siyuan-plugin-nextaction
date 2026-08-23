@@ -105,6 +105,12 @@ export class FakeSiyuanApi implements SiyuanApiPort {
         if (path === "/api/block/getBlockDOM") {
             const block = this.blocks.get(input.id || "");
             if (!block) return { id: input.id, dom: "" } as T;
+            if (block.type === "l") {
+                return {
+                    id: block.id,
+                    dom: `<div data-node-id="${block.id}" data-type="NodeList" data-subtype="${block.subtype}" class="list"></div>`,
+                } as T;
+            }
             const textChild = [...this.blocks.values()].find(
                 (child) => child.parentId === block.id && (child.type === "p" || child.type === "h"),
             );
@@ -174,8 +180,12 @@ export class FakeSiyuanApi implements SiyuanApiPort {
                 ] as T;
             }
             if (input.dataType === "dom") {
-                block.subtype = /data-subtype=["']u["']/.test(input.data || "") ? "u" : block.subtype;
-                block.markdown = block.markdown.replace(/\[[^\]]\]\s*/, "");
+                const openingTag = (input.data || "").match(/^\s*<[^>]+>/)?.[0] || "";
+                const subtype = openingTag.match(/data-subtype=["']([^"']*)["']/i)?.[1];
+                if (subtype) block.subtype = subtype;
+                if (block.type === "i" && !/\sdata-task=["']/i.test(openingTag)) {
+                    block.markdown = block.markdown.replace(/\[[^\]]\]\s*/, "");
+                }
             } else {
                 block.content = input.data || "";
                 block.markdown = input.data || "";
@@ -227,6 +237,20 @@ export class FakeSiyuanApi implements SiyuanApiPort {
 
     private queryFromStatement(statement: string): Array<Record<string, string>> {
         const ids = [...statement.matchAll(/'(\d{14}-[0-9a-z]{7})'/g)].map((match) => match[1]);
+        if (/parent\.type\s+AS\s+parent_type/i.test(statement) && ids[0]) {
+            const block = this.blocks.get(ids[0]);
+            const parent = block?.parentId ? this.blocks.get(block.parentId) : undefined;
+            return block
+                ? [
+                      {
+                          subtype: block.subtype,
+                          parent_id: block.parentId,
+                          parent_type: parent?.type || "",
+                          parent_subtype: parent?.subtype || "",
+                      },
+                  ]
+                : [];
+        }
         if (/WITH\s+RECURSIVE\s+selected/i.test(statement) && ids[0]) {
             const selected: FakeBlock[] = [];
             const queue = [ids[0]];
@@ -263,6 +287,38 @@ export class FakeSiyuanApi implements SiyuanApiPort {
                 type: block.type,
                 subtype: block.subtype,
             }));
+        }
+        if (/WITH\s+RECURSIVE\s+ancestry/i.test(statement) && ids[0]) {
+            const ancestors: FakeBlock[] = [];
+            let current = this.blocks.get(ids[0]);
+            const visited = new Set<string>();
+            while (current && !visited.has(current.id)) {
+                ancestors.push(current);
+                visited.add(current.id);
+                if (current.type === "d") break;
+                current = current.parentId ? this.blocks.get(current.parentId) : undefined;
+            }
+            return ancestors.map((block, depth) => {
+                const parent = this.blocks.get(block.parentId);
+                const textChild = [...this.blocks.values()].find(
+                    (child) => child.parentId === block.id && (child.type === "p" || child.type === "h"),
+                );
+                return {
+                    id: block.id,
+                    parent_id: block.parentId,
+                    type: block.type,
+                    subtype: block.subtype,
+                    content: block.content,
+                    markdown: block.markdown,
+                    sort: String(depth),
+                    updated: "",
+                    depth: String(depth),
+                    parent_type: parent?.type || "",
+                    parent_subtype: parent?.subtype || "",
+                    content_block_id: textChild?.id || "",
+                    content_title: textChild?.content || "",
+                };
+            });
         }
         const rows = ids.map((id) => this.blocks.get(id)).filter((block): block is FakeBlock => !!block);
         if (/SELECT\s+type\s+FROM/i.test(statement)) return rows.map((block) => ({ type: block.type }));

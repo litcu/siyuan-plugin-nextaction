@@ -1,12 +1,9 @@
 import { type TaskCacheEntry } from "../shared/types";
 import {
-    ATTR_PARENT,
-    ATTR_STATUS,
     ATTR_PRIORITY,
     ATTR_DUE,
     ATTR_START,
     ATTR_CONTEXT,
-    ATTR_TASK,
     ATTR_EFFORT,
     ATTR_IMPORTANCE,
     ATTR_DEPENDS,
@@ -25,23 +22,11 @@ import {
     ATTR_EXT_PREFIX,
 } from "../shared/constants";
 import { DEFAULT_SETTINGS } from "../shared/settings";
-import { attrToNumber, cleanSlashFromTitle } from "./utils";
-import { sql } from "../shared/sql";
+import { attrToNumber } from "./utils";
 import type { SiyuanApiPort } from "./siyuan-api";
+import { TaskIdentityResolver, type BatchTaskAttributeReader } from "./task-identity-resolver";
 
-interface SqlRow {
-    id: string;
-    parent_id: string;
-    content_block_id: string;
-    title_content: string;
-    markdown: string;
-    structural_parent_id: string;
-    source: "document" | "native";
-    sort: number;
-    updated: string;
-}
-
-export type BatchTaskAttributeReader = (blockIds: string[]) => Promise<Record<string, Record<string, string>>>;
+export type { BatchTaskAttributeReader } from "./task-identity-resolver";
 
 export class CacheManager {
     private cache: Record<string, TaskCacheEntry>;
@@ -50,7 +35,10 @@ export class CacheManager {
     private pendingAffectedIds: Set<string>;
     private pendingRelationshipChangedIds: Set<string>;
 
-    constructor(private readonly api: SiyuanApiPort) {
+    constructor(
+        private readonly api: SiyuanApiPort,
+        private readonly identities = new TaskIdentityResolver(api),
+    ) {
         this.cache = Object.create(null) as Record<string, TaskCacheEntry>;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();
@@ -59,146 +47,22 @@ export class CacheManager {
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
-        // Discover document tasks/projects and all native task list items through
-        // one stable cursor. Native tasks do not require custom-na-task.
-        const rows: SqlRow[] = [];
-        let lastBlockId = "";
-        for (;;) {
-            const stmt = sql`WITH RECURSIVE native_tasks(id) AS (
-                    SELECT task.id
-                      FROM blocks task
-                      LEFT JOIN blocks task_list
-                        ON task_list.id = task.parent_id
-                       AND task_list.type = 'l'
-                     WHERE task.type = 'i'
-                       AND (
-                            task.subtype = 't'
-                            OR task_list.subtype = 't'
-                       )
-                ), ancestor_walk(task_id, ancestor_id, parent_id, type, subtype, depth, path) AS (
-                    SELECT task.id,
-                           parent.id,
-                           parent.parent_id,
-                           parent.type,
-                           parent.subtype,
-                           1,
-                           ',' || parent.id || ','
-                      FROM native_tasks task
-                      INNER JOIN blocks child ON child.id = task.id
-                      INNER JOIN blocks parent ON parent.id = child.parent_id
-                    UNION ALL
-                    SELECT walk.task_id,
-                           parent.id,
-                           parent.parent_id,
-                           parent.type,
-                           parent.subtype,
-                           walk.depth + 1,
-                           walk.path || parent.id || ','
-                      FROM ancestor_walk walk
-                      INNER JOIN blocks parent ON parent.id = walk.parent_id
-                     WHERE walk.type != 'd'
-                       AND INSTR(walk.path, ',' || parent.id || ',') = 0
-                ), task_ancestors(task_id, ancestor_id, depth) AS (
-                    SELECT walk.task_id, walk.ancestor_id, walk.depth
-                      FROM ancestor_walk walk
-                     WHERE walk.type = 'i'
-                       AND (
-                            walk.subtype = 't'
-                            OR EXISTS (
-                                SELECT 1 FROM blocks ancestor_list
-                                 WHERE ancestor_list.id = walk.parent_id
-                                   AND ancestor_list.type = 'l'
-                                   AND ancestor_list.subtype = 't'
-                            )
-                       )
-                ), structural_parents(task_id, ancestor_id) AS (
-                    SELECT candidate.task_id, candidate.ancestor_id
-                      FROM task_ancestors candidate
-                     WHERE candidate.depth = (
-                            SELECT MIN(nearest.depth)
-                              FROM task_ancestors nearest
-                             WHERE nearest.task_id = candidate.task_id
-                       )
-                ) SELECT * FROM (
-                    SELECT b.id,
-                           b.parent_id,
-                           '' AS content_block_id,
-                           b.content AS title_content,
-                           b.markdown,
-                           '' AS structural_parent_id,
-                           'document' AS source,
-                           b.sort,
-                           b.updated
-                      FROM blocks b
-                      INNER JOIN attributes a
-                        ON a.block_id = b.id
-                       AND a.name = 'custom-na-task'
-                     WHERE a.value IS NOT NULL
-                       AND a.value != ''
-                       AND b.type = 'd'
-                    UNION ALL
-                    SELECT task.id,
-                           task.parent_id,
-                           COALESCE((SELECT child.id FROM blocks child
-                                      WHERE child.parent_id = task.id
-                                        AND child.type IN ('p', 'h')
-                                      ORDER BY child.sort LIMIT 1), '') AS content_block_id,
-                           COALESCE((SELECT child.content FROM blocks child
-                                      WHERE child.parent_id = task.id
-                                        AND child.type IN ('p', 'h')
-                                      ORDER BY child.sort LIMIT 1), task.content) AS title_content,
-                           task.markdown,
-                           COALESCE(structural_parent.ancestor_id, '') AS structural_parent_id,
-                           'native' AS source,
-                           task.sort,
-                           task.updated
-                      FROM native_tasks discovered_task
-                      INNER JOIN blocks task ON task.id = discovered_task.id
-                      LEFT JOIN structural_parents structural_parent
-                        ON structural_parent.task_id = task.id
-                ) task
-                WHERE (${lastBlockId} = '' OR task.id > ${lastBlockId})
-                ORDER BY task.id`;
-            const page = await this.api.query<SqlRow>(stmt);
-            if (!page || page.length === 0) break;
-            rows.push(...page);
-            const nextBlockId = page[page.length - 1].id;
-            if (!nextBlockId || nextBlockId <= lastBlockId) {
-                throw new Error("Task cache discovery cursor did not advance");
-            }
-            lastBlockId = nextBlockId;
-        }
-
-        if (!rows || rows.length === 0) {
+        const load = await this.identities.loadAll(readTaskAttributes);
+        if (!load.records.length) {
             this.replaceCache(Object.create(null) as Record<string, TaskCacheEntry>);
             return;
         }
 
-        // Step 2: Batch-fetch attributes for all blocks using batchGetBlockAttrs.
-        // This API reads from the in-memory IAL cache (always up-to-date) and
-        // returns {blockId: {key: value, ...}} — one call instead of N calls.
-        const ids = rows.map((r) => r.id);
-        const batchResult = await readTaskAttributes(ids);
-
         const newCache: Record<string, TaskCacheEntry> = Object.create(null) as Record<string, TaskCacheEntry>;
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const attrs = batchResult[row.id] || {};
-
-            if (row.source === "document" && (!attrs[ATTR_TASK] || attrs[ATTR_TASK] === "")) {
-                continue;
-            }
-
-            const marker = row.markdown?.match(/\[(.)\]/s)?.[1] || " ";
-            const defaultNativeStatus = marker === " " ? "inbox" : "done";
-
+        for (const record of load.records) {
+            const { identity, attrs } = record;
             const entry: TaskCacheEntry = {
-                blockId: row.id,
-                identificationSource: row.source,
-                contentBlockId: row.source === "native" ? row.content_block_id || undefined : undefined,
-                attrHostId: row.id,
-                parentId: attrs[ATTR_PARENT] || (row.source === "native" ? row.structural_parent_id || "" : ""),
-                status: attrs[ATTR_STATUS] || (row.source === "native" ? defaultNativeStatus : "todo"),
+                blockId: identity.blockId,
+                identificationSource: identity.identificationSource,
+                contentBlockId: identity.contentBlockId,
+                attrHostId: identity.attrHostId,
+                parentId: identity.effectiveParentId,
+                status: identity.defaultStatus,
                 priority: attrs[ATTR_PRIORITY] || "medium",
                 importance: attrToNumber(attrs[ATTR_IMPORTANCE], DEFAULT_SETTINGS.defaultImportance),
                 effort: attrToNumber(attrs[ATTR_EFFORT], DEFAULT_SETTINGS.defaultEffort),
@@ -210,11 +74,11 @@ export class CacheManager {
                 sequential: attrs[ATTR_SEQUENTIAL] === "1",
                 repeat: attrs[ATTR_REPEAT] || "",
                 repeatState: attrs[ATTR_REPEAT_STATE] || "",
-                sort: attrToNumber(attrs[ATTR_SORT], row.source === "native" ? Number(row.sort ?? -1) : -1),
+                sort: attrToNumber(attrs[ATTR_SORT], identity.identificationSource === "native" ? identity.sort : -1),
                 completed: attrs[ATTR_COMPLETED] || "",
                 note: attrs[ATTR_NOTE] || "",
                 created: attrs[ATTR_CREATED] || "",
-                updated: row.updated || "",
+                updated: identity.updated,
                 tags: attrs[ATTR_TAGS] || "",
                 reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
                 reviewDate: attrs[ATTR_REVIEW_DATE] || "",
@@ -222,10 +86,10 @@ export class CacheManager {
                 customFields: this.extractCustomFields(attrs),
                 blocked: false, // 将在 childIds 构建后统一计算
                 blockedReason: "",
-                taskType: row.source === "native" ? "1" : attrs[ATTR_TASK] || "1",
+                taskType: identity.taskType,
                 order: 0,
                 childIds: [],
-                title: row.title_content ? cleanSlashFromTitle(row.title_content.substring(0, 100)) : "",
+                title: identity.title,
             };
 
             newCache[entry.blockId] = entry;

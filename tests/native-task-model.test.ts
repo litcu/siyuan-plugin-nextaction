@@ -6,10 +6,12 @@ import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { Mutex } from "../src/kernel/mutex.ts";
 import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { TaskService } from "../src/kernel/task-service.ts";
+import { TaskIdentityResolver } from "../src/kernel/task-identity-resolver.ts";
 import { TaskCreationService } from "../src/kernel/task-creation-service.ts";
 import { TaskTargetResolver } from "../src/kernel/task-target-resolver.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 import { ATTR_PARENT, ATTR_STATUS, ATTR_TASK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../src/shared/constants.ts";
+import { isNativeTaskStructure } from "../src/shared/task-identity.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 
 const TASK_ID = "20260818120000-taskitm";
@@ -81,11 +83,15 @@ test("缓存双路发现文档任务与无属性原生任务", async () => {
         log: () => {},
     } as unknown as FakeSiyuanApi;
     const cache = new CacheManager(api);
-    await cache.loadAll(async () => ({
-        "20260818110000-project": { [ATTR_TASK]: "2", [ATTR_STATUS]: "todo" },
-        "20260818110001-nativea": {},
-        "20260818110003-nativeb": {},
-    }));
+    let batchReads = 0;
+    await cache.loadAll(async () => {
+        batchReads++;
+        return {
+            "20260818110000-project": { [ATTR_TASK]: "2", [ATTR_STATUS]: "todo" },
+            "20260818110001-nativea": {},
+            "20260818110003-nativeb": {},
+        };
+    });
 
     assert.equal(cache.get("20260818110000-project")?.identificationSource, "document");
     assert.equal(cache.get("20260818110001-nativea")?.status, "inbox");
@@ -96,6 +102,7 @@ test("缓存双路发现文档任务与无属性原生任务", async () => {
     assert.match(statements[0], /task\.type = 'i'/);
     assert.match(statements[0], /task\.subtype = 't'/);
     assert.match(statements[0], /task_list\.subtype = 't'/);
+    assert.equal(batchReads, 1);
 });
 
 test("缓存识别跨普通列表容器嵌套的原生子任务", async () => {
@@ -260,6 +267,158 @@ test("已有原生任务再次转换保持 ID 并补齐缺失属性", async () =
     assert.equal(api.blocks.get(TASK_ID)?.attrs[ATTR_TASK], undefined);
 });
 
+test("任务标记位于直属列表时，转换、未缓存更新和递归跳过使用同一身份", async () => {
+    // Regression: task-list-owned items were accepted by cache loading but rejected by single-target operations.
+    const api = new FakeSiyuanApi();
+    const documentId = "20260823150000-docroot";
+    const taskListId = "20260823150001-tasklst";
+    const parentItemId = "20260823150002-parenti";
+    const parentTextId = "20260823150003-parentp";
+    const ordinaryListId = "20260823150004-ordlist";
+    const ordinaryItemId = "20260823150005-orditem";
+    const childTaskListId = "20260823150006-childls";
+    const childItemId = "20260823150007-childit";
+    const childTextId = "20260823150008-childtx";
+    api.addBlock(documentId, "d", "Document");
+    api.addBlock(taskListId, "l", "", "notebook", "/Document", { parentId: documentId, subtype: "t" });
+    api.addBlock(parentItemId, "i", "Parent", "notebook", "/Document", {
+        parentId: taskListId,
+        subtype: "u",
+        markdown: "- [ ] Parent",
+    });
+    api.addBlock(parentTextId, "p", "Parent", "notebook", "/Document", { parentId: parentItemId });
+    api.addBlock(ordinaryListId, "l", "", "notebook", "/Document", {
+        parentId: parentItemId,
+        subtype: "u",
+    });
+    api.addBlock(ordinaryItemId, "i", "Container", "notebook", "/Document", {
+        parentId: ordinaryListId,
+        subtype: "u",
+    });
+    api.addBlock(childTaskListId, "l", "", "notebook", "/Document", {
+        parentId: ordinaryItemId,
+        subtype: "t",
+    });
+    api.addBlock(childItemId, "i", "Child", "notebook", "/Document", {
+        parentId: childTaskListId,
+        subtype: "u",
+        markdown: "- [ ] Child",
+    });
+    api.addBlock(childTextId, "p", "Child", "notebook", "/Document", { parentId: childItemId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    const updated = await service.updateTask(childItemId, { [ATTR_STATUS]: "doing" });
+    assert.equal(updated.blockId, childItemId);
+    assert.equal(updated.identificationSource, "native");
+    assert.equal(updated.contentBlockId, childTextId);
+    assert.equal(updated.parentId, parentItemId);
+    assert.equal(api.blocks.get(childItemId)?.attrs[ATTR_PARENT], undefined);
+    // Regression: default persistence (for example My Day) must not turn a structural parent into an explicit override.
+    await service.addTaskToMyDay(childItemId);
+    assert.equal(api.blocks.get(childItemId)?.attrs[ATTR_PARENT], undefined);
+
+    const explicitParentId = "20260823150009-explict";
+    api.addBlock(explicitParentId, "d", "Explicit parent");
+    api.blocks.get(explicitParentId)!.attrs[ATTR_TASK] = "1";
+    const explicitlyParented = await service.updateTask(childItemId, { [ATTR_PARENT]: explicitParentId });
+    assert.equal(explicitlyParented.parentId, explicitParentId);
+    const structurallyParented = await service.updateTask(childItemId, { [ATTR_PARENT]: "" });
+    assert.equal(structurallyParented.parentId, parentItemId);
+    assert.equal(api.blocks.get(childItemId)?.attrs[ATTR_PARENT], "");
+
+    const parent = await service.convertToTask(parentItemId);
+    assert.equal(parent.blockId, parentItemId);
+    assert.equal(parent.identificationSource, "native");
+
+    const recursive = await service.convertToTaskWithChildren(documentId);
+    assert.deepEqual(recursive, { converted: 0, skipped: 2 });
+});
+
+test("损坏的祖先环不会把原生任务自身识别为结构父任务", async () => {
+    // Regression: the starting task must be part of cycle detection, not a parent candidate.
+    const api = new FakeSiyuanApi();
+    const taskId = "20260823151000-cycletk";
+    const listId = "20260823151001-cyclels";
+    api.addBlock(taskId, "i", "Cyclic task", "notebook", "/Cycle", {
+        parentId: listId,
+        subtype: "t",
+        markdown: "- [ ] Cyclic task",
+    });
+    api.addBlock(listId, "l", "", "notebook", "/Cycle", { parentId: taskId, subtype: "u" });
+    const identities = new TaskIdentityResolver(api);
+
+    const resolved = await identities.resolveTarget({
+        blockId: taskId,
+        taskType: "1",
+        mode: "conversion",
+        readAttrs: (blockIds) => api.batchGetBlockAttrs(blockIds),
+    });
+
+    assert.notEqual(resolved.kind, "convert-text");
+    if (resolved.kind === "convert-text") return;
+    assert.equal(resolved.identity.structuralParentId, "");
+    assert.equal(resolved.identity.effectiveParentId, "");
+});
+
+test("移除由直属任务列表标记的单个任务后不会再次满足原生任务身份", async () => {
+    // Regression: demoting only the list item leaves the task-marked parent list rediscoverable.
+    const api = new FakeSiyuanApi();
+    const documentId = "20260823152000-docroot";
+    const taskListId = "20260823152001-tasklst";
+    const itemId = "20260823152002-taskitm";
+    const textId = "20260823152003-tasktxt";
+    const siblingId = "20260823152004-sibling";
+    const siblingTextId = "20260823152005-sibtxt";
+    api.addBlock(documentId, "d", "Document");
+    api.addBlock(taskListId, "l", "", "notebook", "/Document", { parentId: documentId, subtype: "t" });
+    api.addBlock(itemId, "i", "Task", "notebook", "/Document", {
+        parentId: taskListId,
+        subtype: "u",
+        markdown: "- [ ] Task",
+    });
+    api.addBlock(textId, "p", "Task", "notebook", "/Document", { parentId: itemId });
+    api.addBlock(siblingId, "i", "Sibling", "notebook", "/Document", {
+        parentId: taskListId,
+        subtype: "u",
+        markdown: "- [ ] Sibling",
+    });
+    api.addBlock(siblingTextId, "p", "Sibling", "notebook", "/Document", { parentId: siblingId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    await service.convertToTask(itemId);
+
+    await service.removeTask(itemId);
+
+    const item = api.blocks.get(itemId)!;
+    const parentList = api.blocks.get(taskListId)!;
+    const sibling = api.blocks.get(siblingId)!;
+    assert.equal(parentList.subtype, "u");
+    assert.equal(sibling.subtype, "t");
+    assert.equal(
+        isNativeTaskStructure({
+            type: sibling.type,
+            subtype: sibling.subtype,
+            parentType: parentList.type,
+            parentSubtype: parentList.subtype,
+        }),
+        true,
+    );
+    assert.equal(
+        isNativeTaskStructure({
+            type: item.type,
+            subtype: item.subtype,
+            parentType: parentList.type,
+            parentSubtype: parentList.subtype,
+        }),
+        false,
+    );
+});
+
 test("原生任务不能更新为项目", async () => {
     // Regression: projects remain document-only even when the native task is already cached.
     const { service } = setupNativeTask();
@@ -360,4 +519,58 @@ test("属性父关系覆盖原生嵌套结构提示", async () => {
     const cache = new CacheManager(api);
     await cache.loadAll(async () => ({ [TASK_ID]: { [ATTR_PARENT]: explicitParent } }));
     assert.equal(cache.get(TASK_ID)?.parentId, explicitParent);
+});
+
+test("空父任务属性回退到结构父任务，缺少文字块仍进入缓存", async () => {
+    // Regression: an empty manual parent is not a request to detach a structurally nested task.
+    let page = 0;
+    const api = {
+        query: async () => {
+            if (page++ > 0) return [];
+            return [
+                {
+                    id: TASK_ID,
+                    parent_id: "20260818130001-listaaa",
+                    content_block_id: "",
+                    title_content: "",
+                    markdown: "- [ ] Broken task",
+                    structural_parent_id: "20260818130002-structu",
+                    source: "native",
+                    sort: 10,
+                    updated: "20260818130003",
+                },
+            ];
+        },
+        log: () => {},
+    } as unknown as FakeSiyuanApi;
+    const cache = new CacheManager(api);
+    await cache.loadAll(async () => ({ [TASK_ID]: { [ATTR_PARENT]: "" } }));
+
+    assert.equal(cache.get(TASK_ID)?.parentId, "20260818130002-structu");
+    assert.equal(cache.get(TASK_ID)?.contentBlockId, undefined);
+});
+
+test("缺少文字块的原生任务只在重命名时返回既有未找到错误", async () => {
+    // Regression: malformed native tasks remain visible even though title editing cannot proceed.
+    const api = new FakeSiyuanApi();
+    api.addBlock(TASK_ID, "i", "Broken", "notebook", "/Broken", {
+        subtype: "t",
+        markdown: "- [ ] Broken",
+    });
+    const cache = new CacheManager(api);
+    cache.set(
+        taskFactory(TASK_ID, {
+            identificationSource: "native",
+            attrHostId: TASK_ID,
+            contentBlockId: undefined,
+        }),
+    );
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    await assert.rejects(service.updateTaskTitle(TASK_ID, "Renamed"), (error: unknown) => {
+        return error instanceof Error && (error as Error & { code?: number }).code === -32002;
+    });
+    assert.ok(cache.get(TASK_ID));
 });

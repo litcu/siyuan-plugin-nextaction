@@ -165,11 +165,17 @@ export class TaskCreationService {
             }
 
             let task = await this.taskService.convertToTask(blockId, kind === "2" ? undefined : title, kind, {
-                knownTextBlock: kind === "2" || format === "document",
-                knownTextBlockType: kind === "2" || format === "document" ? "d" : undefined,
-                knownNativeTask: kind !== "2" && format !== "document",
-                contentBlockId: insertedMeta.contentBlockId,
                 parentIdHint: parentTaskHint || insertedMeta.parentId,
+                evidence:
+                    kind === "2" || format === "document"
+                        ? { kind: "verified-document", blockId, title }
+                        : {
+                              kind: "inserted-native",
+                              blockId,
+                              contentBlockId: insertedMeta.contentBlockId,
+                              parentId: insertedMeta.parentId,
+                              title,
+                          },
             });
             const taskBlockId = task.blockId;
             const properties = (input.properties || {}) as Record<string, unknown>;

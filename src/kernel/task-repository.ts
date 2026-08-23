@@ -65,7 +65,7 @@ export function buildTaskEntryFromAttrs(
         identificationSource: identity?.identificationSource || existing?.identificationSource || "document",
         contentBlockId: identity?.contentBlockId ?? existing?.contentBlockId,
         attrHostId: identity?.attrHostId || existing?.attrHostId || blockId,
-        parentId: attrs[ATTR_PARENT] || identity?.parentId || "",
+        parentId: attrs[ATTR_PARENT] || identity?.parentId || existing?.parentId || "",
         status: attrs[ATTR_STATUS] || identity?.status || "todo",
         priority: attrs[ATTR_PRIORITY] || "medium",
         importance: attrToNumber(attrs[ATTR_IMPORTANCE], defaults.defaultImportance),
@@ -166,7 +166,6 @@ export class TaskRepository {
             addDefault(ATTR_IMPORTANCE, numberToAttr(entry.importance || this.settings.defaultImportance));
             addDefault(ATTR_EFFORT, numberToAttr(entry.effort || this.settings.defaultEffort));
             addDefault(ATTR_CREATED, entry.created || new Date().toISOString().slice(0, 19));
-            if (entry.parentId) addDefault(ATTR_PARENT, entry.parentId);
             if (entry.sort >= 0) addDefault(ATTR_SORT, String(entry.sort));
             persistedAttrs = {
                 ...defaults,

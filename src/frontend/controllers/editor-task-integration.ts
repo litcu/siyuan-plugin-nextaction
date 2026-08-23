@@ -11,7 +11,12 @@ import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
-import { getOwnedNativeTaskActions, NATIVE_TASK_ITEM_SELECTOR } from "./native-task-dom";
+import {
+    closestTaskTarget,
+    containsNativeTaskTarget,
+    indexNativeTaskTargets,
+    scanNativeTaskTargets,
+} from "./editor-task-dom";
 import type { TaskCommandController } from "./task-command-controller";
 
 type TaskDetailDialog = Dialog & {
@@ -52,14 +57,12 @@ export class EditorTaskIntegration {
     private handleEditorStatusClick = (event: MouseEvent | PointerEvent) => {
         const target = event.target as HTMLElement;
         const nativeAction = target.closest(".protyle-action--task") as HTMLElement | null;
-        const nativeTaskBlock = nativeAction?.closest(
-            `[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`,
-        ) as HTMLElement | null;
-        const documentTaskBlock = target.closest("[data-node-id][custom-na-task]") as HTMLElement | null;
-        const taskBlock = nativeTaskBlock || documentTaskBlock;
-        if (!taskBlock) return;
+        const taskTarget = closestTaskTarget(nativeAction || target);
+        if (!taskTarget || (taskTarget.identificationSource === "native" && !nativeAction)) return;
+        const taskBlock = taskTarget.taskElement;
+        const isNative = taskTarget.identificationSource === "native";
 
-        if (!nativeTaskBlock) {
+        if (!isNative) {
             if (event.type !== "click") return;
             const rect = taskBlock.getBoundingClientRect();
             if (event.clientX > rect.left + 22 || event.clientX < rect.left) return;
@@ -69,23 +72,20 @@ export class EditorTaskIntegration {
         event.preventDefault();
         if (event.type !== "click") return;
 
-        const blockId = taskBlock.dataset.nodeId;
-        if (!blockId) return;
-        void this.openEditorTaskMenu(taskBlock, blockId, event, !!nativeTaskBlock);
+        void this.openEditorTaskMenu(taskBlock, taskTarget.blockId, event, isNative);
     };
 
     private handleEditorStatusKeydown = (event: KeyboardEvent) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         const action = (event.target as HTMLElement).closest(".protyle-action--task") as HTMLElement | null;
-        const taskBlock = action?.closest(`[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`) as HTMLElement | null;
-        const blockId = taskBlock?.dataset.nodeId;
-        if (!action || !taskBlock || !blockId) return;
+        const taskTarget = action ? closestTaskTarget(action) : null;
+        if (!action || !taskTarget || taskTarget.identificationSource !== "native") return;
         event.preventDefault();
         event.stopPropagation();
         const rect = action.getBoundingClientRect();
         void this.openEditorTaskMenu(
-            taskBlock,
-            blockId,
+            taskTarget.taskElement,
+            taskTarget.blockId,
             new MouseEvent("click", { clientX: rect.left, clientY: rect.bottom }),
             true,
         );
@@ -93,20 +93,15 @@ export class EditorTaskIntegration {
 
     private decorateNativeTaskActions(root: ParentNode): void {
         const tasksById = new Map(get(taskStore).allTasks.map((task) => [task.blockId, task]));
-        const actions: HTMLElement[] = [];
-        if (root instanceof Element && root.matches(".protyle-action--task")) actions.push(root as HTMLElement);
-        actions.push(...Array.from(root.querySelectorAll<HTMLElement>(".protyle-action--task")));
-        for (const action of actions) {
-            if (!action.closest(NATIVE_TASK_ITEM_SELECTOR)) continue;
-            action.setAttribute("role", "button");
-            action.setAttribute("tabindex", "0");
-            action.setAttribute("aria-haspopup", "menu");
-            action.setAttribute("aria-label", this.plugin.i18n.taskStatus || "Task status");
-            const taskBlock = action.closest(`[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`);
-            const task = taskBlock instanceof HTMLElement ? tasksById.get(taskBlock.dataset.nodeId || "") : undefined;
-            if (taskBlock instanceof HTMLElement) {
-                const status = task?.status || taskBlock.getAttribute("custom-na-status") || "inbox";
-                this.applyNativeTaskStatusVisual(taskBlock, action, status);
+        for (const taskTarget of scanNativeTaskTargets(root)) {
+            const task = tasksById.get(taskTarget.blockId);
+            for (const action of taskTarget.ownedActions) {
+                action.setAttribute("role", "button");
+                action.setAttribute("tabindex", "0");
+                action.setAttribute("aria-haspopup", "menu");
+                action.setAttribute("aria-label", this.plugin.i18n.taskStatus || "Task status");
+                const status = task?.status || taskTarget.taskElement.getAttribute("custom-na-status") || "inbox";
+                this.applyNativeTaskStatusVisual(taskTarget.taskElement, action, status);
             }
         }
     }
@@ -122,17 +117,16 @@ export class EditorTaskIntegration {
     }
 
     private syncNativeTaskDomState(tasks: TaskCacheEntry[]): void {
+        const targetsById = indexNativeTaskTargets(document);
         for (const task of tasks) {
             if (task.identificationSource !== "native") continue;
-            document
-                .querySelectorAll<HTMLElement>(`[data-node-id="${task.blockId}"]:is(${NATIVE_TASK_ITEM_SELECTOR})`)
-                .forEach((element) => {
-                    element.dataset.naStatus = task.status;
-                    element.setAttribute("custom-na-status", task.status);
-                    getOwnedNativeTaskActions(element).forEach((action) =>
-                        this.applyNativeTaskStatusVisual(element, action, task.status),
-                    );
-                });
+            targetsById.get(task.blockId)?.forEach((target) => {
+                target.taskElement.dataset.naStatus = task.status;
+                target.taskElement.setAttribute("custom-na-status", task.status);
+                target.ownedActions.forEach((action) =>
+                    this.applyNativeTaskStatusVisual(target.taskElement, action, task.status),
+                );
+            });
         }
     }
 
@@ -303,19 +297,14 @@ export class EditorTaskIntegration {
     private resolveTaskBlock(
         element: HTMLElement,
     ): { element: HTMLElement; blockId: string; isNative: boolean } | null {
-        const native = (
-            element.matches('[data-type="NodeListItem"][data-subtype="t"]')
-                ? element
-                : element.closest('[data-type="NodeListItem"][data-subtype="t"]')
-        ) as HTMLElement | null;
-        if (native?.dataset.nodeId) return { element: native, blockId: native.dataset.nodeId, isNative: true };
-        const documentTask = (
-            element.hasAttribute("custom-na-task") ? element : element.closest("[data-node-id][custom-na-task]")
-        ) as HTMLElement | null;
-        if (documentTask?.dataset.nodeId) {
-            return { element: documentTask, blockId: documentTask.dataset.nodeId, isNative: false };
-        }
-        return null;
+        const target = closestTaskTarget(element);
+        return target
+            ? {
+                  element: target.taskElement,
+                  blockId: target.blockId,
+                  isNative: target.identificationSource === "native",
+              }
+            : null;
     }
 
     private addNativeTaskManagementItems(
@@ -668,12 +657,7 @@ export class EditorTaskIntegration {
                 }
             }
             const hasNativeTask = mutations.some((mutation) =>
-                [...mutation.addedNodes].some(
-                    (node) =>
-                        node instanceof Element &&
-                        (node.matches('[data-type="NodeListItem"][data-subtype="t"]') ||
-                            !!node.querySelector('[data-type="NodeListItem"][data-subtype="t"]')),
-                ),
+                [...mutation.addedNodes].some((node) => node instanceof Element && containsNativeTaskTarget(node)),
             );
             if (hasNativeTask) this.scheduleNativeTaskRefresh();
         });

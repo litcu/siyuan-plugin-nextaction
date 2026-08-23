@@ -8,20 +8,22 @@ function read(path: string): string {
 
 test("cache discovery reuses SiYuan's configured SQL row limit until all tasks are loaded", () => {
     const cache = read("src/kernel/cache-manager.ts");
-    assert.match(cache, /let lastBlockId = ""/);
-    assert.match(cache, /const stmt = sql`WITH RECURSIVE native_tasks/);
-    assert.match(cache, /WHERE \(\$\{lastBlockId\} = '' OR task\.id > \$\{lastBlockId\}\)/);
-    assert.match(cache, /ORDER BY task\.id/);
-    assert.doesNotMatch(cache, /TASK_DISCOVERY_PAGE_SIZE|OFFSET \$\{offset\}/);
-    assert.match(cache, /rows\.push\(\.\.\.page\)/);
-    assert.match(cache, /lastBlockId = nextBlockId/);
-    assert.match(cache, /if \(!page \|\| page\.length === 0\) break/);
+    const identities = read("src/kernel/task-identity-resolver.ts");
+    assert.match(identities, /let lastBlockId = ""/);
+    assert.match(identities, /const stmt = sql`WITH RECURSIVE native_tasks/);
+    assert.match(identities, /WHERE \(\$\{lastBlockId\} = '' OR task\.id > \$\{lastBlockId\}\)/);
+    assert.match(identities, /ORDER BY task\.id/);
+    assert.doesNotMatch(identities, /TASK_DISCOVERY_PAGE_SIZE|OFFSET \$\{offset\}/);
+    assert.match(identities, /rows\.push\(\.\.\.page\)/);
+    assert.match(identities, /lastBlockId = nextBlockId/);
+    assert.match(identities, /if \(!page\?\.length\) break/);
     assert.match(cache, /COUNT\(DISTINCT a\.block_id\)/);
     assert.match(cache, /INNER JOIN blocks b ON b\.id = a\.block_id/);
-    assert.match(cache, /b\.type = 'd'/);
-    assert.match(cache, /task\.type = 'i'/);
-    assert.match(cache, /task\.subtype = 't'/);
-    assert.match(cache, /task_list\.subtype = 't'/);
+    assert.match(identities, /b\.type = 'd'/);
+    assert.match(identities, /task\.type = 'i'/);
+    assert.match(identities, /task\.subtype = 't'/);
+    assert.match(identities, /task_list\.subtype = 't'/);
+    assert.doesNotMatch(identities, /name\s*=\s*'custom-na-task'/);
 });
 
 test("editor detail waits for a task and retries after rebuilding cache", () => {

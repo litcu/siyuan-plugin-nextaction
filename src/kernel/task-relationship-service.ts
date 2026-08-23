@@ -2,7 +2,6 @@ import type { TaskCacheEntry } from "../shared/types";
 import {
     ATTR_PARENT,
     ATTR_SORT,
-    ATTR_TASK,
     RPC_ERROR_CIRCULAR_REF,
     RPC_ERROR_INVALID_PARAMS,
     RPC_ERROR_TASK_NOT_FOUND,
@@ -13,6 +12,7 @@ import type { CacheManager } from "./cache-manager";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
+import type { TaskIdentityResolver } from "./task-identity-resolver";
 
 export class TaskRelationshipService {
     constructor(
@@ -20,6 +20,7 @@ export class TaskRelationshipService {
         private readonly repository: TaskRepository,
         private readonly api: SiyuanApiPort,
         private readonly runtime: TaskRuntimeState,
+        private readonly identities: TaskIdentityResolver,
     ) {}
 
     async recalcAllOrders(): Promise<void> {
@@ -40,7 +41,16 @@ export class TaskRelationshipService {
 
             let ancestorId = "";
             try {
-                ancestorId = await this.findAncestorTask(entry.blockId);
+                const resolved = await this.identities.resolveTarget({
+                    blockId: entry.blockId,
+                    taskType: "1",
+                    mode: "conversion",
+                    readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                });
+                ancestorId =
+                    resolved.kind === "convert-text"
+                        ? resolved.structuralParentId
+                        : resolved.identity.structuralParentId;
             } catch (_error: unknown) {
                 /* ignore */
             }
@@ -302,75 +312,6 @@ export class TaskRelationshipService {
             }
         }
         return false;
-    }
-
-    async findTaskParentHint(parentId: string, blockId: string): Promise<string> {
-        if (!parentId || parentId === blockId) return "";
-        if (this.cacheManager.get(parentId)) return parentId;
-        const rows = await this.api.query<{ type?: string; subtype?: string }>(
-            sql`SELECT type, subtype FROM blocks WHERE id = ${parentId} LIMIT 1`,
-        );
-        if (rows?.[0]?.type === "i" && rows[0].subtype === "t") return parentId;
-        const attrs = await this.repository.getBlockAttrs(parentId);
-        return attrs[ATTR_TASK] ? parentId : "";
-    }
-
-    async findAncestorTask(blockId: string): Promise<string> {
-        // Use a recursive CTE to fetch the entire ancestor chain in one SQL call,
-        // then walk it in memory. Include the starting block itself so we can
-        // read its parent_id as the entry point for the upward walk.
-        const rows = await this.api.query<{ id: string; parent_id: string; type: string; subtype: string }>(
-            sql`WITH RECURSIVE ancestors(id, parent_id, type, subtype) AS (
-                    SELECT id, parent_id, type, subtype FROM blocks WHERE id = ${blockId}
-                    UNION ALL
-                    SELECT b.id, b.parent_id, b.type, b.subtype FROM blocks b INNER JOIN ancestors a ON b.id = a.parent_id
-                ) SELECT id, parent_id, type, subtype FROM ancestors`,
-        );
-
-        if (!rows || rows.length === 0) return "";
-
-        // Build a lookup by id
-        const byId = Object.create(null) as Record<
-            string,
-            { id: string; parent_id: string; type: string; subtype: string }
-        >;
-        for (let i = 0; i < rows.length; i++) {
-            byId[rows[i].id] = rows[i];
-        }
-
-        // Walk upward starting from the starting block's parent_id
-        const startBlock = byId[blockId];
-        if (!startBlock || !startBlock.parent_id) return "";
-
-        // The starting block's direct parent is its container (e.g. the list item it
-        // lives in). Sibling paragraphs inside the same container are NOT ancestors —
-        // they are peers at the same level. We must skip this container when looking
-        // for a parent task; otherwise a peer paragraph would be incorrectly set as
-        // the parent.
-        const directParentId = startBlock.parent_id;
-
-        let currentId = directParentId;
-        for (let depth = 0; depth < 50; depth++) {
-            const ancestor = byId[currentId];
-            if (!ancestor) break;
-
-            const ancestorId = ancestor.id;
-
-            if (ancestor.type === "i" && ancestor.subtype === "t") {
-                return ancestorId;
-            }
-
-            // Document tasks/projects are identified by custom-na-task.
-            const attrs = await this.repository.getBlockAttrs(ancestorId);
-            if (attrs[ATTR_TASK] && attrs[ATTR_TASK] !== "") {
-                return ancestorId;
-            }
-
-            if (!ancestor.parent_id) break;
-            currentId = ancestor.parent_id;
-        }
-
-        return "";
     }
 
     async updateDescendantParents(blockId: string): Promise<void> {
