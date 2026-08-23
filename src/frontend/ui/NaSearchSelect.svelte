@@ -226,6 +226,7 @@
 <div class="na-search-select" bind:this={containerEl}>
     <div
         class="na-search-select__box"
+        class:na-search-select__box--multi={multi}
         role="combobox"
         aria-controls="na-search-select-options"
         aria-expanded={dropdownOpen}
@@ -246,8 +247,8 @@
                 <NaIcon symbol="iconCloseRound" size={10} />
             </button>
         {:else}
-            {#if multi && selectedArray.length > 0}
-                <span class="na-search-select__chips">
+            <span class="na-search-select__content" class:na-search-select__content--multi={multi}>
+                {#if multi && selectedArray.length > 0}
                     {#each selectedArray as item}
                         <span class="na-search-select__chip">
                             {labelMap.get(item) || item}
@@ -260,23 +261,23 @@
                             </button>
                         </span>
                     {/each}
-                </span>
-            {/if}
-            <input
-                type="text"
-                bind:this={inputEl}
-                bind:value={input}
-                on:input={onInputChange}
-                on:keydown={onKeydown}
-                on:focus={() => {
-                    if (isClicking) return;
-                    if (!dropdownOpen) {
-                        openDropdown();
-                    }
-                }}
-                placeholder={selectedArray.length ? "" : placeholder}
-                class="na-search-select__input"
-            />
+                {/if}
+                <input
+                    type="text"
+                    bind:this={inputEl}
+                    bind:value={input}
+                    on:input={onInputChange}
+                    on:keydown={onKeydown}
+                    on:focus={() => {
+                        if (isClicking) return;
+                        if (!dropdownOpen) {
+                            openDropdown();
+                        }
+                    }}
+                    placeholder={selectedArray.length ? "" : placeholder}
+                    class="na-search-select__input"
+                />
+            </span>
         {/if}
     </div>
     {#if dropdownOpen}
@@ -335,6 +336,9 @@
     .na-search-select__box {
         display: flex;
         align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
         background: var(--b3-theme-background);
         border: 1px solid var(--na-color-divider);
         border-radius: 8px;
@@ -346,6 +350,11 @@
         &:focus-within {
             border-color: var(--b3-theme-primary);
         }
+    }
+
+    .na-search-select__box--multi {
+        height: auto;
+        min-height: 30px;
     }
 
     .na-search-select__selected {
@@ -380,11 +389,20 @@
         }
     }
 
-    .na-search-select__chips {
+    .na-search-select__content {
         display: flex;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 100%;
+    }
+
+    .na-search-select__content--multi {
+        flex-wrap: wrap;
         gap: 3px;
+        height: auto;
+        padding: 3px 0;
         overflow: hidden;
-        flex-shrink: 0;
     }
 
     .na-search-select__chip {
@@ -437,6 +455,11 @@
         &::placeholder {
             color: var(--b3-theme-on-surface-light);
         }
+    }
+
+    .na-search-select__content--multi .na-search-select__input {
+        flex: 1 1 80px;
+        height: 22px;
     }
 
     .na-search-select__dropdown {

@@ -63,3 +63,13 @@ TypeScript 开启 `strict`。沿用现有格式：4 空格缩进、双引号、�
 ## Agent 工作流
 
 根目录存在 `.codegraph/`。定位符号、调用链或影响范围时，先运行 `codegraph explore "问题或符号"`，再按需使用 `rg` 和直接读取文件。不要覆盖用户已有的未提交改动。
+
+## Agent skills
+
+### Issue tracker
+
+问题与规格通过 GitHub Issues 管理。详见 `docs/agents/issue-tracker.md`。
+
+### Domain docs
+
+采用单上下文领域文档布局。详见 `docs/agents/domain.md`。
