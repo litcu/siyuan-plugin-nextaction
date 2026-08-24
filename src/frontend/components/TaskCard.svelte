@@ -10,6 +10,7 @@
     import { parseRepeatState } from "../../shared/repeat";
     import { formatCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
     import NaIconButton from "../ui/NaIconButton.svelte";
+    import { isProjectTask } from "../../shared/project-domain";
 
     export let task: TaskCacheEntry;
     export let onEdit: (task: TaskCacheEntry) => void;
@@ -50,12 +51,13 @@
     }
     $: isWaiting = task.status === "waiting";
     $: isSomeday = task.status === "someday";
+    $: isProject = isProjectTask(task);
     $: displayPriority = normalizePriority(task.priority);
     $: parentTitle = task.parentId ? $taskById.get(task.parentId)?.title || i18n?.untitled || "(untitled)" : "";
     $: taskTitle = task.title || i18n?.untitled || "(untitled)";
     $: compositeTitle = parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle;
 
-    $: priorityBorderColor = task.taskType !== "2" && displayPriority ? PRIORITY_COLORS[displayPriority] || "" : "";
+    $: priorityBorderColor = !isProject && displayPriority ? PRIORITY_COLORS[displayPriority] || "" : "";
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : priorityBorderColor || "transparent";
     $: priorityTextColor = PRIORITY_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
@@ -74,7 +76,7 @@
     $: hiddenCustomFieldCount = Math.max(0, applicableCardCustomFields.length - cardCustomFields.length);
     $: hasCardMetadata = Boolean(
         (task.due && !isDone) ||
-        (isBlocked && task.taskType !== "2") ||
+        (isBlocked && !isProject) ||
         task.repeat ||
         task.reviewInterval > 0 ||
         task.context ||
@@ -102,8 +104,8 @@
     class="na-task-card"
     class:na-task-card--root={isRoot}
     class:na-task-card--child={!isRoot}
-    class:na-task-card--project={task.taskType === "2"}
-    class:na-task-card--blocked={isBlocked && task.taskType !== "2"}
+    class:na-task-card--project={isProject}
+    class:na-task-card--blocked={isBlocked && !isProject}
     class:overdue={isOverdue}
     class:na-task-card--done={isDone}
     class:na-task-card--waiting={isWaiting}
@@ -133,7 +135,7 @@
             }}
         >
             <div class="na-task-card__title-row">
-                {#if task.taskType === "2"}
+                {#if isProject}
                     <NaTooltip text={i18n?.project || "Project"}>
                         <span class="na-task-card__project-icon">
                             <svg
@@ -179,7 +181,7 @@
                     {#if task.due && !isDone}
                         <DueDateLabel due={task.due} {i18n} on:overduechange={handleOverdueChange} />
                     {/if}
-                    {#if isBlocked && task.taskType !== "2"}
+                    {#if isBlocked && !isProject}
                         <NaTooltip text={blockedText}
                             ><span class="na-task-card__blocked-badge">{blockedText}</span></NaTooltip
                         >

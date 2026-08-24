@@ -44,7 +44,7 @@
     "removeTask": "Remove Task",
     "confirmRemoveTask": "This will clear all task attributes. This action cannot be undone.",
     "removeProject": "Remove Project",
-    "confirmRemoveProject": "This will clear all project attributes. This action cannot be undone.",
+    "confirmRemoveProject": "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?",
     "refreshTasks": "Refresh Tasks",
     "refreshed": "Refreshed",
     "noTasks": "No tasks yet",

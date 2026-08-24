@@ -5,6 +5,7 @@
     import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
+    import { isProjectTask } from "../../shared/project-domain";
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
@@ -137,17 +138,18 @@
         { value: "1", label: i18n?.task || "Task" },
         { value: "2", label: i18n?.project || "Project" },
     ];
-    $: isProject = taskType === "2";
+    $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
     $: aiDecomposeLabel = isProject
         ? i18n?.aiDecomposeProject || "Break down project with AI"
         : i18n?.aiDecomposeTask || "Break down with AI";
     $: removeLabel = isProject ? i18n?.removeProject || "Remove project" : i18n?.removeTask || "Remove task";
     $: removeConfirmMessage = isProject
-        ? i18n?.confirmRemoveProject || "This will clear all project attributes. This action cannot be undone."
+        ? i18n?.confirmRemoveProject ||
+          "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
         : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.";
     $: headerSubtitle = [
         task.created ? formatCreated(task.created) : "",
-        task.blocked && taskType !== "2"
+        task.blocked && !isProject
             ? task.blockedReason === "children"
                 ? i18n?.blockedByChildren || "Blocked by subtasks"
                 : task.blockedReason === "sequential"

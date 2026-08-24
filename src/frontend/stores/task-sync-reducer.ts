@@ -1,5 +1,6 @@
 import type { TaskCacheEntry, TaskChangeSetV2, TaskSnapshotV2 } from "../../shared/types";
 import { countReviewAttentionTasks } from "../../shared/review";
+import { isProjectTask } from "../../shared/project-domain";
 
 export interface TaskCollectionState {
     allTasks: TaskCacheEntry[];
@@ -46,7 +47,7 @@ function deriveProjectReminders(allTasks: TaskCacheEntry[]): TaskCacheEntry[] {
     const taskMap = new Map(allTasks.map((task) => [task.blockId, task]));
     return allTasks.filter(
         (entry) =>
-            entry.taskType === "2" &&
+            isProjectTask(entry) &&
             entry.status !== "done" &&
             entry.childIds.length > 0 &&
             entry.childIds.every((childId) => taskMap.get(childId)?.status === "done"),

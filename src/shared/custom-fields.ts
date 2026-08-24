@@ -1,4 +1,5 @@
 import type { TaskCacheEntry } from "./types";
+import { isProjectTask } from "./project-domain";
 
 export const CUSTOM_FIELD_TYPES = [
     "text",
@@ -231,8 +232,8 @@ export function isCustomFieldApplicable(
 ): boolean {
     if (field.status !== "active") return false;
     if (field.scope.mode === "all") return true;
-    if (field.scope.mode === "task") return task.taskType !== "2";
-    if (field.scope.mode === "project") return task.taskType === "2";
+    if (field.scope.mode === "task") return !isProjectTask(task);
+    if (field.scope.mode === "project") return isProjectTask(task);
     if (!taskMap) return false;
     const projectIds = new Set(field.scope.projectIds);
     let current: TaskCacheEntry | undefined = task;

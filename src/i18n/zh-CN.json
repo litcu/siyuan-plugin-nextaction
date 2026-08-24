@@ -44,7 +44,7 @@
     "removeTask": "移除任务",
     "confirmRemoveTask": "此操作将清除所有任务属性，且不可撤销。确定要移除吗？",
     "removeProject": "移除项目",
-    "confirmRemoveProject": "此操作将清除所有项目属性，且不可撤销。确定要移除吗？",
+    "confirmRemoveProject": "此操作会保留项目文档和项目字段，取消 Project 身份，并清理直接 Action 的项目归属。是否继续？",
     "refreshTasks": "刷新任务",
     "refreshed": "已刷新",
     "noTasks": "暂无任务",

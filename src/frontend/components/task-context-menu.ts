@@ -6,6 +6,7 @@ import { toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";
 import { parseRepeatState } from "../../shared/repeat";
 import { runAiDecomposeTask } from "../ai/ai-feature-service";
+import { isProjectTask } from "../../shared/project-domain";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
@@ -25,7 +26,7 @@ export function showTaskContextMenu(
     inMyDay?: boolean,
 ): void {
     const menu = new Menu("na-task-context");
-    const isProject = task.taskType === "2";
+    const isProject = isProjectTask(task);
 
     for (const s of STATUS_LIST) {
         const i18nKey = toI18nKey("status", s);
@@ -166,7 +167,7 @@ export function showTaskContextMenu(
                 isProject ? i18n?.removeProject || "Remove Project" : i18n?.removeTask || "Remove Task",
                 isProject
                     ? i18n?.confirmRemoveProject ||
-                          "This will clear all project attributes. This action cannot be undone."
+                          "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
                     : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.",
                 async () => {
                     try {

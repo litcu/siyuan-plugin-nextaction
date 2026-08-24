@@ -9,6 +9,7 @@ import { taskStore } from "../stores/task-store";
 import { formatRpcError, notifyError, notifyInfo } from "../notify";
 import { get } from "svelte/store";
 import { renderAiPromptTemplate } from "./ai-prompt-template";
+import { isProjectTask } from "../../shared/project-domain";
 
 interface AiServiceHost {
     bridge: KernelBridge;
@@ -467,10 +468,9 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         if (proposal.tasks)
             proposal.tasks = proposal.tasks.map((item) => ({ ...item, parentId: item.parentId ?? task.blockId }));
-        const dialogTitle =
-            task.taskType === "2"
-                ? i18n?.aiDecomposeProject || "Break down project with AI"
-                : i18n?.aiDecomposeTask || "Break down with AI";
+        const dialogTitle = isProjectTask(task)
+            ? i18n?.aiDecomposeProject || "Break down project with AI"
+            : i18n?.aiDecomposeTask || "Break down with AI";
         await openComponent(dialogTitle, () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,

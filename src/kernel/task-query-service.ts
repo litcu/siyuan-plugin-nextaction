@@ -5,7 +5,7 @@ import { isNextActionCandidate, sortTasks } from "./priority-engine";
 import { isTaskDueOverdue } from "../shared/review";
 import type { CacheManager } from "./cache-manager";
 import type { TaskRuntimeState } from "./task-runtime-state";
-import { buildProjectSummaries } from "../shared/project-domain";
+import { buildProjectSummaries, isProjectTask } from "../shared/project-domain";
 
 export class TaskQueryService {
     constructor(
@@ -155,7 +155,7 @@ export class TaskQueryService {
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
         // === Summary ===
-        const tasks = allEntries.filter((e) => e.taskType !== "2");
+        const tasks = allEntries.filter((entry) => !isProjectTask(entry));
         const total = tasks.length;
         const open = tasks.filter((e) => e.status !== "done").length;
 
@@ -252,7 +252,7 @@ export class TaskQueryService {
         let projectTotal = 0;
         for (let i = 0; i < allEntries.length; i++) {
             const entry = allEntries[i];
-            if (entry.taskType !== "2") continue;
+            if (!isProjectTask(entry)) continue;
             projectTotal++;
             const s = entry.status;
             if (projectStatusCounts[s] !== undefined) projectStatusCounts[s]++;

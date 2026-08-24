@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildProjectSummaries, isNextActionCandidate } from "../src/shared/project-domain.ts";
+import { buildProjectSummaries, isNextActionCandidate, isProjectTask } from "../src/shared/project-domain.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -39,6 +39,20 @@ function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCac
         ...overrides,
     };
 }
+
+test("只有带项目标记的文档任务才具有 Project 身份", () => {
+    // Regression: taskType alone must not make a native task a Project.
+    const documentProject = task("document-project", { taskType: "2", identificationSource: "document" });
+    const nativeTaskWithStaleMarker = task("native-task", { taskType: "2", identificationSource: "native" });
+
+    assert.equal(isProjectTask(documentProject), true);
+    assert.equal(isProjectTask(nativeTaskWithStaleMarker), false);
+    assert.deepEqual(
+        buildProjectSummaries([documentProject, nativeTaskWithStaleMarker]).map((summary) => summary.project.blockId),
+        ["document-project"],
+    );
+    assert.equal(isNextActionCandidate(nativeTaskWithStaleMarker), true);
+});
 
 test("项目进度只统计叶子 Action，并提供每个父 Action 的子树进度", () => {
     // Regression: parent actions used to be counted again alongside their leaf actions.

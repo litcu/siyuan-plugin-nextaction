@@ -81,7 +81,8 @@ function buildTaskEntryFromAttrs(
         identificationSource: identity?.identificationSource || existing?.identificationSource || "document",
         contentBlockId: identity?.contentBlockId ?? existing?.contentBlockId,
         attrHostId: identity?.attrHostId || existing?.attrHostId || blockId,
-        parentId: attrs[ATTR_PARENT] || identity?.parentId || existing?.parentId || "",
+        parentId:
+            attrs[ATTR_PARENT] || (identity?.parentId !== undefined ? identity.parentId : existing?.parentId || ""),
         status: attrs[ATTR_STATUS] || identity?.status || "todo",
         priority: attrs[ATTR_PRIORITY] || "medium",
         importance: attrToNumber(attrs[ATTR_IMPORTANCE], defaults.defaultImportance),

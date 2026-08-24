@@ -1,6 +1,7 @@
 import type { TaskCacheEntry } from "../shared/types";
 import type { CacheManager } from "./cache-manager";
 import { calculateOrder, getBlockedReason } from "./priority-engine";
+import { isProjectTask } from "../shared/project-domain";
 
 /**
  * Owns cache-only values that are derived from task relationships. Callers pass
@@ -35,9 +36,7 @@ export class TaskDerivedStateService {
             }
         }
 
-        const projects = entries
-            .filter((entry) => entry.taskType === "2")
-            .sort((left, right) => this.depth(right) - this.depth(left));
+        const projects = entries.filter(isProjectTask).sort((left, right) => this.depth(right) - this.depth(left));
         for (const project of projects) {
             const nextOrder = calculateOrder(project, cache);
             if (project.order !== nextOrder) {

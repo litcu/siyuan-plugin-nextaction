@@ -3,6 +3,7 @@ import { DEFAULT_PRIORITY_ENGINE, type PriorityEngineSettings } from "../shared/
 import {
     getTaskBlockedReason,
     isNextActionCandidate as isSharedNextActionCandidate,
+    isProjectTask,
     isTaskBlocked,
 } from "../shared/project-domain";
 
@@ -114,7 +115,7 @@ export function calculateOrder(entry: TaskCacheEntry, cache?: Record<string, Tas
 
     const ownScore = baseScore / effortPenalty;
 
-    if (entry.taskType === "2" && cache) {
+    if (isProjectTask(entry) && cache) {
         const maxChildOrder = entry.childIds
             .map((id) => cache[id])
             .filter((c) => c && c.status !== "done")

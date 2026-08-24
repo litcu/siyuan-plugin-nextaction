@@ -1,6 +1,7 @@
 import { taskStore } from "../stores/task-store";
 import type { TaskCacheEntry } from "../../shared/types";
 import { getCurrentUiZIndex } from "../utils/layer";
+import { isProjectTask } from "../../shared/project-domain";
 
 interface DragConfig {
     container: HTMLElement;
@@ -289,7 +290,7 @@ export function createDragHandler(config: DragConfig) {
         if (parentId && dragBlockId) {
             const dragTask = currentTasks.find((t) => t.blockId === dragBlockId);
             const parentTask = currentTasks.find((t) => t.blockId === parentId);
-            if (dragTask && dragTask.taskType === "2" && parentTask && parentTask.taskType === "1") {
+            if (dragTask && isProjectTask(dragTask) && parentTask) {
                 return null;
             }
         }
@@ -361,7 +362,7 @@ export function createDragHandler(config: DragConfig) {
         if (desiredLevel > targetIndent && dragBlockId) {
             const dragTask = currentTasks.find((t) => t.blockId === dragBlockId);
             const targetAsParent = currentTasks.find((t) => t.blockId === targetBlockId);
-            if (dragTask && dragTask.taskType === "2" && targetAsParent && targetAsParent.taskType === "1") {
+            if (dragTask && isProjectTask(dragTask) && targetAsParent) {
                 return;
             }
         }

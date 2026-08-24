@@ -18,6 +18,7 @@ import {
     scanNativeTaskTargets,
 } from "./editor-task-dom";
 import type { TaskCommandController } from "./task-command-controller";
+import { isProjectTask } from "../../shared/project-domain";
 
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
@@ -146,7 +147,7 @@ export class EditorTaskIntegration {
         const currentStatus =
             task?.status || taskBlock.getAttribute("custom-na-status") || (isNative ? "inbox" : "todo");
         const currentPriority = normalizePriority(task?.priority || taskBlock.getAttribute("custom-na-priority"));
-        const isProject = task?.taskType === "2" || taskBlock.getAttribute("custom-na-task") === "2";
+        const isProject = !!task && isProjectTask(task);
 
         const menu = new Menu("na-editor-status");
 
@@ -272,7 +273,7 @@ export class EditorTaskIntegration {
                         : this.plugin.i18n.removeTask || "Remove Task",
                     isProject
                         ? this.plugin.i18n.confirmRemoveProject ||
-                              "This will clear all project attributes. This action cannot be undone."
+                              "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
                         : this.plugin.i18n.confirmRemoveTask ||
                               "This will clear all task attributes. This action cannot be undone.",
                     async () => {
@@ -402,7 +403,10 @@ export class EditorTaskIntegration {
             const blockElements = detail.blockElements || [];
             const resolvedTask = blockElements.length === 1 ? this.resolveTaskBlock(blockElements[0]) : null;
             const taskBlock = !!resolvedTask;
-            const isProjectBlock = resolvedTask?.element.getAttribute("custom-na-task") === "2";
+            const resolvedTaskEntry = resolvedTask
+                ? get(taskStore).allTasks.find((task) => task.blockId === resolvedTask.blockId)
+                : undefined;
+            const isProjectBlock = !!resolvedTaskEntry && isProjectTask(resolvedTaskEntry);
             detail.menu.addItem({
                 icon: "iconSparkles",
                 label: `[NextAction] ${this.plugin.i18n.ai || "AI"}`,

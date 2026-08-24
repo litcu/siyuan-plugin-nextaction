@@ -1,7 +1,12 @@
 import type { CustomFieldDef } from "../../shared/settings";
 import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
-import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "../../shared/project-domain";
+import {
+    buildProjectSummaries,
+    getProjectDateBucket,
+    isProjectTask,
+    type ProjectDateBucket,
+} from "../../shared/project-domain";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
@@ -86,7 +91,7 @@ export function buildProjectViewModel(
     const summaries = buildProjectSummaries(sourceTasks, { startPreviewDays: state.startPreviewDays });
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
     const filterCandidates = sourceTasks.filter(
-        (task) => state.showCompleted || task.status !== "done" || task.taskType === "2",
+        (task) => state.showCompleted || task.status !== "done" || isProjectTask(task),
     );
     const matchedTasks = taskFiltersActive
         ? applyFilters(filterCandidates, state.filterState, customFields)
@@ -149,7 +154,7 @@ export function buildProjectViewModel(
     );
     const planGroups = DATE_BUCKETS.map((bucket) => ({
         bucket,
-        tasks: sortedDetailTasks.filter((task) => task.taskType !== "2" && getProjectDateBucket(task) === bucket),
+        tasks: sortedDetailTasks.filter((task) => !isProjectTask(task) && getProjectDateBucket(task) === bucket),
     })).filter((group) => group.tasks.length > 0);
     const riskItems = visibleSummaries
         .flatMap((summary) =>

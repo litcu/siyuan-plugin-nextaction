@@ -30,6 +30,7 @@ import {
 import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat";
 import type { ReminderItem, TaskCacheEntry } from "../shared/types";
 import { BLOCK_ID_SOURCE, extractBlockId, isBlockId } from "../shared/block-id";
+import { isProjectTask } from "../shared/project-domain";
 
 const PARAGRAPH_ID_BEFORE_TYPE_RE = new RegExp(
     `data-node-id=["'](${BLOCK_ID_SOURCE})["'][^>]*data-type=["']NodeParagraph["']`,
@@ -327,7 +328,7 @@ export function taskToMcpDto(entry: TaskCacheEntry, fields: CustomFieldDef[], is
         id: entry.blockId,
         siyuanUrl: `siyuan://blocks/${entry.blockId}`,
         title: entry.title,
-        kind: entry.taskType === "2" ? "project" : "task",
+        kind: isProjectTask(entry) ? "project" : "task",
         status: entry.status,
         priority: entry.priority,
         importance: entry.importance,
@@ -379,7 +380,7 @@ export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTas
     let filtered = entries.slice();
     if (input.kind && input.kind !== "all") {
         filtered = filtered.filter((entry) =>
-            input.kind === "project" ? entry.taskType === "2" : entry.taskType !== "2",
+            input.kind === "project" ? isProjectTask(entry) : !isProjectTask(entry),
         );
     }
     if (input.statuses?.length) filtered = filtered.filter((entry) => input.statuses!.includes(entry.status));

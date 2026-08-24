@@ -2,6 +2,10 @@ import type { ProjectRisk, ProjectRiskKind, ProjectSummary, TaskBlockedReason, T
 
 const PROJECT_TYPE = "2";
 
+export function isProjectTask(task: Pick<TaskCacheEntry, "identificationSource" | "taskType">): boolean {
+    return task.identificationSource === "document" && task.taskType === PROJECT_TYPE;
+}
+
 export type ProjectDateBucket = "overdue" | "today" | "thisWeek" | "later" | "unscheduled";
 
 export interface ProjectDomainOptions {
@@ -25,7 +29,7 @@ export function getTaskBlockedReason(
     if (task.status === "inbox") return "inbox";
     if (task.status === "someday") return "someday";
 
-    if (task.taskType !== PROJECT_TYPE) {
+    if (!isProjectTask(task)) {
         const hasIncompleteChild = task.childIds.some((id) => {
             const child = lookupTask(taskLookup, id);
             return child && child.status !== "done";
@@ -108,7 +112,7 @@ export function isNextActionCandidate(
     options: Pick<ProjectDomainOptions, "today" | "startPreviewDays" | "taskLookup"> = {},
 ): boolean {
     if (
-        task.taskType === PROJECT_TYPE ||
+        isProjectTask(task) ||
         task.status === "done" ||
         task.status === "waiting" ||
         task.status === "someday" ||
@@ -171,7 +175,7 @@ function collectProjectActions(
         for (const child of childrenByParent.get(parentId) || []) {
             if (visited.has(child.blockId)) continue;
             visited.add(child.blockId);
-            if (child.taskType === PROJECT_TYPE) continue;
+            if (isProjectTask(child)) continue;
             actions.push(child);
             visit(child.blockId);
         }
@@ -222,7 +226,7 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectD
     const today = options.today || localDateString();
     const childrenByParent = buildChildrenMap(tasks);
     const taskById = new Map(tasks.map((task) => [task.blockId, task]));
-    const projects = tasks.filter((task) => task.taskType === PROJECT_TYPE);
+    const projects = tasks.filter(isProjectTask);
 
     return projects.map((project) => {
         const descendants = collectProjectActions(project, childrenByParent);
