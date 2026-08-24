@@ -44,6 +44,11 @@ function summary(project: TaskCacheEntry, descendants: TaskCacheEntry[]): Projec
     return {
         project,
         descendants,
+        leafActions: descendants,
+        subtreeProgress: {},
+        empty: descendants.length === 0,
+        clarificationNeeded: descendants.length === 0,
+        completionCandidate: false,
         openCount: descendants.length,
         doneCount: 0,
         progress: 0,

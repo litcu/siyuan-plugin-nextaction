@@ -5,6 +5,7 @@ import { isNextActionCandidate, sortTasks } from "./priority-engine";
 import { isTaskDueOverdue } from "../shared/review";
 import type { CacheManager } from "./cache-manager";
 import type { TaskRuntimeState } from "./task-runtime-state";
+import { buildProjectSummaries } from "../shared/project-domain";
 
 export class TaskQueryService {
     constructor(
@@ -101,15 +102,11 @@ export class TaskQueryService {
     getProjectReminders(): TaskCacheEntry[] {
         this.runtime.assertReady();
         const all = this.cacheManager.getAll();
-        return all.filter((entry) => {
-            if (entry.taskType !== "2") return false;
-            if (entry.status === "done") return false;
-            if (entry.childIds.length === 0) return false;
-            return entry.childIds.every((id) => {
-                const child = this.cacheManager.get(id);
-                return child && child.status === "done";
-            });
-        });
+        return buildProjectSummaries(all, {
+            startPreviewDays: this.runtime.getSettings().priorityEngine.startPreviewDays,
+        })
+            .filter((summary) => summary.completionCandidate)
+            .map((summary) => summary.project);
     }
 
     getContexts(): string[] {

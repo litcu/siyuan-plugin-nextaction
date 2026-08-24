@@ -29,7 +29,7 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
     assert.match(view, /selectedTaskOverride/);
     assert.match(state, /sourceTasks = reconcileProjectTasks\(tasks, state\.selectedTaskOverride\)/);
     assert.match(state, /task\.blockId === override\.blockId/);
-    assert.match(state, /buildProjectSummaries\(sourceTasks\)/);
+    assert.match(state, /buildProjectSummaries\(sourceTasks, \{ startPreviewDays: state\.startPreviewDays \}\)/);
     assert.match(source("../src/frontend/components/NextActionApp.svelte"), /selectedTaskOverride=\{selectedTask\}/);
     assert.match(hierarchy, /model\.rows/);
     assert.match(hierarchy, /padding-left: \{row\.depth \* 18\}px/);

@@ -3,6 +3,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 import { normalizePriority, PRIORITY_LIST } from "../constants";
 import type { CustomFieldDef } from "../../shared/settings";
 import { decodeCustomFieldValue, formatCustomFieldValue } from "../../shared/custom-fields";
+import { isNextActionCandidate as isSharedNextActionCandidate } from "../../shared/project-domain";
 
 const PRIORITY_OFFSET: Record<string, number> = {
     critical: 1.5,
@@ -58,19 +59,7 @@ export function hasActiveTaskFilters(filters: FilterState): boolean {
 }
 
 export function isNextActionCandidate(entry: TaskCacheEntry, startPreviewDays: number = 0): boolean {
-    if (entry.status === "done") return false;
-    if (entry.status === "waiting") return false;
-    if (entry.status === "inbox") return false;
-    if (entry.start) {
-        const startDate = entry.start.slice(0, 10);
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() + startPreviewDays);
-        const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
-        if (startDate > cutoffStr) return false;
-    }
-    if (entry.taskType === "2") return false;
-    if (entry.blocked) return false;
-    return true;
+    return isSharedNextActionCandidate(entry, { startPreviewDays });
 }
 
 export function applyFilters(

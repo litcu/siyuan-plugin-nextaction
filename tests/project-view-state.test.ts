@@ -58,6 +58,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         filterState: { ...DEFAULT_FILTER_STATE },
         collapsedIds: new Set(),
         ganttSortMode: "timeline",
+        startPreviewDays: 0,
         ...overrides,
     };
 }
@@ -153,6 +154,21 @@ test("折叠状态和甘特排序进入树模型但不丢失完整任务集合",
         model.projectTreeModel?.includedTasks.map((item) => item.blockId),
         ["p", "parent", "child"],
     );
+});
+
+test("项目视图从共享摘要取得叶子进度", () => {
+    // Regression: ProjectView used to count a parent Action and its leaf Action twice.
+    const nested = [
+        task("p", { taskType: "2", childIds: ["parent"] }),
+        task("parent", { parentId: "p", status: "done", childIds: ["child"] }),
+        task("child", { parentId: "parent", status: "done" }),
+    ];
+
+    const model = buildProjectViewModel(nested, [], state());
+
+    assert.equal(model.summaries[0].doneCount, 1);
+    assert.equal(model.summaries[0].openCount, 0);
+    assert.equal(model.summaries[0].completionCandidate, true);
 });
 
 test("看板移动先更新状态再重排并向上抛出失败", async () => {

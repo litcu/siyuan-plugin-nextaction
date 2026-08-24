@@ -1,3 +1,5 @@
+export type TaskBlockedReason = "" | "inbox" | "someday" | "children" | "dependency" | "sequential";
+
 export interface TaskCacheEntry {
     blockId: string;
     identificationSource: "document" | "native";
@@ -27,7 +29,7 @@ export interface TaskCacheEntry {
     updated?: string; // 思源块更新时间，用于稳定的完成任务排序回退
     tags: string; // na-tags 原始值（管道符分隔）
     blocked: boolean; // 由内核 isBlocked 计算
-    blockedReason: string; // "" | "dependency" | "sequential"
+    blockedReason: TaskBlockedReason;
     reviewInterval: number; // 0 = 不回顾
     reviewDate: string; // 空字符串 = 无，YYYY-MM-DD
     reminder: string; // na-reminder 原始值，空字符串 = 使用全局默认，"[]" = 禁用
@@ -54,9 +56,20 @@ export interface ProjectRisk {
     severity: "high" | "medium" | "low";
 }
 
+export interface ProjectProgress {
+    done: number;
+    total: number;
+    percent: number;
+}
+
 export interface ProjectSummary {
     project: TaskCacheEntry;
     descendants: TaskCacheEntry[];
+    leafActions: TaskCacheEntry[];
+    subtreeProgress: Record<string, ProjectProgress>;
+    empty: boolean;
+    clarificationNeeded: boolean;
+    completionCandidate: boolean;
     openCount: number;
     doneCount: number;
     progress: number;

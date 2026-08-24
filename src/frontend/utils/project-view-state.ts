@@ -1,7 +1,7 @@
 import type { CustomFieldDef } from "../../shared/settings";
 import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
-import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "./project";
+import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "../../shared/project-domain";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
@@ -45,6 +45,7 @@ export interface ProjectViewState {
     filterState: FilterState;
     collapsedIds: ReadonlySet<string>;
     ganttSortMode: ProjectTreeSortMode;
+    startPreviewDays: number;
 }
 
 export interface ProjectViewModel {
@@ -82,7 +83,7 @@ export function buildProjectViewModel(
     state: ProjectViewState,
 ): ProjectViewModel {
     const sourceTasks = reconcileProjectTasks(tasks, state.selectedTaskOverride);
-    const summaries = buildProjectSummaries(sourceTasks);
+    const summaries = buildProjectSummaries(sourceTasks, { startPreviewDays: state.startPreviewDays });
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
     const filterCandidates = sourceTasks.filter(
         (task) => state.showCompleted || task.status !== "done" || task.taskType === "2",

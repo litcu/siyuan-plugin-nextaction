@@ -7,6 +7,7 @@ import type { CacheManager } from "./cache-manager";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import { addLocalDays } from "./task-date-utils";
+import { buildProjectSummaries } from "../shared/project-domain";
 
 export class TaskReviewService {
     constructor(
@@ -21,6 +22,15 @@ export class TaskReviewService {
         const td = new Date();
         const todayStr = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
         const cache = this.cacheManager.getCache();
+        const projectSummaries = buildProjectSummaries(allEntries, {
+            today: todayStr,
+            startPreviewDays: this.runtime.getSettings().priorityEngine.startPreviewDays,
+        });
+        const activeProjectIds = new Set(
+            projectSummaries
+                .filter((summary) => summary.project.status !== "done" && (!summary.empty || summary.risks.length > 0))
+                .map((summary) => summary.project.blockId),
+        );
 
         const overdueTasks: TaskCacheEntry[] = [];
         const nextActions: TaskCacheEntry[] = [];
@@ -64,14 +74,7 @@ export class TaskReviewService {
             }
 
             // 活跃项目
-            if (
-                entry.taskType === "2" &&
-                entry.status !== "done" &&
-                entry.childIds.some((id) => {
-                    const child = cache[id];
-                    return child && child.status !== "done";
-                })
-            ) {
+            if (activeProjectIds.has(entry.blockId)) {
                 activeProjects.push(entry);
             }
         }

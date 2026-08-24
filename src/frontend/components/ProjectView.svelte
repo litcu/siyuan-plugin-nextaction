@@ -70,6 +70,7 @@
         filterState,
         collapsedIds,
         ganttSortMode,
+        startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
     });
     $: resolvedActiveProjectId = viewModel.activeProjectId;
     $: summaries = viewModel.summaries;

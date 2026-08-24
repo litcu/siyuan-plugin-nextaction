@@ -240,17 +240,44 @@ test("下一步行动排除已完成和阻塞任务，并按统一优先级排�
     const doneId = "20260816123459-abcdefg";
     const blockedId = "20260816123500-abcdefg";
     const blockerId = "20260816123501-abcdefg";
+    const somedayId = "20260816123502-abcdefg";
     cache.set(taskFactory(lowId, { priority: "low", order: 10 }));
     cache.set(taskFactory(highId, { priority: "critical", order: 100 }));
     cache.set(taskFactory(doneId, { status: "done", order: 1000 }));
     cache.set(taskFactory(blockerId, { status: "waiting", order: 1000 }));
     cache.set(taskFactory(blockedId, { depends: blockerId, order: 1000 }));
+    cache.set(taskFactory(somedayId, { status: "someday", order: 2000 }));
 
+    // Regression: every read consumer must exclude someday through the shared Next Action predicate.
     assert.deepEqual(
         service.getNextActions().map((task) => task.blockId),
         [highId, lowId],
     );
+    assert.deepEqual(
+        service.getReviewData().nextActions.map((task) => task.blockId),
+        [lowId, highId],
+    );
     assert.equal(service.getTask(highId)?.priority, "critical");
+});
+
+test("Review 与完成提醒保留叶子已完成但尚未确认的项目", () => {
+    // Regression: Review only inspected direct unfinished children and hid completion candidates.
+    const { cache, service } = setup();
+    const projectId = "20260816123503-project";
+    const parentId = "20260816123504-parentx";
+    const leafId = "20260816123505-leafxxx";
+    cache.set(taskFactory(projectId, { taskType: "2", status: "doing", childIds: [parentId] }));
+    cache.set(taskFactory(parentId, { parentId: projectId, status: "done", childIds: [leafId] }));
+    cache.set(taskFactory(leafId, { parentId, status: "done" }));
+
+    assert.deepEqual(
+        service.getProjectReminders().map((task) => task.blockId),
+        [projectId],
+    );
+    assert.deepEqual(
+        service.getReviewData().activeProjects.map((task) => task.blockId),
+        [projectId],
+    );
 });
 
 test("当期完成统计不计入缺少完成时间的任务", () => {
