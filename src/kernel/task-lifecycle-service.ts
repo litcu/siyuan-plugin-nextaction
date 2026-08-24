@@ -40,6 +40,10 @@ import {
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
     ALL_STATUSES,
     ATTR_EXT_PREFIX,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
+    ACTION_KIND_ACTION,
 } from "../shared/constants";
 import { type CacheManager } from "./cache-manager";
 import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
@@ -170,6 +174,7 @@ export class TaskLifecycleService {
             [ATTR_CREATED]: new Date().toISOString().slice(0, 19),
         };
         if (taskType) attrs[ATTR_TASK] = taskType;
+        if (taskType !== "2") attrs[ATTR_KIND] = ACTION_KIND_ACTION;
         if (this.settings.semanticDateParsingEnabled) {
             const parsedDates = parseTaskTitleDates(title, new Date());
             if (parsedDates.start) attrs[ATTR_START] = parsedDates.start.value;
@@ -538,6 +543,9 @@ export class TaskLifecycleService {
             clearAttrs[ATTR_REVIEW_INTERVAL] = "";
             clearAttrs[ATTR_REVIEW_DATE] = "";
             clearAttrs[ATTR_REMINDER] = "";
+            clearAttrs[ATTR_OUTCOME] = "";
+            clearAttrs[ATTR_DOD] = "";
+            clearAttrs[ATTR_KIND] = "";
 
             // Clear custom extension fields
             if (entry.customFields) {
@@ -633,6 +641,13 @@ export class TaskLifecycleService {
                 attrs[ATTR_TASK] || identity.taskType,
             );
         }
+
+        const effectiveTaskType =
+            attrs[ATTR_TASK] || cachedTask?.taskType || resolvedExisting?.identity.taskType || "1";
+        if (effectiveTaskType === "2" && attrs[ATTR_KIND] !== undefined && attrs[ATTR_KIND] !== "") {
+            throw codedError("custom-na-kind only applies to an ordinary Action", RPC_ERROR_INVALID_PARAMS);
+        }
+        if (attrs[ATTR_TASK] === "2") attrs[ATTR_KIND] = "";
 
         // Validate status if provided
         if (attrs[ATTR_STATUS] !== undefined) {

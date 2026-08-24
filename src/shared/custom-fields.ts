@@ -41,6 +41,8 @@ export interface CustomFieldDef {
 
 export type CustomFieldInput = string | number | boolean | string[] | null;
 
+export const RESERVED_CUSTOM_FIELD_KEYS = new Set(["outcome", "dod", "kind"]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -75,6 +77,7 @@ export function validateCustomFieldDefinition(field: CustomFieldDef): string | n
     if (typeof field.id !== "string" || !field.id) return "custom field id must not be empty";
     if (typeof field.key !== "string") return "custom field key must be a string";
     if (!isValidCustomFieldKey(field.key)) return "custom field key must use lowercase letters, digits and hyphens";
+    if (RESERVED_CUSTOM_FIELD_KEYS.has(field.key)) return `custom field key is reserved: ${field.key}`;
     if (typeof field.label !== "string" || field.label.trim().length === 0)
         return "custom field label must not be empty";
     if (typeof field.description !== "string") return "custom field description must be a string";

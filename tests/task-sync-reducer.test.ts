@@ -98,6 +98,13 @@ test("V2 snapshot 与 delta 校验拒绝缺字段、重复和交叉 ID", () => {
     assert.equal(isTaskSnapshotV2(snapshot("stream-a", 0)), true);
     assert.equal(isTaskSnapshotV2({ ...snapshot("stream-a", 0), tasks: [{ blockId: TASK_A }] }), false);
     assert.equal(
+        isTaskSnapshotV2({
+            ...snapshot("stream-a", 0),
+            tasks: [taskFactory(TASK_A, { actionKind: "milestone" as "stage" })],
+        }),
+        false,
+    );
+    assert.equal(
         isTaskChangeSetV2({
             schema: 2,
             type: "delta",
@@ -131,6 +138,9 @@ test("旧内核快照缺少新增可选字段时仍保持 V2 同步", () => {
         reviewInterval: _reviewInterval,
         reviewDate: _reviewDate,
         reminder: _reminder,
+        outcome: _outcome,
+        dod: _dod,
+        actionKind: _actionKind,
         ...olderTask
     } = current;
     const normalized = normalizeTaskSnapshotV2({
@@ -142,6 +152,9 @@ test("旧内核快照缺少新增可选字段时仍保持 V2 同步", () => {
     assert.equal(normalized?.tasks[0].identificationSource, "document");
     assert.equal(normalized?.tasks[0].reviewInterval, 0);
     assert.equal(normalized?.tasks[0].reminder, "");
+    assert.equal(normalized?.tasks[0].outcome, "");
+    assert.equal(normalized?.tasks[0].dod, "");
+    assert.equal(normalized?.tasks[0].actionKind, "action");
 });
 
 test("snapshot 握手期间缓存并按 revision 重放 V2 通知", async () => {

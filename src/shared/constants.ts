@@ -56,6 +56,11 @@ export const ATTR_TAGS = "custom-na-tags";
 export const ATTR_REVIEW_INTERVAL = "custom-na-review-interval";
 export const ATTR_REVIEW_DATE = "custom-na-review-date";
 export const ATTR_REMINDER = "custom-na-reminder";
+export const ATTR_OUTCOME = "custom-na-outcome";
+export const ATTR_DOD = "custom-na-dod";
+export const ATTR_KIND = "custom-na-kind";
+export const ACTION_KIND_ACTION = "action";
+export const ACTION_KIND_STAGE = "stage";
 export const REMINDER_MAX_PER_TASK = 7;
 export const REMINDER_DATA_PATH = "dismissed-reminders.json";
 

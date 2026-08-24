@@ -6,8 +6,11 @@ import { TaskService } from "../src/kernel/task-service.ts";
 import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { SyncEngine } from "../src/kernel/sync-engine.ts";
 import {
+    ATTR_DOD,
     ATTR_DUE,
+    ATTR_KIND,
     ATTR_NOTE,
+    ATTR_OUTCOME,
     ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_REPEAT,
@@ -90,6 +93,51 @@ test("转换、更新和移除均以权威属性回读驱动缓存与变更发�
     assert.equal(api.blocks.get(taskId)?.attrs[ATTR_STATUS], "");
     assert.equal(cache.get(taskId), undefined);
     assert.equal(publisher.changes[publisher.changes.length - 1], taskId);
+});
+
+test("Outcome、DoD 与 Stage 通过权威属性回读进入缓存并支持清空", async () => {
+    // Regression: project-control fields previously had no authoritative cache or broadcast data path.
+    const { api, cache, publisher, service } = setup();
+    const projectId = "20260816120010-project";
+    const projectBlock = api.addBlock(projectId, "d", "Ship project");
+    Object.assign(projectBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+
+    const project = await service.updateTask(projectId, {
+        [ATTR_OUTCOME]: "Users can complete the workflow",
+        [ATTR_DOD]: "Tests pass\nRelease is deployed",
+    });
+
+    assert.equal(project.outcome, "Users can complete the workflow");
+    assert.equal(project.dod, "Tests pass\nRelease is deployed");
+    assert.equal(projectBlock.attrs[ATTR_OUTCOME], project.outcome);
+    assert.equal(projectBlock.attrs[ATTR_DOD], project.dod);
+    assert.equal(cache.get(projectId)?.outcome, project.outcome);
+    assert.equal(publisher.changes[publisher.changes.length - 1], projectId);
+
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_KIND], "action");
+    const stage = await service.updateTask(taskId, { [ATTR_KIND]: "stage" });
+    assert.equal(stage.actionKind, "stage");
+    assert.equal(cache.get(taskId)?.actionKind, "stage");
+
+    const cleared = await service.updateTask(projectId, { [ATTR_OUTCOME]: "", [ATTR_DOD]: "" });
+    assert.equal(cleared.outcome, "");
+    assert.equal(cleared.dod, "");
+});
+
+test("项目控制字段校验拒绝多行 Outcome、非法 Stage 类型和 Project 上的 kind", async () => {
+    // Regression: raw attribute callers must not bypass the Project/Action field contract.
+    const { api, cache, service } = setup();
+    const projectId = "20260816120011-project";
+    const projectBlock = api.addBlock(projectId, "d", "Ship project");
+    Object.assign(projectBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+
+    await assert.rejects(service.updateTask(projectId, { [ATTR_OUTCOME]: "line one\nline two" }), /single-line/);
+    await assert.rejects(service.updateTask(taskId, { [ATTR_KIND]: "milestone" }), /action or stage/);
+    await assert.rejects(service.updateTask(projectId, { [ATTR_KIND]: "stage" }), /ordinary Action/);
 });
 
 test("非法内部 URI 在 SQL、属性写入和缓存变化前失败", async () => {

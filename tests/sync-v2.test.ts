@@ -21,7 +21,15 @@ function v2Broadcasts(api: FakeSiyuanApi): TaskChangeSetV2[] {
 test("V2 snapshot 返回当前 stream、revision 和隔离的完整任务", () => {
     const api = new FakeSiyuanApi();
     const cache = new CacheManager(api);
-    cache.set(taskFactory(TASK_A, { childIds: [TASK_B], customFields: { owner: "alice" } }));
+    cache.set(
+        taskFactory(TASK_A, {
+            childIds: [TASK_B],
+            outcome: "A clear result",
+            dod: "One\nTwo",
+            actionKind: "stage",
+            customFields: { owner: "alice" },
+        }),
+    );
     const engine = new SyncEngine(api, cache);
 
     const snapshot = engine.getTaskSnapshotV2();
@@ -29,6 +37,9 @@ test("V2 snapshot 返回当前 stream、revision 和隔离的完整任务", () =
     assert.equal(snapshot.revision, 0);
     assert.ok(snapshot.streamId.length > 0);
     assert.equal(snapshot.tasks[0].blockId, TASK_A);
+    assert.equal(snapshot.tasks[0].outcome, "A clear result");
+    assert.equal(snapshot.tasks[0].dod, "One\nTwo");
+    assert.equal(snapshot.tasks[0].actionKind, "stage");
 
     snapshot.tasks[0].title = "client mutation";
     snapshot.tasks[0].customFields.owner = "bob";
@@ -44,7 +55,14 @@ test("100ms 窗口合并连续提交并保留 revision 区间", async () => {
 
     cache.set(taskFactory(TASK_A));
     engine.publishChanges([TASK_A]);
-    cache.set(taskFactory(TASK_A, { priority: "critical" }));
+    cache.set(
+        taskFactory(TASK_A, {
+            priority: "critical",
+            outcome: "Published outcome",
+            dod: "Published DoD",
+            actionKind: "stage",
+        }),
+    );
     engine.publishChanges([TASK_A]);
     await waitForBroadcast();
 
@@ -55,6 +73,9 @@ test("100ms 窗口合并连续提交并保留 revision 区间", async () => {
     assert.equal(delta.revision, 2);
     assert.equal(delta.upserts.length, 1);
     assert.equal(delta.upserts[0].priority, "critical");
+    assert.equal(delta.upserts[0].outcome, "Published outcome");
+    assert.equal(delta.upserts[0].dod, "Published DoD");
+    assert.equal(delta.upserts[0].actionKind, "stage");
     assert.deepEqual(delta.deletedBlockIds, []);
     assert.equal(api.broadcasts.length, 1);
     engine.stop();

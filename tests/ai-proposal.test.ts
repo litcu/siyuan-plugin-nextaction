@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { completeAiReviewGroups, parseAiJson, validateAiProposal } from "../src/shared/ai.ts";
 import { AiProposalService } from "../src/kernel/ai-proposal-service.ts";
+import { buildAiTaskContext } from "../src/shared/ai-context.ts";
+import { taskFactory } from "./helpers/fakes.ts";
 
 test("AI 提案解析支持 JSON 和 markdown fenced JSON", () => {
     assert.deepEqual(
@@ -131,6 +133,105 @@ test("AI 任务提案仍拒绝非法的重要性和工作量", () => {
     assert.ok(result.errors.some((error) => error.includes("tasks[0].effort")));
     assert.ok(result.errors.some((error) => error.includes("tasks[1].importance")));
     assert.ok(result.errors.some((error) => error.includes("tasks[1].effort")));
+});
+
+test("AI 提案可读写 Outcome、DoD 和 Stage 并遵守字段适用范围", async () => {
+    // Regression: AI proposals previously dropped the Project control fields.
+    const valid = validateAiProposal({
+        feature: "decomposeTask",
+        summary: "补全项目定义",
+        tasks: [
+            {
+                title: "发布项目",
+                kind: "project",
+                status: "doing",
+                outcome: "用户可完成闭环",
+                dod: "检查通过\n已发布",
+            },
+            { title: "实施阶段", kind: "task", actionKind: "stage" },
+        ],
+    });
+    assert.deepEqual(valid.errors, []);
+    assert.equal(valid.proposal.tasks?.[0].outcome, "用户可完成闭环");
+    assert.equal(valid.proposal.tasks?.[0].dod, "检查通过\n已发布");
+    assert.equal(valid.proposal.tasks?.[1].actionKind, "stage");
+
+    const invalid = validateAiProposal({
+        feature: "decomposeTask",
+        summary: "非法字段",
+        tasks: [
+            { title: "项目", kind: "project", actionKind: "stage" },
+            { title: "项目二", kind: "project", outcome: "第一行\n第二行" },
+            { title: "项目三", kind: "project", outcome: 42, dod: ["not", "text"] },
+        ],
+    });
+    assert.ok(invalid.errors.some((error) => error.includes("ordinary Action")));
+    assert.ok(invalid.errors.some((error) => error.includes("single-line")));
+    assert.ok(invalid.errors.some((error) => error.includes("outcome must be a string")));
+    assert.ok(invalid.errors.some((error) => error.includes("dod must be a string")));
+
+    const createCalls: Array<Record<string, unknown>> = [];
+    const convertCalls: Array<Record<string, unknown>> = [];
+    const service = new AiProposalService(
+        {} as any,
+        async (input) => {
+            createCalls.push(input.properties || {});
+            return { task: { blockId: `created-${createCalls.length}` } };
+        },
+        async (input) => {
+            convertCalls.push((input.properties as Record<string, unknown>) || {});
+            return { task: { blockId: "converted-1" } };
+        },
+    );
+    await service.apply(valid.proposal);
+    assert.deepEqual(createCalls, [
+        { status: "doing", outcome: "用户可完成闭环", dod: "检查通过\n已发布" },
+        { actionKind: "stage" },
+    ]);
+
+    await service.apply({
+        feature: "extractTasks",
+        summary: "补全已有项目",
+        target: { type: "original" },
+        tasks: [
+            {
+                title: "已有项目",
+                kind: "project",
+                sourceBlockId: "20260802120003-existng",
+                outcome: "已转换",
+            },
+        ],
+    });
+    assert.deepEqual(convertCalls, [{ outcome: "已转换" }]);
+});
+
+test("AI 任务上下文显式提供 Project 定义和 Stage 类型", () => {
+    // Regression: prompt context previously omitted the fields that define outcome-oriented projects.
+    const project = buildAiTaskContext(
+        taskFactory("20260802120000-project", {
+            taskType: "2",
+            actionKind: "",
+            outcome: "用户完成工作流",
+            dod: "验收通过\n发布完成",
+        }),
+    );
+    const stage = buildAiTaskContext(
+        taskFactory("20260802120001-stagexx", { actionKind: "stage", outcome: "stale but non-identifying" }),
+    );
+
+    assert.equal(project.kind, "project");
+    assert.equal(project.actionKind, null);
+    assert.equal(project.outcome, "用户完成工作流");
+    assert.equal(project.dod, "验收通过\n发布完成");
+    assert.equal(stage.kind, "task");
+    assert.equal(stage.actionKind, "stage");
+
+    const bounded = buildAiTaskContext(
+        taskFactory("20260802120002-bounded", { tags: "t".repeat(200), depends: "d".repeat(200) }),
+        { tagsLimit: 0, dependsLimit: 0 },
+    );
+    assert.equal(bounded.tags, "");
+    assert.equal(bounded.depends, "");
 });
 
 test("AI 回顾提案只读且必须包含报告", () => {

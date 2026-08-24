@@ -118,6 +118,8 @@ function isTaskEntry(value: unknown, allowLegacyIdentity = false): value is Task
         "repeatState",
         "completed",
         "note",
+        "outcome",
+        "dod",
         "created",
         "tags",
         "blockedReason",
@@ -133,6 +135,7 @@ function isTaskEntry(value: unknown, allowLegacyIdentity = false): value is Task
         allowLegacyIdentity && task.identificationSource === undefined && task.attrHostId === undefined;
     return (
         stringFields.every((field) => typeof task[field] === "string") &&
+        (task.actionKind === "" || task.actionKind === "action" || task.actionKind === "stage") &&
         (hasCurrentIdentity || hasLegacyIdentity) &&
         (task.contentBlockId === undefined || typeof task.contentBlockId === "string") &&
         numberFields.every((field) => typeof task[field] === "number" && Number.isFinite(task[field] as number)) &&
@@ -181,6 +184,9 @@ function normalizeTaskEntry(value: unknown): TaskCacheEntry | null {
         sort: -1,
         completed: "",
         note: "",
+        outcome: "",
+        dod: "",
+        actionKind: source.taskType === "2" ? "" : "action",
         created: "",
         tags: "",
         blocked: false,

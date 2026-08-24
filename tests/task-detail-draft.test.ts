@@ -17,6 +17,9 @@ const draft = (overrides: Partial<TaskDetailDraft> = {}): TaskDetailDraft => ({
     due: "",
     start: "",
     note: "",
+    outcome: "",
+    dod: "",
+    actionKind: "action",
     contexts: [],
     taskTags: [],
     parentId: "",
@@ -34,6 +37,9 @@ test("任务详情草稿键覆盖父任务、任务类型、关系和自定义�
     const baseline = taskDetailDraftKey(draft());
     assert.notEqual(taskDetailDraftKey(draft({ parentId: "parent" })), baseline);
     assert.notEqual(taskDetailDraftKey(draft({ taskType: "2" })), baseline);
+    assert.notEqual(taskDetailDraftKey(draft({ outcome: "Result" })), baseline);
+    assert.notEqual(taskDetailDraftKey(draft({ dod: "Done when shipped" })), baseline);
+    assert.notEqual(taskDetailDraftKey(draft({ actionKind: "stage" })), baseline);
     assert.notEqual(taskDetailDraftKey(draft({ depends: ["dependency"] })), baseline);
     assert.notEqual(taskDetailDraftKey(draft({ customFieldValues: { score: "1" } })), baseline);
 });

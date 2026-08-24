@@ -44,6 +44,9 @@ function task(overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
         sort: 0,
         completed: "",
         note: "Discuss contract",
+        outcome: "",
+        dod: "",
+        actionKind: "action",
         created: "2026-08-02T12:00:00",
         tags: "work|calls",
         blocked: false,
@@ -106,6 +109,37 @@ test("任务 DTO 将内部字符串转换为 MCP 友好结构", () => {
     assert.deepEqual(dto.customFields, {});
     assert.equal(dto.isNextAction, true);
     assert.equal((dto as any).repeatState, undefined);
+});
+
+test("MCP DTO 独立暴露 Outcome、DoD 与 Action kind 且不受同名扩展字段覆盖", () => {
+    // Regression: core Project fields must remain unambiguous in MCP output.
+    const dto = taskToMcpDto(
+        task({
+            outcome: "A released workflow",
+            dod: "Tests pass\nPackage ships",
+            actionKind: "stage",
+            customFields: { outcome: "shadow value" },
+        }),
+        [
+            {
+                version: 2,
+                id: "legacy-outcome",
+                key: "outcome",
+                label: "Legacy outcome",
+                description: "",
+                type: "text",
+                status: "active",
+                scope: { mode: "all" },
+                showOnCard: true,
+            },
+        ],
+        false,
+    );
+
+    assert.equal(dto.outcome, "A released workflow");
+    assert.equal(dto.dod, "Tests pass\nPackage ships");
+    assert.equal(dto.actionKind, "stage");
+    assert.equal(Object.prototype.hasOwnProperty.call(dto.customFields, "outcome"), false);
 });
 
 test("任务查询支持关键词、项目后代、状态过滤和分页", () => {
@@ -189,6 +223,32 @@ test("写入映射只接受白名单字段并正确处理清空", () => {
                 task(),
             ),
         /absolute reminder/,
+    );
+});
+
+test("MCP patch 创建、更新和清空 Project 控制字段", () => {
+    // Regression: MCP previously could not round-trip Outcome, DoD, or Stage.
+    assert.deepEqual(
+        buildTaskAttrsFromMcpPatch(
+            { outcome: "Ship a stable workflow", dod: "Checks pass\nUser confirms" },
+            [],
+            task({ taskType: "2", actionKind: "" }),
+        ),
+        {
+            "custom-na-outcome": "Ship a stable workflow",
+            "custom-na-dod": "Checks pass\nUser confirms",
+        },
+    );
+    assert.deepEqual(buildTaskAttrsFromMcpPatch({ actionKind: "stage" }, [], task()), {
+        "custom-na-kind": "stage",
+    });
+    assert.deepEqual(
+        buildTaskAttrsFromMcpPatch({ outcome: null, dod: null }, [], task({ taskType: "2", actionKind: "" })),
+        { "custom-na-outcome": "", "custom-na-dod": "" },
+    );
+    assert.throws(
+        () => buildTaskAttrsFromMcpPatch({ actionKind: "stage" }, [], task({ taskType: "2", actionKind: "" })),
+        /ordinary Action/,
     );
 });
 

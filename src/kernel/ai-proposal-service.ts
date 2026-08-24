@@ -13,9 +13,7 @@ export interface AiProposalApplyResult {
     warnings: string[];
 }
 
-type CreateTaskHandler = (
-    input: CreateTaskInput & { status?: string; fields?: Record<string, unknown> },
-) => Promise<{ task: any; warnings?: string[] }>;
+type CreateTaskHandler = (input: CreateTaskInput) => Promise<{ task: any; warnings?: string[] }>;
 type ConvertTaskHandler = (input: Record<string, any>) => Promise<{ task: any; warnings?: string[] }>;
 
 export class AiProposalService {
@@ -62,13 +60,13 @@ export class AiProposalService {
         const createdIds: string[] = [];
         for (const item of proposal.tasks || []) {
             const fields = this.toFields(item, createdIds);
+            const properties = item.status === undefined ? fields : { status: item.status, ...fields };
             const target = proposal.target || ({ type: "mcp_default" } as AiWriteTarget);
             if (target.type === "original" && item.sourceBlockId) {
                 const result = await this.convertTask({
                     blockId: item.sourceBlockId,
                     kind: item.kind === "project" ? "project" : "task",
-                    status: item.status,
-                    fields,
+                    properties,
                 });
                 converted.push(result.task);
                 createdIds.push(result.task.blockId);
@@ -87,9 +85,8 @@ export class AiProposalService {
             const result = await this.createTask({
                 title: item.title,
                 kind: item.kind === "project" ? "project" : "task",
-                status: item.status,
                 destination,
-                fields,
+                properties,
             });
             created.push(result.task);
             createdIds.push(result.task.blockId);
@@ -118,7 +115,19 @@ export class AiProposalService {
 
     private toFields(item: AiProposedTask, createdIds: string[]): Record<string, any> {
         const fields: Record<string, any> = {};
-        for (const key of ["priority", "importance", "effort", "start", "due", "contexts", "tags", "note"] as const) {
+        for (const key of [
+            "priority",
+            "importance",
+            "effort",
+            "start",
+            "due",
+            "contexts",
+            "tags",
+            "note",
+            "outcome",
+            "dod",
+            "actionKind",
+        ] as const) {
             if (item[key] !== undefined) fields[key] = item[key];
         }
         if (item.parentId !== undefined) fields.parentId = item.parentId;

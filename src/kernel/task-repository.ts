@@ -22,6 +22,10 @@ import {
     ATTR_STATUS,
     ATTR_TAGS,
     ATTR_TASK,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
+    ACTION_KIND_STAGE,
     RPC_ERROR_TIMEOUT,
     WRITE_LOCK_TIMEOUT_MS,
 } from "../shared/constants";
@@ -76,6 +80,7 @@ function buildTaskEntryFromAttrs(
     titleOverride?: string,
     identity?: TaskEntryIdentity,
 ): TaskCacheEntry {
+    const taskType = identity?.taskType || attrs[ATTR_TASK] || existing?.taskType || "1";
     const entry: TaskCacheEntry = {
         blockId,
         identificationSource: identity?.identificationSource || existing?.identificationSource || "document",
@@ -98,6 +103,9 @@ function buildTaskEntryFromAttrs(
         sort: attrToNumber(attrs[ATTR_SORT], -1),
         completed: attrs[ATTR_COMPLETED] || "",
         note: attrs[ATTR_NOTE] || "",
+        outcome: attrs[ATTR_OUTCOME] || "",
+        dod: attrs[ATTR_DOD] || "",
+        actionKind: taskType === "2" ? "" : attrs[ATTR_KIND] === ACTION_KIND_STAGE ? "stage" : "action",
         created: attrs[ATTR_CREATED] || "",
         tags: attrs[ATTR_TAGS] || "",
         reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
@@ -106,7 +114,7 @@ function buildTaskEntryFromAttrs(
         customFields: extractCustomFields(attrs),
         blocked: false,
         blockedReason: "",
-        taskType: identity?.taskType || attrs[ATTR_TASK] || "1",
+        taskType,
         order: 0,
         childIds: existing ? existing.childIds : [],
         title: titleOverride ?? (existing ? existing.title : ""),

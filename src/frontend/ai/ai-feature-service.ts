@@ -10,6 +10,7 @@ import { formatRpcError, notifyError, notifyInfo } from "../notify";
 import { get } from "svelte/store";
 import { renderAiPromptTemplate } from "./ai-prompt-template";
 import { isProjectTask } from "../../shared/project-domain";
+import { buildAiTaskContext } from "../../shared/ai-context";
 
 interface AiServiceHost {
     bridge: KernelBridge;
@@ -83,44 +84,19 @@ function showRawAiResponse(title: string, raw: string, details = ""): void {
 }
 
 function taskSnapshot(task: TaskCacheEntry): Record<string, unknown> {
-    return {
-        blockId: task.blockId,
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-        importance: task.importance,
-        effort: task.effort,
-        start: task.start || null,
-        due: task.due || null,
-        context: task.context || "",
-        tags: task.tags || "",
-        parentId: task.parentId || null,
-        childCount: task.childIds?.length || 0,
-        depends: task.depends || "",
-        blocked: task.blocked,
-        blockedReason: task.blockedReason || null,
-        reviewDate: task.reviewDate || null,
-        note: task.note ? task.note.slice(0, 500) : "",
-    };
+    return buildAiTaskContext(task, { noteLimit: 500, dodLimit: 1000 });
 }
 
 function reviewSnapshot(task: TaskCacheEntry): Record<string, unknown> {
-    return {
-        blockId: task.blockId,
-        title: task.title.slice(0, 180),
-        status: task.status,
-        priority: task.priority,
-        importance: task.importance,
-        effort: task.effort,
-        start: task.start || null,
-        due: task.due || null,
-        context: task.context ? task.context.slice(0, 120) : "",
-        parentId: task.parentId || null,
-        blocked: task.blocked,
-        blockedReason: task.blockedReason || null,
-        reviewDate: task.reviewDate || null,
-        childCount: task.childIds?.length || 0,
-    };
+    const snapshot = buildAiTaskContext(task, {
+        titleLimit: 180,
+        noteLimit: 0,
+        dodLimit: 500,
+        tagsLimit: 0,
+        dependsLimit: 0,
+    });
+    snapshot.context = String(snapshot.context).slice(0, 120);
+    return snapshot;
 }
 
 function buildReviewContext(review: ReviewData): Record<string, unknown> {
@@ -228,6 +204,9 @@ function outputExampleFor(feature: AiFeatureId): string {
       "contexts": [],
       "tags": [],
       "note": null,
+      "outcome": null,
+      "dod": null,
+      "actionKind": "action",
       "reason": "原文明确要求确认验收标准。"
     }
   ],
@@ -284,7 +263,7 @@ function outputExampleFor(feature: AiFeatureId): string {
 }
 
 function schemaFor(feature: AiFeatureId): string {
-    const taskSchema = `"tasks": [{"title":"任务标题","kind":"task|project","sourceBlockId":"可选的现有源块ID","parentId":"可选的现有父任务ID","dependsOnIndexes":[0],"status":"可选状态","priority":"可选优先级","importance":4,"effort":4,"start":null,"due":null,"contexts":[],"tags":[],"note":null,"reason":"原因"}]`;
+    const taskSchema = `"tasks": [{"title":"任务标题","kind":"task|project","actionKind":"action|stage，仅 task 可用","outcome":"Project 的单行预期结果","dod":"Project 的多行完成判定","sourceBlockId":"可选的现有源块ID","parentId":"可选的现有父任务ID","dependsOnIndexes":[0],"status":"可选状态","priority":"可选优先级","importance":4,"effort":4,"start":null,"due":null,"contexts":[],"tags":[],"note":null,"reason":"原因"}]`;
     const featureSchema: Record<AiFeatureId, string> = {
         extractTasks: taskSchema,
         decomposeTask: taskSchema,

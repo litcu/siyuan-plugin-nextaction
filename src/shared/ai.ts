@@ -28,6 +28,9 @@ export interface AiProposedTask {
     contexts?: string[];
     tags?: string[];
     note?: string | null;
+    outcome?: string | null;
+    dod?: string | null;
+    actionKind?: "action" | "stage" | null;
     reason?: string;
 }
 
@@ -268,6 +271,14 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
             contexts: normalizeStringList(value.contexts, `tasks[${index}].contexts`, errors),
             tags: normalizeStringList(value.tags, `tasks[${index}].tags`, errors),
             note: value.note === null ? null : typeof value.note === "string" ? value.note : undefined,
+            outcome: value.outcome === null ? null : typeof value.outcome === "string" ? value.outcome : undefined,
+            dod: value.dod === null ? null : typeof value.dod === "string" ? value.dod : undefined,
+            actionKind:
+                value.actionKind === null
+                    ? null
+                    : value.actionKind === "action" || value.actionKind === "stage"
+                      ? value.actionKind
+                      : undefined,
             reason: typeof value.reason === "string" ? value.reason : undefined,
         };
         if (!item.title || item.title.length > 512) errors.push(`tasks[${index}].title must contain 1-512 characters`);
@@ -277,6 +288,24 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
         if (item.status && !(ALL_STATUSES as readonly string[]).includes(item.status))
             errors.push(`tasks[${index}].status is invalid`);
         if (item.priority && !PRIORITIES.has(item.priority)) errors.push(`tasks[${index}].priority is invalid`);
+        if (value.actionKind !== undefined && value.actionKind !== null && item.actionKind === undefined) {
+            errors.push(`tasks[${index}].actionKind must be action or stage`);
+        }
+        if (value.outcome !== undefined && value.outcome !== null && typeof value.outcome !== "string") {
+            errors.push(`tasks[${index}].outcome must be a string or null`);
+        }
+        if (value.dod !== undefined && value.dod !== null && typeof value.dod !== "string") {
+            errors.push(`tasks[${index}].dod must be a string or null`);
+        }
+        if (item.kind === "project" && item.actionKind) {
+            errors.push(`tasks[${index}].actionKind only applies to an ordinary Action`);
+        }
+        if (item.outcome && (/\r|\n/.test(item.outcome) || item.outcome.length > 500)) {
+            errors.push(`tasks[${index}].outcome must be single-line plain text <= 500 characters`);
+        }
+        if (item.dod && item.dod.length > 4000) {
+            errors.push(`tasks[${index}].dod must be plain text <= 4000 characters`);
+        }
         for (const field of ["importance", "effort"] as const) {
             const value = item[field];
             if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 7))

@@ -4,6 +4,9 @@ import {
     ATTR_REMINDER,
     ATTR_PARENT,
     ATTR_DEPENDS,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
     RPC_ERROR_INTERNAL,
     RPC_ERROR_INVALID_PARAMS,
     RPC_ERROR_TASK_NOT_FOUND,
@@ -72,6 +75,15 @@ export function validateTaskAttrs(attrs: Record<string, string>): string | null 
         }
         if (key === ATTR_DEPENDS && !isBlockIdPipe(attrs[key])) {
             return `Invalid attribute value for ${key}: must contain raw SiYuan block IDs`;
+        }
+        if (key === ATTR_OUTCOME && (/\r|\n/.test(attrs[key]) || attrs[key].length > 500)) {
+            return `Invalid attribute value for ${key}: must be single-line plain text <= 500 characters`;
+        }
+        if (key === ATTR_DOD && attrs[key].length > 4000) {
+            return `Invalid attribute value for ${key}: must be plain text <= 4000 characters`;
+        }
+        if (key === ATTR_KIND && attrs[key] !== "" && attrs[key] !== "action" && attrs[key] !== "stage") {
+            return `Invalid attribute value for ${key}: must be action or stage`;
         }
         if (key === ATTR_REMINDER) {
             const val = attrs[key];

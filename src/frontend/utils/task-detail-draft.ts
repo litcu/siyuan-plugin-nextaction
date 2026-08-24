@@ -6,6 +6,9 @@ export type TaskDetailDraft = {
     due: string;
     start: string;
     note: string;
+    outcome: string;
+    dod: string;
+    actionKind: string;
     contexts: string[];
     taskTags: string[];
     parentId: string;

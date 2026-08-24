@@ -1,4 +1,5 @@
 export type TaskBlockedReason = "" | "inbox" | "someday" | "children" | "dependency" | "sequential";
+export type TaskActionKind = "" | "action" | "stage";
 
 export interface TaskCacheEntry {
     blockId: string;
@@ -25,6 +26,9 @@ export interface TaskCacheEntry {
     sort: number; // na-sort 转数字，默认 -1（表示未设置）
     completed: string; // na-completed 原始值
     note: string; // na-note 原始值
+    outcome: string; // na-outcome，Project 的单行预期结果
+    dod: string; // na-dod，Project 的多行完成判定
+    actionKind: TaskActionKind; // Project 为空；普通 Action 为 action/stage
     created: string; // na-created 原始值 (YYYY-MM-DDTHH:mm:ss)
     updated?: string; // 思源块更新时间，用于稳定的完成任务排序回退
     tags: string; // na-tags 原始值（管道符分隔）

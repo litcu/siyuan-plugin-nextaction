@@ -56,6 +56,9 @@
     let due = "";
     let start = "";
     let note = "";
+    let outcome = "";
+    let dod = "";
+    let actionKind = "action";
     let contexts: string[] = [];
     let taskTags: string[] = [];
     let parentId = "";
@@ -138,6 +141,10 @@
         { value: "1", label: i18n?.task || "Task" },
         { value: "2", label: i18n?.project || "Project" },
     ];
+    $: actionKindOptions = [
+        { value: "action", label: i18n?.actionKindAction || "Action" },
+        { value: "stage", label: i18n?.actionKindStage || "Stage" },
+    ];
     $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
     $: aiDecomposeLabel = isProject
         ? i18n?.aiDecomposeProject || "Break down project with AI"
@@ -169,6 +176,9 @@
             due,
             start,
             note,
+            outcome,
+            dod,
+            actionKind: taskType === "2" ? "" : actionKind || "action",
             contexts,
             taskTags,
             parentId,
@@ -201,6 +211,9 @@
             due = draft.due;
             start = draft.start;
             note = draft.note;
+            outcome = draft.outcome;
+            dod = draft.dod;
+            actionKind = draft.actionKind || "action";
             contexts = [...draft.contexts];
             taskTags = [...draft.taskTags];
             parentId = draft.parentId;
@@ -268,6 +281,11 @@
         customFieldError = "";
         saveError = "";
         session.edit(buildDraft());
+    }
+
+    function handleActionKindChange(event: CustomEvent<string>) {
+        actionKind = event.detail;
+        handleChange();
     }
 
     export async function flushPendingSave(): Promise<boolean> {
@@ -591,6 +609,47 @@
         <div class="na-task-detail__notice"><NaInlineNotice message={noticeMessage} tone={noticeTone} /></div>
     {/if}
 
+    {#if isProject}
+        <NaPropertySection
+            title={i18n?.detailGroupProjectDefinition || "Project definition"}
+            description={i18n?.projectDefinitionSourceHint ||
+                "These properties control the project; document content remains free-form notes."}
+        >
+            <NaPropertyRow
+                label={i18n?.outcome || "Outcome"}
+                description={i18n?.outcomeHint || "The result this project is meant to create"}
+                forId="na-project-outcome"
+                stacked={true}
+            >
+                <input
+                    id="na-project-outcome"
+                    class="b3-text-field fn__block"
+                    type="text"
+                    maxlength="500"
+                    placeholder={i18n?.outcomePlaceholder || "Describe the result in one sentence"}
+                    bind:value={outcome}
+                    on:input={handleChange}
+                />
+            </NaPropertyRow>
+            <NaPropertyRow
+                label={i18n?.definitionOfDone || "Definition of Done"}
+                description={i18n?.dodHint || "Conditions to check before confirming completion"}
+                forId="na-project-dod"
+                stacked={true}
+            >
+                <textarea
+                    id="na-project-dod"
+                    class="b3-text-field fn__block"
+                    rows="4"
+                    maxlength="4000"
+                    placeholder={i18n?.dodPlaceholder || "Describe the conditions that mean the outcome is achieved"}
+                    bind:value={dod}
+                    on:input={handleChange}
+                ></textarea>
+            </NaPropertyRow>
+        </NaPropertySection>
+    {/if}
+
     <NaPropertySection title={i18n?.detailGroupBasics || i18n?.detailGroupNotes || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
             <select class="b3-select fn__block" bind:value={status} on:change={handleChange}>
@@ -598,6 +657,20 @@
                     >{/each}
             </select>
         </NaPropertyRow>
+        {#if !isProject}
+            <NaPropertyRow
+                label={i18n?.actionKind || "Action kind"}
+                description={i18n?.actionKindHint ||
+                    "Stages use the same status, dates, and execution rules as Actions"}
+            >
+                <NaSegmentControl
+                    options={actionKindOptions}
+                    value={actionKind || "action"}
+                    label={i18n?.actionKind || "Action kind"}
+                    on:change={handleActionKindChange}
+                />
+            </NaPropertyRow>
+        {/if}
         <NaPropertyRow label={i18n?.taskType || "Item type"}>
             <NaSegmentControl
                 options={taskTypeOptions}
