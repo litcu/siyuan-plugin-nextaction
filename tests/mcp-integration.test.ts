@@ -104,7 +104,8 @@ test("子任务创建统一生成原生任务列表项", () => {
     assert.match(creationSource, /resolveChildContainer\(destination\.parentBlockId, false\)/);
     assert.match(targetSource, /containerTypes = new Set\(\[[^\]]*"d"/);
     assert.match(creationSource, /dataType: "markdown"/);
-    assert.match(creationSource, /data: `- \[ \] \$\{escapeMarkdownText\(title\)\}`/);
+    assert.match(creationSource, /const nativeTaskMarkdown = `- \[ \] \$\{escapeMarkdownText\(title\)\}/);
+    assert.match(creationSource, /data: nativeTaskMarkdown/);
     assert.doesNotMatch(creationSource, /buildListItemBlockDom/);
     assert.match(creationSource, /format: "paragraph"/);
     assert.match(targetSource, /Inserted task list does not contain a task item text block/);

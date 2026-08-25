@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,26 +8,10 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import { findBrowserExecutable } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-
-function findBrowserExecutable(): string {
-    const configured = process.env.NA_LAYOUT_BROWSER;
-    const candidates = [
-        configured,
-        process.platform === "win32" ? "C:/Program Files/Google/Chrome/Application/chrome.exe" : undefined,
-        process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined,
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-    ].filter((candidate): candidate is string => Boolean(candidate));
-
-    const executable = candidates.find((candidate) => existsSync(candidate));
-    assert.ok(executable, "未找到浏览器；可通过 NA_LAYOUT_BROWSER 指定 Chrome/Edge 路径");
-    return executable;
-}
 
 test("Review 打开项目后保留选择和展开状态，并显示 Stage", async () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-main-path-"));
@@ -216,13 +200,14 @@ const projectId = "20260825120000-project";
 const supportId = "20260825120001-support";
 let attempts = 0;
 let opened = "";
+let extracted = "";
 const i18n = new Proxy({
     projectSupport: "Project Support", projectSupportDescription: "Referenced project context",
     projectSupportRefresh: "Refresh", projectSupportEmpty: "No support yet",
     projectSupportLoadError: "Support unavailable: {error}", projectSupportRetry: "Retry",
     projectSupportForward: "Referenced by project", projectSupportBacklink: "Links to project",
     projectSupportBoth: "Linked both ways", projectSupportBlock: "Block",
-    projectSupportDocument: "Document", projectSupportOpen: "Open source", loading: "Loading",
+    projectSupportDocument: "Document", projectSupportOpen: "Open source", extractAction: "Extract Action", loading: "Loading",
 }, { get: (target, key) => target[key] || String(key) });
 
 const delay = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -241,9 +226,12 @@ async function loadSupport(requestedProjectId) {
 }
 </script>
 
-<div id="harness" data-attempts={attempts} data-opened={opened}>
+<div id="harness" data-attempts={attempts} data-opened={opened} data-extracted={extracted}>
     <div id="core-project-content">Project outcome remains available</div>
-    <ProjectSupportSection {projectId} {i18n} {loadSupport} onOpen={(blockId) => (opened = blockId)} />
+    <ProjectSupportSection
+        {projectId} {i18n} {loadSupport} onOpen={(blockId) => (opened = blockId)}
+        onExtract={(blockId) => (extracted = blockId)}
+    />
 </div>`,
         );
         writeFileSync(
@@ -265,6 +253,7 @@ setTimeout(() => {
         const coreVisibleDuringError = Boolean(document.querySelector("#core-project-content"));
         findButton("Retry")?.click();
         setTimeout(() => {
+            document.querySelector('button[aria-label="Extract Action"]')?.click();
             document.querySelector('button[aria-label="Open source"]')?.click();
             setTimeout(() => {
                 const harness = document.querySelector("#harness");
@@ -276,6 +265,7 @@ setTimeout(() => {
                     titleVisible: document.body.textContent.includes("Source note"),
                     directionVisible: document.body.textContent.includes("Linked both ways"),
                     opened: harness?.dataset.opened,
+                    extracted: harness?.dataset.extracted,
                 });
             }, 20);
         }, 60);
@@ -343,6 +333,7 @@ setTimeout(() => {
             titleVisible: true,
             directionVisible: true,
             opened: "20260825120001-support",
+            extracted: "20260825120001-support",
         });
     } finally {
         rmSync(fixtureRoot, { recursive: true, force: true });

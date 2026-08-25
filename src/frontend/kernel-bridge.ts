@@ -22,6 +22,7 @@ import type {
     RpcParams,
     RpcReturn,
 } from "../shared/rpc-methods";
+import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
 import { isRpcFailure } from "../shared/rpc-methods";
 import { assertBlockId } from "../shared/block-id";
 import { RPC_ERROR_NOT_READY } from "../shared/constants";
@@ -139,6 +140,14 @@ export class KernelBridge {
 
     async getProjectSupport(projectId: string): Promise<ProjectSupportData> {
         return this.call("getProjectSupport", { projectId: assertBlockId(projectId, "projectId") });
+    }
+
+    async extractAction(input: ExtractActionInput): Promise<ExtractActionResult> {
+        return this.call("extractAction", {
+            ...input,
+            sourceBlockId: assertBlockId(input.sourceBlockId, "sourceBlockId"),
+            ...(input.projectId ? { projectId: assertBlockId(input.projectId, "projectId") } : {}),
+        });
     }
 
     async getCompletedTasksPage(options: CompletedTasksPageOptions = {}): Promise<CompletedTasksPage> {

@@ -761,5 +761,20 @@
     "createMoreProperties": "更多属性",
     "createValuesPlaceholder": "使用逗号分隔多个值",
     "createDialogUnavailable": "无法打开任务创建窗口",
-    "createTaskUnavailable": "任务已写入，但暂时无法读取，请稍后刷新"
+    "createTaskUnavailable": "任务已写入，但暂时无法读取，请稍后刷新",
+    "extractAction": "提取行动",
+    "extractActionTitle": "保留来源并创建行动",
+    "extractActionDescription": "创建一个可返回当前来源笔记的行动",
+    "extractActionSource": "来源",
+    "extractActionSourcePreserved": "来源笔记将保持不变。",
+    "extractActionInPlaceHint": "如需原位转换来源块，请改用“转换为任务”。",
+    "extractActionTaskTitle": "行动标题",
+    "extractActionTitlePlaceholder": "需要完成什么？",
+    "extractActionProject": "项目归属",
+    "extractActionNoProject": "不归属项目",
+    "extractActionProjectPlaceholder": "选择项目或保持未归属",
+    "extractActionProjectEmpty": "没有找到项目",
+    "extractActionSubmit": "保留来源并创建行动",
+    "extractActionSuccess": "已创建行动并保留来源引用",
+    "extractActionDialogUnavailable": "无法打开行动提取窗口"
 }

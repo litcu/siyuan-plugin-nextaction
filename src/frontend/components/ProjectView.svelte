@@ -57,6 +57,7 @@
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
@@ -363,6 +364,7 @@
                         {onContextMenu}
                         {loadProjectSupport}
                         onOpenProjectSupport={jumpToBlock}
+                        {onExtractAction}
                     />
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode

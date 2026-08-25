@@ -21,6 +21,7 @@ function requestHeaders() {
 let passed = 0;
 let failed = 0;
 const testDocumentIds = [];
+const testTaskIds = [];
 
 async function siyuanAPI(path, body = {}) {
     const response = await fetch(baseURL + path, {
@@ -157,6 +158,95 @@ async function removeTemporaryDocuments() {
         }
     }
     testDocumentIds.length = 0;
+}
+
+async function removeTemporaryTasks() {
+    for (const taskId of testTaskIds.reverse()) {
+        try {
+            await rpc("removeTask", { blockId: taskId });
+            await siyuanAPI("/api/block/deleteBlock", { id: taskId });
+            console.log(`\nCleanup: removed temporary task ${taskId}`);
+        } catch (error) {
+            failed++;
+            console.error(`\nCleanup failed for temporary task ${taskId}:`, error);
+        }
+    }
+    testTaskIds.length = 0;
+}
+
+async function testActionExtraction() {
+    console.log("\n--- Action extraction ---");
+    const source = await createTemporaryDocument({
+        titlePrefix: "NextAction Extraction Source",
+        markdown: "# Extraction source\n\nKeep this source note unchanged.",
+    });
+    const project = await createTemporaryDocument({ titlePrefix: "NextAction Extraction Project" });
+    const projectConversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        projectConversion.result?.taskType === "2" && !projectConversion.result?._rpcError,
+        "Action extraction target is a Project document",
+        JSON.stringify(projectConversion.result),
+    );
+    const sourceBefore = await siyuanAPI("/api/block/getBlockKramdown", { id: source.id });
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const extraction = await snapshotAfter("Action extraction", snapshotBefore, () =>
+        rpc("extractAction", {
+            sourceBlockId: source.id,
+            title: "Verify extracted Action",
+            status: "todo",
+            actionKind: "stage",
+            projectId: project.id,
+        }),
+    );
+    const task = extraction.result?.result?.task;
+    const taskId = requireBlockId(task?.blockId, "Action extraction");
+    testTaskIds.push(taskId);
+    assert(
+        task?.parentId === project.id && task?.actionKind === "stage" && task?.status === "todo",
+        "Action extraction applies Project, Stage, and status through authoritative task state",
+        JSON.stringify(task),
+    );
+    const actionKramdown = await siyuanAPI("/api/block/getBlockKramdown", { id: taskId });
+    assert(
+        String(actionKramdown?.kramdown || "").includes(source.id),
+        "Extracted Action contains a native reference to its source",
+        JSON.stringify(actionKramdown),
+    );
+    const sourceAfter = await siyuanAPI("/api/block/getBlockKramdown", { id: source.id });
+    assert(
+        sourceAfter?.kramdown === sourceBefore?.kramdown,
+        "Action extraction preserves the source block",
+        JSON.stringify({ before: sourceBefore, after: sourceAfter }),
+    );
+
+    const unassignedExtraction = await snapshotAfter("Unassigned Action extraction", extraction.snapshot, () =>
+        rpc("extractAction", {
+            sourceBlockId: source.id,
+            title: "Verify unassigned extracted Action",
+            status: "inbox",
+            actionKind: "action",
+        }),
+    );
+    const unassignedTask = unassignedExtraction.result?.result?.task;
+    const unassignedTaskId = requireBlockId(unassignedTask?.blockId, "Unassigned Action extraction");
+    testTaskIds.push(unassignedTaskId);
+    assert(
+        !unassignedTask?.parentId,
+        "Action extraction supports an unassigned authoritative result",
+        JSON.stringify(unassignedTask),
+    );
+
+    const invalidSource = await rpc("extractAction", {
+        sourceBlockId: "20991231235959-missing",
+        title: "Must not create an Action",
+        status: "todo",
+        actionKind: "action",
+    });
+    assert(
+        Boolean(invalidSource.result?._rpcError) && !invalidSource.result?.task,
+        "Action extraction rejects a nonexistent source without false success",
+        JSON.stringify(invalidSource),
+    );
 }
 
 async function testProjectSupport() {
@@ -397,6 +487,7 @@ async function runTests() {
     assert(!attrs?.["custom-na-task"], "task marker is cleared authoritatively");
 
     await testProjectSupport();
+    await testActionExtraction();
 }
 
 async function main() {
@@ -406,6 +497,7 @@ async function main() {
         failed++;
         console.error("Integration test error:", error);
     } finally {
+        await removeTemporaryTasks();
         await removeTemporaryDocuments();
     }
 

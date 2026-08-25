@@ -761,5 +761,20 @@
     "createMoreProperties": "More properties",
     "createValuesPlaceholder": "Separate values with commas",
     "createDialogUnavailable": "Task creation dialog is unavailable",
-    "createTaskUnavailable": "The task was written but is not available yet; refresh shortly"
+    "createTaskUnavailable": "The task was written but is not available yet; refresh shortly",
+    "extractAction": "Extract Action",
+    "extractActionTitle": "Keep source and create Action",
+    "extractActionDescription": "Create an Action that links back to this source note",
+    "extractActionSource": "Source",
+    "extractActionSourcePreserved": "The source note remains unchanged.",
+    "extractActionInPlaceHint": "To convert the source in place, use Convert to task instead.",
+    "extractActionTaskTitle": "Action title",
+    "extractActionTitlePlaceholder": "What needs to be done?",
+    "extractActionProject": "Project",
+    "extractActionNoProject": "No Project",
+    "extractActionProjectPlaceholder": "Choose a Project or leave unassigned",
+    "extractActionProjectEmpty": "No Projects found",
+    "extractActionSubmit": "Keep source and create Action",
+    "extractActionSuccess": "Action created with a link to its source",
+    "extractActionDialogUnavailable": "Action extraction window is unavailable"
 }

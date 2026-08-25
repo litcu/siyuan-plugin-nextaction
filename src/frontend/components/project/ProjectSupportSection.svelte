@@ -12,6 +12,7 @@
     export let i18n: I18nStrings;
     export let loadSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onOpen: (blockId: string) => void;
+    export let onExtract: ((blockId: string, title: string) => void) | undefined = undefined;
 
     let data: ProjectSupportData | null = null;
     let loadedProjectId = "";
@@ -83,12 +84,22 @@
                             <NaBadge text={kindLabel(item.kind)} />
                             <NaBadge text={directionLabel(item.directions)} tone="info" />
                         </div>
-                        <NaIconButton
-                            symbol="iconOpenWindow"
-                            label={i18n.projectSupportOpen}
-                            size={13}
-                            on:click={() => onOpen(item.blockId)}
-                        />
+                        <div class="na-project-support__actions">
+                            {#if onExtract}
+                                <NaIconButton
+                                    symbol="iconNextAction"
+                                    label={i18n.extractAction}
+                                    size={13}
+                                    on:click={() => onExtract?.(item.blockId, item.title)}
+                                />
+                            {/if}
+                            <NaIconButton
+                                symbol="iconOpenWindow"
+                                label={i18n.projectSupportOpen}
+                                size={13}
+                                on:click={() => onOpen(item.blockId)}
+                            />
+                        </div>
                     </article>
                 {/each}
             </div>
@@ -143,6 +154,11 @@
         align-items: center;
         justify-content: flex-end;
         flex-wrap: wrap;
+        gap: var(--na-space-xs);
+    }
+    .na-project-support__actions {
+        display: flex;
+        align-items: center;
         gap: var(--na-space-xs);
     }
     @container nextaction-app (max-width: 560px) {

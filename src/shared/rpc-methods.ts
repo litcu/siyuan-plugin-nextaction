@@ -1,6 +1,7 @@
 import { validateAiProposal, type AiProposal } from "./ai";
+import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
 import { assertBlockId } from "./block-id";
-import { RPC_ERROR_INVALID_PARAMS } from "./constants";
+import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
 import type { RepeatRuleV2 } from "./repeat";
 import { validateSettings, type PluginSettings } from "./settings";
 import type { CompletedTasksPageOptions } from "./task-pagination";
@@ -202,6 +203,29 @@ function createTaskParams(value: unknown): CreateTaskInput {
     return { ...input, title, destination } as unknown as CreateTaskInput;
 }
 
+function extractActionParams(value: unknown): ExtractActionInput {
+    const input = paramsRecord(value);
+    const status = requiredString(input.status, "status");
+    if (!(ALL_STATUSES as readonly string[]).includes(status)) {
+        throw new RpcContractError("status is invalid");
+    }
+    if (input.actionKind !== ACTION_KIND_ACTION && input.actionKind !== ACTION_KIND_STAGE) {
+        throw new RpcContractError("actionKind must be action or stage");
+    }
+    const start = optionalString(input.start, "start");
+    const due = optionalString(input.due, "due");
+    const projectId = optionalBlockId(input.projectId, "projectId");
+    return {
+        sourceBlockId: requiredBlockId(input.sourceBlockId, "sourceBlockId"),
+        title: requiredString(input.title, "title"),
+        status,
+        actionKind: input.actionKind,
+        ...(start !== undefined ? { start } : {}),
+        ...(due !== undefined ? { due } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
+    };
+}
+
 function proposalParams(value: unknown): { proposal: AiProposal } {
     const input = paramsRecord(value);
     const validation = validateAiProposal(input.proposal);
@@ -275,6 +299,7 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { projectId: requiredBlockId(input.projectId, "projectId") };
     }),
+    extractAction: defineRpc<ExtractActionInput, ExtractActionResult>(extractActionParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);
         for (const key of ["page", "pageSize"] as const) {

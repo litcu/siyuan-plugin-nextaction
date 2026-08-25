@@ -23,6 +23,7 @@ import { RpcContractError } from "./shared/rpc-methods";
 import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
 import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/project-support-service";
+import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action-extraction-service";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -96,6 +97,11 @@ class NextActionKernelPlugin {
         };
         const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask);
         const projectSupportService = new ProjectSupportService(new SiyuanProjectSupportQueryPort(api));
+        const actionExtractionService = new ActionExtractionService(
+            this.taskService,
+            this.taskCreationService,
+            new SiyuanActionSourcePort(api),
+        );
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -112,6 +118,7 @@ class NextActionKernelPlugin {
                 this.taskService.assertReady();
                 return projectSupportService.load(this.taskService.getTask(projectId));
             },
+            extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),
         });

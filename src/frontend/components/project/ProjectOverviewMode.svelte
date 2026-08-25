@@ -17,6 +17,7 @@
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onOpenProjectSupport: (blockId: string) => void;
+    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -100,6 +101,7 @@
         {i18n}
         loadSupport={loadProjectSupport}
         onOpen={onOpenProjectSupport}
+        onExtract={(sourceBlockId, sourceTitle) => onExtractAction(sourceBlockId, sourceTitle, summary.project.blockId)}
     />
 </div>
 

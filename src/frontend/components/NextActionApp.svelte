@@ -37,6 +37,7 @@
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+    import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
     import { confirm } from "siyuan";
 
     export let bridge: KernelBridge;
@@ -241,6 +242,17 @@
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
+    function openExtractAction(sourceBlockId: string, sourceTitle: string, projectId: string) {
+        openExtractActionDialog({
+            bridge,
+            i18n,
+            sourceBlockId,
+            sourceTitle,
+            defaultProjectId: projectId,
+            onCreated: handleTaskCreated,
+        }).catch((error) => notifyError(formatRpcError(error, i18n)));
+    }
+
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
     $: activeViewMeta = (() => {
         const labels: Record<string, { title: string; icon: string }> = {
@@ -323,6 +335,7 @@
                     onTaskReorder={handleProjectTaskReorder}
                     onCreateChild={(task) => openCreate(task)}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
+                    onExtractAction={openExtractAction}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}

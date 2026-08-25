@@ -27,6 +27,7 @@ export class FakeSiyuanApi implements SiyuanApiPort {
     readonly failAtRequest = new Map<string, number>();
     readonly requestCounts = new Map<string, number>();
     failBroadcast = false;
+    dailyNoteDocumentId = "";
     private generatedIdCounter = 0;
 
     private nextBlockId(): string {
@@ -96,11 +97,20 @@ export class FakeSiyuanApi implements SiyuanApiPort {
             return null as T;
         }
         if (path === "/api/notebook/lsNotebooks") return { notebooks: this.notebooks } as T;
+        if (path === "/api/filetree/createDailyNote") return { id: this.dailyNoteDocumentId } as T;
         if (path === "/api/query/sql") return this.queryFromStatement(input.stmt || "") as T;
         if (path === "/api/block/getChildBlocks") {
             return [...this.blocks.values()]
                 .filter((block) => block.parentId === input.id)
                 .map((block) => ({ id: block.id, type: block.type, subtype: block.subtype })) as T;
+        }
+        if (path === "/api/block/checkBlockExist") {
+            return this.blocks.has(input.id || "") as T;
+        }
+        if (path === "/api/block/getBlockKramdown") {
+            const block = this.blocks.get(input.id || "");
+            if (!block) return { id: input.id, kramdown: "" } as T;
+            return { id: block.id, kramdown: block.markdown } as T;
         }
         if (path === "/api/block/getBlockDOM") {
             const block = this.blocks.get(input.id || "");
@@ -124,7 +134,10 @@ export class FakeSiyuanApi implements SiyuanApiPort {
             const rootId = this.nextBlockId();
             const listItemId = this.nextBlockId();
             const paragraphId = this.nextBlockId();
-            const title = (input.data || "").replace(/^- \[ \] /, "").replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
+            const title = (input.data || "")
+                .split("\n", 1)[0]
+                .replace(/^- \[ \] /, "")
+                .replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
             this.addBlock(rootId, "l", title, "notebook", "/Task", {
                 subtype: "t",
                 parentId: input.parentID || "",
@@ -153,7 +166,10 @@ export class FakeSiyuanApi implements SiyuanApiPort {
             const block = this.blocks.get(input.id || "");
             if (!block) throw new Error(`Unknown fake block: ${input.id}`);
             if (input.dataType === "markdown" && /^- \[ \] /.test(input.data || "")) {
-                const title = (input.data || "").replace(/^- \[ \] /, "").replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
+                const title = (input.data || "")
+                    .split("\n", 1)[0]
+                    .replace(/^- \[ \] /, "")
+                    .replace(/\\([\\`*_[\]{}()#+\-.!>|])/g, "$1");
                 const listItemId = this.nextBlockId();
                 const paragraphId = this.nextBlockId();
                 block.type = "l";
@@ -191,6 +207,17 @@ export class FakeSiyuanApi implements SiyuanApiPort {
                 block.markdown = input.data || "";
             }
             return [{ doOperations: [{ action: "update", id: block.id, data: input.data || "" }] }] as T;
+        }
+        if (path === "/api/block/deleteBlock") {
+            const pending = [input.id || ""];
+            while (pending.length) {
+                const current = pending.pop()!;
+                for (const block of this.blocks.values()) {
+                    if (block.parentId === current) pending.push(block.id);
+                }
+                this.blocks.delete(current);
+            }
+            return null as T;
         }
         return null as T;
     }
