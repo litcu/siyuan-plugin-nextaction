@@ -72,6 +72,27 @@ test("Action 只提取目标版本并生成固定发布日期格式", () => {
     assert.doesNotMatch(notes, /旧版本/);
 });
 
+test("嵌套或未闭合的 HTML 注释不会泄漏到发布说明", () => {
+    // Regression: 单次正则清理嵌套 HTML 注释时会残留注释正文和结束标记。
+    const nested = `# 更新日志
+
+## [0.4.1] - 2026-08-07
+
+<!-- 外层 <!-- 内层 --> 仍属于注释 -->
+- 可见更新
+`;
+    const unterminated = `# 更新日志
+
+## [0.4.1] - 2026-08-07
+
+- 可见更新
+<!-- 未闭合注释
+`;
+
+    assert.equal(extractReleaseNotes(nested, "0.4.1"), "> 发布日期：2026-08-07\n\n- 可见更新\n");
+    assert.equal(extractReleaseNotes(unterminated, "0.4.1"), "> 发布日期：2026-08-07\n\n- 可见更新\n");
+});
+
 test("发布工作流从 CHANGELOG 提取正文而不是写死默认文案", () => {
     const workflow = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
     const releaseScript = readFileSync(new URL("../scripts/release-version.js", import.meta.url), "utf8");
