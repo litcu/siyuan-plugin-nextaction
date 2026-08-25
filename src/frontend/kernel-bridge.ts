@@ -110,6 +110,10 @@ export class KernelBridge {
         return this.call("updateTask", { blockId: assertBlockId(blockId), attrs });
     }
 
+    async updateTaskTitle(blockId: string, title: string): Promise<TaskCacheEntry> {
+        return this.call("updateTaskTitle", { blockId: assertBlockId(blockId), title });
+    }
+
     async setRepeatRule(blockId: string, rule: RepeatRuleV2): Promise<TaskCacheEntry> {
         return this.call("setRepeatRule", { blockId: assertBlockId(blockId), rule });
     }

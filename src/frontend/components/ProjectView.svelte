@@ -9,6 +9,7 @@
     import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
     import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
     import ProjectDefinitionEditor from "./project/ProjectDefinitionEditor.svelte";
+    import ProjectStagePlan from "./project/ProjectStagePlan.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -55,9 +56,11 @@
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onTaskUpdate:
         ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
+    export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
     export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
@@ -365,6 +368,19 @@
                 </div>
 
                 {#if mode === "overview"}
+                    {#if projectTreeModel}
+                        <ProjectStagePlan
+                            project={selectedSummary.project}
+                            model={projectTreeModel}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            onCreateStage={onCreateStage ? () => onCreateStage?.(selectedSummary.project) : undefined}
+                            onRenameTask={onTaskRename}
+                            {onTaskUpdate}
+                            {onTaskReorder}
+                        />
+                    {/if}
                     <ProjectOverviewMode
                         summary={selectedSummary}
                         risks={selectedProject?.risks || []}

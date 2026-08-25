@@ -85,6 +85,42 @@ test("KernelBridge 在发起 RPC 前拒绝块链接", async () => {
     assert.deepEqual(calls, []);
 });
 
+test("Stage 重命名通过共享 RPC 契约进入内核标题写入", async () => {
+    const calls: Array<{ method: string; params: unknown }> = [];
+    const bridge = new KernelBridge({
+        kernel: {
+            state: { code: 2 },
+            rpc: {
+                call: new Proxy(
+                    {},
+                    {
+                        get: (_target, method: string) => async (params: unknown) => {
+                            calls.push({ method, params });
+                            return { blockId: ID, title: "Renamed Stage" };
+                        },
+                    },
+                ),
+                bind: () => {},
+                unbind: () => {},
+            },
+        },
+    });
+
+    const updated = await bridge.updateTaskTitle(ID, "Renamed Stage");
+
+    assert.equal(updated.title, "Renamed Stage");
+    assert.deepEqual(calls, [
+        {
+            method: "updateTaskTitle",
+            params: { blockId: ID, title: "Renamed Stage" },
+        },
+    ]);
+    assert.deepEqual(RPC_CONTRACT.updateTaskTitle.parseParams({ blockId: ID, title: "Renamed Stage" }), {
+        blockId: ID,
+        title: "Renamed Stage",
+    });
+});
+
 test("KernelBridge 区分未就绪、传输失败和可重试恢复", async () => {
     let calls = 0;
     let shouldReject = true;

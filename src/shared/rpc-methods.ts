@@ -306,6 +306,10 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { blockId: requiredBlockId(input.blockId), attrs: stringRecord(input.attrs, "attrs") };
     }),
+    updateTaskTitle: defineRpc<{ blockId: string; title: string }, TaskCacheEntry>((value) => {
+        const input = paramsRecord(value);
+        return { blockId: requiredBlockId(input.blockId), title: requiredString(input.title, "title") };
+    }),
     setRepeatRule: defineRpc<{ blockId: string; rule: RepeatRuleV2 }, TaskCacheEntry>((value) => {
         const input = paramsRecord(value);
         return {

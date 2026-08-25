@@ -89,6 +89,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
             return { success: true };
         },
         updateTask: ({ blockId, attrs }) => taskService.updateTask(blockId, attrs),
+        updateTaskTitle: ({ blockId, title }) => taskService.updateTaskTitle(blockId, title),
         setRepeatRule: ({ blockId, rule }) => taskService.setRepeatRule(blockId, rule),
         skipRepeatOccurrence: ({ blockId }) => taskService.skipRepeatOccurrence(blockId),
         setRepeatPaused: ({ blockId, paused }) => taskService.setRepeatPaused(blockId, paused),

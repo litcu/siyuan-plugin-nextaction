@@ -214,6 +214,18 @@
         }
     }
 
+    async function handleProjectTaskRename(task: TaskCacheEntry, title: string): Promise<TaskCacheEntry> {
+        try {
+            const updated = await bridge.updateTaskTitle(task.blockId, title);
+            taskStore.applyUpdate(updated);
+            if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+            return updated;
+        } catch (error: any) {
+            notifyError(formatRpcError(error, i18n));
+            throw error;
+        }
+    }
+
     async function handleProjectTaskReorder(blockId: string, parentId: string, afterId?: string): Promise<void> {
         try {
             const updated = await bridge.reorderTask(blockId, parentId, afterId);
@@ -239,11 +251,12 @@
         void handleEdit(task);
     }
 
-    function openCreate(parentTask: TaskCacheEntry | null = null) {
+    function openCreate(parentTask: TaskCacheEntry | null = null, initialActionKind: "action" | "stage" = "action") {
         openCreateTaskDialog({
             bridge,
             i18n,
             parentTask,
+            initialActionKind,
             onCreated: handleTaskCreated,
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
@@ -338,8 +351,10 @@
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     onTaskUpdate={handleProjectTaskUpdate}
+                    onTaskRename={handleProjectTaskRename}
                     onTaskReorder={handleProjectTaskReorder}
                     onCreateChild={(task) => openCreate(task)}
+                    onCreateStage={(project) => openCreate(project, "stage")}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
                     onExtractAction={openExtractAction}
                     {projectDefinitionControllerRegistry}
