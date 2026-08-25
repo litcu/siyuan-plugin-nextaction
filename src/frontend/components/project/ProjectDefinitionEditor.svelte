@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { tick } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import { ATTR_DOD, ATTR_OUTCOME } from "../../../shared/constants";
@@ -20,9 +21,11 @@
 
     const fields: ProjectDefinitionField[] = ["outcome", "dod"];
     const attrByField = { outcome: ATTR_OUTCOME, dod: ATTR_DOD } as const;
+    const controllersByProjectId = new Map<string, ProjectDefinitionController>();
+    const fieldInputs: Partial<Record<ProjectDefinitionField, HTMLInputElement | HTMLTextAreaElement>> = {};
 
     let activeProjectId = project.blockId;
-    let controller = createController(project);
+    let controller = controllerFor(project);
     let snapshot: ProjectDefinitionSnapshot = controller.snapshot;
 
     function valuesFromTask(task: TaskCacheEntry): ProjectDefinitionValues {
@@ -40,6 +43,14 @@
         });
     }
 
+    function controllerFor(task: TaskCacheEntry): ProjectDefinitionController {
+        const existing = controllersByProjectId.get(task.blockId);
+        if (existing) return existing;
+        const created = createController(task);
+        controllersByProjectId.set(task.blockId, created);
+        return created;
+    }
+
     function refresh(): void {
         snapshot = controller.snapshot;
     }
@@ -49,11 +60,17 @@
         refresh();
     }
 
-    async function save(field: ProjectDefinitionField): Promise<void> {
-        const pending = controller.save(field);
+    async function save(field: ProjectDefinitionField, event: MouseEvent): Promise<void> {
+        const restoreKeyboardFocus = event.detail === 0;
+        const savingController = controller;
+        const pending = savingController.save(field);
         refresh();
         await pending;
         refresh();
+        if (restoreKeyboardFocus && controller === savingController) {
+            await tick();
+            fieldInputs[field]?.focus();
+        }
     }
 
     function cancel(field: ProjectDefinitionField): void {
@@ -73,7 +90,7 @@
 
     $: if (project.blockId !== activeProjectId) {
         activeProjectId = project.blockId;
-        controller = createController(project);
+        controller = controllerFor(project);
         refresh();
     }
 
@@ -82,6 +99,18 @@
         refresh();
     }
     $: anySaving = fields.some((field) => snapshot[field].saveState === "saving");
+    $: presentationByField = {
+        outcome: {
+            label: i18n?.outcome || "Outcome",
+            description: i18n?.outcomeHint || "The result this project is meant to create",
+            placeholder: i18n?.outcomePlaceholder || "Describe the result in one sentence",
+        },
+        dod: {
+            label: i18n?.definitionOfDone || "Definition of Done",
+            description: i18n?.dodHint || "Conditions to check before confirming completion",
+            placeholder: i18n?.dodPlaceholder || "Describe the conditions that mean the outcome is achieved",
+        },
+    };
 </script>
 
 <section class="na-project-definition" aria-labelledby="na-project-definition-title">
@@ -97,16 +126,13 @@
 
     {#each fields as field}
         {@const state = snapshot[field]}
+        {@const presentation = presentationByField[field]}
         {@const fieldId = `na-project-definition-${field}`}
         {@const fieldSaving = state.saveState === "saving"}
         <div class="na-project-definition__field">
             <NaPropertyRow
-                label={field === "outcome"
-                    ? i18n?.outcome || "Outcome"
-                    : i18n?.definitionOfDone || "Definition of Done"}
-                description={field === "outcome"
-                    ? i18n?.outcomeHint || "The result this project is meant to create"
-                    : i18n?.dodHint || "Conditions to check before confirming completion"}
+                label={presentation.label}
+                description={presentation.description}
                 forId={fieldId}
                 stacked
                 disabled={!onSave}
@@ -116,8 +142,9 @@
                         id={fieldId}
                         class="b3-text-field na-project-definition__input"
                         type="text"
+                        bind:this={fieldInputs[field]}
                         value={state.draft}
-                        placeholder={i18n?.outcomePlaceholder || "Describe the result in one sentence"}
+                        placeholder={presentation.placeholder}
                         disabled={!onSave || anySaving}
                         aria-describedby={`${fieldId}-feedback`}
                         on:input={(event) => edit(field, event)}
@@ -125,11 +152,11 @@
                 {:else}
                     <textarea
                         id={fieldId}
-                        class="b3-text-field na-project-definition__input na-project-definition__textarea"
+                        class="b3-text-field na-project-definition__input"
                         rows="3"
+                        bind:this={fieldInputs[field]}
                         value={state.draft}
-                        placeholder={i18n?.dodPlaceholder ||
-                            "Describe the conditions that mean the outcome is achieved"}
+                        placeholder={presentation.placeholder}
                         disabled={!onSave || anySaving}
                         aria-describedby={`${fieldId}-feedback`}
                         on:input={(event) => edit(field, event)}
@@ -143,7 +170,7 @@
                     variant="primary"
                     loading={fieldSaving}
                     disabled={!onSave || anySaving || !state.dirty || state.conflict !== null}
-                    on:click={() => save(field)}
+                    on:click={(event) => save(field, event)}
                 >
                     {state.saveState === "error" ? i18n?.projectDefinitionRetry || "Retry" : i18n?.save || "Save"}
                 </NaButton>
@@ -209,14 +236,6 @@
     }
     .na-project-definition__input {
         width: 100%;
-    }
-    .na-project-definition__textarea {
-        box-sizing: border-box;
-        min-height: 72px;
-        resize: vertical;
-        font-family: var(--b3-font-family);
-        font-size: var(--na-font-size-md);
-        line-height: 1.5;
     }
     .na-project-definition__actions,
     .na-project-definition__conflict-actions {

@@ -38,7 +38,10 @@ const base = {
     outcome: "Original outcome", dod: "Original DoD", actionKind: "", created: "", tags: "",
     blocked: false, blockedReason: "", reviewInterval: 0, reviewDate: "", reminder: "", customFields: {},
 };
-let project = base;
+let firstProject = base;
+const secondProject = { ...base, blockId: "project-two", attrHostId: "project-two", title: "Second project",
+    outcome: "Second outcome", dod: "Second DoD" };
+let project = firstProject;
 let writes = [];
 const i18n = new Proxy({
     projectDefinitionTitle: "Project definition", outcome: "Outcome", definitionOfDone: "Definition of Done",
@@ -57,15 +60,19 @@ async function saveDefinition(_task, attrs) {
         outcome: attrs["custom-na-outcome"] ?? project.outcome,
         dod: attrs["custom-na-dod"] ?? project.dod,
     };
+    if (project.blockId === firstProject.blockId) firstProject = project;
     return project;
 }
 
 function pushRemoteDod() {
     project = { ...project, dod: "Remote DoD" };
+    if (project.blockId === firstProject.blockId) firstProject = project;
 }
 </script>
 
 <button id="push-remote" on:click={pushRemoteDod}>Push remote</button>
+<button id="switch-second" on:click={() => (project = secondProject)}>Second project</button>
+<button id="switch-first" on:click={() => (project = firstProject)}>First project</button>
 <div id="write-count">{writes.length}</div>
 <ProjectDefinitionEditor {project} {i18n} onSave={saveDefinition} />`,
         );
@@ -93,11 +100,14 @@ const dod = document.querySelector("#na-project-definition-dod");
 inputValue(outcome, "Saved outcome");
 await wait(0);
 const outcomeField = outcome.closest(".na-project-definition__field");
-clickByText("Save", outcomeField);
+const outcomeSave = [...outcomeField.querySelectorAll("button")].find((button) => button.textContent.trim() === "Save");
+outcomeSave.focus();
+outcomeSave.click();
 await wait(0);
 const disabledWhileSaving = outcome.disabled && [...outcomeField.querySelectorAll("button")].every((button) => button.disabled);
 clickByText("Save", outcomeField);
 await wait(70);
+const focusRestoredAfterSave = document.activeElement === outcome;
 
 inputValue(dod, "Local DoD");
 document.querySelector("#push-remote").click();
@@ -109,6 +119,14 @@ clickByText("Keep draft", dodField);
 await wait(0);
 clickByText("Save", dodField);
 await wait(70);
+const savedVisible = document.body.textContent.includes("Saved");
+
+inputValue(outcome, "Unsaved across switch");
+document.querySelector("#switch-second").click();
+await wait(20);
+document.querySelector("#switch-first").click();
+await wait(20);
+const draftPreservedAcrossProjects = document.querySelector("#na-project-definition-outcome").value === "Unsaved across switch";
 
 finish({
     outcomeTag: outcome.tagName,
@@ -120,7 +138,9 @@ finish({
     dodValue: dod.value,
     conflictVisible,
     localDraftPreserved,
-    savedVisible: document.body.textContent.includes("Saved"),
+    focusRestoredAfterSave,
+    draftPreservedAcrossProjects,
+    savedVisible,
 });
 })();`,
         );
@@ -179,10 +199,12 @@ finish({
             dodTag: "TEXTAREA",
             disabledWhileSaving: true,
             writeCount: 2,
-            outcomeValue: "Saved outcome",
+            outcomeValue: "Unsaved across switch",
             dodValue: "Local DoD",
             conflictVisible: true,
             localDraftPreserved: true,
+            focusRestoredAfterSave: true,
+            draftPreservedAcrossProjects: true,
             savedVisible: true,
         });
     } finally {
