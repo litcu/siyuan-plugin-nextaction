@@ -38,6 +38,7 @@
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
     import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
+    import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
 
     export let bridge: KernelBridge;
@@ -51,6 +52,7 @@
     let reviewManualProjectIds: string[] = [];
     let reviewExpandedProjectId = "";
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
+    const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegistry();
 
     // Safety-net refresh: most data is kept in sync by revisioned task broadcasts
     // and local derivation in applyUpdate/applyChangeSetV2. This timer
@@ -340,6 +342,7 @@
                     onCreateChild={(task) => openCreate(task)}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
                     onExtractAction={openExtractAction}
+                    {projectDefinitionControllerRegistry}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}

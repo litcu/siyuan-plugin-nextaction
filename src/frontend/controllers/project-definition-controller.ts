@@ -39,7 +39,7 @@ export class ProjectDefinitionController {
 
     constructor(
         initial: ProjectDefinitionValues,
-        private readonly options: ProjectDefinitionControllerOptions,
+        private options: ProjectDefinitionControllerOptions,
     ) {
         this.state = {
             outcome: fieldSnapshot(initial.outcome),
@@ -49,6 +49,10 @@ export class ProjectDefinitionController {
 
     get snapshot(): ProjectDefinitionSnapshot {
         return this.state;
+    }
+
+    rebind(options: ProjectDefinitionControllerOptions): void {
+        this.options = options;
     }
 
     edit(field: ProjectDefinitionField, value: string): void {
@@ -133,5 +137,25 @@ export class ProjectDefinitionController {
             ...this.state,
             [field]: { ...this.state[field], ...patch },
         };
+    }
+}
+
+export class ProjectDefinitionControllerRegistry {
+    private readonly controllers = new Map<string, ProjectDefinitionController>();
+
+    acquire(
+        projectId: string,
+        values: ProjectDefinitionValues,
+        options: ProjectDefinitionControllerOptions,
+    ): ProjectDefinitionController {
+        const existing = this.controllers.get(projectId);
+        if (existing) {
+            existing.rebind(options);
+            existing.sync(values);
+            return existing;
+        }
+        const created = new ProjectDefinitionController(values, options);
+        this.controllers.set(projectId, created);
+        return created;
     }
 }

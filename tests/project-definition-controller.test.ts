@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
     ProjectDefinitionController,
+    ProjectDefinitionControllerRegistry,
     type ProjectDefinitionValues,
 } from "../src/frontend/controllers/project-definition-controller.ts";
 
@@ -255,4 +256,38 @@ test("清空 DoD 仍作为有效草稿写入", async () => {
     assert.deepEqual(writes, [""]);
     assert.equal(controller.snapshot.dod.remote, "");
     assert.equal(controller.snapshot.dod.dirty, false);
+});
+
+// Regression: 编辑器卸载并重挂载时曾丢失项目定义草稿，并继续持有旧保存回调。
+test("项目定义会话跨编辑器重挂载保留草稿并重新绑定保存边界", async () => {
+    const registry = new ProjectDefinitionControllerRegistry();
+    const first = registry.acquire(
+        "project",
+        { outcome: "远端结果", dod: "远端判定" },
+        {
+            save: async () => {
+                throw new Error("不应调用旧保存边界");
+            },
+            formatError: String,
+        },
+    );
+    first.edit("outcome", "跨导航草稿");
+
+    const writes: string[] = [];
+    const remounted = registry.acquire(
+        "project",
+        { outcome: "远端结果", dod: "远端判定" },
+        {
+            save: async (_field, value) => {
+                writes.push(value);
+                return { outcome: value, dod: "远端判定" };
+            },
+            formatError: String,
+        },
+    );
+
+    assert.equal(remounted, first);
+    assert.equal(remounted.snapshot.outcome.draft, "跨导航草稿");
+    assert.equal(await remounted.save("outcome"), true);
+    assert.deepEqual(writes, ["跨导航草稿"]);
 });

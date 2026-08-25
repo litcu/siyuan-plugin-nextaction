@@ -30,6 +30,7 @@
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
     import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
+    import type { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
@@ -59,6 +60,7 @@
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+    export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
@@ -354,7 +356,12 @@
                 {/if}
 
                 <div hidden={mode !== "overview"}>
-                    <ProjectDefinitionEditor project={selectedSummary.project} {i18n} onSave={onTaskUpdate} />
+                    <ProjectDefinitionEditor
+                        project={selectedSummary.project}
+                        {i18n}
+                        onSave={onTaskUpdate}
+                        controllerRegistry={projectDefinitionControllerRegistry}
+                    />
                 </div>
 
                 {#if mode === "overview"}

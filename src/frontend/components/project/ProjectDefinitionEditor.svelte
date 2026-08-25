@@ -5,7 +5,9 @@
     import { ATTR_DOD, ATTR_OUTCOME } from "../../../shared/constants";
     import {
         ProjectDefinitionController,
+        ProjectDefinitionControllerRegistry,
         type ProjectDefinitionField,
+        type ProjectDefinitionControllerOptions,
         type ProjectDefinitionSnapshot,
         type ProjectDefinitionValues,
     } from "../../controllers/project-definition-controller";
@@ -16,12 +18,12 @@
 
     export let project: TaskCacheEntry;
     export let i18n: I18nStrings;
+    export let controllerRegistry: ProjectDefinitionControllerRegistry;
     export let onSave: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined =
         undefined;
 
     const fields: ProjectDefinitionField[] = ["outcome", "dod"];
     const attrByField = { outcome: ATTR_OUTCOME, dod: ATTR_DOD } as const;
-    const controllersByProjectId = new Map<string, ProjectDefinitionController>();
     const fieldInputs: Partial<Record<ProjectDefinitionField, HTMLInputElement | HTMLTextAreaElement>> = {};
 
     let activeProjectId = project.blockId;
@@ -32,23 +34,19 @@
         return { outcome: task.outcome || "", dod: task.dod || "" };
     }
 
-    function createController(task: TaskCacheEntry): ProjectDefinitionController {
-        return new ProjectDefinitionController(valuesFromTask(task), {
+    function controllerOptions(task: TaskCacheEntry): ProjectDefinitionControllerOptions {
+        return {
             save: async (field, value) => {
                 if (!onSave) throw new Error(i18n?.errNotReady || "Task update is unavailable");
                 const updated = await onSave(task, { [attrByField[field]]: value });
                 return valuesFromTask(updated);
             },
             formatError: (error) => formatRpcError(error, i18n),
-        });
+        };
     }
 
     function controllerFor(task: TaskCacheEntry): ProjectDefinitionController {
-        const existing = controllersByProjectId.get(task.blockId);
-        if (existing) return existing;
-        const created = createController(task);
-        controllersByProjectId.set(task.blockId, created);
-        return created;
+        return controllerRegistry.acquire(task.blockId, valuesFromTask(task), controllerOptions(task));
     }
 
     function refresh(): void {
@@ -95,6 +93,7 @@
     }
 
     $: if (project.blockId === activeProjectId) {
+        controller.rebind(controllerOptions(project));
         controller.sync(valuesFromTask(project));
         refresh();
     }
