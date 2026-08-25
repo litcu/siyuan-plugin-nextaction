@@ -6,6 +6,7 @@ import type {
     MyDayState,
     ReviewData,
     CompletedTasksPage,
+    ProjectSupportData,
 } from "../shared/types";
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
 import type { AiProposal } from "../shared/ai";
@@ -134,6 +135,10 @@ export class KernelBridge {
 
     async getTaskSnapshotV2(): Promise<TaskSnapshotV2> {
         return this.call("getTaskSnapshotV2", {});
+    }
+
+    async getProjectSupport(projectId: string): Promise<ProjectSupportData> {
+        return this.call("getProjectSupport", { projectId: assertBlockId(projectId, "projectId") });
     }
 
     async getCompletedTasksPage(options: CompletedTasksPageOptions = {}): Promise<CompletedTasksPage> {

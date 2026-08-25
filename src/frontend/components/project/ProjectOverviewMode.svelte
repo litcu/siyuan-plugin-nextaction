@@ -4,6 +4,8 @@
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
     import NaTaskList from "../../ui/NaTaskList.svelte";
+    import ProjectSupportSection from "./ProjectSupportSection.svelte";
+    import type { ProjectSupportData } from "../../../shared/types";
 
     export let summary: ProjectSummary;
     export let risks: ProjectControlRisk[];
@@ -13,6 +15,8 @@
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+    export let onOpenProjectSupport: (blockId: string) => void;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -91,6 +95,12 @@
             </div>
         </dl>
     </section>
+    <ProjectSupportSection
+        projectId={summary.project.blockId}
+        {i18n}
+        loadSupport={loadProjectSupport}
+        onOpen={onOpenProjectSupport}
+    />
 </div>
 
 <style lang="scss">
@@ -104,6 +114,9 @@
         padding: 12px;
         border-top: 2px solid var(--na-color-divider);
         background: var(--b3-theme-surface);
+    }
+    .na-project-overview :global(.na-project-support) {
+        grid-column: 1 / -1;
     }
     .na-project-section--risks {
         border-top-color: var(--na-color-warning);

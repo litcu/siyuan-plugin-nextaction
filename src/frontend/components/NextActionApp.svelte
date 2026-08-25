@@ -322,6 +322,7 @@
                     onTaskUpdate={handleProjectTaskUpdate}
                     onTaskReorder={handleProjectTaskReorder}
                     onCreateChild={(task) => openCreate(task)}
+                    loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}

@@ -174,7 +174,13 @@ setTimeout(() => {
             ],
             { encoding: "utf8", timeout: 20_000 },
         );
-        assert.equal(rendered.status, 0, rendered.stderr || "浏览器主路径测试执行失败");
+        assert.equal(
+            rendered.status,
+            0,
+            rendered.stderr ||
+                rendered.error?.message ||
+                `浏览器主路径测试执行失败（signal: ${rendered.signal || "none"}）`,
+        );
 
         const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
         assert.ok(match, `浏览器未输出主路径结果：${rendered.stdout.slice(0, 2_000)}`);
@@ -185,6 +191,158 @@ setTimeout(() => {
             expanded: "true",
             stageBefore: true,
             stageAfter: true,
+        });
+    } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+});
+
+test("Project Support 隔离加载错误并支持刷新、重试和打开原文", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-support-"));
+    try {
+        const supportPath = resolve("src/frontend/components/project/ProjectSupportSection.svelte").replace(/\\/g, "/");
+        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
+        writeFileSync(
+            join(fixtureRoot, "index.html"),
+            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
+        );
+        writeFileSync(join(fixtureRoot, "siyuan.js"), "export class Menu {}\nexport function openTab() {}\n");
+        writeFileSync(
+            join(fixtureRoot, "Harness.svelte"),
+            `<script>
+import ProjectSupportSection from ${JSON.stringify(supportPath)};
+
+const projectId = "20260825120000-project";
+const supportId = "20260825120001-support";
+let attempts = 0;
+let opened = "";
+const i18n = new Proxy({
+    projectSupport: "Project Support", projectSupportDescription: "Referenced project context",
+    projectSupportRefresh: "Refresh", projectSupportEmpty: "No support yet",
+    projectSupportLoadError: "Support unavailable: {error}", projectSupportRetry: "Retry",
+    projectSupportForward: "Referenced by project", projectSupportBacklink: "Links to project",
+    projectSupportBoth: "Linked both ways", projectSupportBlock: "Block",
+    projectSupportDocument: "Document", projectSupportOpen: "Open source", loading: "Loading",
+}, { get: (target, key) => target[key] || String(key) });
+
+const delay = () => new Promise((resolve) => setTimeout(resolve, 20));
+async function loadSupport(requestedProjectId) {
+    attempts++;
+    await delay();
+    if (attempts === 1) return { projectId: requestedProjectId, items: [] };
+    if (attempts === 2) throw new Error("reference index delayed");
+    return {
+        projectId: requestedProjectId,
+        items: [{
+            blockId: supportId, documentId: supportId, title: "Source note", kind: "document",
+            blockType: "d", directions: ["forward", "backlink"],
+        }],
+    };
+}
+</script>
+
+<div id="harness" data-attempts={attempts} data-opened={opened}>
+    <div id="core-project-content">Project outcome remains available</div>
+    <ProjectSupportSection {projectId} {i18n} {loadSupport} onOpen={(blockId) => (opened = blockId)} />
+</div>`,
+        );
+        writeFileSync(
+            join(fixtureRoot, "main.js"),
+            `import Harness from "./Harness.svelte";
+new Harness({ target: document.querySelector("#app") });
+const findButton = (label) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === label);
+const finish = (value) => {
+    const result = document.createElement("pre");
+    result.id = "browser-result";
+    result.textContent = JSON.stringify(value);
+    document.body.appendChild(result);
+};
+setTimeout(() => {
+    const emptyVisible = document.body.textContent.includes("No support yet");
+    findButton("Refresh")?.click();
+    setTimeout(() => {
+        const errorVisible = document.querySelector('[role="alert"]')?.textContent.includes("reference index delayed") || false;
+        const coreVisibleDuringError = Boolean(document.querySelector("#core-project-content"));
+        findButton("Retry")?.click();
+        setTimeout(() => {
+            document.querySelector('button[aria-label="Open source"]')?.click();
+            setTimeout(() => {
+                const harness = document.querySelector("#harness");
+                finish({
+                    emptyVisible,
+                    errorVisible,
+                    coreVisibleDuringError,
+                    attempts: Number(harness?.dataset.attempts),
+                    titleVisible: document.body.textContent.includes("Source note"),
+                    directionVisible: document.body.textContent.includes("Linked both ways"),
+                    opened: harness?.dataset.opened,
+                });
+            }, 20);
+        }, 60);
+    }, 60);
+}, 80);`,
+        );
+
+        await build({
+            root: fixtureRoot,
+            base: "./",
+            configFile: false,
+            logLevel: "silent",
+            resolve: {
+                alias: [
+                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
+                    {
+                        find: /^svelte\/internal\/disclose-version$/,
+                        replacement: join(svelteRoot, "src/runtime/internal/disclose-version/index.js"),
+                    },
+                    {
+                        find: /^svelte\/internal$/,
+                        replacement: join(svelteRoot, "src/runtime/internal/index.js"),
+                    },
+                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/runtime/store/index.js") },
+                    { find: /^svelte$/, replacement: join(svelteRoot, "src/runtime/index.js") },
+                ],
+            },
+            plugins: [svelte({ preprocess: vitePreprocess() })],
+            build: { outDir: "dist" },
+        });
+
+        const browser = findBrowserExecutable();
+        const rendered = spawnSync(
+            browser,
+            [
+                "--headless=new",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--allow-file-access-from-files",
+                "--disable-web-security",
+                "--no-first-run",
+                "--no-sandbox",
+                "--virtual-time-budget=1500",
+                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
+                "--dump-dom",
+                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
+            ],
+            { encoding: "utf8", timeout: 20_000 },
+        );
+        assert.equal(
+            rendered.status,
+            0,
+            rendered.stderr ||
+                rendered.error?.message ||
+                `Project Support 浏览器测试执行失败（signal: ${rendered.signal || "none"}）`,
+        );
+        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
+        assert.ok(match, `浏览器未输出 Project Support 结果：${rendered.stdout.slice(0, 2_000)}`);
+        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
+        assert.deepEqual(result, {
+            emptyVisible: true,
+            errorVisible: true,
+            coreVisibleDuringError: true,
+            attempts: 3,
+            titleVisible: true,
+            directionVisible: true,
+            opened: "20260825120001-support",
         });
     } finally {
         rmSync(fixtureRoot, { recursive: true, force: true });

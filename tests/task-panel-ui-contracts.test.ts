@@ -102,7 +102,9 @@ test("公共按钮、工具栏和折叠区覆盖加载、操作插槽及合法�
     const button = source("../src/frontend/ui/NaButton.svelte");
     assert.match(button, /disabled=\{disabled \|\| loading\}/);
     assert.match(button, /"button" \| "submit" \| "reset"/);
-    assert.match(button, /prefers-reduced-motion/);
+    assert.match(button, /<NaSpinner/);
+    const spinner = source("../src/frontend/ui/NaSpinner.svelte");
+    assert.match(spinner, /prefers-reduced-motion/);
 
     const toolbar = source("../src/frontend/ui/NaToolbar.svelte");
     assert.match(toolbar, /slot name="actions"/);

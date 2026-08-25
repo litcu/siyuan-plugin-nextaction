@@ -22,6 +22,7 @@ import { TaskIdentityResolver } from "./kernel/task-identity-resolver";
 import { RpcContractError } from "./shared/rpc-methods";
 import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
+import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/project-support-service";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -94,6 +95,7 @@ class NextActionKernelPlugin {
             return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
         };
         const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask);
+        const projectSupportService = new ProjectSupportService(new SiyuanProjectSupportQueryPort(api));
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -106,6 +108,10 @@ class NextActionKernelPlugin {
             resolveChildTarget: (value) => this.taskTargetResolver.resolveChildTarget(value),
             createTask,
             aiProposalService,
+            getProjectSupport: async (projectId) => {
+                this.taskService.assertReady();
+                return projectSupportService.load(this.taskService.getTask(projectId));
+            },
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),
         });

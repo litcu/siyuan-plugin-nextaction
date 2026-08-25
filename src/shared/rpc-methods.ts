@@ -15,6 +15,7 @@ import type {
     CompletedTasksPage,
     MyDayState,
     ReviewData,
+    ProjectSupportData,
     StatisticsResult,
     TaskCacheEntry,
     TaskSnapshotV2,
@@ -270,6 +271,10 @@ export const RPC_CONTRACT = {
         return { status: optionalString(input.status, "status"), sortBy: optionalString(input.sortBy, "sortBy") };
     }),
     getTaskSnapshotV2: defineRpc<Record<string, never>, TaskSnapshotV2>(noParams),
+    getProjectSupport: defineRpc<{ projectId: string }, ProjectSupportData>((value) => {
+        const input = paramsRecord(value);
+        return { projectId: requiredBlockId(input.projectId, "projectId") };
+    }),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);
         for (const key of ["page", "pageSize"] as const) {

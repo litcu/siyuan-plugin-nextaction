@@ -20,7 +20,7 @@ function requestHeaders() {
 
 let passed = 0;
 let failed = 0;
-let testDocumentId = "";
+const testDocumentIds = [];
 
 async function siyuanAPI(path, body = {}) {
     const response = await fetch(baseURL + path, {
@@ -115,37 +115,121 @@ async function waitForTaskAttributeIndex(blockId) {
     throw new Error(`Temporary task attributes were not indexed in time: ${blockId}`);
 }
 
-async function createTemporaryDocument() {
+async function waitForReferenceIndex(defBlockId, sourceRootId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT block_id FROM refs WHERE def_block_id = '${defBlockId.replace(/'/g, "''")}' AND root_id = '${sourceRootId.replace(/'/g, "''")}' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows.length > 0) return;
+        await sleep(250);
+    }
+    throw new Error(`Block reference was not indexed in time: ${sourceRootId} -> ${defBlockId}`);
+}
+
+async function createTemporaryDocument(options = {}) {
     const notebooks = await siyuanAPI("/api/notebook/lsNotebooks");
     const notebook = notebooks?.notebooks?.find((item) => !item.closed);
     if (!notebook?.id) throw new Error("No open notebook is available for the integration test");
 
     const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const title = `NextAction Stage 1 Test ${unique}`;
+    const title = `${options.titlePrefix || "NextAction Stage 1 Test"} ${unique}`;
     const id = await siyuanAPI("/api/filetree/createDocWithMd", {
         notebook: notebook.id,
         path: `/${title}`,
-        markdown: `# ${title}`,
+        markdown: options.markdown || `# ${title}`,
     });
     if (typeof id !== "string" || !/^\d{14}-[0-9a-z]{7}$/.test(id)) {
         throw new Error(`SiYuan returned an invalid temporary document ID: ${String(id)}`);
     }
-    testDocumentId = id;
+    testDocumentIds.push(id);
     await waitForIndexedBlock(id);
     return { id, title };
 }
 
-async function removeTemporaryDocument() {
-    if (!testDocumentId) return;
-    try {
-        await siyuanAPI("/api/filetree/removeDocByID", { id: testDocumentId });
-        console.log(`\nCleanup: removed temporary document ${testDocumentId}`);
-    } catch (error) {
-        failed++;
-        console.error(`\nCleanup failed for ${testDocumentId}:`, error);
-    } finally {
-        testDocumentId = "";
+async function removeTemporaryDocuments() {
+    for (const documentId of testDocumentIds.reverse()) {
+        try {
+            await siyuanAPI("/api/filetree/removeDocByID", { id: documentId });
+            console.log(`\nCleanup: removed temporary document ${documentId}`);
+        } catch (error) {
+            failed++;
+            console.error(`\nCleanup failed for ${documentId}:`, error);
+        }
     }
+    testDocumentIds.length = 0;
+}
+
+async function testProjectSupport() {
+    console.log("\n--- Project Support ---");
+    const indirectTarget = await createTemporaryDocument({ titlePrefix: "NextAction Support Indirect Target" });
+    const firstTarget = await createTemporaryDocument({
+        titlePrefix: "NextAction Support First Target",
+        markdown: `# Project Support first target\n\nIndirect support: ((${indirectTarget.id} "Indirect support"))`,
+    });
+    const secondTarget = await createTemporaryDocument({ titlePrefix: "NextAction Support Second Target" });
+    const project = await createTemporaryDocument({
+        titlePrefix: "NextAction Support Project",
+        markdown: `# Project Support integration\n\nForward first: ((${firstTarget.id} "Forward first"))\n\n## Forward second ((${secondTarget.id} "Forward second"))`,
+    });
+    const backlink = await createTemporaryDocument({
+        titlePrefix: "NextAction Support Backlink",
+        markdown: `# Project Support backlink\n\nBacklink: ((${project.id} "Project Support integration"))`,
+    });
+    await Promise.all([
+        waitForReferenceIndex(indirectTarget.id, firstTarget.id),
+        waitForReferenceIndex(firstTarget.id, project.id),
+        waitForReferenceIndex(secondTarget.id, project.id),
+        waitForReferenceIndex(project.id, backlink.id),
+    ]);
+
+    const conversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        conversion.result?.taskType === "2" && !conversion.result?._rpcError,
+        "Project Support target is converted to a Project document",
+        JSON.stringify(conversion.result),
+    );
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const support = await rpc("getProjectSupport", { projectId: project.id });
+    assert(!support.result?._rpcError, "getProjectSupport succeeds", JSON.stringify(support.result));
+    const items = support.result?.items || [];
+    const forward = items.find((item) => item.blockId === firstTarget.id);
+    const directBacklink = items.find((item) => item.documentId === backlink.id);
+    assert(
+        forward?.directions?.includes("forward"),
+        "Project Support returns the direct forward document reference",
+        JSON.stringify(items),
+    );
+    assert(
+        directBacklink?.directions?.includes("backlink"),
+        "Project Support returns the direct backlink source",
+        JSON.stringify(items),
+    );
+    // Regression: forward support follows its first occurrence in the Project document, not block-type sort weight.
+    assert(
+        items.findIndex((item) => item.blockId === firstTarget.id) <
+            items.findIndex((item) => item.blockId === secondTarget.id),
+        "Project Support keeps direct forward references in document occurrence order",
+        JSON.stringify(items),
+    );
+    // Regression: Project Support does not traverse references found inside a direct support target.
+    assert(
+        !items.some((item) => item.blockId === indirectTarget.id),
+        "Project Support does not include second-level references",
+        JSON.stringify(items),
+    );
+    const snapshotAfterRead = (await rpc("getTaskSnapshotV2")).result;
+    assert(
+        snapshotAfterRead?.revision === snapshotBefore?.revision,
+        "Project Support reads do not enter the task snapshot or advance its revision",
+        `${snapshotBefore?.revision} -> ${snapshotAfterRead?.revision}`,
+    );
+
+    const ordinaryTarget = await rpc("getProjectSupport", { projectId: firstTarget.id });
+    assert(
+        ordinaryTarget.result?._rpcError?.code === -32001,
+        "getProjectSupport rejects a non-Project document",
+        JSON.stringify(ordinaryTarget.result),
+    );
 }
 
 async function runTests() {
@@ -311,6 +395,8 @@ async function runTests() {
 
     const attrs = await siyuanAPI("/api/attr/getBlockAttrs", { id: temporary.id });
     assert(!attrs?.["custom-na-task"], "task marker is cleared authoritatively");
+
+    await testProjectSupport();
 }
 
 async function main() {
@@ -320,7 +406,7 @@ async function main() {
         failed++;
         console.error("Integration test error:", error);
     } finally {
-        await removeTemporaryDocument();
+        await removeTemporaryDocuments();
     }
 
     console.log("\n" + "=".repeat(48));

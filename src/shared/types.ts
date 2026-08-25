@@ -111,6 +111,22 @@ export interface ProjectControlState {
     selectedTask: TaskCacheEntry | null;
 }
 
+export type ProjectSupportDirection = "forward" | "backlink";
+
+export interface ProjectSupportItem {
+    blockId: string;
+    documentId: string;
+    title: string;
+    kind: "block" | "document";
+    blockType: string;
+    directions: ProjectSupportDirection[];
+}
+
+export interface ProjectSupportData {
+    projectId: string;
+    items: ProjectSupportItem[];
+}
+
 export type ProjectReviewTrigger = "schedule" | "risk" | "completionCandidate" | "manual";
 export type ProjectReviewSchedule = "none" | "due" | "overdue";
 

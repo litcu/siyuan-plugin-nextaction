@@ -16,7 +16,7 @@ import type {
 import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rpc-methods";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type { PluginSettings } from "../shared/settings";
-import type { ReviewData, TaskSnapshotV2 } from "../shared/types";
+import type { ProjectSupportData, ReviewData, TaskSnapshotV2 } from "../shared/types";
 import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
@@ -34,6 +34,7 @@ export interface RpcServerHooks {
     createTask?: (input: CreateTaskInput) => Promise<CreateTaskResult>;
     aiProposalService?: AiProposalService;
     getTaskSnapshotV2?: () => TaskSnapshotV2;
+    getProjectSupport?: (projectId: string) => Promise<ProjectSupportData>;
     broadcastTaskReset?: () => void;
 }
 
@@ -93,6 +94,8 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getNextActions: () => taskService.getNextActions(),
         getAllTasks: ({ status, sortBy }) => taskService.getAllTasks({ status, sortBy }),
         getTaskSnapshotV2: () => (hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2")),
+        getProjectSupport: ({ projectId }) =>
+            hooks.getProjectSupport ? hooks.getProjectSupport(projectId) : unavailable("Project Support"),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),
         recalcAllOrders: async () => {

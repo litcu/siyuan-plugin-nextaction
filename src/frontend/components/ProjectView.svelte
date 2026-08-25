@@ -17,8 +17,15 @@
     import NaToggle from "../ui/NaToggle.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
-    import type { ProjectControlRisk, ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+    import type {
+        ProjectControlRisk,
+        ProjectRisk,
+        ProjectSummary,
+        ProjectSupportData,
+        TaskCacheEntry,
+    } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
+    import { jumpToBlock } from "../utils";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
@@ -49,6 +56,7 @@
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
@@ -353,6 +361,8 @@
                         {onEdit}
                         {onStatusClick}
                         {onContextMenu}
+                        {loadProjectSupport}
+                        onOpenProjectSupport={jumpToBlock}
                     />
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode
