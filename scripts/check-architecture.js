@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import { findTemplateLiterals } from "./text-scanner.js";
 
 const root = process.cwd();
 const sourceRoot = join(root, "src");
@@ -103,10 +104,10 @@ for (const [path, source] of textByFile) {
         failures.push(`${name}: SQL statement concatenates a dynamic value`);
     if (/stmt\s*:\s*`[^`]*\$\{/.test(source) && !/stmt\s*:\s*sql`/.test(source))
         failures.push(`${name}: interpolated SQL must use the sql tag`);
-    for (const match of source.matchAll(/`(?:\\.|[^`])*`/gs)) {
-        const literal = match[0];
+    for (const match of findTemplateLiterals(source)) {
+        const literal = match.literal;
         if (!/^`\s*(?:SELECT|WITH|INSERT|UPDATE|DELETE)\b/i.test(literal) || !literal.includes("${")) continue;
-        const prefix = source.slice(Math.max(0, (match.index || 0) - 3), match.index || 0);
+        const prefix = source.slice(Math.max(0, match.index - 3), match.index);
         if (prefix !== "sql") failures.push(`${name}: dynamic SQL template must use the sql tag`);
     }
 }
