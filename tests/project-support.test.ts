@@ -133,12 +133,57 @@ test("Project Support 合并一层正向引用与直接反向链接并保留来�
             title: "Forward document",
             kind: "document",
             blockType: "d",
-            directions: ["forward"],
+            directions: ["forward", "backlink"],
         },
         {
             blockId: BACKLINK_BLOCK_ID,
             documentId: BACKLINK_DOCUMENT_ID,
             title: "Backlink block",
+            kind: "block",
+            blockType: "p",
+            directions: ["backlink"],
+        },
+    ]);
+});
+
+test("Project Support 将文档正文的反向链接汇总为文档级双向关联", async () => {
+    const service = new ProjectSupportService(
+        queryPort(
+            [
+                candidate({
+                    blockId: FORWARD_DOCUMENT_ID,
+                    documentId: FORWARD_DOCUMENT_ID,
+                    title: "2026",
+                    blockType: "d",
+                }),
+            ],
+            [
+                candidate({
+                    blockId: BACKLINK_BLOCK_ID,
+                    documentId: FORWARD_DOCUMENT_ID,
+                    title: "关于测试项目P",
+                    blockType: "p",
+                }),
+            ],
+        ),
+    );
+
+    // Regression: Project 引用外部文档且该文档正文反向引用 Project 时，文档行曾只显示“项目引用”。
+    const result = await service.load(task());
+
+    assert.deepEqual(result.items, [
+        {
+            blockId: FORWARD_DOCUMENT_ID,
+            documentId: FORWARD_DOCUMENT_ID,
+            title: "2026",
+            kind: "document",
+            blockType: "d",
+            directions: ["forward", "backlink"],
+        },
+        {
+            blockId: BACKLINK_BLOCK_ID,
+            documentId: FORWARD_DOCUMENT_ID,
+            title: "关于测试项目P",
             kind: "block",
             blockType: "p",
             directions: ["backlink"],

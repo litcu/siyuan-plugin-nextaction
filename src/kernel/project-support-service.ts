@@ -117,6 +117,21 @@ export class ProjectSupportService {
         const items = new Map<string, ProjectSupportItem>();
         this.merge(items, forward, "forward", projectId);
         this.merge(items, backlinks, "backlink", projectId);
+        const backlinkDocumentIds = new Set(
+            [...items.values()]
+                .filter((item) => item.kind === "block" && item.directions.includes("backlink"))
+                .map((item) => item.documentId),
+        );
+        for (const item of items.values()) {
+            if (
+                item.kind === "document" &&
+                item.directions.includes("forward") &&
+                backlinkDocumentIds.has(item.documentId) &&
+                !item.directions.includes("backlink")
+            ) {
+                item.directions.push("backlink");
+            }
+        }
         return { projectId, items: [...items.values()] };
     }
 
