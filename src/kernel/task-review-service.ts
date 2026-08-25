@@ -2,12 +2,17 @@ import type { TaskCacheEntry, ReviewData } from "../shared/types";
 import { ATTR_REVIEW_DATE } from "../shared/constants";
 import { assertBlockId } from "../shared/block-id";
 import { isNextActionCandidate } from "./priority-engine";
-import { isTaskDueOverdue, isTaskReviewDue } from "../shared/review";
+import {
+    buildProjectReviewQueue,
+    isTaskDueOverdue,
+    isTaskReviewDue,
+    projectReviewAggregateIds,
+} from "../shared/review";
 import type { CacheManager } from "./cache-manager";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import { addLocalDays } from "./task-date-utils";
-import { buildProjectSummaries } from "../shared/project-domain";
+import { buildProjectSummaries, isProjectTask } from "../shared/project-domain";
 
 export class TaskReviewService {
     constructor(
@@ -26,22 +31,21 @@ export class TaskReviewService {
             today: todayStr,
             startPreviewDays: this.runtime.getSettings().priorityEngine.startPreviewDays,
         });
-        const activeProjectIds = new Set(
-            projectSummaries
-                .filter((summary) => summary.project.status !== "done" && (!summary.empty || summary.risks.length > 0))
-                .map((summary) => summary.project.blockId),
-        );
+        const projectReviewData = buildProjectReviewQueue(projectSummaries, todayStr);
+        const aggregatedReviewIds = projectReviewAggregateIds(projectReviewData.queue);
 
         const overdueTasks: TaskCacheEntry[] = [];
         const nextActions: TaskCacheEntry[] = [];
         const inboxTasks: TaskCacheEntry[] = [];
         const waitingTasks: TaskCacheEntry[] = [];
         const somedayTasks: TaskCacheEntry[] = [];
-        const activeProjects: TaskCacheEntry[] = [];
         const reviewDueTasks: TaskCacheEntry[] = [];
 
         for (let i = 0; i < allEntries.length; i++) {
             const entry = allEntries[i];
+
+            // Project Review owns the project and its descendants as one aggregate item.
+            if (isProjectTask(entry) || aggregatedReviewIds.has(entry.blockId)) continue;
 
             // 回顾到期
             if (isTaskReviewDue(entry, todayStr)) {
@@ -72,11 +76,6 @@ export class TaskReviewService {
             if (entry.status === "someday") {
                 somedayTasks.push(entry);
             }
-
-            // 活跃项目
-            if (activeProjectIds.has(entry.blockId)) {
-                activeProjects.push(entry);
-            }
         }
 
         return {
@@ -86,8 +85,9 @@ export class TaskReviewService {
             inboxTasks,
             waitingTasks,
             somedayTasks,
-            activeProjects,
             reviewDueTasks,
+            projectReviews: projectReviewData.queue,
+            reviewableProjects: projectReviewData.reviewableProjects,
         };
     }
 

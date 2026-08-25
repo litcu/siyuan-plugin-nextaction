@@ -15,6 +15,8 @@ import {
     ATTR_PRIORITY,
     ATTR_REPEAT,
     ATTR_REPEAT_STATE,
+    ATTR_REVIEW_DATE,
+    ATTR_REVIEW_INTERVAL,
     ATTR_STATUS,
     ATTR_SORT,
     ATTR_TASK,
@@ -607,9 +609,84 @@ test("Review 与完成提醒保留叶子已完成但尚未确认的项目", () =
         [projectId],
     );
     assert.deepEqual(
-        service.getReviewData().activeProjects.map((task) => task.blockId),
+        service.getReviewData().projectReviews.map((item) => item.summary.project.blockId),
         [projectId],
     );
+});
+
+test("ReviewData 以项目摘要传递唯一队列项并从通用待回顾任务中排除 Project", () => {
+    // Regression: Project Review only exposed bare tasks and duplicated a project across generic Review groups.
+    const { cache, service } = setup();
+    const today = new Date();
+    const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const projectId = "20260816123506-project";
+    const actionId = "20260816123507-actionx";
+    const nextActionId = "20260816123507-nextact";
+    cache.set(
+        taskFactory(projectId, {
+            taskType: "2",
+            status: "doing",
+            childIds: [actionId, nextActionId],
+            blocked: true,
+            blockedReason: "dependency",
+            reviewInterval: 7,
+            reviewDate: todayString,
+        }),
+    );
+    cache.set(
+        taskFactory(actionId, {
+            parentId: projectId,
+            blocked: true,
+            blockedReason: "dependency",
+            due: "2000-01-01",
+        }),
+    );
+    cache.set(taskFactory(nextActionId, { parentId: projectId }));
+
+    const review = service.getReviewData();
+
+    assert.equal(review.projectReviews.length, 1);
+    assert.equal(review.projectReviews[0].summary.project.blockId, projectId);
+    assert.equal(review.projectReviews[0].summary.health, "blocked");
+    assert.deepEqual(review.projectReviews[0].triggers, ["schedule", "risk"]);
+    assert.deepEqual(review.reviewDueTasks, []);
+    assert.deepEqual(review.overdueTasks, []);
+    assert.deepEqual(review.nextActions, []);
+    assert.equal("activeProjects" in review, false);
+    assert.deepEqual(
+        review.reviewableProjects.map((summary) => summary.project.blockId),
+        [projectId],
+    );
+});
+
+test("完成项目回顾按周期更新下次回顾日期，无周期手动回顾不制造日期", async () => {
+    // Regression: project-level Review must preserve the existing authoritative reviewDate update semantics.
+    const { api, cache, service } = setup();
+    const scheduledId = "20260816123508-project";
+    const manualId = "20260816123509-project";
+    const scheduledBlock = api.addBlock(scheduledId, "d", "Scheduled project");
+    const manualBlock = api.addBlock(manualId, "d", "Manual project");
+    Object.assign(scheduledBlock.attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "doing",
+        [ATTR_REVIEW_INTERVAL]: "7",
+    });
+    Object.assign(manualBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(scheduledId, { taskType: "2", status: "doing", reviewInterval: 7 }));
+    cache.set(taskFactory(manualId, { taskType: "2", status: "doing", reviewInterval: 0 }));
+    const expectedDate = new Date();
+    expectedDate.setDate(expectedDate.getDate() + 7);
+    const expectedDateString = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, "0")}-${String(expectedDate.getDate()).padStart(2, "0")}`;
+
+    const updated = await service.markTaskReviewed([scheduledId, manualId]);
+
+    assert.deepEqual(
+        updated.map((task) => task.blockId),
+        [scheduledId],
+    );
+    assert.equal(updated[0].reviewDate, expectedDateString);
+    assert.equal(scheduledBlock.attrs[ATTR_REVIEW_DATE], expectedDateString);
+    assert.equal(manualBlock.attrs[ATTR_REVIEW_DATE], undefined);
 });
 
 test("当期完成统计不计入缺少完成时间的任务", () => {

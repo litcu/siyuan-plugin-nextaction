@@ -334,7 +334,7 @@ export class McpToolExecutor {
             get_review: {
                 title: "NextAction · Review",
                 description: description(
-                    "Get GTD review groups: overdue, inbox, waiting, someday, active projects, and review-due tasks.",
+                    "Get GTD review groups and project-level Review items with aggregated schedule and risk triggers.",
                 ),
                 inputSchema: { type: "object", properties: {} },
                 handler: () => {
@@ -348,8 +348,23 @@ export class McpToolExecutor {
                         inboxTasks: map(data.inboxTasks),
                         waitingTasks: map(data.waitingTasks),
                         somedayTasks: map(data.somedayTasks),
-                        activeProjects: map(data.activeProjects),
                         reviewDueTasks: map(data.reviewDueTasks),
+                        projectReviews: data.projectReviews.map((item) => ({
+                            project: taskToMcpDto(item.summary.project, this.fields(), false),
+                            triggers: item.triggers,
+                            schedule: item.schedule,
+                            health: item.summary.health,
+                            completionCandidate: item.summary.completionCandidate,
+                            empty: item.summary.empty,
+                            progress: item.summary.progress,
+                            doneCount: item.summary.doneCount,
+                            openCount: item.summary.openCount,
+                            risks: item.summary.risks,
+                            planTasks: map(item.summary.descendants.filter((task) => task.status !== "done")),
+                            nextActions: map(item.summary.nextActions),
+                            waitingTasks: map(item.summary.waitingTasks),
+                            blockedTasks: map(item.summary.blockedTasks),
+                        })),
                     };
                 },
             },

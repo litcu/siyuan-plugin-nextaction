@@ -2,7 +2,7 @@ import { Dialog } from "siyuan";
 import type { AiFeatureId, AiProposal } from "../../shared/ai";
 import { completeAiReviewGroups, parseAiJson, validateAiProposal } from "../../shared/ai";
 import type { I18nStrings } from "../../shared/i18n";
-import type { TaskCacheEntry, ReviewData } from "../../shared/types";
+import type { ProjectReviewItem, TaskCacheEntry, ReviewData } from "../../shared/types";
 import { DEFAULT_AI_SETTINGS } from "../../shared/settings";
 import { RpcCallError, type KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
@@ -11,6 +11,7 @@ import { get } from "svelte/store";
 import { renderAiPromptTemplate } from "./ai-prompt-template";
 import { isProjectTask } from "../../shared/project-domain";
 import { buildAiTaskContext } from "../../shared/ai-context";
+import { projectReviewPlanTasks } from "../../shared/review";
 
 interface AiServiceHost {
     bridge: KernelBridge;
@@ -99,14 +100,31 @@ function reviewSnapshot(task: TaskCacheEntry): Record<string, unknown> {
     return snapshot;
 }
 
+function projectReviewSnapshot(item: ProjectReviewItem): Record<string, unknown> {
+    return {
+        projectId: item.summary.project.blockId,
+        triggers: item.triggers,
+        schedule: item.schedule,
+        health: item.summary.health,
+        completionCandidate: item.summary.completionCandidate,
+        progress: item.summary.progress,
+        risks: item.summary.risks,
+        planTaskIds: projectReviewPlanTasks(item.summary).map((task) => task.blockId),
+        nextActionIds: item.summary.nextActions.map((task) => task.blockId),
+        waitingTaskIds: item.summary.waitingTasks.map((task) => task.blockId),
+        blockedTaskIds: item.summary.blockedTasks.map((task) => task.blockId),
+    };
+}
+
 function buildReviewContext(review: ReviewData): Record<string, unknown> {
+    const projectReviewTasks = review.projectReviews.map((item) => item.summary.project);
     const sourceGroups: Array<[string, TaskCacheEntry[]]> = [
         ["overdue", review.overdueTasks],
         ["nextActions", review.nextActions],
         ["inbox", review.inboxTasks],
         ["waiting", review.waitingTasks],
         ["someday", review.somedayTasks],
-        ["activeProjects", review.activeProjects],
+        ["activeProjects", projectReviewTasks],
         ["reviewDue", review.reviewDueTasks],
     ];
     const taskMap = new Map<string, Record<string, unknown>>();
@@ -121,6 +139,7 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
     }
     const groupSnapshots = (key: string): Record<string, unknown>[] =>
         (groups[key] || []).map((id) => taskMap.get(id)).filter((item): item is Record<string, unknown> => !!item);
+    const projectReviews = review.projectReviews.map(projectReviewSnapshot);
     return {
         groups,
         tasks: Array.from(taskMap.values()),
@@ -133,7 +152,12 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
         someday: groupSnapshots("someday"),
         activeProjects: groupSnapshots("activeProjects"),
         reviewDue: groupSnapshots("reviewDue"),
-        reviewData: { groups, tasks: Array.from(taskMap.values()) },
+        projectReviews,
+        reviewData: {
+            groups,
+            tasks: Array.from(taskMap.values()),
+            projectReviews,
+        },
         truncated:
             taskMap.size >= MAX_REVIEW_TASKS ||
             sourceGroups.some(([, entries]) => entries.length > MAX_REVIEW_GROUP_ITEMS),
@@ -525,7 +549,12 @@ export async function runAiReview(): Promise<void> {
             ...review.inboxTasks,
             ...review.waitingTasks,
             ...review.somedayTasks,
-            ...review.activeProjects,
+            ...review.projectReviews.flatMap((item) => [
+                item.summary.project,
+                ...item.summary.nextActions,
+                ...item.summary.waitingTasks,
+                ...item.summary.blockedTasks,
+            ]),
             ...review.reviewDueTasks,
         ]) {
             reviewTaskMap.set(task.blockId, task);

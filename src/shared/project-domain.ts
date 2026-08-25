@@ -254,8 +254,12 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectD
         const incompleteNonLeafActions = descendants.filter(
             (task) => !leafActionIds.has(task.blockId) && task.status !== "done",
         );
+        const complete = project.status === "done";
+        const projectBlocked =
+            isHardBlocked(project, taskById) && effectiveBlockedReason(project, taskById) !== "children";
         const risks: ProjectRisk[] = [];
 
+        if (!complete && projectBlocked) risks.push(risk("blocked", project.blockId, "high"));
         for (const task of overdueTasks) risks.push(risk("overdue", task.blockId, "high"));
         for (const task of blockedTasks) risks.push(risk("blocked", task.blockId, "high"));
         for (const task of dueSoonTasks.filter(
@@ -272,9 +276,6 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectD
 
         const doneCount = doneLeaves.length;
         const openCount = Math.max(0, leafActions.length - doneCount);
-        const complete = project.status === "done";
-        const projectBlocked =
-            isHardBlocked(project, taskById) && effectiveBlockedReason(project, taskById) !== "children";
         const blocked = !complete && (projectBlocked || (nextActions.length === 0 && blockedTasks.length > 0));
         const health = complete ? "complete" : blocked ? "blocked" : risks.length > 0 ? "attention" : "onTrack";
 

@@ -86,6 +86,15 @@ export interface ProjectSummary {
     health: ProjectHealth;
 }
 
+export type ProjectReviewTrigger = "schedule" | "risk" | "completionCandidate" | "manual";
+export type ProjectReviewSchedule = "none" | "due" | "overdue";
+
+export interface ProjectReviewItem {
+    summary: ProjectSummary;
+    triggers: ProjectReviewTrigger[];
+    schedule: ProjectReviewSchedule;
+}
+
 export interface ReminderRelative {
     type: "relative";
     minutes: number;
@@ -206,8 +215,9 @@ export interface ReviewData {
     inboxTasks: TaskCacheEntry[];
     waitingTasks: TaskCacheEntry[];
     somedayTasks: TaskCacheEntry[];
-    activeProjects: TaskCacheEntry[];
     reviewDueTasks: TaskCacheEntry[];
+    projectReviews: ProjectReviewItem[];
+    reviewableProjects: ProjectSummary[];
 }
 
 export type { PluginSettings, PriorityEngineSettings } from "./settings";

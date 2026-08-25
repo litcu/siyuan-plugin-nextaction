@@ -80,10 +80,11 @@ export function reduceTaskChanges(
     const entries = [...byId.values()];
     const childIdsByParent = new Map<string, string[]>();
     for (const entry of entries) {
-        if (!entry.parentId) continue;
-        const childIds = childIdsByParent.get(entry.parentId);
+        const parentId = entry.parentId;
+        if (!parentId) continue;
+        const childIds = childIdsByParent.get(parentId);
         if (childIds) childIds.push(entry.blockId);
-        else childIdsByParent.set(entry.parentId, [entry.blockId]);
+        else childIdsByParent.set(parentId, [entry.blockId]);
     }
     const allTasks = entries.map((task) => {
         const childIds = childIdsByParent.get(task.blockId) || [];
