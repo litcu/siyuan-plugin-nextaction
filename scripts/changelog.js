@@ -33,7 +33,38 @@ function sectionRange(changelog, headingPattern) {
 }
 
 function stripComments(text) {
-    return text.replace(/<!--[\s\S]*?-->/g, "").trim();
+    let output = "";
+    let cursor = 0;
+
+    while (cursor < text.length) {
+        const commentStart = text.indexOf("<!--", cursor);
+        if (commentStart === -1) {
+            output += text.slice(cursor);
+            break;
+        }
+
+        output += text.slice(cursor, commentStart);
+        let depth = 1;
+        let commentCursor = commentStart + 4;
+        while (depth > 0 && commentCursor < text.length) {
+            const nestedStart = text.indexOf("<!--", commentCursor);
+            const commentEnd = text.indexOf("-->", commentCursor);
+            if (commentEnd === -1) {
+                commentCursor = text.length;
+                break;
+            }
+            if (nestedStart !== -1 && nestedStart < commentEnd) {
+                depth += 1;
+                commentCursor = nestedStart + 4;
+            } else {
+                depth -= 1;
+                commentCursor = commentEnd + 3;
+            }
+        }
+        cursor = commentCursor;
+    }
+
+    return output.trim();
 }
 
 function releaseBodyFromUnreleased(body) {
