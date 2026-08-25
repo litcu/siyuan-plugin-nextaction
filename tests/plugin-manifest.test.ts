@@ -8,6 +8,11 @@ test("插件清单声明支持桌面端与 Web 前端", () => {
     assert.deepEqual(manifest.frontends, ["desktop", "desktop-window", "browser-desktop", "browser-mobile"]);
 });
 
+test("插件清单声明 Docker 后端可加载前端与内核插件", () => {
+    assert.ok(manifest.backends.includes("docker"));
+    assert.ok(manifest.kernels.includes("docker"));
+});
+
 test("插件清单要求提供 Agent capability API 的思源版本", () => {
     assert.equal(manifest.minAppVersion, "3.8.0");
 });
