@@ -773,22 +773,28 @@
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.detailGroupOrganization || "Organization"}>
-        <NaPropertyRow label={i18n?.parentItem || "Parent item"}>
-            <NaSearchSelect
-                multi={false}
-                bind:selected={parentId}
-                bind:selectedLabel={parentLabel}
-                searchFn={searchParentTasks}
-                placeholder={i18n?.searchParentItem || "Search projects and tasks"}
-                emptyText={i18n?.noOptions || "No options"}
-                noMatchText={i18n?.noMatches || "No matches"}
-                loadingText={i18n?.loadingMore || "Loading"}
-                clearLabel={i18n?.clearSelection || "Clear selection"}
-                removeLabel={i18n?.removeSelection || "Remove selection"}
-                fixedDropdown={true}
-                on:change={handleChange}
-            />
-        </NaPropertyRow>
+        {#if !isProject}
+            <NaPropertyRow
+                label={i18n?.projectAssignment || i18n?.parentItem || "Join project or set parent task"}
+                description={i18n?.projectAssignmentHint ||
+                    "Changes logical assignment only. The SiYuan block stays where it is; moving it into the project document is not available yet."}
+            >
+                <NaSearchSelect
+                    multi={false}
+                    bind:selected={parentId}
+                    bind:selectedLabel={parentLabel}
+                    searchFn={searchParentTasks}
+                    placeholder={i18n?.searchParentItem || "Search projects and tasks"}
+                    emptyText={i18n?.noOptions || "No options"}
+                    noMatchText={i18n?.noMatches || "No matches"}
+                    loadingText={i18n?.loadingMore || "Loading"}
+                    clearLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
+                    removeLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
+                    fixedDropdown={true}
+                    on:change={handleChange}
+                />
+            </NaPropertyRow>
+        {/if}
         <NaPropertyRow label={i18n?.context || "Context"}>
             <NaSearchSelect
                 multi={true}

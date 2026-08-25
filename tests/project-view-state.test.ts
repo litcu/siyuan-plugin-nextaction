@@ -55,6 +55,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
     return {
         mode: "overview",
         activeProjectId: "",
+        filterBypassProjectId: "",
         selectedTaskId: "",
         selectedTaskOverride: null,
         showCompleted: false,
@@ -136,6 +137,24 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.activeProjectId, "p1");
     assert.equal(model.detailTasks[0].title, "edited before broadcast");
     assert.equal(model.boardTasks[0].status, "doing");
+});
+
+test("从 Review 打开的项目不受项目视图既有任务筛选影响", () => {
+    // Regression: Review 指定的项目会被 ProjectView 保留的搜索和标签筛选挡住。
+    const navigationState = state({
+        activeProjectId: "p2",
+        filterBypassProjectId: "p2",
+        filterState: { ...DEFAULT_FILTER_STATE, searchText: "alpha" },
+    });
+
+    const model = buildProjectViewModel(projects, [], navigationState);
+
+    assert.deepEqual(
+        model.visibleSummaries.map((summary) => summary.project.blockId),
+        ["p1", "p2"],
+    );
+    assert.equal(model.activeProjectId, "p2");
+    assert.equal(model.selectedSummary?.project.blockId, "p2");
 });
 
 test("折叠状态和甘特排序进入树模型但不丢失完整任务集合", () => {

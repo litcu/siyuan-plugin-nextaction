@@ -57,6 +57,7 @@ export function shouldShowProjectCompletionPanel(summary: ProjectSummary): boole
 export interface ProjectViewState {
     mode: ProjectViewMode;
     activeProjectId: string;
+    filterBypassProjectId: string;
     selectedTaskId: string;
     selectedTaskOverride: TaskCacheEntry | null;
     showCompleted: boolean;
@@ -113,14 +114,17 @@ export function buildProjectViewModel(
         ? applyFilters(filterCandidates, state.filterState, customFields)
         : filterCandidates;
     const matchedTaskIds = new Set(matchedTasks.map((task) => task.blockId));
-    const matchingSummaries = summaries.filter(
-        (summary) =>
+    const matchingSummaries = summaries.filter((summary) => {
+        const explicitlyRequested = summary.project.blockId === state.filterBypassProjectId;
+        return (
             (!taskFiltersActive ||
                 matchedTaskIds.has(summary.project.blockId) ||
-                summary.descendants.some((task) => matchedTaskIds.has(task.blockId))) &&
+                summary.descendants.some((task) => matchedTaskIds.has(task.blockId)) ||
+                explicitlyRequested) &&
             (state.showCompleted || summary.health !== "complete") &&
-            matchesProjectFilters(summary, state),
-    );
+            matchesProjectFilters(summary, state)
+        );
+    });
     const orderedProjectIds = sortTasksBy(
         matchingSummaries.map((summary) => summary.project),
         state.filterState.sortBy,

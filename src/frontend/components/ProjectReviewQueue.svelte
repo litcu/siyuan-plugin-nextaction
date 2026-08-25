@@ -22,13 +22,14 @@
     export let selectedTaskId: string;
     export let onSelectTask: (task: TaskCacheEntry) => void;
     export let onEdit: (task: TaskCacheEntry) => void;
+    export let onOpenProject: (project: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onMarkReviewed: (blockIds: string[]) => Promise<boolean>;
     export let manualProjectIds: string[] = [];
+    export let expandedProjectId: string = "";
 
     let manualProjectId = "";
-    let expandedProjectId = "";
     let reviewingIds = new Set<string>();
 
     $: reviewItems = mergeManualProjectReviews(
@@ -163,6 +164,12 @@
                 >
                     <svelte:fragment slot="action">
                         <div class="na-project-review__actions">
+                            <NaButton
+                                size="sm"
+                                variant="text"
+                                icon="iconOpenWindow"
+                                on:click={() => onOpenProject(project)}>{i18n.reviewOpenProject}</NaButton
+                            >
                             <NaButton size="sm" variant="text" on:click={() => onEdit(project)}
                                 >{i18n.editProject}</NaButton
                             >

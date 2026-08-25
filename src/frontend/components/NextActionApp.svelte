@@ -46,6 +46,9 @@
     let selectedTask: TaskCacheEntry | null = null;
     let detailComponent: TaskDetail | null = null;
     let viewAfterClose: string | undefined = undefined;
+    let projectFocusId = "";
+    let reviewManualProjectIds: string[] = [];
+    let reviewExpandedProjectId = "";
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
     // Safety-net refresh: most data is kept in sync by revisioned task broadcasts
@@ -73,6 +76,7 @@
     }
 
     function applyView(view: string) {
+        if (view !== VIEW_BY_PROJECT) projectFocusId = "";
         activeView = view;
         selectedTask = null;
         taskStore.setActiveView(view);
@@ -92,6 +96,11 @@
             return;
         }
         selectedTask = task;
+    }
+
+    function handleOpenProject(project: TaskCacheEntry) {
+        projectFocusId = project.blockId;
+        switchView(VIEW_BY_PROJECT);
     }
 
     function closeDetailNow() {
@@ -305,6 +314,7 @@
                 <ProjectView
                     {selectedTaskId}
                     selectedTaskOverride={selectedTask}
+                    requestedProjectId={projectFocusId}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
@@ -339,8 +349,11 @@
                 <ReviewView
                     {bridge}
                     {selectedTaskId}
+                    bind:manualProjectIds={reviewManualProjectIds}
+                    bind:expandedProjectId={reviewExpandedProjectId}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
+                    onOpenProject={handleOpenProject}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     {i18n}

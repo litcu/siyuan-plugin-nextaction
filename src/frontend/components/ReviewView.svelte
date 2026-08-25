@@ -17,12 +17,14 @@
     export let selectedTaskId: string;
     export let onSelectTask: (task: TaskCacheEntry) => void;
     export let onEdit: (task: TaskCacheEntry) => void;
+    export let onOpenProject: (project: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let i18n: any;
+    export let manualProjectIds: string[] = [];
+    export let expandedProjectId: string = "";
 
     let reviewData: ReviewData | null = null;
-    let manualProjectIds: string[] = [];
     let loading = false;
     let completing = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -134,10 +136,12 @@
                 <ProjectReviewQueue
                     reviewData={visibleReviewData}
                     bind:manualProjectIds
+                    bind:expandedProjectId
                     {i18n}
                     {selectedTaskId}
                     {onSelectTask}
                     {onEdit}
+                    {onOpenProject}
                     {onStatusClick}
                     {onContextMenu}
                     onMarkReviewed={handleMarkReviewed}

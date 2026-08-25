@@ -52,6 +52,7 @@
     $: isWaiting = task.status === "waiting";
     $: isSomeday = task.status === "someday";
     $: isProject = isProjectTask(task);
+    $: isStage = !isProject && task.actionKind === "stage";
     $: displayPriority = normalizePriority(task.priority);
     $: parentTitle = task.parentId ? $taskById.get(task.parentId)?.title || i18n?.untitled || "(untitled)" : "";
     $: taskTitle = task.title || i18n?.untitled || "(untitled)";
@@ -151,6 +152,7 @@
                         </span>
                     </NaTooltip>
                 {/if}
+                {#if isStage}<span class="na-task-card__kind">{i18n?.actionKindStage || "Stage"}</span>{/if}
                 <NaTooltip text={compositeTitle} fill>
                     <span
                         class="na-task-card__title-composite"

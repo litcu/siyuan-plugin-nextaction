@@ -41,6 +41,7 @@
     export let i18n: I18nStrings;
     export let selectedTaskId: string = "";
     export let selectedTaskOverride: TaskCacheEntry | null = null;
+    export let requestedProjectId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined =
         undefined;
@@ -52,6 +53,8 @@
 
     let mode: ProjectViewMode = "overview";
     let activeProjectId = "";
+    let appliedRequestedProjectId = "";
+    let requestedProjectFilterBypassId = "";
     let collapsedIds: Set<string> = new Set();
     let showCompleted = false;
     let riskFilter: ProjectRiskFilter = "all";
@@ -60,10 +63,17 @@
     let ganttSortMode: ProjectTreeSortMode = "timeline";
     let riskItems: RiskItem[] = [];
 
+    $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
+        activeProjectId = requestedProjectId;
+        requestedProjectFilterBypassId = requestedProjectId;
+        appliedRequestedProjectId = requestedProjectId;
+    }
+
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
     $: viewModel = buildProjectViewModel($taskStore.allTasks, $taskStore.settings.customFields, {
         mode,
         activeProjectId,
+        filterBypassProjectId: requestedProjectFilterBypassId,
         selectedTaskId,
         selectedTaskOverride,
         showCompleted,
@@ -106,6 +116,7 @@
     }
 
     function handleFilterChange(state: FilterState) {
+        requestedProjectFilterBypassId = "";
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
     }
 
@@ -114,6 +125,7 @@
     }
 
     function selectProject(summary: ProjectSummary) {
+        requestedProjectFilterBypassId = "";
         activeProjectId = summary.project.blockId;
     }
 

@@ -192,6 +192,19 @@
     overflow: hidden;
 }
 
+.na-task-card__kind {
+    flex: 0 0 auto;
+    padding: 0 5px;
+    border: 1px solid var(--na-color-info-border);
+    border-radius: var(--na-radius-pill);
+    color: var(--na-color-info);
+    background: var(--na-color-info-bg);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 15px;
+    white-space: nowrap;
+}
+
 .na-task-card__title-composite {
     display: flex;
     align-items: baseline;
