@@ -73,19 +73,19 @@
         }
     }
 
-    function cancel(field: ProjectDefinitionField): void {
-        controller.cancel(field);
+    async function applyDraftAction(
+        field: ProjectDefinitionField,
+        event: MouseEvent,
+        action: (target: ProjectDefinitionController) => void,
+    ): Promise<void> {
+        const restoreKeyboardFocus = event.detail === 0;
+        const targetController = controller;
+        action(targetController);
         refresh();
-    }
-
-    function reloadRemote(field: ProjectDefinitionField): void {
-        controller.reloadRemote(field);
-        refresh();
-    }
-
-    function keepDraft(field: ProjectDefinitionField): void {
-        controller.keepDraft(field);
-        refresh();
+        if (restoreKeyboardFocus && controller === targetController) {
+            await tick();
+            fieldInputs[field]?.focus();
+        }
     }
 
     $: if (project.blockId !== activeProjectId) {
@@ -174,7 +174,11 @@
                 >
                     {state.saveState === "error" ? i18n?.projectDefinitionRetry || "Retry" : i18n?.save || "Save"}
                 </NaButton>
-                <NaButton size="sm" disabled={!state.dirty || anySaving} on:click={() => cancel(field)}>
+                <NaButton
+                    size="sm"
+                    disabled={!state.dirty || anySaving}
+                    on:click={(event) => applyDraftAction(field, event, (target) => target.cancel(field))}
+                >
                     {i18n?.cancel || "Cancel"}
                 </NaButton>
             </div>
@@ -187,10 +191,19 @@
                         tone="warning"
                     />
                     <div class="na-project-definition__conflict-actions">
-                        <NaButton size="sm" disabled={anySaving} on:click={() => reloadRemote(field)}>
+                        <NaButton
+                            size="sm"
+                            disabled={anySaving}
+                            on:click={(event) => applyDraftAction(field, event, (target) => target.reloadRemote(field))}
+                        >
                             {i18n?.projectDefinitionReloadRemote || "Reload remote"}
                         </NaButton>
-                        <NaButton size="sm" variant="primary" disabled={anySaving} on:click={() => keepDraft(field)}>
+                        <NaButton
+                            size="sm"
+                            variant="primary"
+                            disabled={anySaving}
+                            on:click={(event) => applyDraftAction(field, event, (target) => target.keepDraft(field))}
+                        >
                             {i18n?.projectDefinitionKeepDraft || "Keep draft"}
                         </NaButton>
                     </div>

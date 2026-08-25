@@ -353,8 +353,11 @@
                     />
                 {/if}
 
-                {#if mode === "overview"}
+                <div hidden={mode !== "overview"}>
                     <ProjectDefinitionEditor project={selectedSummary.project} {i18n} onSave={onTaskUpdate} />
+                </div>
+
+                {#if mode === "overview"}
                     <ProjectOverviewMode
                         summary={selectedSummary}
                         risks={selectedProject?.risks || []}
