@@ -36,6 +36,7 @@ function fieldSnapshot(value: string): ProjectDefinitionFieldSnapshot {
 export class ProjectDefinitionController {
     private state: ProjectDefinitionSnapshot;
     private activeSave: { field: ProjectDefinitionField; promise: Promise<boolean> } | null = null;
+    private readonly listeners = new Set<(snapshot: ProjectDefinitionSnapshot) => void>();
 
     constructor(
         initial: ProjectDefinitionValues,
@@ -55,6 +56,12 @@ export class ProjectDefinitionController {
         this.options = options;
     }
 
+    subscribe(listener: (snapshot: ProjectDefinitionSnapshot) => void): () => void {
+        this.listeners.add(listener);
+        listener(this.state);
+        return () => this.listeners.delete(listener);
+    }
+
     edit(field: ProjectDefinitionField, value: string): void {
         const current = this.state[field];
         this.patch(field, {
@@ -72,7 +79,7 @@ export class ProjectDefinitionController {
             const remote = values[field];
             if (remote === current.remote) continue;
             if (!current.dirty || remote === current.draft) {
-                this.state = { ...this.state, [field]: fieldSnapshot(remote) };
+                this.replaceState({ ...this.state, [field]: fieldSnapshot(remote) });
                 continue;
             }
             this.patch(field, { remote, conflict: remote });
@@ -81,10 +88,10 @@ export class ProjectDefinitionController {
 
     cancel(field: ProjectDefinitionField): void {
         const current = this.state[field];
-        this.state = {
+        this.replaceState({
             ...this.state,
             [field]: fieldSnapshot(current.remote),
-        };
+        });
     }
 
     reloadRemote(field: ProjectDefinitionField): void {
@@ -121,10 +128,10 @@ export class ProjectDefinitionController {
         try {
             const authoritative = await this.options.save(field, draft);
             this.sync(authoritative);
-            this.state = {
+            this.replaceState({
                 ...this.state,
                 [field]: { ...fieldSnapshot(authoritative[field]), saveState: "saved" },
-            };
+            });
             return true;
         } catch (error: unknown) {
             this.patch(field, { saveState: "error", error: this.options.formatError(error) });
@@ -133,10 +140,15 @@ export class ProjectDefinitionController {
     }
 
     private patch(field: ProjectDefinitionField, patch: Partial<ProjectDefinitionFieldSnapshot>): void {
-        this.state = {
+        this.replaceState({
             ...this.state,
             [field]: { ...this.state[field], ...patch },
-        };
+        });
+    }
+
+    private replaceState(state: ProjectDefinitionSnapshot): void {
+        this.state = state;
+        for (const listener of this.listeners) listener(state);
     }
 }
 

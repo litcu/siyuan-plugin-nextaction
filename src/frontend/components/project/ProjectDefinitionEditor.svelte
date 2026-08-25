@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from "svelte";
+    import { onDestroy, tick } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import { ATTR_DOD, ATTR_OUTCOME } from "../../../shared/constants";
@@ -29,6 +29,7 @@
     let activeProjectId = project.blockId;
     let controller = controllerFor(project);
     let snapshot: ProjectDefinitionSnapshot = controller.snapshot;
+    let unsubscribe = controller.subscribe((next) => (snapshot = next));
 
     function valuesFromTask(task: TaskCacheEntry): ProjectDefinitionValues {
         return { outcome: task.outcome || "", dod: task.dod || "" };
@@ -49,22 +50,15 @@
         return controllerRegistry.acquire(task.blockId, valuesFromTask(task), controllerOptions(task));
     }
 
-    function refresh(): void {
-        snapshot = controller.snapshot;
-    }
-
     function edit(field: ProjectDefinitionField, event: Event): void {
         controller.edit(field, (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value);
-        refresh();
     }
 
     async function save(field: ProjectDefinitionField, event: MouseEvent): Promise<void> {
         const restoreKeyboardFocus = event.detail === 0;
         const savingController = controller;
         const pending = savingController.save(field);
-        refresh();
         await pending;
-        refresh();
         if (restoreKeyboardFocus && controller === savingController) {
             await tick();
             fieldInputs[field]?.focus();
@@ -79,7 +73,6 @@
         const restoreKeyboardFocus = event.detail === 0;
         const targetController = controller;
         action(targetController);
-        refresh();
         if (restoreKeyboardFocus && controller === targetController) {
             await tick();
             fieldInputs[field]?.focus();
@@ -88,15 +81,16 @@
 
     $: if (project.blockId !== activeProjectId) {
         activeProjectId = project.blockId;
+        unsubscribe();
         controller = controllerFor(project);
-        refresh();
+        unsubscribe = controller.subscribe((next) => (snapshot = next));
     }
 
     $: if (project.blockId === activeProjectId) {
         controller.rebind(controllerOptions(project));
         controller.sync(valuesFromTask(project));
-        refresh();
     }
+    onDestroy(() => unsubscribe());
     $: anySaving = fields.some((field) => snapshot[field].saveState === "saving");
     $: presentationByField = {
         outcome: {

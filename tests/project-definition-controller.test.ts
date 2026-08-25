@@ -291,3 +291,30 @@ test("项目定义会话跨编辑器重挂载保留草稿并重新绑定保存�
     assert.equal(await remounted.save("outcome"), true);
     assert.deepEqual(writes, ["跨导航草稿"]);
 });
+
+// Regression: 保存中替换编辑器订阅后，异步失败曾不会更新重挂载实例的错误状态。
+test("项目定义控制器向重挂载订阅者发布异步保存结果", async () => {
+    let rejectSave!: (error: Error) => void;
+    const saving = new Promise<ProjectDefinitionValues>((_resolve, reject) => {
+        rejectSave = reject;
+    });
+    const controller = new ProjectDefinitionController(
+        { outcome: "远端结果", dod: "远端判定" },
+        {
+            save: async () => saving,
+            formatError: (error) => (error instanceof Error ? error.message : String(error)),
+        },
+    );
+    controller.edit("outcome", "失败草稿");
+    const pending = controller.save("outcome");
+
+    const observedStates: string[] = [];
+    const unsubscribe = controller.subscribe((snapshot) => observedStates.push(snapshot.outcome.saveState));
+    rejectSave(new Error("远端写入失败"));
+
+    assert.equal(await pending, false);
+    assert.equal(observedStates[observedStates.length - 1], "error");
+    assert.equal(controller.snapshot.outcome.draft, "失败草稿");
+    assert.equal(controller.snapshot.outcome.error, "远端写入失败");
+    unsubscribe();
+});

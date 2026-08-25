@@ -78,6 +78,7 @@ async function renderBrowserResult(fixtureRoot: string, aliases: BrowserAlias[] 
 // Regression: 键盘触发保存、取消或冲突处理后，失效/移除的按钮曾导致焦点丢失。
 // Regression: 切换当前项目曾销毁尚未保存的项目定义草稿。
 // Regression: 离开项目主导航卸载编辑器后，重新进入曾静默丢失未保存草稿。
+// Regression: 保存中重挂载后，异步失败曾让新编辑器永久停留在保存中且无法重试。
 test("项目详情可显式保存定义并安全处理外部更新冲突", async () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-definition-"));
     try {
@@ -109,6 +110,7 @@ const secondProject = { ...base, blockId: "project-two", attrHostId: "project-tw
 let project = firstProject;
 let editorMounted = true;
 let writes = [];
+let failNextSave = false;
 const controllerRegistry = new ProjectDefinitionControllerRegistry();
 const i18n = new Proxy({
     projectDefinitionTitle: "Project definition", outcome: "Outcome", definitionOfDone: "Definition of Done",
@@ -122,6 +124,10 @@ const i18n = new Proxy({
 async function saveDefinition(_task, attrs) {
     writes = [...writes, attrs];
     await new Promise((resolve) => setTimeout(resolve, 40));
+    if (failNextSave) {
+        failNextSave = false;
+        throw new Error("Remote write failed");
+    }
     project = {
         ...project,
         outcome: attrs["custom-na-outcome"] ?? project.outcome,
@@ -147,6 +153,7 @@ async function remountEditor() {
 <button id="switch-second" on:click={() => (project = secondProject)}>Second project</button>
 <button id="switch-first" on:click={() => (project = firstProject)}>First project</button>
 <button id="remount-editor" on:click={remountEditor}>Remount editor</button>
+<button id="fail-next-save" on:click={() => (failNextSave = true)}>Fail next save</button>
 <div id="write-count">{writes.length}</div>
 {#if editorMounted}<ProjectDefinitionEditor {project} {i18n} onSave={saveDefinition} {controllerRegistry} />{/if}`,
         );
@@ -224,6 +231,21 @@ cancel.click();
 await wait(0);
 const focusRestoredAfterCancel = document.activeElement === remountedOutcome;
 
+inputValue(remountedOutcome, "Recovered after remount");
+await wait(0);
+document.querySelector("#fail-next-save").click();
+const retryField = remountedOutcome.closest(".na-project-definition__field");
+const failureSave = [...retryField.querySelectorAll("button")].find((button) => button.textContent.trim() === "Save");
+failureSave.click();
+await wait(0);
+document.querySelector("#remount-editor").click();
+await wait(70);
+const failedFieldAfterRemount = document.querySelector("#na-project-definition-outcome").closest(".na-project-definition__field");
+const failureVisibleAfterRemount = failedFieldAfterRemount.textContent.includes("Remote write failed") &&
+    [...failedFieldAfterRemount.querySelectorAll("button")].some((button) => button.textContent.trim() === "Retry" && !button.disabled);
+clickByText("Retry", failedFieldAfterRemount);
+await wait(70);
+
 finish({
     outcomeTag: outcome.tagName,
     outcomeType: outcome.type,
@@ -240,6 +262,7 @@ finish({
     focusRestoredAfterCancel,
     draftPreservedAcrossProjects,
     draftPreservedAcrossRemount,
+    failureVisibleAfterRemount,
     savedVisible,
 });
 })();`,
@@ -251,8 +274,8 @@ finish({
             outcomeType: "text",
             dodTag: "TEXTAREA",
             disabledWhileSaving: true,
-            writeCount: 2,
-            outcomeValue: "Saved outcome",
+            writeCount: 4,
+            outcomeValue: "Recovered after remount",
             dodValue: "Remote DoD",
             conflictVisible: true,
             localDraftPreserved: true,
@@ -262,6 +285,7 @@ finish({
             focusRestoredAfterCancel: true,
             draftPreservedAcrossProjects: true,
             draftPreservedAcrossRemount: true,
+            failureVisibleAfterRemount: true,
             savedVisible: true,
         });
     } finally {
