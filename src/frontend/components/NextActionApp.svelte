@@ -26,9 +26,9 @@
     import ReminderView from "./ReminderView.svelte";
     import TaskDetail from "./TaskDetail.svelte";
     import { showTaskContextMenu } from "./task-context-menu";
-    import { showStatusMenu } from "../utils";
+    import { showStatusMenu, taskWriteWarningMessage } from "../utils";
     import { onMount, onDestroy } from "svelte";
-    import { notifyError, formatRpcError } from "../notify";
+    import { notifyError, notifyInfo, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
     import { get } from "svelte/store";
@@ -190,6 +190,8 @@
             const updated = await bridge.updateTask(task.blockId, attrs);
             taskStore.applyUpdate(updated);
             if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+            const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+            if (warningMessage) notifyInfo(warningMessage);
         } catch (error: any) {
             notifyError(formatRpcError(error, i18n));
             throw error;

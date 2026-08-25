@@ -1,5 +1,6 @@
 import type { CustomFieldDef } from "../../shared/settings";
 import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+import { ATTR_STATUS } from "../../shared/constants";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
 import {
     buildProjectSummaries,
@@ -36,6 +37,21 @@ export async function executeProjectBoardMove(
     if (handlers.reorderTask) {
         await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
     }
+}
+
+export async function confirmProjectCompletion(
+    summary: ProjectSummary,
+    updateTask: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>,
+): Promise<void> {
+    if (summary.project.status === "done" || (!summary.completionCandidate && !summary.empty)) {
+        throw new Error("Project is not ready for completion confirmation");
+    }
+    await updateTask(summary.project, { [ATTR_STATUS]: "done" });
+}
+
+export function shouldShowProjectCompletionPanel(summary: ProjectSummary): boolean {
+    if (summary.project.status === "done") return false;
+    return summary.completionCandidate || (summary.empty && ["todo", "doing"].includes(summary.project.status));
 }
 
 export interface ProjectViewState {

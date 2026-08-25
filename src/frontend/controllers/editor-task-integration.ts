@@ -19,6 +19,7 @@ import {
 } from "./editor-task-dom";
 import type { TaskCommandController } from "./task-command-controller";
 import { isProjectTask } from "../../shared/project-domain";
+import { taskWriteWarningMessage } from "../utils";
 
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
@@ -167,6 +168,8 @@ export class EditorTaskIntegration {
                                 ? this.plugin.i18n.taskMarkedDone || "Marked as done"
                                 : this.plugin.i18n.taskStatusUpdated || "Status updated to {status}";
                         notifyInfo(template.replace("{status}", statusLabel));
+                        const warningMessage = taskWriteWarningMessage(updated._warning, this.i18n);
+                        if (warningMessage) notifyInfo(warningMessage);
                     } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
                     }

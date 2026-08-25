@@ -44,6 +44,7 @@ import {
     ATTR_DOD,
     ATTR_KIND,
     ACTION_KIND_ACTION,
+    TASK_WARNING_PROJECT_REOPENED,
 } from "../shared/constants";
 import { type CacheManager } from "./cache-manager";
 import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
@@ -69,7 +70,7 @@ import {
 } from "../shared/custom-fields";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
-import type { TaskRepository } from "./task-repository";
+import type { ConfirmedTaskChanges, TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import type { TaskCustomFieldService } from "./task-custom-field-service";
 import { addLocalDays } from "./task-date-utils";
@@ -150,6 +151,26 @@ export class TaskLifecycleService {
 
     private checkReady(): void {
         this.runtime.assertReady();
+    }
+
+    private async reopenCompletedDirectProject(entry: TaskCacheEntry, changes: ConfirmedTaskChanges): Promise<boolean> {
+        const project = entry.parentId ? this.cacheManager.get(entry.parentId) : undefined;
+        if (entry.status === "done" || project?.status !== "done" || !isProjectTask(project)) return false;
+
+        await changes.upsertAttrs({
+            blockId: project.blockId,
+            attrs: { [ATTR_STATUS]: "doing" },
+            existing: project,
+        });
+        try {
+            await this.myDayManager.clearTaskCompleted(project.blockId);
+        } catch (error: unknown) {
+            void this.api.log(
+                "warn",
+                `reopenCompletedDirectProject: failed to clear Project completion in My Day: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
+        return true;
     }
 
     private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
@@ -359,7 +380,7 @@ export class TaskLifecycleService {
                 if (isNative && existingAttrs[ATTR_TASK]) missingDefaults[ATTR_TASK] = "";
                 if (!isNative && existingAttrs[ATTR_TASK] !== taskType) missingDefaults[ATTR_TASK] = taskType;
 
-                return changes.upsertAttrs({
+                const currentEntry = await changes.upsertAttrs({
                     blockId,
                     attrs: missingDefaults,
                     existing: this.cacheManager.get(blockId),
@@ -373,6 +394,8 @@ export class TaskLifecycleService {
                         taskType: isNative ? "1" : taskType,
                     },
                 });
+                const projectReopened = await this.reopenCompletedDirectProject(currentEntry, changes);
+                return projectReopened ? { ...currentEntry, _warning: TASK_WARNING_PROJECT_REOPENED } : currentEntry;
             } catch (error: unknown) {
                 if (convertedRootId) {
                     try {
@@ -855,6 +878,10 @@ export class TaskLifecycleService {
                     attrs: { [ATTR_REVIEW_DATE]: nextReviewDate },
                     existing: currentEntry,
                 });
+            }
+            const projectReopened = await this.reopenCompletedDirectProject(currentEntry, changes);
+            if (projectReopened) {
+                return { ...currentEntry, _warning: TASK_WARNING_PROJECT_REOPENED };
             }
             if (hasSequentialConflict) {
                 return { ...currentEntry, _warning: "sequentialConflict" };

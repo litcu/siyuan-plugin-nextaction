@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
+import { ATTR_STATUS } from "../src/shared/constants.ts";
 import {
     buildProjectViewModel,
+    confirmProjectCompletion,
     executeProjectBoardMove,
+    shouldShowProjectCompletionPanel,
     type ProjectViewState,
 } from "../src/frontend/utils/project-view-state.ts";
 
@@ -172,6 +175,49 @@ test("项目视图从共享摘要取得叶子进度", () => {
     assert.equal(model.summaries[0].doneCount, 1);
     assert.equal(model.summaries[0].openCount, 0);
     assert.equal(model.summaries[0].completionCandidate, true);
+});
+
+test("项目完成面板只确认完成候选或空项目", async () => {
+    const completedCandidate = buildProjectViewModel(
+        [
+            task("candidate", { taskType: "2", status: "doing", childIds: ["done-action"] }),
+            task("done-action", { parentId: "candidate", status: "done" }),
+        ],
+        [],
+        state(),
+    ).summaries[0];
+    const emptyProject = buildProjectViewModel([task("empty", { taskType: "2" })], [], state()).summaries[0];
+    const openProject = buildProjectViewModel(
+        [
+            task("open-project", { taskType: "2", childIds: ["open-action"] }),
+            task("open-action", { parentId: "open-project" }),
+        ],
+        [],
+        state(),
+    ).summaries[0];
+    const confirmed: string[] = [];
+    const updateTask = async (project: TaskCacheEntry, attrs: Record<string, string>) => {
+        if (attrs[ATTR_STATUS] === "done") confirmed.push(project.blockId);
+    };
+
+    await confirmProjectCompletion(completedCandidate, updateTask);
+    await confirmProjectCompletion(emptyProject, updateTask);
+    await assert.rejects(confirmProjectCompletion(openProject, updateTask), /not ready/i);
+
+    assert.deepEqual(confirmed, ["candidate", "empty"]);
+});
+
+test("空 Draft 不直接显示异常完成面板，Planned 和 Active 空项目需要澄清", () => {
+    // Regression: every empty Project was styled as an abnormal state, including an unplanned Draft.
+    const draft = buildProjectViewModel([task("draft", { taskType: "2", status: "inbox" })], [], state()).summaries[0];
+    const planned = buildProjectViewModel([task("planned", { taskType: "2", status: "todo" })], [], state())
+        .summaries[0];
+    const active = buildProjectViewModel([task("active", { taskType: "2", status: "doing" })], [], state())
+        .summaries[0];
+
+    assert.equal(shouldShowProjectCompletionPanel(draft), false);
+    assert.equal(shouldShowProjectCompletionPanel(planned), true);
+    assert.equal(shouldShowProjectCompletionPanel(active), true);
 });
 
 test("看板移动先更新状态再重排并向上抛出失败", async () => {

@@ -39,7 +39,7 @@ export interface TaskCacheEntry {
     reminder: string; // na-reminder 原始值，空字符串 = 使用全局默认，"[]" = 禁用
     customFields: Record<string, string>; // 自定义字段值 {key: value}
     /** Non-fatal write warning returned after the authoritative state is stored. */
-    _warning?: "sequentialConflict";
+    _warning?: "sequentialConflict" | "projectReopened";
 }
 
 export interface CompletedTasksPage {
@@ -74,6 +74,7 @@ export interface ProjectSummary {
     empty: boolean;
     clarificationNeeded: boolean;
     completionCandidate: boolean;
+    incompleteNonLeafActions: TaskCacheEntry[];
     openCount: number;
     doneCount: number;
     progress: number;

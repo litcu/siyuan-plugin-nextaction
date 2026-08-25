@@ -3,6 +3,7 @@
     import type { KernelBridge } from "../kernel-bridge";
     import { taskStore } from "../stores/task-store";
     import { notifyError, notifyInfo } from "../notify";
+    import { taskCreationWarningMessage } from "../utils";
     import NaBadge from "../ui/NaBadge.svelte";
 
     export let proposal: AiProposal;
@@ -73,8 +74,9 @@
             const validation = await bridge.validateAiProposal(next);
             if (validation.errors.length) throw new Error(validation.errors.join("；"));
             const result = await bridge.applyAiProposal(next);
-            if (result.warnings?.length) notifyInfo(result.warnings.join("；"));
-            else notifyInfo(i18n?.aiApplied || "AI 建议已应用");
+            if (result.warnings?.length) {
+                notifyInfo(result.warnings.map((warning) => taskCreationWarningMessage(warning, i18n)).join("；"));
+            } else notifyInfo(i18n?.aiApplied || "AI 建议已应用");
             taskStore.loadTasks();
             taskStore.loadMyDay();
             onDone?.();

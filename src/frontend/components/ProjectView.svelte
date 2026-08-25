@@ -7,6 +7,7 @@
     import ProjectHierarchyMode from "./project/ProjectHierarchyMode.svelte";
     import ProjectBoardMode from "./project/ProjectBoardMode.svelte";
     import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
+    import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -24,7 +25,9 @@
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
+        confirmProjectCompletion,
         executeProjectBoardMove,
+        shouldShowProjectCompletionPanel,
         type ProjectActionFilter,
         type ProjectBoardMoveIntent,
         type ProjectDateFilter,
@@ -303,6 +306,16 @@
                         label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
                     />
                 </div>
+                {#if shouldShowProjectCompletionPanel(selectedSummary)}
+                    <ProjectCompletionPanel
+                        summary={selectedSummary}
+                        {i18n}
+                        {onSelectTask}
+                        onConfirm={onTaskUpdate
+                            ? () => confirmProjectCompletion(selectedSummary, onTaskUpdate)
+                            : undefined}
+                    />
+                {/if}
 
                 {#if mode === "overview"}
                     <ProjectOverviewMode

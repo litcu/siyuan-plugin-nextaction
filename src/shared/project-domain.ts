@@ -250,6 +250,10 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectD
         const empty = descendants.length === 0;
         const completionCandidate =
             project.status !== "done" && leafActions.length > 0 && doneLeaves.length === leafActions.length;
+        const leafActionIds = new Set(leafActions.map((task) => task.blockId));
+        const incompleteNonLeafActions = descendants.filter(
+            (task) => !leafActionIds.has(task.blockId) && task.status !== "done",
+        );
         const risks: ProjectRisk[] = [];
 
         for (const task of overdueTasks) risks.push(risk("overdue", task.blockId, "high"));
@@ -282,6 +286,7 @@ export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectD
             empty,
             clarificationNeeded: empty,
             completionCandidate,
+            incompleteNonLeafActions,
             openCount,
             doneCount,
             progress: leafActions.length > 0 ? Math.round((doneCount / leafActions.length) * 100) : 0,

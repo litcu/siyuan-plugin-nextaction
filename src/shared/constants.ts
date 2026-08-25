@@ -61,6 +61,7 @@ export const ATTR_DOD = "custom-na-dod";
 export const ATTR_KIND = "custom-na-kind";
 export const ACTION_KIND_ACTION = "action";
 export const ACTION_KIND_STAGE = "stage";
+export const TASK_WARNING_PROJECT_REOPENED = "projectReopened";
 export const REMINDER_MAX_PER_TASK = 7;
 export const REMINDER_DATA_PATH = "dismissed-reminders.json";
 

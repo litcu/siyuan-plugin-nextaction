@@ -107,15 +107,20 @@ test("空项目保留 0/0 待澄清语义，仅 Planned/Active 项目产生尚�
 });
 
 test("叶子全部完成只产生 completionCandidate，项目确认 done 后健康度才是 complete", () => {
-    const action = task("action", { parentId: "project", status: "done" });
-    const active = task("project", { taskType: "2", status: "doing", childIds: ["action"] });
+    const action = task("action", { parentId: "stage", status: "done" });
+    const stage = task("stage", { parentId: "project", status: "doing", childIds: ["action"] });
+    const active = task("project", { taskType: "2", status: "doing", childIds: ["stage"] });
     const confirmed = { ...active, status: "done" };
 
-    const candidate = buildProjectSummaries([active, action], { today: "2026-08-24" })[0];
+    const candidate = buildProjectSummaries([active, stage, action], { today: "2026-08-24" })[0];
     assert.equal(candidate.completionCandidate, true);
     assert.notEqual(candidate.health, "complete");
+    assert.deepEqual(
+        candidate.incompleteNonLeafActions.map((entry) => entry.blockId),
+        ["stage"],
+    );
 
-    const completed = buildProjectSummaries([confirmed, action], { today: "2026-08-24" })[0];
+    const completed = buildProjectSummaries([confirmed, stage, action], { today: "2026-08-24" })[0];
     assert.equal(completed.completionCandidate, false);
     assert.equal(completed.health, "complete");
 });

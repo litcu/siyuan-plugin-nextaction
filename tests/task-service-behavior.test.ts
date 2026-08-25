@@ -623,18 +623,57 @@ test("当期完成统计不计入缺少完成时间的任务", () => {
     assert.equal(service.getStatistics("month").summary.completedInPeriod, 1);
 });
 
-test("新建子任务显式写入父级和排序属性", async () => {
-    const { api, cache, service } = setup();
+test("已完成 Project 新建直属 Action 时恢复 doing、清除完成态并返回一次性风险提示", async () => {
+    // Regression: a completed Project could stay silently complete after gaining new direct work.
+    const { api, cache, myDay, service } = setup();
     const parentId = "20260816123457-parentx";
     const childId = "20260816123458-childxx";
-    api.addBlock(parentId, "d", "Parent").attrs[ATTR_TASK] = "2";
+    Object.assign(api.addBlock(parentId, "d", "Parent").attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "done",
+    });
     api.addBlock(childId, "p", "Child");
-    cache.set(taskFactory(parentId, { taskType: "2" }));
+    cache.set(taskFactory(parentId, { taskType: "2", status: "done" }));
+    await myDay.addTask(parentId);
+    await myDay.markTaskCompleted(parentId, Date.now());
 
-    const childTaskId = (await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId })).blockId;
+    const created = await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId });
+    const childTaskId = created.blockId;
 
     assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_PARENT], parentId);
     assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_SORT], "0");
+    assert.equal(api.blocks.get(parentId)?.attrs[ATTR_STATUS], "doing");
+    assert.equal(service.getTask(parentId)?.status, "doing");
+    assert.equal(created._warning, "projectReopened");
+    assert.equal(myDay.state.tasks.find((entry) => entry.blockId === parentId)?.completedAt, undefined);
+});
+
+test("已完成 Project 的直属 Action 重新打开时恢复 doing、清除完成态并返回一次性风险提示", async () => {
+    // Regression: reopening direct work did not invalidate the Project's completed state.
+    const { api, cache, myDay, service } = setup();
+    const projectId = "20260816123600-project";
+    const actionId = "20260816123601-actionx";
+    Object.assign(api.addBlock(projectId, "d", "Completed project").attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "done",
+    });
+    Object.assign(api.addBlock(actionId, "d", "Follow-up action").attrs, {
+        [ATTR_TASK]: "1",
+        [ATTR_STATUS]: "done",
+        [ATTR_PARENT]: projectId,
+    });
+    cache.set(taskFactory(projectId, { taskType: "2", status: "done", childIds: [actionId] }));
+    cache.set(taskFactory(actionId, { status: "done", parentId: projectId }));
+    await myDay.addTask(projectId);
+    await myDay.markTaskCompleted(projectId, Date.now());
+
+    const reopened = await service.updateTask(actionId, { [ATTR_STATUS]: "todo" });
+
+    assert.equal(reopened.status, "todo");
+    assert.equal(api.blocks.get(projectId)?.attrs[ATTR_STATUS], "doing");
+    assert.equal(service.getTask(projectId)?.status, "doing");
+    assert.equal(reopened._warning, "projectReopened");
+    assert.equal(myDay.state.tasks.find((entry) => entry.blockId === projectId)?.completedAt, undefined);
 });
 
 test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功状态", async () => {

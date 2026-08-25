@@ -11,7 +11,7 @@
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { createTaskDetailTaskSource, taskStore } from "../stores/task-store";
     import { formatRpcError, notifyError, notifyInfo } from "../notify";
-    import { jumpToBlock as jump } from "../utils";
+    import { jumpToBlock as jump, taskWriteWarningMessage } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { parseReminderItems } from "../utils/reminder-utils";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
@@ -261,7 +261,10 @@
                     throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
                 }
             }
-            return bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+            const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+            const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+            if (warningMessage) notifyInfo(warningMessage);
+            return updated;
         },
         remove: (blockId) => bridge.removeTask(blockId),
         formatError: (error) => (error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n)),
