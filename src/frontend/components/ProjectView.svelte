@@ -8,6 +8,7 @@
     import ProjectBoardMode from "./project/ProjectBoardMode.svelte";
     import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
     import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
+    import ProjectDefinitionEditor from "./project/ProjectDefinitionEditor.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -51,8 +52,8 @@
     export let selectedTaskOverride: TaskCacheEntry | null = null;
     export let requestedProjectId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined =
-        undefined;
+    export let onTaskUpdate:
+        ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
@@ -353,6 +354,7 @@
                 {/if}
 
                 {#if mode === "overview"}
+                    <ProjectDefinitionEditor project={selectedSummary.project} {i18n} onSave={onTaskUpdate} />
                     <ProjectOverviewMode
                         summary={selectedSummary}
                         risks={selectedProject?.risks || []}

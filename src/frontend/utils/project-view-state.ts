@@ -24,7 +24,7 @@ export interface ProjectBoardMoveIntent {
 }
 
 export interface ProjectBoardMoveHandlers {
-    updateTask?: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>;
+    updateTask?: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<unknown>;
     reorderTask?: (blockId: string, parentId: string, afterId?: string) => Promise<void>;
 }
 
@@ -43,7 +43,7 @@ export async function executeProjectBoardMove(
 
 export async function confirmProjectCompletion(
     summary: ProjectSummary,
-    updateTask: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>,
+    updateTask: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<unknown>,
 ): Promise<void> {
     if (summary.project.status === "done" || (!summary.completionCandidate && !summary.empty)) {
         throw new Error("Project is not ready for completion confirmation");

@@ -195,13 +195,17 @@
         }
     }
 
-    async function handleProjectTaskUpdate(task: TaskCacheEntry, attrs: Record<string, string>): Promise<void> {
+    async function handleProjectTaskUpdate(
+        task: TaskCacheEntry,
+        attrs: Record<string, string>,
+    ): Promise<TaskCacheEntry> {
         try {
             const updated = await bridge.updateTask(task.blockId, attrs);
             taskStore.applyUpdate(updated);
             if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
             const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
             if (warningMessage) notifyInfo(warningMessage);
+            return updated;
         } catch (error: any) {
             notifyError(formatRpcError(error, i18n));
             throw error;
