@@ -1,0 +1,94 @@
+name: Bug 报告
+description: 报告可以稳定复现的异常行为或功能回归
+title: "bug: "
+labels:
+    - bug
+body:
+    - type: checkboxes
+      id: preflight
+      attributes:
+          label: 提交前检查
+          options:
+              - label: 我已搜索现有 Issue，确认没有相同问题。
+                required: true
+              - label: 我已确认问题发生在当前版本，或已注明无法升级验证的原因。
+                required: true
+
+    - type: input
+      id: plugin-version
+      attributes:
+          label: NextAction 版本
+          description: 可在思源“设置 → 集市 → 已下载”中查看。
+          placeholder: 例如 0.7.0
+      validations:
+          required: true
+
+    - type: input
+      id: siyuan-version
+      attributes:
+          label: 思源版本
+          placeholder: 例如 3.3.0
+      validations:
+          required: true
+
+    - type: dropdown
+      id: platform
+      attributes:
+          label: 使用环境
+          multiple: true
+          options:
+              - Windows 桌面端
+              - macOS 桌面端
+              - Linux 桌面端
+              - 浏览器桌面端
+              - 浏览器移动端
+              - 其他
+      validations:
+          required: true
+
+    - type: textarea
+      id: summary
+      attributes:
+          label: 问题描述
+          description: 请说明发生了什么，以及问题对你的影响。
+      validations:
+          required: true
+
+    - type: textarea
+      id: steps
+      attributes:
+          label: 复现步骤
+          description: 请从一个清晰的初始状态开始，逐步列出操作。
+          placeholder: |
+              1. 打开……
+              2. 点击……
+              3. 设置……
+              4. 出现……
+      validations:
+          required: true
+
+    - type: textarea
+      id: expected
+      attributes:
+          label: 预期行为
+      validations:
+          required: true
+
+    - type: textarea
+      id: actual
+      attributes:
+          label: 实际行为
+      validations:
+          required: true
+
+    - type: textarea
+      id: evidence
+      attributes:
+          label: 日志、截图或录屏
+          description: 请删除令牌、工作区路径、笔记正文和其他隐私信息后再提交。
+
+    - type: textarea
+      id: additional
+      attributes:
+          label: 补充信息
+          description: 可填写首次出现的版本、临时规避方式或其他相关背景。

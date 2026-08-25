@@ -1,0 +1,35 @@
+name: 使用问题
+description: 询问 NextAction 的安装、配置或使用方式
+title: "question: "
+labels:
+    - question
+body:
+    - type: checkboxes
+      id: preflight
+      attributes:
+          label: 提交前检查
+          options:
+              - label: 我已查看 README 并搜索现有 Issue。
+                required: true
+
+    - type: textarea
+      id: goal
+      attributes:
+          label: 想完成什么
+          description: 请描述目标，而不只是当前尝试的某个操作。
+      validations:
+          required: true
+
+    - type: textarea
+      id: attempted
+      attributes:
+          label: 已尝试的方法
+          description: 请说明已经做过的操作、看到的结果和仍不清楚的地方。
+      validations:
+          required: true
+
+    - type: textarea
+      id: environment
+      attributes:
+          label: 环境信息
+          description: 如相关，请提供 NextAction 版本、思源版本和操作系统；不要提交令牌或笔记正文。
