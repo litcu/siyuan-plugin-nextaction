@@ -12,7 +12,8 @@ import type { CacheManager } from "./cache-manager";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import { addLocalDays } from "./task-date-utils";
-import { buildProjectSummaries, isProjectTask } from "../shared/project-domain";
+import { isProjectTask } from "../shared/project-domain";
+import { buildProjectControlState } from "../shared/project-control";
 
 export class TaskReviewService {
     constructor(
@@ -27,11 +28,11 @@ export class TaskReviewService {
         const td = new Date();
         const todayStr = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
         const cache = this.cacheManager.getCache();
-        const projectSummaries = buildProjectSummaries(allEntries, {
+        const projectControl = buildProjectControlState(allEntries, {
             today: todayStr,
             startPreviewDays: this.runtime.getSettings().priorityEngine.startPreviewDays,
         });
-        const projectReviewData = buildProjectReviewQueue(projectSummaries, todayStr);
+        const projectReviewData = buildProjectReviewQueue(projectControl, todayStr);
         const aggregatedReviewIds = projectReviewAggregateIds(projectReviewData.queue);
 
         const overdueTasks: TaskCacheEntry[] = [];

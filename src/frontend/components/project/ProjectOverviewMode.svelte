@@ -1,11 +1,12 @@
 <script lang="ts">
-    import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
+    import type { ProjectControlRisk, ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
     import NaTaskList from "../../ui/NaTaskList.svelte";
 
     export let summary: ProjectSummary;
+    export let risks: ProjectControlRisk[];
     export let selectedTaskId = "";
     export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
@@ -26,18 +27,17 @@
     <section class="na-project-section na-project-section--risks">
         <div class="na-project-section__heading">
             <h3>{i18n?.projectRisks || "Risks"}</h3>
-            <span>{summary.risks.length}</span>
+            <span>{risks.length}</span>
         </div>
-        {#if summary.risks.length === 0}
+        {#if risks.length === 0}
             <p class="na-project-muted">{i18n?.projectNoRisks || "No obvious risks"}</p>
         {:else}
-            {#each summary.risks as item (item.kind + item.taskId)}
-                {@const target = summary.descendants.find((task) => task.blockId === item.taskId) || summary.project}
-                <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(target)}>
+            {#each risks as item (item.kind + item.taskId)}
+                <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(item.target)}>
                     <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
                     <span
                         ><strong>{riskLabel(item.kind)}</strong><small
-                            >{target.title || i18n?.untitled || "(untitled)"}</small
+                            >{item.target.title || i18n?.untitled || "(untitled)"}</small
                         ></span
                     >
                 </button>

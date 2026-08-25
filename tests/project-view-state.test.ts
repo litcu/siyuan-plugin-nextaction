@@ -4,7 +4,8 @@ import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
 import { ATTR_STATUS } from "../src/shared/constants.ts";
 import {
-    buildProjectViewModel,
+    buildProjectViewControl,
+    buildProjectViewModel as buildProjectViewModelFromControl,
     confirmProjectCompletion,
     executeProjectBoardMove,
     shouldShowProjectCompletionPanel,
@@ -58,6 +59,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         filterBypassProjectId: "",
         selectedTaskId: "",
         selectedTaskOverride: null,
+        preferActiveProject: false,
         showCompleted: false,
         riskFilter: "all",
         dateFilter: "all",
@@ -68,6 +70,14 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         startPreviewDays: 0,
         ...overrides,
     };
+}
+
+function buildProjectViewModel(
+    tasks: TaskCacheEntry[],
+    customFields: Parameters<typeof buildProjectViewModelFromControl>[1],
+    currentState: ProjectViewState,
+) {
+    return buildProjectViewModelFromControl(buildProjectViewControl(tasks, currentState), customFields, currentState);
 }
 
 const projects = [
@@ -137,6 +147,22 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.activeProjectId, "p1");
     assert.equal(model.detailTasks[0].title, "edited before broadcast");
     assert.equal(model.boardTasks[0].status, "doing");
+});
+
+test("显式切换 Project 不会把旧任务选择带入新项目", () => {
+    // Regression: selecting a Project briefly reused the previous Action selection or opened the Project detail drawer.
+    const explicitProjectState = state({
+        activeProjectId: "p2",
+        selectedTaskId: "a",
+        preferActiveProject: true,
+    });
+
+    const control = buildProjectViewControl(projects, explicitProjectState);
+    const model = buildProjectViewModelFromControl(control, [], explicitProjectState);
+
+    assert.deepEqual(control.selection, { projectId: "p2", taskId: "" });
+    assert.equal(model.activeProjectId, "p2");
+    assert.equal(model.selectedSummary?.project.blockId, "p2");
 });
 
 test("从 Review 打开的项目不受项目视图既有任务筛选影响", () => {

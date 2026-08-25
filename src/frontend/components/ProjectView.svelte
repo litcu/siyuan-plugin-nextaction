@@ -17,7 +17,7 @@
     import NaToggle from "../ui/NaToggle.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
-    import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+    import type { ProjectControlRisk, ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
@@ -25,6 +25,7 @@
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
+        buildProjectViewControl,
         confirmProjectCompletion,
         executeProjectBoardMove,
         shouldShowProjectCompletionPanel,
@@ -49,12 +50,14 @@
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
-    type RiskItem = { summary: ProjectSummary; risk: ProjectRisk; target: TaskCacheEntry };
+    type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
     let mode: ProjectViewMode = "overview";
     let activeProjectId = "";
     let appliedRequestedProjectId = "";
+    let appliedSelectedTaskId = selectedTaskId;
     let requestedProjectFilterBypassId = "";
+    let preferActiveProject = false;
     let collapsedIds: Set<string> = new Set();
     let showCompleted = false;
     let riskFilter: ProjectRiskFilter = "all";
@@ -65,17 +68,24 @@
 
     $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
         activeProjectId = requestedProjectId;
+        preferActiveProject = true;
         requestedProjectFilterBypassId = requestedProjectId;
         appliedRequestedProjectId = requestedProjectId;
     }
 
+    $: if (selectedTaskId !== appliedSelectedTaskId) {
+        appliedSelectedTaskId = selectedTaskId;
+        preferActiveProject = false;
+    }
+
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: viewModel = buildProjectViewModel($taskStore.allTasks, $taskStore.settings.customFields, {
+    $: viewState = {
         mode,
         activeProjectId,
         filterBypassProjectId: requestedProjectFilterBypassId,
         selectedTaskId,
         selectedTaskOverride,
+        preferActiveProject,
         showCompleted,
         riskFilter,
         dateFilter,
@@ -84,11 +94,14 @@
         collapsedIds,
         ganttSortMode,
         startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
-    });
+    };
+    $: projectControl = buildProjectViewControl($taskStore.allTasks, viewState);
+    $: viewModel = buildProjectViewModel(projectControl, $taskStore.settings.customFields, viewState);
     $: resolvedActiveProjectId = viewModel.activeProjectId;
     $: summaries = viewModel.summaries;
     $: visibleSummaries = viewModel.visibleSummaries;
     $: selectedSummary = viewModel.selectedSummary;
+    $: selectedProject = viewModel.selectedProject;
     $: riskItems = viewModel.riskItems;
     $: projectTreeModel = viewModel.projectTreeModel;
     $: boardTasks = viewModel.boardTasks;
@@ -127,6 +140,7 @@
     function selectProject(summary: ProjectSummary) {
         requestedProjectFilterBypassId = "";
         activeProjectId = summary.project.blockId;
+        preferActiveProject = true;
     }
 
     function workItemCount(summary: ProjectSummary): number {
@@ -332,6 +346,7 @@
                 {#if mode === "overview"}
                     <ProjectOverviewMode
                         summary={selectedSummary}
+                        risks={selectedProject?.risks || []}
                         {selectedTaskId}
                         {i18n}
                         {onSelectTask}
@@ -407,13 +422,13 @@
                         class="na-project-risk-rail__item"
                         on:click={() => {
                             activeProjectId = item.summary.project.blockId;
-                            onSelectTask?.(item.target);
+                            onSelectTask?.(item.risk.target);
                         }}
                     >
                         <span class="na-project-risk__marker na-project-risk__marker--{item.risk.severity}"></span>
                         <span
                             ><strong>{riskLabel(item.risk.kind)}</strong><small
-                                >{item.target.title || i18n?.untitled || "(untitled)"}</small
+                                >{item.risk.target.title || i18n?.untitled || "(untitled)"}</small
                             ><em>{item.summary.project.title || i18n?.untitled || "(untitled)"}</em></span
                         >
                     </button>

@@ -86,11 +86,37 @@ export interface ProjectSummary {
     health: ProjectHealth;
 }
 
+export interface ProjectControlRisk extends ProjectRisk {
+    projectId: string;
+    targetKind: "project" | "action";
+    target: TaskCacheEntry;
+}
+
+export interface ProjectControlProject {
+    summary: ProjectSummary;
+    risks: ProjectControlRisk[];
+}
+
+export interface ProjectControlSelection {
+    projectId: string;
+    taskId: string;
+}
+
+export interface ProjectControlState {
+    tasks: TaskCacheEntry[];
+    projects: ProjectControlProject[];
+    risks: ProjectControlRisk[];
+    selection: ProjectControlSelection;
+    selectedProject: ProjectControlProject | null;
+    selectedTask: TaskCacheEntry | null;
+}
+
 export type ProjectReviewTrigger = "schedule" | "risk" | "completionCandidate" | "manual";
 export type ProjectReviewSchedule = "none" | "due" | "overdue";
 
 export interface ProjectReviewItem {
     summary: ProjectSummary;
+    risks: ProjectControlRisk[];
     triggers: ProjectReviewTrigger[];
     schedule: ProjectReviewSchedule;
 }

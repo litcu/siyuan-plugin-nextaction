@@ -108,7 +108,7 @@ function projectReviewSnapshot(item: ProjectReviewItem): Record<string, unknown>
         health: item.summary.health,
         completionCandidate: item.summary.completionCandidate,
         progress: item.summary.progress,
-        risks: item.summary.risks,
+        risks: item.risks,
         planTaskIds: projectReviewPlanTasks(item.summary).map((task) => task.blockId),
         nextActionIds: item.summary.nextActions.map((task) => task.blockId),
         waitingTaskIds: item.summary.waitingTasks.map((task) => task.blockId),

@@ -82,10 +82,6 @@
         return i18n.priorityLow;
     }
 
-    function relatedTask(summary: ProjectSummary, taskId: string): TaskCacheEntry {
-        return summary.descendants.find((task) => task.blockId === taskId) || summary.project;
-    }
-
     function attentionTasks(summary: ProjectSummary): TaskCacheEntry[] {
         return Array.from(
             new Map([...summary.waitingTasks, ...summary.blockedTasks].map((task) => [task.blockId, task])).values(),
@@ -157,7 +153,7 @@
                     title={project.title || i18n.untitled}
                     description={triggerLabel(item)}
                     icon="iconFolder"
-                    count={summary.risks.length}
+                    count={item.risks.length}
                     tone={health.accordionTone}
                     open={expandedProjectId === project.blockId}
                     on:openChange={(event) => (expandedProjectId = event.detail ? project.blockId : "")}
@@ -281,14 +277,10 @@
                         </section>
                     </div>
 
-                    {#if summary.risks.length > 0}
+                    {#if item.risks.length > 0}
                         <div class="na-project-review__risks" aria-label={i18n.projectRisks}>
-                            {#each summary.risks as risk (risk.kind + risk.taskId)}
-                                <NaButton
-                                    size="sm"
-                                    variant="text"
-                                    on:click={() => onSelectTask(relatedTask(summary, risk.taskId))}
-                                >
+                            {#each item.risks as risk (risk.kind + risk.taskId)}
+                                <NaButton size="sm" variant="text" on:click={() => onSelectTask(risk.target)}>
                                     <NaBadge
                                         text={`${translateKey(i18n, projectRiskI18nKey(risk.kind), risk.kind)} · ${riskSeverityLabel(risk.severity)}`}
                                         tone={risk.severity === "high"
@@ -297,7 +289,7 @@
                                               ? "warning"
                                               : "info"}
                                     />
-                                    <span>{relatedTask(summary, risk.taskId).title}</span>
+                                    <span>{risk.target.title}</span>
                                 </NaButton>
                             {/each}
                         </div>

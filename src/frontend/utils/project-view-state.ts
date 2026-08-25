@@ -1,13 +1,15 @@
 import type { CustomFieldDef } from "../../shared/settings";
-import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+import type {
+    ProjectControlProject,
+    ProjectControlRisk,
+    ProjectControlState,
+    ProjectSummary,
+    TaskCacheEntry,
+} from "../../shared/types";
 import { ATTR_STATUS } from "../../shared/constants";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
-import {
-    buildProjectSummaries,
-    getProjectDateBucket,
-    isProjectTask,
-    type ProjectDateBucket,
-} from "../../shared/project-domain";
+import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
+import { buildProjectControlState } from "../../shared/project-control";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
@@ -60,6 +62,7 @@ export interface ProjectViewState {
     filterBypassProjectId: string;
     selectedTaskId: string;
     selectedTaskOverride: TaskCacheEntry | null;
+    preferActiveProject: boolean;
     showCompleted: boolean;
     riskFilter: ProjectRiskFilter;
     dateFilter: ProjectDateFilter;
@@ -75,6 +78,7 @@ export interface ProjectViewModel {
     summaries: ProjectSummary[];
     visibleSummaries: ProjectSummary[];
     activeProjectId: string;
+    selectedProject: ProjectControlProject | null;
     selectedSummary: ProjectSummary | null;
     matchedTaskIds: ReadonlySet<string>;
     taskFiltersActive: boolean;
@@ -82,7 +86,7 @@ export interface ProjectViewModel {
     detailTasks: TaskCacheEntry[];
     boardTasks: TaskCacheEntry[];
     planGroups: Array<{ bucket: ProjectDateBucket; tasks: TaskCacheEntry[] }>;
-    riskItems: Array<{ summary: ProjectSummary; risk: ProjectRisk; target: TaskCacheEntry }>;
+    riskItems: Array<{ summary: ProjectSummary; risk: ProjectControlRisk }>;
     metrics: {
         activeProjects: number;
         attention: number;
@@ -99,13 +103,23 @@ export function reconcileProjectTasks(tasks: TaskCacheEntry[], override: TaskCac
     return tasks.map((task) => (task.blockId === override.blockId ? override : task));
 }
 
+export function buildProjectViewControl(tasks: TaskCacheEntry[], state: ProjectViewState): ProjectControlState {
+    return buildProjectControlState(reconcileProjectTasks(tasks, state.selectedTaskOverride), {
+        startPreviewDays: state.startPreviewDays,
+        selection: {
+            projectId: state.preferActiveProject || !state.selectedTaskId ? state.activeProjectId : "",
+            taskId: state.preferActiveProject ? "" : state.selectedTaskId,
+        },
+    });
+}
+
 export function buildProjectViewModel(
-    tasks: TaskCacheEntry[],
+    control: ProjectControlState,
     customFields: CustomFieldDef[],
     state: ProjectViewState,
 ): ProjectViewModel {
-    const sourceTasks = reconcileProjectTasks(tasks, state.selectedTaskOverride);
-    const summaries = buildProjectSummaries(sourceTasks, { startPreviewDays: state.startPreviewDays });
+    const sourceTasks = control.tasks;
+    const summaries = control.projects.map((project) => project.summary);
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
     const filterCandidates = sourceTasks.filter(
         (task) => state.showCompleted || task.status !== "done" || isProjectTask(task),
@@ -135,18 +149,15 @@ export function buildProjectViewModel(
     const visibleSummaries = orderedProjectIds
         .map((blockId) => summaryByProjectId.get(blockId))
         .filter((summary): summary is ProjectSummary => Boolean(summary));
-    const containingSelection = state.selectedTaskId
-        ? summaries.find(
-              (summary) =>
-                  summary.project.blockId === state.selectedTaskId ||
-                  summary.descendants.some((task) => task.blockId === state.selectedTaskId),
-          )
-        : undefined;
-    const preferredProjectId = containingSelection?.project.blockId || state.activeProjectId;
+    const preferredProjectId = control.selection.projectId;
     const activeProjectId = visibleSummaries.some((summary) => summary.project.blockId === preferredProjectId)
         ? preferredProjectId
         : visibleSummaries[0]?.project.blockId || "";
     const selectedSummary = visibleSummaries.find((summary) => summary.project.blockId === activeProjectId) || null;
+    const selectedProject = selectedSummary
+        ? control.projects.find((project) => project.summary.project.blockId === selectedSummary.project.blockId) ||
+          null
+        : null;
     const selectedMatchedTaskIds =
         !selectedSummary || !taskFiltersActive
             ? null
@@ -176,21 +187,18 @@ export function buildProjectViewModel(
         bucket,
         tasks: sortedDetailTasks.filter((task) => !isProjectTask(task) && getProjectDateBucket(task) === bucket),
     })).filter((group) => group.tasks.length > 0);
-    const riskItems = visibleSummaries
-        .flatMap((summary) =>
-            summary.risks.map((risk) => ({
-                summary,
-                risk,
-                target: summary.descendants.find((task) => task.blockId === risk.taskId) || summary.project,
-            })),
-        )
-        .sort((a, b) => riskWeight(b.risk.severity) - riskWeight(a.risk.severity));
+    const visibleProjectIds = new Set(visibleSummaries.map((summary) => summary.project.blockId));
+    const visibleSummaryById = new Map(visibleSummaries.map((summary) => [summary.project.blockId, summary]));
+    const riskItems = control.risks
+        .filter((risk) => visibleProjectIds.has(risk.projectId))
+        .map((risk) => ({ summary: visibleSummaryById.get(risk.projectId)!, risk }));
 
     return {
         sourceTasks,
         summaries,
         visibleSummaries,
         activeProjectId,
+        selectedProject,
         selectedSummary,
         matchedTaskIds,
         taskFiltersActive,
@@ -235,8 +243,4 @@ function matchesProjectFilters(summary: ProjectSummary, state: ProjectViewState)
     if (state.actionFilter === "missing" && !summary.risks.some((risk) => risk.kind === "noNextAction")) return false;
     if (state.actionFilter === "available" && summary.nextActions.length === 0) return false;
     return true;
-}
-
-function riskWeight(severity: ProjectRisk["severity"]): number {
-    return severity === "high" ? 3 : severity === "medium" ? 2 : 1;
 }
