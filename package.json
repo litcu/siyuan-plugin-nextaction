@@ -7,8 +7,8 @@
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
     "benchmark:sync": "node --import tsx scripts/benchmark-sync.js",
-    "test:integration:kernel": "node scripts/test-kernel.js",
-    "test:integration:mcp": "node scripts/test-mcp.js",
+    "test:integration:kernel": "node --env-file-if-exists=.env.local scripts/test-kernel.js",
+    "test:integration:mcp": "node --env-file-if-exists=.env.local scripts/test-mcp.js",
     "dev": "run-p dev:kernel dev:app",
     "dev:app": "vite build --watch --mode development",
     "dev:kernel": "webpack --config webpack.kernel.config.js --mode development",
