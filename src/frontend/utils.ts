@@ -1,7 +1,9 @@
 import { Menu, openTab } from "siyuan";
 import { STATUS_LIST } from "./constants";
+import { TASK_WARNING_PROJECT_REOPENED } from "../shared/constants";
 import type { KernelBridge } from "./kernel-bridge";
 import type { TaskCacheEntry } from "../shared/types";
+import type { I18nStrings } from "../shared/i18n";
 import { notifyError, notifyInfo, formatRpcError } from "./notify";
 
 /**
@@ -27,6 +29,23 @@ export function toI18nKey(prefix: string, value: string): string {
     return prefix + value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+export function taskWriteWarningMessage(
+    warning: TaskCacheEntry["_warning"],
+    i18n: Pick<I18nStrings, "projectReopenedNotice"> | undefined,
+): string {
+    if (warning === TASK_WARNING_PROJECT_REOPENED) {
+        return i18n?.projectReopenedNotice || "The completed project was reopened because it has new work.";
+    }
+    return "";
+}
+
+export function taskCreationWarningMessage(
+    warning: string,
+    i18n: Pick<I18nStrings, "projectReopenedNotice"> | undefined,
+): string {
+    return warning === TASK_WARNING_PROJECT_REOPENED ? taskWriteWarningMessage(warning, i18n) : warning;
+}
+
 /**
  * Show a status selection menu at the given position.
  * Calls bridge.updateTask and returns the updated entry.
@@ -47,12 +66,14 @@ export async function showStatusMenu(
                 click: async () => {
                     try {
                         const updated = await bridge.updateTask(task.blockId, { "na-status": s });
+                        const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
                         const statusLabel = i18n?.[i18nKey] || s;
                         const template =
                             s === "done"
                                 ? i18n?.taskMarkedDone || "Marked as done"
                                 : i18n?.taskStatusUpdated || "Status updated to {status}";
                         notifyInfo(template.replace("{status}", statusLabel));
+                        if (warningMessage) notifyInfo(warningMessage);
                         resolve(updated);
                     } catch (e: any) {
                         notifyError(formatRpcError(e, i18n));

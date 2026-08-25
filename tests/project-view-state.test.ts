@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
+import { ATTR_STATUS } from "../src/shared/constants.ts";
 import {
     buildProjectViewModel,
+    confirmProjectCompletion,
     executeProjectBoardMove,
+    shouldShowProjectCompletionPanel,
     type ProjectViewState,
 } from "../src/frontend/utils/project-view-state.ts";
 
@@ -33,6 +36,9 @@ function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCac
         sort: 0,
         completed: "",
         note: "",
+        outcome: "",
+        dod: "",
+        actionKind: "action",
         created: "",
         tags: "",
         blocked: false,
@@ -49,6 +55,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
     return {
         mode: "overview",
         activeProjectId: "",
+        filterBypassProjectId: "",
         selectedTaskId: "",
         selectedTaskOverride: null,
         showCompleted: false,
@@ -58,6 +65,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         filterState: { ...DEFAULT_FILTER_STATE },
         collapsedIds: new Set(),
         ganttSortMode: "timeline",
+        startPreviewDays: 0,
         ...overrides,
     };
 }
@@ -131,6 +139,24 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.boardTasks[0].status, "doing");
 });
 
+test("从 Review 打开的项目不受项目视图既有任务筛选影响", () => {
+    // Regression: Review 指定的项目会被 ProjectView 保留的搜索和标签筛选挡住。
+    const navigationState = state({
+        activeProjectId: "p2",
+        filterBypassProjectId: "p2",
+        filterState: { ...DEFAULT_FILTER_STATE, searchText: "alpha" },
+    });
+
+    const model = buildProjectViewModel(projects, [], navigationState);
+
+    assert.deepEqual(
+        model.visibleSummaries.map((summary) => summary.project.blockId),
+        ["p1", "p2"],
+    );
+    assert.equal(model.activeProjectId, "p2");
+    assert.equal(model.selectedSummary?.project.blockId, "p2");
+});
+
 test("折叠状态和甘特排序进入树模型但不丢失完整任务集合", () => {
     const nested = [
         task("p", { taskType: "2", childIds: ["parent"] }),
@@ -153,6 +179,64 @@ test("折叠状态和甘特排序进入树模型但不丢失完整任务集合",
         model.projectTreeModel?.includedTasks.map((item) => item.blockId),
         ["p", "parent", "child"],
     );
+});
+
+test("项目视图从共享摘要取得叶子进度", () => {
+    // Regression: ProjectView used to count a parent Action and its leaf Action twice.
+    const nested = [
+        task("p", { taskType: "2", childIds: ["parent"] }),
+        task("parent", { parentId: "p", status: "done", childIds: ["child"] }),
+        task("child", { parentId: "parent", status: "done" }),
+    ];
+
+    const model = buildProjectViewModel(nested, [], state());
+
+    assert.equal(model.summaries[0].doneCount, 1);
+    assert.equal(model.summaries[0].openCount, 0);
+    assert.equal(model.summaries[0].completionCandidate, true);
+});
+
+test("项目完成面板只确认完成候选或空项目", async () => {
+    const completedCandidate = buildProjectViewModel(
+        [
+            task("candidate", { taskType: "2", status: "doing", childIds: ["done-action"] }),
+            task("done-action", { parentId: "candidate", status: "done" }),
+        ],
+        [],
+        state(),
+    ).summaries[0];
+    const emptyProject = buildProjectViewModel([task("empty", { taskType: "2" })], [], state()).summaries[0];
+    const openProject = buildProjectViewModel(
+        [
+            task("open-project", { taskType: "2", childIds: ["open-action"] }),
+            task("open-action", { parentId: "open-project" }),
+        ],
+        [],
+        state(),
+    ).summaries[0];
+    const confirmed: string[] = [];
+    const updateTask = async (project: TaskCacheEntry, attrs: Record<string, string>) => {
+        if (attrs[ATTR_STATUS] === "done") confirmed.push(project.blockId);
+    };
+
+    await confirmProjectCompletion(completedCandidate, updateTask);
+    await confirmProjectCompletion(emptyProject, updateTask);
+    await assert.rejects(confirmProjectCompletion(openProject, updateTask), /not ready/i);
+
+    assert.deepEqual(confirmed, ["candidate", "empty"]);
+});
+
+test("空 Draft 不直接显示异常完成面板，Planned 和 Active 空项目需要澄清", () => {
+    // Regression: every empty Project was styled as an abnormal state, including an unplanned Draft.
+    const draft = buildProjectViewModel([task("draft", { taskType: "2", status: "inbox" })], [], state()).summaries[0];
+    const planned = buildProjectViewModel([task("planned", { taskType: "2", status: "todo" })], [], state())
+        .summaries[0];
+    const active = buildProjectViewModel([task("active", { taskType: "2", status: "doing" })], [], state())
+        .summaries[0];
+
+    assert.equal(shouldShowProjectCompletionPanel(draft), false);
+    assert.equal(shouldShowProjectCompletionPanel(planned), true);
+    assert.equal(shouldShowProjectCompletionPanel(active), true);
 });
 
 test("看板移动先更新状态再重排并向上抛出失败", async () => {

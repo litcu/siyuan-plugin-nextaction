@@ -7,7 +7,7 @@
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { taskStore } from "../stores/task-store";
     import { formatOperationError, notifyInfo } from "../notify";
-    import { toI18nKey } from "../utils";
+    import { taskCreationWarningMessage, toI18nKey } from "../utils";
     import NaButton from "../ui/NaButton.svelte";
     import NaAccordion from "../ui/NaAccordion.svelte";
     import NaDatePicker from "../ui/NaDatePicker.svelte";
@@ -158,7 +158,7 @@
             const result = await bridge.createTask(input);
             const createdTask = await bridge.getTask(result.task.id);
             if (!createdTask) throw new Error(i18n?.createTaskUnavailable || "Created task is not available yet");
-            for (const warning of result.warnings || []) notifyInfo(warning);
+            for (const warning of result.warnings || []) notifyInfo(taskCreationWarningMessage(warning, i18n));
             onCreated?.(createdTask);
             dialog?.destroy?.();
         } catch (cause: unknown) {

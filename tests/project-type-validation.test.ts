@@ -7,7 +7,13 @@ import { Mutex } from "../src/kernel/mutex.ts";
 import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { TaskService } from "../src/kernel/task-service.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
-import { ATTR_STATUS, ATTR_TASK, RPC_ERROR_PROJECT_REQUIRES_DOCUMENT } from "../src/shared/constants.ts";
+import {
+    ATTR_PARENT,
+    ATTR_STATUS,
+    ATTR_TASK,
+    RPC_ERROR_INVALID_PARAMS,
+    RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
+} from "../src/shared/constants.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher } from "./helpers/fakes.ts";
 
 const frontendSource = readFileSync(
@@ -55,6 +61,20 @@ test("属性更新和带子树入口都不能绕过项目类型校验", async ()
         service.convertToTaskWithChildren(itemId, undefined, "2"),
         hasCode(RPC_ERROR_PROJECT_REQUIRES_DOCUMENT),
     );
+});
+
+test("带既有父关系的文档不能直接转换为 Project", async () => {
+    // Regression: project conversion used to preserve an existing custom-na-parent and create Project children.
+    const api = new FakeSiyuanApi();
+    const parentId = "20260823160009-parentx";
+    const projectId = "20260823160010-project";
+    api.addBlock(parentId, "d", "Parent task");
+    const project = api.addBlock(projectId, "d", "Project candidate");
+    const service = serviceFor(api);
+    await service.convertToTask(parentId, undefined, "1");
+    project.attrs[ATTR_PARENT] = parentId;
+
+    await assert.rejects(service.convertToTask(projectId, undefined, "2"), hasCode(RPC_ERROR_INVALID_PARAMS));
 });
 
 test("任务目标允许文档和两种原生结构，普通段落通过转换进入原生模型", async () => {

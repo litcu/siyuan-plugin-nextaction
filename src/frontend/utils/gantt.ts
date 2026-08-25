@@ -1,5 +1,6 @@
 import type { TaskCacheEntry } from "../../shared/types";
 import type { ProjectTreeModel, ProjectTreeRow } from "./project-tree";
+import { isProjectTask } from "../../shared/project-domain";
 
 export const GANTT_ROW_HEIGHT = 40;
 
@@ -246,11 +247,7 @@ export function calculateGanttGeometries(
 
         const hasIncludedChildren = childSpans.length > 0;
         const spans =
-            task.taskType === "2" && hasIncludedChildren
-                ? childSpans
-                : explicit
-                  ? [explicit, ...childSpans]
-                  : childSpans;
+            isProjectTask(task) && hasIncludedChildren ? childSpans : explicit ? [explicit, ...childSpans] : childSpans;
         const resolved: Span = {
             startDay: Math.min(...spans.map((span) => span.startDay)),
             endDay: Math.max(...spans.map((span) => span.endDay)),
@@ -280,7 +277,7 @@ export function calculateGanttGeometries(
                 : kind === "open"
                   ? Math.max(34, range.pixelsPerDay * 1.5)
                   : Math.max(range.pixelsPerDay, durationDays * range.pixelsPerDay);
-        const projectDueDay = task.taskType === "2" && kind === "rollup" ? calendarDayNumber(task.due || "") : null;
+        const projectDueDay = isProjectTask(task) && kind === "rollup" ? calendarDayNumber(task.due || "") : null;
         geometries.set(task.blockId, {
             taskId: task.blockId,
             kind,

@@ -5,6 +5,7 @@ import {
     type CreateTaskFormat,
     type CreateTaskInput,
 } from "../shared/task-creation";
+import { TASK_WARNING_PROJECT_REOPENED } from "../shared/constants";
 import type { TaskCacheEntry } from "../shared/types";
 import { getErrorMessage, McpToolError } from "./mcp-tool-error";
 import { escapeMarkdownText, extractBlockId, extractInsertedBlockMeta, type InsertedBlockMeta } from "./mcp-utils";
@@ -177,15 +178,18 @@ export class TaskCreationService {
                               title,
                           },
             });
+            let projectReopened = task._warning === TASK_WARNING_PROJECT_REOPENED;
             const taskBlockId = task.blockId;
             const properties = (input.properties || {}) as Record<string, unknown>;
             if (Object.keys(properties).length) {
                 if (!applyProperties)
                     throw new McpToolError("INVALID_INPUT", "Initial properties are not supported by this caller");
                 task = await applyProperties(task, properties);
+                projectReopened ||= task._warning === TASK_WARNING_PROJECT_REOPENED;
             }
 
             const warnings: string[] = [];
+            if (projectReopened) warnings.push(TASK_WARNING_PROJECT_REOPENED);
             if (input.addToMyDay || schedule) {
                 try {
                     await this.taskService.addTaskToMyDay(taskBlockId);

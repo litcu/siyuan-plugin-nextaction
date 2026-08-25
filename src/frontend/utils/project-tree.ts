@@ -1,10 +1,11 @@
-import type { ProjectSummary, TaskCacheEntry } from "../../shared/types";
+import type { ProjectProgress, ProjectSummary, TaskCacheEntry } from "../../shared/types";
 
 export interface ProjectTreeRow {
     task: TaskCacheEntry;
     depth: number;
     hasChildren: boolean;
     childCount: number;
+    subtreeProgress?: ProjectProgress;
 }
 
 export interface ProjectTreeModel {
@@ -23,6 +24,10 @@ export interface ProjectTreeOptions {
 }
 
 export type ProjectTreeSortMode = "manual" | "timeline";
+
+export function shouldShowSubtreeProgress(row: ProjectTreeRow): boolean {
+    return row.task.taskType !== "2" && row.hasChildren && (row.subtreeProgress?.total || 0) > 0;
+}
 
 function compareTreeOrder(a: TaskCacheEntry, b: TaskCacheEntry): number {
     if (a.sort !== b.sort) return a.sort - b.sort;
@@ -130,6 +135,7 @@ export function buildProjectTreeModel(
             depth,
             hasChildren: includedChildren.length > 0,
             childCount: includedChildren.length,
+            subtreeProgress: summary.subtreeProgress[task.blockId],
         };
     };
 

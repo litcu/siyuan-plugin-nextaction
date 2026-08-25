@@ -5,23 +5,31 @@
     import type { TaskCacheEntry, ReviewData } from "../../shared/types";
     import ReviewGuide from "./ReviewGuide.svelte";
     import ReviewDueList from "./ReviewDueList.svelte";
+    import ProjectReviewQueue from "./ProjectReviewQueue.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
     import { taskStore } from "../stores/task-store";
+    import { notifyOperationError } from "../notify";
+    import { excludeManualProjectReviewTasks } from "../../shared/review";
 
     export let bridge: KernelBridge;
     export let selectedTaskId: string;
     export let onSelectTask: (task: TaskCacheEntry) => void;
     export let onEdit: (task: TaskCacheEntry) => void;
+    export let onOpenProject: (project: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let i18n: any;
+    export let manualProjectIds: string[] = [];
+    export let expandedProjectId: string = "";
 
     let reviewData: ReviewData | null = null;
     let loading = false;
     let completing = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    $: visibleReviewData = reviewData ? excludeManualProjectReviewTasks(reviewData, manualProjectIds) : null;
 
     $: if ($taskStore.allTasks) {
         if (refreshTimer) clearTimeout(refreshTimer);
@@ -60,8 +68,11 @@
                 refreshTimer = null;
             }
             await loadReviewData();
+            return true;
         } catch (e: any) {
             console.error("[NextAction] markTaskReviewed failed:", e);
+            notifyOperationError(e, i18n);
+            return false;
         }
     }
 
@@ -118,12 +129,28 @@
             </div>
         </NaToolbar></svelte:fragment
     >
-    {#if reviewData}
+    {#if visibleReviewData}
         <div class="na-review__scroll">
+            <section class="na-review__section">
+                <h3 class="na-review__section-title">{i18n?.reviewProjectTitle || "Project Reviews"}</h3>
+                <ProjectReviewQueue
+                    reviewData={visibleReviewData}
+                    bind:manualProjectIds
+                    bind:expandedProjectId
+                    {i18n}
+                    {selectedTaskId}
+                    {onSelectTask}
+                    {onEdit}
+                    {onOpenProject}
+                    {onStatusClick}
+                    {onContextMenu}
+                    onMarkReviewed={handleMarkReviewed}
+                />
+            </section>
             <section class="na-review__section">
                 <h3 class="na-review__section-title">{i18n?.reviewGuideTitle || "Review Checklist"}</h3>
                 <ReviewGuide
-                    {reviewData}
+                    reviewData={visibleReviewData}
                     {i18n}
                     {selectedTaskId}
                     {onSelectTask}
@@ -135,7 +162,7 @@
             <section class="na-review__section">
                 <h3 class="na-review__section-title">{i18n?.reviewDueTitle || "Tasks to Review"}</h3>
                 <ReviewDueList
-                    {reviewData}
+                    reviewData={visibleReviewData}
                     {i18n}
                     {selectedTaskId}
                     {onSelectTask}

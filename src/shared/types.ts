@@ -1,3 +1,6 @@
+export type TaskBlockedReason = "" | "inbox" | "someday" | "children" | "dependency" | "sequential";
+export type TaskActionKind = "" | "action" | "stage";
+
 export interface TaskCacheEntry {
     blockId: string;
     identificationSource: "document" | "native";
@@ -23,17 +26,20 @@ export interface TaskCacheEntry {
     sort: number; // na-sort 转数字，默认 -1（表示未设置）
     completed: string; // na-completed 原始值
     note: string; // na-note 原始值
+    outcome: string; // na-outcome，Project 的单行预期结果
+    dod: string; // na-dod，Project 的多行完成判定
+    actionKind: TaskActionKind; // Project 为空；普通 Action 为 action/stage
     created: string; // na-created 原始值 (YYYY-MM-DDTHH:mm:ss)
     updated?: string; // 思源块更新时间，用于稳定的完成任务排序回退
     tags: string; // na-tags 原始值（管道符分隔）
     blocked: boolean; // 由内核 isBlocked 计算
-    blockedReason: string; // "" | "dependency" | "sequential"
+    blockedReason: TaskBlockedReason;
     reviewInterval: number; // 0 = 不回顾
     reviewDate: string; // 空字符串 = 无，YYYY-MM-DD
     reminder: string; // na-reminder 原始值，空字符串 = 使用全局默认，"[]" = 禁用
     customFields: Record<string, string>; // 自定义字段值 {key: value}
     /** Non-fatal write warning returned after the authoritative state is stored. */
-    _warning?: "sequentialConflict";
+    _warning?: "sequentialConflict" | "projectReopened";
 }
 
 export interface CompletedTasksPage {
@@ -54,9 +60,21 @@ export interface ProjectRisk {
     severity: "high" | "medium" | "low";
 }
 
+export interface ProjectProgress {
+    done: number;
+    total: number;
+    percent: number;
+}
+
 export interface ProjectSummary {
     project: TaskCacheEntry;
     descendants: TaskCacheEntry[];
+    leafActions: TaskCacheEntry[];
+    subtreeProgress: Record<string, ProjectProgress>;
+    empty: boolean;
+    clarificationNeeded: boolean;
+    completionCandidate: boolean;
+    incompleteNonLeafActions: TaskCacheEntry[];
     openCount: number;
     doneCount: number;
     progress: number;
@@ -66,6 +84,15 @@ export interface ProjectSummary {
     waitingTasks: TaskCacheEntry[];
     risks: ProjectRisk[];
     health: ProjectHealth;
+}
+
+export type ProjectReviewTrigger = "schedule" | "risk" | "completionCandidate" | "manual";
+export type ProjectReviewSchedule = "none" | "due" | "overdue";
+
+export interface ProjectReviewItem {
+    summary: ProjectSummary;
+    triggers: ProjectReviewTrigger[];
+    schedule: ProjectReviewSchedule;
 }
 
 export interface ReminderRelative {
@@ -188,8 +215,9 @@ export interface ReviewData {
     inboxTasks: TaskCacheEntry[];
     waitingTasks: TaskCacheEntry[];
     somedayTasks: TaskCacheEntry[];
-    activeProjects: TaskCacheEntry[];
     reviewDueTasks: TaskCacheEntry[];
+    projectReviews: ProjectReviewItem[];
+    reviewableProjects: ProjectSummary[];
 }
 
 export type { PluginSettings, PriorityEngineSettings } from "./settings";

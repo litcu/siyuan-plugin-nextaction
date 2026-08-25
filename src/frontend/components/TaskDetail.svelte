@@ -5,12 +5,13 @@
     import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
+    import { isProjectTask } from "../../shared/project-domain";
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
     import { createTaskDetailTaskSource, taskStore } from "../stores/task-store";
     import { formatRpcError, notifyError, notifyInfo } from "../notify";
-    import { jumpToBlock as jump } from "../utils";
+    import { jumpToBlock as jump, taskWriteWarningMessage } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { parseReminderItems } from "../utils/reminder-utils";
     import { runAiDecomposeTask } from "../ai/ai-feature-service";
@@ -55,6 +56,9 @@
     let due = "";
     let start = "";
     let note = "";
+    let outcome = "";
+    let dod = "";
+    let actionKind = "action";
     let contexts: string[] = [];
     let taskTags: string[] = [];
     let parentId = "";
@@ -137,17 +141,22 @@
         { value: "1", label: i18n?.task || "Task" },
         { value: "2", label: i18n?.project || "Project" },
     ];
-    $: isProject = taskType === "2";
+    $: actionKindOptions = [
+        { value: "action", label: i18n?.actionKindAction || "Action" },
+        { value: "stage", label: i18n?.actionKindStage || "Stage" },
+    ];
+    $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
     $: aiDecomposeLabel = isProject
         ? i18n?.aiDecomposeProject || "Break down project with AI"
         : i18n?.aiDecomposeTask || "Break down with AI";
     $: removeLabel = isProject ? i18n?.removeProject || "Remove project" : i18n?.removeTask || "Remove task";
     $: removeConfirmMessage = isProject
-        ? i18n?.confirmRemoveProject || "This will clear all project attributes. This action cannot be undone."
+        ? i18n?.confirmRemoveProject ||
+          "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
         : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.";
     $: headerSubtitle = [
         task.created ? formatCreated(task.created) : "",
-        task.blocked && taskType !== "2"
+        task.blocked && !isProject
             ? task.blockedReason === "children"
                 ? i18n?.blockedByChildren || "Blocked by subtasks"
                 : task.blockedReason === "sequential"
@@ -167,6 +176,9 @@
             due,
             start,
             note,
+            outcome,
+            dod,
+            actionKind: taskType === "2" ? "" : actionKind || "action",
             contexts,
             taskTags,
             parentId,
@@ -199,6 +211,9 @@
             due = draft.due;
             start = draft.start;
             note = draft.note;
+            outcome = draft.outcome;
+            dod = draft.dod;
+            actionKind = draft.actionKind || "action";
             contexts = [...draft.contexts];
             taskTags = [...draft.taskTags];
             parentId = draft.parentId;
@@ -246,7 +261,10 @@
                     throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
                 }
             }
-            return bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+            const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+            const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+            if (warningMessage) notifyInfo(warningMessage);
+            return updated;
         },
         remove: (blockId) => bridge.removeTask(blockId),
         formatError: (error) => (error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n)),
@@ -266,6 +284,11 @@
         customFieldError = "";
         saveError = "";
         session.edit(buildDraft());
+    }
+
+    function handleActionKindChange(event: CustomEvent<string>) {
+        actionKind = event.detail;
+        handleChange();
     }
 
     export async function flushPendingSave(): Promise<boolean> {
@@ -589,6 +612,47 @@
         <div class="na-task-detail__notice"><NaInlineNotice message={noticeMessage} tone={noticeTone} /></div>
     {/if}
 
+    {#if isProject}
+        <NaPropertySection
+            title={i18n?.detailGroupProjectDefinition || "Project definition"}
+            description={i18n?.projectDefinitionSourceHint ||
+                "These properties control the project; document content remains free-form notes."}
+        >
+            <NaPropertyRow
+                label={i18n?.outcome || "Outcome"}
+                description={i18n?.outcomeHint || "The result this project is meant to create"}
+                forId="na-project-outcome"
+                stacked={true}
+            >
+                <input
+                    id="na-project-outcome"
+                    class="b3-text-field fn__block"
+                    type="text"
+                    maxlength="500"
+                    placeholder={i18n?.outcomePlaceholder || "Describe the result in one sentence"}
+                    bind:value={outcome}
+                    on:input={handleChange}
+                />
+            </NaPropertyRow>
+            <NaPropertyRow
+                label={i18n?.definitionOfDone || "Definition of Done"}
+                description={i18n?.dodHint || "Conditions to check before confirming completion"}
+                forId="na-project-dod"
+                stacked={true}
+            >
+                <textarea
+                    id="na-project-dod"
+                    class="b3-text-field fn__block"
+                    rows="4"
+                    maxlength="4000"
+                    placeholder={i18n?.dodPlaceholder || "Describe the conditions that mean the outcome is achieved"}
+                    bind:value={dod}
+                    on:input={handleChange}
+                ></textarea>
+            </NaPropertyRow>
+        </NaPropertySection>
+    {/if}
+
     <NaPropertySection title={i18n?.detailGroupBasics || i18n?.detailGroupNotes || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
             <select class="b3-select fn__block" bind:value={status} on:change={handleChange}>
@@ -596,6 +660,20 @@
                     >{/each}
             </select>
         </NaPropertyRow>
+        {#if !isProject}
+            <NaPropertyRow
+                label={i18n?.actionKind || "Action kind"}
+                description={i18n?.actionKindHint ||
+                    "Stages use the same status, dates, and execution rules as Actions"}
+            >
+                <NaSegmentControl
+                    options={actionKindOptions}
+                    value={actionKind || "action"}
+                    label={i18n?.actionKind || "Action kind"}
+                    on:change={handleActionKindChange}
+                />
+            </NaPropertyRow>
+        {/if}
         <NaPropertyRow label={i18n?.taskType || "Item type"}>
             <NaSegmentControl
                 options={taskTypeOptions}
@@ -695,22 +773,28 @@
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.detailGroupOrganization || "Organization"}>
-        <NaPropertyRow label={i18n?.parentItem || "Parent item"}>
-            <NaSearchSelect
-                multi={false}
-                bind:selected={parentId}
-                bind:selectedLabel={parentLabel}
-                searchFn={searchParentTasks}
-                placeholder={i18n?.searchParentItem || "Search projects and tasks"}
-                emptyText={i18n?.noOptions || "No options"}
-                noMatchText={i18n?.noMatches || "No matches"}
-                loadingText={i18n?.loadingMore || "Loading"}
-                clearLabel={i18n?.clearSelection || "Clear selection"}
-                removeLabel={i18n?.removeSelection || "Remove selection"}
-                fixedDropdown={true}
-                on:change={handleChange}
-            />
-        </NaPropertyRow>
+        {#if !isProject}
+            <NaPropertyRow
+                label={i18n?.projectAssignment || i18n?.parentItem || "Join project or set parent task"}
+                description={i18n?.projectAssignmentHint ||
+                    "Changes logical assignment only. The SiYuan block stays where it is; moving it into the project document is not available yet."}
+            >
+                <NaSearchSelect
+                    multi={false}
+                    bind:selected={parentId}
+                    bind:selectedLabel={parentLabel}
+                    searchFn={searchParentTasks}
+                    placeholder={i18n?.searchParentItem || "Search projects and tasks"}
+                    emptyText={i18n?.noOptions || "No options"}
+                    noMatchText={i18n?.noMatches || "No matches"}
+                    loadingText={i18n?.loadingMore || "Loading"}
+                    clearLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
+                    removeLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
+                    fixedDropdown={true}
+                    on:change={handleChange}
+                />
+            </NaPropertyRow>
+        {/if}
         <NaPropertyRow label={i18n?.context || "Context"}>
             <NaSearchSelect
                 multi={true}

@@ -7,6 +7,7 @@
     import ProjectHierarchyMode from "./project/ProjectHierarchyMode.svelte";
     import ProjectBoardMode from "./project/ProjectBoardMode.svelte";
     import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
+    import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -24,7 +25,9 @@
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
+        confirmProjectCompletion,
         executeProjectBoardMove,
+        shouldShowProjectCompletionPanel,
         type ProjectActionFilter,
         type ProjectBoardMoveIntent,
         type ProjectDateFilter,
@@ -38,6 +41,7 @@
     export let i18n: I18nStrings;
     export let selectedTaskId: string = "";
     export let selectedTaskOverride: TaskCacheEntry | null = null;
+    export let requestedProjectId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined =
         undefined;
@@ -49,6 +53,8 @@
 
     let mode: ProjectViewMode = "overview";
     let activeProjectId = "";
+    let appliedRequestedProjectId = "";
+    let requestedProjectFilterBypassId = "";
     let collapsedIds: Set<string> = new Set();
     let showCompleted = false;
     let riskFilter: ProjectRiskFilter = "all";
@@ -57,10 +63,17 @@
     let ganttSortMode: ProjectTreeSortMode = "timeline";
     let riskItems: RiskItem[] = [];
 
+    $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
+        activeProjectId = requestedProjectId;
+        requestedProjectFilterBypassId = requestedProjectId;
+        appliedRequestedProjectId = requestedProjectId;
+    }
+
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
     $: viewModel = buildProjectViewModel($taskStore.allTasks, $taskStore.settings.customFields, {
         mode,
         activeProjectId,
+        filterBypassProjectId: requestedProjectFilterBypassId,
         selectedTaskId,
         selectedTaskOverride,
         showCompleted,
@@ -70,6 +83,7 @@
         filterState,
         collapsedIds,
         ganttSortMode,
+        startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
     });
     $: resolvedActiveProjectId = viewModel.activeProjectId;
     $: summaries = viewModel.summaries;
@@ -102,6 +116,7 @@
     }
 
     function handleFilterChange(state: FilterState) {
+        requestedProjectFilterBypassId = "";
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
     }
 
@@ -110,6 +125,7 @@
     }
 
     function selectProject(summary: ProjectSummary) {
+        requestedProjectFilterBypassId = "";
         activeProjectId = summary.project.blockId;
     }
 
@@ -302,6 +318,16 @@
                         label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
                     />
                 </div>
+                {#if shouldShowProjectCompletionPanel(selectedSummary)}
+                    <ProjectCompletionPanel
+                        summary={selectedSummary}
+                        {i18n}
+                        {onSelectTask}
+                        onConfirm={onTaskUpdate
+                            ? () => confirmProjectCompletion(selectedSummary, onTaskUpdate)
+                            : undefined}
+                    />
+                {/if}
 
                 {#if mode === "overview"}
                     <ProjectOverviewMode

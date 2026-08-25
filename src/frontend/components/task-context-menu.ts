@@ -2,10 +2,11 @@ import { Menu, confirm } from "siyuan";
 import type { TaskCacheEntry } from "../../shared/types";
 import { type KernelBridge } from "../kernel-bridge";
 import { normalizePriority, STATUS_LIST, PRIORITY_LIST } from "../constants";
-import { toI18nKey } from "../utils";
+import { taskWriteWarningMessage, toI18nKey } from "../utils";
 import { notifyError, notifyInfo, formatRpcError } from "../notify";
 import { parseRepeatState } from "../../shared/repeat";
 import { runAiDecomposeTask } from "../ai/ai-feature-service";
+import { isProjectTask } from "../../shared/project-domain";
 
 interface ContextMenuCallbacks {
     onUpdated: (updatedEntry: TaskCacheEntry) => void;
@@ -25,7 +26,7 @@ export function showTaskContextMenu(
     inMyDay?: boolean,
 ): void {
     const menu = new Menu("na-task-context");
-    const isProject = task.taskType === "2";
+    const isProject = isProjectTask(task);
 
     for (const s of STATUS_LIST) {
         const i18nKey = toI18nKey("status", s);
@@ -42,6 +43,8 @@ export function showTaskContextMenu(
                             ? i18n?.taskMarkedDone || "Marked as done"
                             : i18n?.taskStatusUpdated || "Status updated to {status}";
                     notifyInfo(template.replace("{status}", statusLabel));
+                    const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+                    if (warningMessage) notifyInfo(warningMessage);
                 } catch (e: any) {
                     console.error("[NextAction] updateTask (status) failed:", e);
                     notifyError(formatRpcError(e, i18n));
@@ -166,7 +169,7 @@ export function showTaskContextMenu(
                 isProject ? i18n?.removeProject || "Remove Project" : i18n?.removeTask || "Remove Task",
                 isProject
                     ? i18n?.confirmRemoveProject ||
-                          "This will clear all project attributes. This action cannot be undone."
+                          "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
                     : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.",
                 async () => {
                     try {

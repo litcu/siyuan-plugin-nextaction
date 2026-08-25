@@ -40,6 +40,11 @@ import {
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
     ALL_STATUSES,
     ATTR_EXT_PREFIX,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
+    ACTION_KIND_ACTION,
+    TASK_WARNING_PROJECT_REOPENED,
 } from "../shared/constants";
 import { type CacheManager } from "./cache-manager";
 import { attrToNumber, numberToAttr, validateTaskAttrs, cleanSlashFromTitle } from "./utils";
@@ -65,7 +70,7 @@ import {
 } from "../shared/custom-fields";
 import { parseTaskTitleDates } from "../shared/natural-date";
 import { isTaskDueOverdue, isTaskReviewDue, localDateString } from "../shared/review";
-import type { TaskRepository } from "./task-repository";
+import type { ConfirmedTaskChanges, TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import type { TaskCustomFieldService } from "./task-custom-field-service";
 import { addLocalDays } from "./task-date-utils";
@@ -73,6 +78,7 @@ import type { TaskRelationshipService } from "./task-relationship-service";
 import { escapeMarkdownText, extractInsertedBlockMeta } from "./mcp-utils";
 import type { TaskIdentityResolver, ResolveTaskEvidence, ResolvedTaskTarget } from "./task-identity-resolver";
 import { isNativeTaskStructure } from "../shared/task-identity";
+import { isProjectTask } from "../shared/project-domain";
 
 function localActionDate(date: Date = new Date()): string {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -147,6 +153,26 @@ export class TaskLifecycleService {
         this.runtime.assertReady();
     }
 
+    private async reopenCompletedDirectProject(entry: TaskCacheEntry, changes: ConfirmedTaskChanges): Promise<boolean> {
+        const project = entry.parentId ? this.cacheManager.get(entry.parentId) : undefined;
+        if (entry.status === "done" || project?.status !== "done" || !isProjectTask(project)) return false;
+
+        await changes.upsertAttrs({
+            blockId: project.blockId,
+            attrs: { [ATTR_STATUS]: "doing" },
+            existing: project,
+        });
+        try {
+            await this.myDayManager.clearTaskCompleted(project.blockId);
+        } catch (error: unknown) {
+            void this.api.log(
+                "warn",
+                `reopenCompletedDirectProject: failed to clear Project completion in My Day: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
+        return true;
+    }
+
     private async getBlockType(blockId: string, waitForIndex = false): Promise<string> {
         const attempts = waitForIndex ? 20 : 1;
         for (let attempt = 0; attempt < attempts; attempt++) {
@@ -169,6 +195,7 @@ export class TaskLifecycleService {
             [ATTR_CREATED]: new Date().toISOString().slice(0, 19),
         };
         if (taskType) attrs[ATTR_TASK] = taskType;
+        if (taskType !== "2") attrs[ATTR_KIND] = ACTION_KIND_ACTION;
         if (this.settings.semanticDateParsingEnabled) {
             const parsedDates = parseTaskTitleDates(title, new Date());
             if (parsedDates.start) attrs[ATTR_START] = parsedDates.start.value;
@@ -292,6 +319,9 @@ export class TaskLifecycleService {
             evidence: options.evidence,
             readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
         });
+        if (requestedTaskType === "2" && resolved.kind !== "convert-text" && resolved.identity.effectiveParentId) {
+            throw codedError("Project cannot be child of another task", RPC_ERROR_INVALID_PARAMS);
+        }
         let title = cleanTitle || (resolved.kind === "convert-text" ? resolved.title : resolved.identity.title);
 
         let convertedRootId = "";
@@ -350,7 +380,7 @@ export class TaskLifecycleService {
                 if (isNative && existingAttrs[ATTR_TASK]) missingDefaults[ATTR_TASK] = "";
                 if (!isNative && existingAttrs[ATTR_TASK] !== taskType) missingDefaults[ATTR_TASK] = taskType;
 
-                return changes.upsertAttrs({
+                const currentEntry = await changes.upsertAttrs({
                     blockId,
                     attrs: missingDefaults,
                     existing: this.cacheManager.get(blockId),
@@ -364,6 +394,8 @@ export class TaskLifecycleService {
                         taskType: isNative ? "1" : taskType,
                     },
                 });
+                const projectReopened = await this.reopenCompletedDirectProject(currentEntry, changes);
+                return projectReopened ? { ...currentEntry, _warning: TASK_WARNING_PROJECT_REOPENED } : currentEntry;
             } catch (error: unknown) {
                 if (convertedRootId) {
                     try {
@@ -460,6 +492,33 @@ export class TaskLifecycleService {
             throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
         }
 
+        if (isProjectTask(entry)) {
+            await this.repository.withConfirmedChanges(async (changes) => {
+                await this.relationships.clearDirectProjectParents(blockId, changes);
+                await changes.upsertAttrs({
+                    blockId: entry.attrHostId,
+                    attrs: { [ATTR_TASK]: "" },
+                    existing: entry,
+                    identity: {
+                        identificationSource: "document",
+                        attrHostId: entry.attrHostId,
+                        parentId: "",
+                        taskType: "1",
+                    },
+                });
+                try {
+                    await this.myDayManager.removeTask(blockId);
+                } catch (error: unknown) {
+                    void this.api.log(
+                        "warn",
+                        `removeTask: failed to remove Project from MyDay: ${error instanceof Error ? error.message : String(error)}`,
+                    );
+                }
+                changes.deleteEntry(blockId);
+            });
+            return;
+        }
+
         await this.repository.withConfirmedChanges(async (changes) => {
             // Re-point child tasks' na-parent to this entry's parentId
             const grandParentId = entry.parentId;
@@ -507,6 +566,9 @@ export class TaskLifecycleService {
             clearAttrs[ATTR_REVIEW_INTERVAL] = "";
             clearAttrs[ATTR_REVIEW_DATE] = "";
             clearAttrs[ATTR_REMINDER] = "";
+            clearAttrs[ATTR_OUTCOME] = "";
+            clearAttrs[ATTR_DOD] = "";
+            clearAttrs[ATTR_KIND] = "";
 
             // Clear custom extension fields
             if (entry.customFields) {
@@ -585,6 +647,31 @@ export class TaskLifecycleService {
             }
         }
 
+        if (attrs[ATTR_PARENT] !== undefined || attrs[ATTR_TASK] !== undefined) {
+            const identity = cachedTask
+                ? cachedTask
+                : resolvedExisting
+                  ? {
+                        blockId: resolvedExisting.identity.blockId,
+                        identificationSource: resolvedExisting.identity.identificationSource,
+                        taskType: resolvedExisting.identity.taskType,
+                    }
+                  : null;
+            if (!identity) throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
+            await this.relationships.validateParentChange(
+                identity,
+                attrs[ATTR_PARENT] ?? cachedTask?.parentId ?? resolvedExisting?.identity.effectiveParentId ?? "",
+                attrs[ATTR_TASK] || identity.taskType,
+            );
+        }
+
+        const effectiveTaskType =
+            attrs[ATTR_TASK] || cachedTask?.taskType || resolvedExisting?.identity.taskType || "1";
+        if (effectiveTaskType === "2" && attrs[ATTR_KIND] !== undefined && attrs[ATTR_KIND] !== "") {
+            throw codedError("custom-na-kind only applies to an ordinary Action", RPC_ERROR_INVALID_PARAMS);
+        }
+        if (attrs[ATTR_TASK] === "2") attrs[ATTR_KIND] = "";
+
         // Validate status if provided
         if (attrs[ATTR_STATUS] !== undefined) {
             const statusVal = attrs[ATTR_STATUS];
@@ -661,6 +748,11 @@ export class TaskLifecycleService {
             const previousStart = previousEntry?.start ?? uncachedAttrs?.[ATTR_START] ?? "";
             const previousDue = previousEntry?.due ?? uncachedAttrs?.[ATTR_DUE] ?? "";
             const previousCompleted = previousEntry?.completed ?? uncachedAttrs?.[ATTR_COMPLETED] ?? "";
+            const leavingProjectIdentity =
+                previousIdentificationSource === "document" &&
+                (previousEntry?.taskType ?? uncachedAttrs?.[ATTR_TASK]) === "2" &&
+                attrs[ATTR_TASK] !== undefined &&
+                attrs[ATTR_TASK] !== "2";
             const authoritativeOldAttrs = await this.repository.getBlockAttrs(blockId);
             let structuralParentFallback = "";
             if (previousIdentificationSource === "native") {
@@ -697,27 +789,6 @@ export class TaskLifecycleService {
                 }
             }
 
-            // Circular reference detection for na-parent changes
-            if (attrs[ATTR_PARENT] !== undefined) {
-                const newParentId = attrs[ATTR_PARENT];
-                if (newParentId !== "") {
-                    let currentId = newParentId;
-                    let depth = 0;
-                    while (currentId !== "" && depth < 100) {
-                        if (currentId === blockId) {
-                            throw codedError("Circular reference detected", RPC_ERROR_CIRCULAR_REF);
-                        }
-                        const parentEntry = this.cacheManager.get(currentId);
-                        if (!parentEntry) {
-                            void this.api.log("warn", `Circular ref check: parent ${currentId} not in cache, skipping`);
-                            break;
-                        }
-                        currentId = parentEntry.parentId;
-                        depth++;
-                    }
-                }
-            }
-
             let currentEntry = await changes.upsertAttrs({
                 blockId,
                 attrs,
@@ -732,6 +803,10 @@ export class TaskLifecycleService {
                           }
                         : undefined,
             });
+
+            if (leavingProjectIdentity) {
+                await this.relationships.clearDirectProjectParents(blockId, changes);
+            }
 
             // 自动追加完成时间：status 变为 done 时（不是已经是 done）
             if (attrs[ATTR_STATUS] === "done" && hasPreviousState && previousStatus !== "done") {
@@ -804,6 +879,10 @@ export class TaskLifecycleService {
                     existing: currentEntry,
                 });
             }
+            const projectReopened = await this.reopenCompletedDirectProject(currentEntry, changes);
+            if (projectReopened) {
+                return { ...currentEntry, _warning: TASK_WARNING_PROJECT_REOPENED };
+            }
             if (hasSequentialConflict) {
                 return { ...currentEntry, _warning: "sequentialConflict" };
             }
@@ -861,12 +940,41 @@ export class TaskLifecycleService {
     }
 
     async rebuildCache(): Promise<void> {
+        const previousProjectIds = this.cacheManager
+            .getAll()
+            .filter(isProjectTask)
+            .map((entry) => entry.blockId);
         await this.cacheManager.rebuild((blockIds) => this.repository.batchGetBlockAttrs(blockIds));
+        const removedProjectIds = previousProjectIds.filter((blockId) => {
+            const current = this.cacheManager.get(blockId);
+            return !current || !isProjectTask(current);
+        });
+        await this.clearInvalidProjectParents([...removedProjectIds, ...this.findOrphanParentIds()]);
         this.repository.reconcileAllDerivedState();
+    }
+
+    private findOrphanParentIds(): string[] {
+        const tasks = this.cacheManager.getAll();
+        const taskIds = new Set(tasks.map((entry) => entry.blockId));
+        return [
+            ...new Set(tasks.map((entry) => entry.parentId).filter((parentId) => parentId && !taskIds.has(parentId))),
+        ];
+    }
+
+    private async clearInvalidProjectParents(parentIds: string[]): Promise<void> {
+        const uniqueParentIds = [...new Set(parentIds.filter(Boolean))];
+        if (uniqueParentIds.length > 0) {
+            await this.repository.withConfirmedChanges(async (changes) => {
+                for (const parentId of uniqueParentIds) {
+                    await this.relationships.clearDirectProjectParents(parentId, changes);
+                }
+            });
+        }
     }
 
     async loadCache(): Promise<void> {
         await this.cacheManager.loadAll((blockIds) => this.repository.batchGetBlockAttrs(blockIds));
+        await this.clearInvalidProjectParents(this.findOrphanParentIds());
         this.repository.reconcileAllDerivedState();
     }
 

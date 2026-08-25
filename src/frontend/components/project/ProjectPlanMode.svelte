@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
-    import type { ProjectDateBucket } from "../../utils/project";
+    import type { ProjectDateBucket } from "../../../shared/project-domain";
     import { projectPlanI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
 

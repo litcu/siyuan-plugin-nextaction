@@ -4,6 +4,7 @@ import type { PluginSettings } from "../shared/settings";
 import type { MyDayState, TaskCacheEntry } from "../shared/types";
 import { CREATE_TASK_DESTINATION_TYPES, CREATE_TASK_FORMATS, type CreateTaskInput } from "../shared/task-creation";
 import { type TaskService } from "./task-service";
+import { buildProjectSummaries } from "../shared/project-domain";
 import type { SiyuanApiPort } from "./siyuan-api";
 import { McpToolError, normalizeMcpToolError } from "./mcp-tool-error";
 import { TaskCreationService, type TaskCreationOutcome } from "./task-creation-service";
@@ -333,7 +334,7 @@ export class McpToolExecutor {
             get_review: {
                 title: "NextAction · Review",
                 description: description(
-                    "Get GTD review groups: overdue, inbox, waiting, someday, active projects, and review-due tasks.",
+                    "Get GTD review groups and project-level Review items with aggregated schedule and risk triggers.",
                 ),
                 inputSchema: { type: "object", properties: {} },
                 handler: () => {
@@ -347,8 +348,23 @@ export class McpToolExecutor {
                         inboxTasks: map(data.inboxTasks),
                         waitingTasks: map(data.waitingTasks),
                         somedayTasks: map(data.somedayTasks),
-                        activeProjects: map(data.activeProjects),
                         reviewDueTasks: map(data.reviewDueTasks),
+                        projectReviews: data.projectReviews.map((item) => ({
+                            project: taskToMcpDto(item.summary.project, this.fields(), false),
+                            triggers: item.triggers,
+                            schedule: item.schedule,
+                            health: item.summary.health,
+                            completionCandidate: item.summary.completionCandidate,
+                            empty: item.summary.empty,
+                            progress: item.summary.progress,
+                            doneCount: item.summary.doneCount,
+                            openCount: item.summary.openCount,
+                            risks: item.summary.risks,
+                            planTasks: map(item.summary.descendants.filter((task) => task.status !== "done")),
+                            nextActions: map(item.summary.nextActions),
+                            waitingTasks: map(item.summary.waitingTasks),
+                            blockedTasks: map(item.summary.blockedTasks),
+                        })),
                     };
                 },
             },
@@ -639,33 +655,18 @@ export class McpToolExecutor {
 
     private listProjects(input: Record<string, any>) {
         const all = this.allTasks();
-        const nextIds = this.nextActionIds();
-        const map = new Map(all.map((task) => [task.blockId, task]));
-        const belongs = (task: TaskCacheEntry, projectId: string) => {
-            let current: TaskCacheEntry | undefined = task;
-            const visited = new Set<string>();
-            while (current && !visited.has(current.blockId)) {
-                if (current.blockId === projectId) return true;
-                visited.add(current.blockId);
-                current = current.parentId ? map.get(current.parentId) : undefined;
-            }
-            return false;
-        };
         const limit = Math.min(100, Math.max(1, Math.trunc(input.limit || 50)));
-        const projects = all
-            .filter((task) => task.taskType === "2" && (input.includeCompleted || task.status !== "done"))
+        const summaries = buildProjectSummaries(all, {
+            startPreviewDays: this.taskService.getSettings().priorityEngine.startPreviewDays,
+        })
+            .filter((summary) => input.includeCompleted || summary.project.status !== "done")
             .slice(0, limit);
         return {
-            items: projects.map((project) => {
-                const descendants = all.filter(
-                    (task) => task.blockId !== project.blockId && belongs(task, project.blockId),
-                );
-                return {
-                    project: taskToMcpDto(project, this.fields(), false),
-                    openDescendantCount: descendants.filter((task) => task.status !== "done").length,
-                    nextActionCount: descendants.filter((task) => nextIds.has(task.blockId)).length,
-                };
-            }),
+            items: summaries.map((summary) => ({
+                project: taskToMcpDto(summary.project, this.fields(), false),
+                openDescendantCount: summary.openCount,
+                nextActionCount: summary.nextActions.length,
+            })),
         };
     }
 

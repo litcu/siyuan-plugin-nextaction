@@ -18,18 +18,23 @@ import {
     ATTR_STATUS,
     ATTR_TAGS,
     ATTR_TASK,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
     ALL_STATUSES,
 } from "../shared/constants";
 import {
     decodeCustomFieldValue,
     encodeCustomFieldValue,
     isCustomFieldApplicable,
+    RESERVED_CUSTOM_FIELD_KEYS,
     type CustomFieldDef,
     type CustomFieldInput,
 } from "../shared/custom-fields";
 import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat";
 import type { ReminderItem, TaskCacheEntry } from "../shared/types";
 import { BLOCK_ID_SOURCE, extractBlockId, isBlockId } from "../shared/block-id";
+import { isProjectTask } from "../shared/project-domain";
 
 const PARAGRAPH_ID_BEFORE_TYPE_RE = new RegExp(
     `data-node-id=["'](${BLOCK_ID_SOURCE})["'][^>]*data-type=["']NodeParagraph["']`,
@@ -103,6 +108,9 @@ export interface McpTaskDto {
     contexts: string[];
     tags: string[];
     note: string;
+    outcome: string;
+    dod: string;
+    actionKind: "action" | "stage" | null;
     parentId: string | null;
     childIds: string[];
     dependencyIds: string[];
@@ -155,6 +163,9 @@ export interface McpTaskPatch {
     contexts?: string[];
     tags?: string[];
     note?: string | null;
+    outcome?: string | null;
+    dod?: string | null;
+    actionKind?: "action" | "stage" | null;
     parentId?: string | null;
     dependencyIds?: string[];
     dependencyMode?: "all" | "any";
@@ -180,6 +191,9 @@ const PATCH_KEYS = new Set([
     "contexts",
     "tags",
     "note",
+    "outcome",
+    "dod",
+    "actionKind",
     "parentId",
     "dependencyIds",
     "dependencyMode",
@@ -313,6 +327,7 @@ function remindersToDto(raw: string): McpTaskDto["reminders"] {
 export function taskToMcpDto(entry: TaskCacheEntry, fields: CustomFieldDef[], isNextAction: boolean): McpTaskDto {
     const customFields: Record<string, unknown> = {};
     for (const field of fields) {
+        if (RESERVED_CUSTOM_FIELD_KEYS.has(field.key)) continue;
         const raw = entry.customFields[field.key];
         if (raw === undefined || raw === "") continue;
         try {
@@ -327,7 +342,7 @@ export function taskToMcpDto(entry: TaskCacheEntry, fields: CustomFieldDef[], is
         id: entry.blockId,
         siyuanUrl: `siyuan://blocks/${entry.blockId}`,
         title: entry.title,
-        kind: entry.taskType === "2" ? "project" : "task",
+        kind: isProjectTask(entry) ? "project" : "task",
         status: entry.status,
         priority: entry.priority,
         importance: entry.importance,
@@ -337,6 +352,9 @@ export function taskToMcpDto(entry: TaskCacheEntry, fields: CustomFieldDef[], is
         contexts: [...new Set(splitPipe(entry.context).map(normalizeMcpContext).filter(Boolean))],
         tags: splitPipe(entry.tags),
         note: entry.note || "",
+        outcome: entry.outcome || "",
+        dod: entry.dod || "",
+        actionKind: isProjectTask(entry) ? null : entry.actionKind || "action",
         parentId: entry.parentId || null,
         childIds: [...entry.childIds],
         dependencyIds: splitPipe(entry.depends),
@@ -379,7 +397,7 @@ export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTas
     let filtered = entries.slice();
     if (input.kind && input.kind !== "all") {
         filtered = filtered.filter((entry) =>
-            input.kind === "project" ? entry.taskType === "2" : entry.taskType !== "2",
+            input.kind === "project" ? isProjectTask(entry) : !isProjectTask(entry),
         );
     }
     if (input.statuses?.length) filtered = filtered.filter((entry) => input.statuses!.includes(entry.status));
@@ -403,7 +421,15 @@ export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTas
     if (input.query?.trim()) {
         const query = input.query.trim().toLocaleLowerCase();
         filtered = filtered.filter((entry) =>
-            [entry.title, entry.note, entry.context, entry.tags, JSON.stringify(entry.customFields)]
+            [
+                entry.title,
+                entry.note,
+                entry.outcome,
+                entry.dod,
+                entry.context,
+                entry.tags,
+                JSON.stringify(entry.customFields),
+            ]
                 .join("\n")
                 .toLocaleLowerCase()
                 .includes(query),
@@ -470,6 +496,31 @@ export function buildTaskAttrsFromMcpPatch(
         if (patch.note !== null && (typeof patch.note !== "string" || patch.note.length > 4000))
             throw new Error("note must be a string <= 4000 characters");
         attrs[ATTR_NOTE] = patch.note || "";
+    }
+    if (patch.outcome !== undefined) {
+        if (
+            patch.outcome !== null &&
+            (typeof patch.outcome !== "string" || /\r|\n/.test(patch.outcome) || patch.outcome.length > 500)
+        ) {
+            throw new Error("outcome must be single-line plain text <= 500 characters");
+        }
+        attrs[ATTR_OUTCOME] = patch.outcome || "";
+    }
+    if (patch.dod !== undefined) {
+        if (patch.dod !== null && (typeof patch.dod !== "string" || patch.dod.length > 4000)) {
+            throw new Error("dod must be plain text <= 4000 characters");
+        }
+        attrs[ATTR_DOD] = patch.dod || "";
+    }
+    if (patch.actionKind !== undefined) {
+        if (patch.actionKind !== null && patch.actionKind !== "action" && patch.actionKind !== "stage") {
+            throw new Error("actionKind must be action or stage");
+        }
+        const resultingTaskType = patch.kind === "project" ? "2" : patch.kind === "task" ? "1" : task.taskType;
+        if (resultingTaskType === "2" && patch.actionKind) {
+            throw new Error("actionKind only applies to an ordinary Action");
+        }
+        attrs[ATTR_KIND] = patch.actionKind || "";
     }
     if (patch.parentId !== undefined) {
         const parentId = patch.parentId === null ? "" : extractBlockId(patch.parentId);

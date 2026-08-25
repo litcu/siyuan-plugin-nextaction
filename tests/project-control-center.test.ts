@@ -29,7 +29,7 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
     assert.match(view, /selectedTaskOverride/);
     assert.match(state, /sourceTasks = reconcileProjectTasks\(tasks, state\.selectedTaskOverride\)/);
     assert.match(state, /task\.blockId === override\.blockId/);
-    assert.match(state, /buildProjectSummaries\(sourceTasks\)/);
+    assert.match(state, /buildProjectSummaries\(sourceTasks, \{ startPreviewDays: state\.startPreviewDays \}\)/);
     assert.match(source("../src/frontend/components/NextActionApp.svelte"), /selectedTaskOverride=\{selectedTask\}/);
     assert.match(hierarchy, /model\.rows/);
     assert.match(hierarchy, /padding-left: \{row\.depth \* 18\}px/);
@@ -109,16 +109,19 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     assert.match(view, /i18n\?\.aiDecomposeProject/);
     assert.match(view, /searchPlaceholder=\{i18n\?\.searchProjectsAndTasks/);
     assert.match(filterBar, /export let searchPlaceholder = \"\"/);
-    assert.match(detail, /\$: isProject = taskType === \"2\"/);
+    assert.match(
+        detail,
+        /\$: isProject = isProjectTask\(\{ identificationSource: task\.identificationSource, taskType \}\)/,
+    );
     assert.match(detail, /i18n\?\.projectRelations/);
     assert.match(detail, /i18n\?\.parentItem/);
-    assert.match(contextMenu, /const isProject = task\.taskType === \"2\"/);
+    assert.match(contextMenu, /const isProject = isProjectTask\(task\)/);
     assert.match(contextMenu, /i18n\?\.projectProperties/);
     assert.match(contextMenu, /i18n\?\.removeProject/);
-    assert.match(aiService, /task\.taskType === \"2\"/);
+    assert.match(aiService, /isProjectTask\(task\)/);
     assert.match(aiService, /i18n\?\.aiDecomposeProject/);
-    assert.match(plugin, /custom-na-task["']\) === ["']2["']/);
-    assert.match(plugin, /const isProjectBlock = resolvedTask/);
+    assert.doesNotMatch(plugin, /getAttribute\(["']custom-na-task["']\) === ["']2["']/);
+    assert.match(plugin, /const isProjectBlock = !!resolvedTaskEntry && isProjectTask\(resolvedTaskEntry\)/);
     assert.match(plugin, /this\.plugin\.i18n\.projectProperties/);
     assert.match(plugin, /this\.plugin\.i18n\.removeProject/);
 });

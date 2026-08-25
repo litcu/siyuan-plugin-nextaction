@@ -48,6 +48,9 @@ function task(blockId = "task", overrides: Partial<TaskCacheEntry> = {}): TaskCa
         sort: 0,
         completed: "",
         note: "",
+        outcome: "",
+        dod: "",
+        actionKind: "action",
         created: "",
         tags: "",
         blocked: false,
@@ -126,6 +129,9 @@ function entryFromDraft(blockId: string, draft: TaskDetailDraft): TaskCacheEntry
         due: draft.due,
         start: draft.start,
         note: draft.note,
+        outcome: draft.outcome,
+        dod: draft.dod,
+        actionKind: draft.actionKind === "stage" ? "stage" : "action",
         context: draft.contexts.join("|"),
         tags: draft.taskTags.join("|"),
         parentId: draft.parentId,
@@ -429,6 +435,9 @@ test("任务详情载荷保持全部既有属性和自定义字段", () => {
             depMode: "any",
             sequential: true,
             note: "note",
+            outcome: "Users finish the workflow",
+            dod: "Checks pass\nRelease ships",
+            actionKind: "stage",
             reviewInterval: 14,
             reviewDate: "2026-08-30",
         }),
@@ -436,5 +445,8 @@ test("任务详情载荷保持全部既有属性和自定义字段", () => {
     const attrs = taskDetailDraftToAttrs(draft, { "na-ext-owner": "me" });
     assert.equal(attrs["na-context"], "home|deep");
     assert.equal(attrs["na-depends"], "b|c");
+    assert.equal(attrs["na-outcome"], "Users finish the workflow");
+    assert.equal(attrs["na-dod"], "Checks pass\nRelease ships");
+    assert.equal(attrs["na-kind"], "stage");
     assert.equal(attrs["na-ext-owner"], "me");
 });

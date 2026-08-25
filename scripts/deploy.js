@@ -69,6 +69,11 @@ function copyDirectory(srcDir, dstDir) {
     log(`  OK: ${path.basename(srcDir)}/`);
 }
 
+export function copyDeploymentReadmes(buildPath, targetDir) {
+    copyFile(path.join(buildPath, "README.md"), path.join(targetDir, "README.md"));
+    copyFile(path.join(buildPath, "README.zh-CN.md"), path.join(targetDir, "README.zh-CN.md"));
+}
+
 function main() {
     log(">>> Deploying to SiYuan plugin directory...");
 
@@ -121,6 +126,7 @@ function main() {
     copyFile(path.join(buildPath, "plugin.json"), path.join(targetDir, "plugin.json"));
     copyFile(path.join(buildPath, "icon.png"), path.join(targetDir, "icon.png"));
     copyFile(path.join(buildPath, "preview.png"), path.join(targetDir, "preview.png"));
+    copyDeploymentReadmes(buildPath, targetDir);
 
     // i18n (vite-plugin-static-copy puts it in dist/i18n/)
     const i18nDist = path.join(buildPath, "i18n");

@@ -2,11 +2,17 @@ import type { TaskCacheEntry, ReviewData } from "../shared/types";
 import { ATTR_REVIEW_DATE } from "../shared/constants";
 import { assertBlockId } from "../shared/block-id";
 import { isNextActionCandidate } from "./priority-engine";
-import { isTaskDueOverdue, isTaskReviewDue } from "../shared/review";
+import {
+    buildProjectReviewQueue,
+    isTaskDueOverdue,
+    isTaskReviewDue,
+    projectReviewAggregateIds,
+} from "../shared/review";
 import type { CacheManager } from "./cache-manager";
 import type { TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import { addLocalDays } from "./task-date-utils";
+import { buildProjectSummaries, isProjectTask } from "../shared/project-domain";
 
 export class TaskReviewService {
     constructor(
@@ -21,17 +27,25 @@ export class TaskReviewService {
         const td = new Date();
         const todayStr = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
         const cache = this.cacheManager.getCache();
+        const projectSummaries = buildProjectSummaries(allEntries, {
+            today: todayStr,
+            startPreviewDays: this.runtime.getSettings().priorityEngine.startPreviewDays,
+        });
+        const projectReviewData = buildProjectReviewQueue(projectSummaries, todayStr);
+        const aggregatedReviewIds = projectReviewAggregateIds(projectReviewData.queue);
 
         const overdueTasks: TaskCacheEntry[] = [];
         const nextActions: TaskCacheEntry[] = [];
         const inboxTasks: TaskCacheEntry[] = [];
         const waitingTasks: TaskCacheEntry[] = [];
         const somedayTasks: TaskCacheEntry[] = [];
-        const activeProjects: TaskCacheEntry[] = [];
         const reviewDueTasks: TaskCacheEntry[] = [];
 
         for (let i = 0; i < allEntries.length; i++) {
             const entry = allEntries[i];
+
+            // Project Review owns the project and its descendants as one aggregate item.
+            if (isProjectTask(entry) || aggregatedReviewIds.has(entry.blockId)) continue;
 
             // 回顾到期
             if (isTaskReviewDue(entry, todayStr)) {
@@ -62,18 +76,6 @@ export class TaskReviewService {
             if (entry.status === "someday") {
                 somedayTasks.push(entry);
             }
-
-            // 活跃项目
-            if (
-                entry.taskType === "2" &&
-                entry.status !== "done" &&
-                entry.childIds.some((id) => {
-                    const child = cache[id];
-                    return child && child.status !== "done";
-                })
-            ) {
-                activeProjects.push(entry);
-            }
         }
 
         return {
@@ -83,8 +85,9 @@ export class TaskReviewService {
             inboxTasks,
             waitingTasks,
             somedayTasks,
-            activeProjects,
             reviewDueTasks,
+            projectReviews: projectReviewData.queue,
+            reviewableProjects: projectReviewData.reviewableProjects,
         };
     }
 

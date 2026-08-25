@@ -307,10 +307,11 @@ export class TaskIdentityResolver {
             if (input.mode === "existing" && !attrs[ATTR_TASK]) {
                 throw codedError("Task not found: " + input.blockId, RPC_ERROR_TASK_NOT_FOUND);
             }
+            const taskType = input.mode === "existing" ? (attrs[ATTR_TASK] === "2" ? "2" : "1") : input.taskType;
             return {
                 kind: "use-document",
                 attrs,
-                identity: this.identityFromBlock(first, attrs, "", "document", input.taskType),
+                identity: this.identityFromBlock(first, attrs, "", "document", taskType),
             };
         }
 

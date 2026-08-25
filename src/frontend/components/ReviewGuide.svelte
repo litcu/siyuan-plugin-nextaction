@@ -44,12 +44,6 @@
             hint: i18n?.reviewHintSomeday || "Any task ready to activate or should be removed?",
             icon: "iconLight",
         },
-        {
-            key: "projects",
-            label: i18n?.reviewProjects || "Project Progress",
-            hint: i18n?.reviewHintProjects || "Is each project on track with a clear next action?",
-            icon: "iconFolder",
-        },
     ];
     let expandedKey: string | null = null;
     function getTasks(key: string, data: ReviewData): TaskCacheEntry[] {
@@ -58,7 +52,6 @@
         if (key === "inbox") return data.inboxTasks;
         if (key === "waiting") return data.waitingTasks;
         if (key === "someday") return data.somedayTasks;
-        if (key === "projects") return data.activeProjects;
         return [];
     }
 </script>

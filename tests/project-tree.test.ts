@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { ProjectSummary, TaskCacheEntry } from "../src/shared/types.ts";
-import { buildProjectTreeModel } from "../src/frontend/utils/project-tree.ts";
+import { buildProjectTreeModel, shouldShowSubtreeProgress } from "../src/frontend/utils/project-tree.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
     return {
@@ -28,6 +28,9 @@ function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCac
         sort: 0,
         completed: "",
         note: "",
+        outcome: "",
+        dod: "",
+        actionKind: "action",
         created: "",
         tags: "",
         blocked: false,
@@ -44,6 +47,12 @@ function summary(project: TaskCacheEntry, descendants: TaskCacheEntry[]): Projec
     return {
         project,
         descendants,
+        leafActions: descendants,
+        subtreeProgress: {},
+        empty: descendants.length === 0,
+        clarificationNeeded: descendants.length === 0,
+        completionCandidate: false,
+        incompleteNonLeafActions: [],
         openCount: descendants.length,
         doneCount: 0,
         progress: 0,
@@ -71,6 +80,31 @@ test("项目树保留真实层级并让折叠只影响可见行", () => {
     );
     assert.equal(model.rows[1].hasChildren, true);
     assert.equal(model.rows[1].childCount, 1);
+});
+
+test("项目树向有子节点的 Stage 和父 Action 提供叶子子树进度", () => {
+    // Regression: subtree progress was rendered for Stage rows but omitted for ordinary parent Actions.
+    const project = task("p", { taskType: "2", childIds: ["stage"] });
+    const stage = task("stage", { parentId: "p", actionKind: "stage", childIds: ["parent"] });
+    const parent = task("parent", { parentId: "stage", childIds: ["done", "open"] });
+    const done = task("done", { parentId: "parent", status: "done" });
+    const open = task("open", { parentId: "parent" });
+    const projectSummary = summary(project, [stage, parent, done, open]);
+    projectSummary.subtreeProgress.stage = { done: 1, total: 2, percent: 50 };
+    projectSummary.subtreeProgress.parent = { done: 1, total: 2, percent: 50 };
+
+    const model = buildProjectTreeModel(projectSummary, new Set(), { showCompleted: true });
+
+    assert.deepEqual(model.rows.find((row) => row.task.blockId === "stage")?.subtreeProgress, {
+        done: 1,
+        total: 2,
+        percent: 50,
+    });
+    const stageRow = model.rows.find((row) => row.task.blockId === "stage")!;
+    const parentRow = model.rows.find((row) => row.task.blockId === "parent")!;
+    assert.equal(shouldShowSubtreeProgress(stageRow), true);
+    assert.equal(shouldShowSubtreeProgress(parentRow), true);
+    assert.equal(shouldShowSubtreeProgress(model.rows[0]), false);
 });
 
 test("子任务筛选保留必要祖先并排除无关兄弟", () => {

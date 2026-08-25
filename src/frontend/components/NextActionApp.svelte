@@ -26,9 +26,9 @@
     import ReminderView from "./ReminderView.svelte";
     import TaskDetail from "./TaskDetail.svelte";
     import { showTaskContextMenu } from "./task-context-menu";
-    import { showStatusMenu } from "../utils";
+    import { showStatusMenu, taskWriteWarningMessage } from "../utils";
     import { onMount, onDestroy } from "svelte";
-    import { notifyError, formatRpcError } from "../notify";
+    import { notifyError, notifyInfo, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
     import { get } from "svelte/store";
@@ -46,6 +46,9 @@
     let selectedTask: TaskCacheEntry | null = null;
     let detailComponent: TaskDetail | null = null;
     let viewAfterClose: string | undefined = undefined;
+    let projectFocusId = "";
+    let reviewManualProjectIds: string[] = [];
+    let reviewExpandedProjectId = "";
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
     // Safety-net refresh: most data is kept in sync by revisioned task broadcasts
@@ -73,6 +76,7 @@
     }
 
     function applyView(view: string) {
+        if (view !== VIEW_BY_PROJECT) projectFocusId = "";
         activeView = view;
         selectedTask = null;
         taskStore.setActiveView(view);
@@ -92,6 +96,11 @@
             return;
         }
         selectedTask = task;
+    }
+
+    function handleOpenProject(project: TaskCacheEntry) {
+        projectFocusId = project.blockId;
+        switchView(VIEW_BY_PROJECT);
     }
 
     function closeDetailNow() {
@@ -190,6 +199,8 @@
             const updated = await bridge.updateTask(task.blockId, attrs);
             taskStore.applyUpdate(updated);
             if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+            const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+            if (warningMessage) notifyInfo(warningMessage);
         } catch (error: any) {
             notifyError(formatRpcError(error, i18n));
             throw error;
@@ -303,6 +314,7 @@
                 <ProjectView
                     {selectedTaskId}
                     selectedTaskOverride={selectedTask}
+                    requestedProjectId={projectFocusId}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
@@ -337,8 +349,11 @@
                 <ReviewView
                     {bridge}
                     {selectedTaskId}
+                    bind:manualProjectIds={reviewManualProjectIds}
+                    bind:expandedProjectId={reviewExpandedProjectId}
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
+                    onOpenProject={handleOpenProject}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     {i18n}

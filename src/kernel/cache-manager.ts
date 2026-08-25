@@ -20,6 +20,10 @@ import {
     ATTR_REVIEW_DATE,
     ATTR_REMINDER,
     ATTR_EXT_PREFIX,
+    ATTR_OUTCOME,
+    ATTR_DOD,
+    ATTR_KIND,
+    ACTION_KIND_STAGE,
 } from "../shared/constants";
 import { DEFAULT_SETTINGS } from "../shared/settings";
 import { attrToNumber } from "./utils";
@@ -77,6 +81,10 @@ export class CacheManager {
                 sort: attrToNumber(attrs[ATTR_SORT], identity.identificationSource === "native" ? identity.sort : -1),
                 completed: attrs[ATTR_COMPLETED] || "",
                 note: attrs[ATTR_NOTE] || "",
+                outcome: attrs[ATTR_OUTCOME] || "",
+                dod: attrs[ATTR_DOD] || "",
+                actionKind:
+                    identity.taskType === "2" ? "" : attrs[ATTR_KIND] === ACTION_KIND_STAGE ? "stage" : "action",
                 created: attrs[ATTR_CREATED] || "",
                 updated: identity.updated,
                 tags: attrs[ATTR_TAGS] || "",

@@ -1,7 +1,13 @@
 import type { CustomFieldDef } from "../../shared/settings";
 import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+import { ATTR_STATUS } from "../../shared/constants";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
-import { buildProjectSummaries, getProjectDateBucket, type ProjectDateBucket } from "./project";
+import {
+    buildProjectSummaries,
+    getProjectDateBucket,
+    isProjectTask,
+    type ProjectDateBucket,
+} from "../../shared/project-domain";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
@@ -33,9 +39,25 @@ export async function executeProjectBoardMove(
     }
 }
 
+export async function confirmProjectCompletion(
+    summary: ProjectSummary,
+    updateTask: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>,
+): Promise<void> {
+    if (summary.project.status === "done" || (!summary.completionCandidate && !summary.empty)) {
+        throw new Error("Project is not ready for completion confirmation");
+    }
+    await updateTask(summary.project, { [ATTR_STATUS]: "done" });
+}
+
+export function shouldShowProjectCompletionPanel(summary: ProjectSummary): boolean {
+    if (summary.project.status === "done") return false;
+    return summary.completionCandidate || (summary.empty && ["todo", "doing"].includes(summary.project.status));
+}
+
 export interface ProjectViewState {
     mode: ProjectViewMode;
     activeProjectId: string;
+    filterBypassProjectId: string;
     selectedTaskId: string;
     selectedTaskOverride: TaskCacheEntry | null;
     showCompleted: boolean;
@@ -45,6 +67,7 @@ export interface ProjectViewState {
     filterState: FilterState;
     collapsedIds: ReadonlySet<string>;
     ganttSortMode: ProjectTreeSortMode;
+    startPreviewDays: number;
 }
 
 export interface ProjectViewModel {
@@ -82,23 +105,26 @@ export function buildProjectViewModel(
     state: ProjectViewState,
 ): ProjectViewModel {
     const sourceTasks = reconcileProjectTasks(tasks, state.selectedTaskOverride);
-    const summaries = buildProjectSummaries(sourceTasks);
+    const summaries = buildProjectSummaries(sourceTasks, { startPreviewDays: state.startPreviewDays });
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
     const filterCandidates = sourceTasks.filter(
-        (task) => state.showCompleted || task.status !== "done" || task.taskType === "2",
+        (task) => state.showCompleted || task.status !== "done" || isProjectTask(task),
     );
     const matchedTasks = taskFiltersActive
         ? applyFilters(filterCandidates, state.filterState, customFields)
         : filterCandidates;
     const matchedTaskIds = new Set(matchedTasks.map((task) => task.blockId));
-    const matchingSummaries = summaries.filter(
-        (summary) =>
+    const matchingSummaries = summaries.filter((summary) => {
+        const explicitlyRequested = summary.project.blockId === state.filterBypassProjectId;
+        return (
             (!taskFiltersActive ||
                 matchedTaskIds.has(summary.project.blockId) ||
-                summary.descendants.some((task) => matchedTaskIds.has(task.blockId))) &&
+                summary.descendants.some((task) => matchedTaskIds.has(task.blockId)) ||
+                explicitlyRequested) &&
             (state.showCompleted || summary.health !== "complete") &&
-            matchesProjectFilters(summary, state),
-    );
+            matchesProjectFilters(summary, state)
+        );
+    });
     const orderedProjectIds = sortTasksBy(
         matchingSummaries.map((summary) => summary.project),
         state.filterState.sortBy,
@@ -148,7 +174,7 @@ export function buildProjectViewModel(
     );
     const planGroups = DATE_BUCKETS.map((bucket) => ({
         bucket,
-        tasks: sortedDetailTasks.filter((task) => task.taskType !== "2" && getProjectDateBucket(task) === bucket),
+        tasks: sortedDetailTasks.filter((task) => !isProjectTask(task) && getProjectDateBucket(task) === bucket),
     })).filter((group) => group.tasks.length > 0);
     const riskItems = visibleSummaries
         .flatMap((summary) =>

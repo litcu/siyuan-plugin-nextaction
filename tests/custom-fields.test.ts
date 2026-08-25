@@ -82,6 +82,13 @@ test("字段定义校验拒绝大写、下划线和重复 Key", () => {
     );
 });
 
+test("核心 Project 字段名不能被 custom-na-ext 自定义字段占用", () => {
+    // Regression: extension fields with core names could make public task data ambiguous.
+    for (const key of ["outcome", "dod", "kind"]) {
+        assert.match(validateCustomFieldDefinition(field("text", { key })) ?? "", /reserved/);
+    }
+});
+
 test("孤立字段清理只接受诊断接口返回的裸字段键", () => {
     const source = readFileSync(new URL("../src/kernel/task-custom-field-service.ts", import.meta.url), "utf8");
     const purgeMethod = source.match(/async purgeOrphanCustomField[\s\S]*?\n    \}/)?.[0] || "";

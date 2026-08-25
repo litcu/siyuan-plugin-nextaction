@@ -1,5 +1,11 @@
-import { type TaskCacheEntry } from "../shared/types";
+import { type TaskBlockedReason, type TaskCacheEntry } from "../shared/types";
 import { DEFAULT_PRIORITY_ENGINE, type PriorityEngineSettings } from "../shared/settings";
+import {
+    getTaskBlockedReason,
+    isNextActionCandidate as isSharedNextActionCandidate,
+    isProjectTask,
+    isTaskBlocked,
+} from "../shared/project-domain";
 
 // === 运行时配置（可通过 updateSettings 更新）===
 let config: PriorityEngineSettings = { ...DEFAULT_PRIORITY_ENGINE };
@@ -109,7 +115,7 @@ export function calculateOrder(entry: TaskCacheEntry, cache?: Record<string, Tas
 
     const ownScore = baseScore / effortPenalty;
 
-    if (entry.taskType === "2" && cache) {
+    if (isProjectTask(entry) && cache) {
         const maxChildOrder = entry.childIds
             .map((id) => cache[id])
             .filter((c) => c && c.status !== "done")
@@ -120,85 +126,19 @@ export function calculateOrder(entry: TaskCacheEntry, cache?: Record<string, Tas
     return ownScore;
 }
 
-export function getBlockedReason(entry: TaskCacheEntry, cache: Record<string, TaskCacheEntry>): string {
-    // 0. Inbox and someday tasks are considered blocked
-    if (entry.status === "inbox") return "inbox";
-    if (entry.status === "someday") return "someday";
-
-    // 1. 普通父任务需要等待子任务完成；项目用于持续承载工作，不因存在进行中的子任务而阻塞。
-    if (entry.taskType !== "2") {
-        const hasIncompleteChild = entry.childIds.some((id) => {
-            const child = cache[id];
-            return child && child.status !== "done";
-        });
-        if (hasIncompleteChild) return "children";
-    }
-
-    // 2. 显式依赖
-    if (entry.depends) {
-        const depIds = entry.depends.split("|").filter(Boolean);
-        const validDepIds: string[] = [];
-        for (const depId of depIds) {
-            if (!cache[depId]) {
-                console.warn(`[NextAction] dependency references non-existent task: ${depId}`);
-                continue;
-            }
-            validDepIds.push(depId);
-        }
-        if (validDepIds.length > 0) {
-            if (entry.depMode === "any") {
-                const allIncomplete = validDepIds.every((id) => cache[id].status !== "done");
-                if (allIncomplete) return "dependency";
-            } else {
-                const anyIncomplete = validDepIds.some((id) => cache[id].status !== "done");
-                if (anyIncomplete) return "dependency";
-            }
-        }
-    }
-
-    // 3. 顺序约束
-    if (entry.parentId) {
-        const parent = cache[entry.parentId];
-        if (parent?.sequential) {
-            const siblings = parent.childIds
-                .map((id) => cache[id])
-                .filter(Boolean)
-                .sort((a, b) => {
-                    if (a.sort !== b.sort) return a.sort - b.sort;
-                    return a.blockId.localeCompare(b.blockId);
-                });
-            const myIndex = siblings.findIndex((s) => s.blockId === entry.blockId);
-            if (myIndex > 0) {
-                const hasIncompleteBefore = siblings.slice(0, myIndex).some((s) => s.status !== "done");
-                if (hasIncompleteBefore) return "sequential";
-            }
-        }
-    }
-
-    return "";
+export function getBlockedReason(entry: TaskCacheEntry, cache: Record<string, TaskCacheEntry>): TaskBlockedReason {
+    return getTaskBlockedReason(entry, cache);
 }
 
 export function isBlocked(entry: TaskCacheEntry, cache: Record<string, TaskCacheEntry>): boolean {
-    return getBlockedReason(entry, cache) !== "";
+    return isTaskBlocked(entry, cache);
 }
 
 export function isNextActionCandidate(entry: TaskCacheEntry, cache: Record<string, TaskCacheEntry>): boolean {
-    if (entry.status === "done") return false;
-    if (entry.status === "waiting") return false;
-    if (entry.status === "inbox") return false;
-    if (entry.start) {
-        // Extract the date portion and compare against today + previewDays
-        const startDate = entry.start.slice(0, 10);
-        const preview = config.startPreviewDays;
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() + preview);
-        const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
-        if (startDate > cutoffStr) return false;
-    }
-    if (entry.taskType === "2") return false;
-    if (isBlocked(entry, cache)) return false;
-
-    return true;
+    return isSharedNextActionCandidate(entry, {
+        startPreviewDays: config.startPreviewDays,
+        taskLookup: cache,
+    });
 }
 
 export function sortTasks(tasks: TaskCacheEntry[]): TaskCacheEntry[] {

@@ -2,13 +2,16 @@ import { Dialog } from "siyuan";
 import type { AiFeatureId, AiProposal } from "../../shared/ai";
 import { completeAiReviewGroups, parseAiJson, validateAiProposal } from "../../shared/ai";
 import type { I18nStrings } from "../../shared/i18n";
-import type { TaskCacheEntry, ReviewData } from "../../shared/types";
+import type { ProjectReviewItem, TaskCacheEntry, ReviewData } from "../../shared/types";
 import { DEFAULT_AI_SETTINGS } from "../../shared/settings";
 import { RpcCallError, type KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
 import { formatRpcError, notifyError, notifyInfo } from "../notify";
 import { get } from "svelte/store";
 import { renderAiPromptTemplate } from "./ai-prompt-template";
+import { isProjectTask } from "../../shared/project-domain";
+import { buildAiTaskContext } from "../../shared/ai-context";
+import { projectReviewPlanTasks } from "../../shared/review";
 
 interface AiServiceHost {
     bridge: KernelBridge;
@@ -82,54 +85,46 @@ function showRawAiResponse(title: string, raw: string, details = ""): void {
 }
 
 function taskSnapshot(task: TaskCacheEntry): Record<string, unknown> {
-    return {
-        blockId: task.blockId,
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-        importance: task.importance,
-        effort: task.effort,
-        start: task.start || null,
-        due: task.due || null,
-        context: task.context || "",
-        tags: task.tags || "",
-        parentId: task.parentId || null,
-        childCount: task.childIds?.length || 0,
-        depends: task.depends || "",
-        blocked: task.blocked,
-        blockedReason: task.blockedReason || null,
-        reviewDate: task.reviewDate || null,
-        note: task.note ? task.note.slice(0, 500) : "",
-    };
+    return buildAiTaskContext(task, { noteLimit: 500, dodLimit: 1000 });
 }
 
 function reviewSnapshot(task: TaskCacheEntry): Record<string, unknown> {
+    const snapshot = buildAiTaskContext(task, {
+        titleLimit: 180,
+        noteLimit: 0,
+        dodLimit: 500,
+        tagsLimit: 0,
+        dependsLimit: 0,
+    });
+    snapshot.context = String(snapshot.context).slice(0, 120);
+    return snapshot;
+}
+
+function projectReviewSnapshot(item: ProjectReviewItem): Record<string, unknown> {
     return {
-        blockId: task.blockId,
-        title: task.title.slice(0, 180),
-        status: task.status,
-        priority: task.priority,
-        importance: task.importance,
-        effort: task.effort,
-        start: task.start || null,
-        due: task.due || null,
-        context: task.context ? task.context.slice(0, 120) : "",
-        parentId: task.parentId || null,
-        blocked: task.blocked,
-        blockedReason: task.blockedReason || null,
-        reviewDate: task.reviewDate || null,
-        childCount: task.childIds?.length || 0,
+        projectId: item.summary.project.blockId,
+        triggers: item.triggers,
+        schedule: item.schedule,
+        health: item.summary.health,
+        completionCandidate: item.summary.completionCandidate,
+        progress: item.summary.progress,
+        risks: item.summary.risks,
+        planTaskIds: projectReviewPlanTasks(item.summary).map((task) => task.blockId),
+        nextActionIds: item.summary.nextActions.map((task) => task.blockId),
+        waitingTaskIds: item.summary.waitingTasks.map((task) => task.blockId),
+        blockedTaskIds: item.summary.blockedTasks.map((task) => task.blockId),
     };
 }
 
 function buildReviewContext(review: ReviewData): Record<string, unknown> {
+    const projectReviewTasks = review.projectReviews.map((item) => item.summary.project);
     const sourceGroups: Array<[string, TaskCacheEntry[]]> = [
         ["overdue", review.overdueTasks],
         ["nextActions", review.nextActions],
         ["inbox", review.inboxTasks],
         ["waiting", review.waitingTasks],
         ["someday", review.somedayTasks],
-        ["activeProjects", review.activeProjects],
+        ["activeProjects", projectReviewTasks],
         ["reviewDue", review.reviewDueTasks],
     ];
     const taskMap = new Map<string, Record<string, unknown>>();
@@ -144,6 +139,7 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
     }
     const groupSnapshots = (key: string): Record<string, unknown>[] =>
         (groups[key] || []).map((id) => taskMap.get(id)).filter((item): item is Record<string, unknown> => !!item);
+    const projectReviews = review.projectReviews.map(projectReviewSnapshot);
     return {
         groups,
         tasks: Array.from(taskMap.values()),
@@ -156,7 +152,12 @@ function buildReviewContext(review: ReviewData): Record<string, unknown> {
         someday: groupSnapshots("someday"),
         activeProjects: groupSnapshots("activeProjects"),
         reviewDue: groupSnapshots("reviewDue"),
-        reviewData: { groups, tasks: Array.from(taskMap.values()) },
+        projectReviews,
+        reviewData: {
+            groups,
+            tasks: Array.from(taskMap.values()),
+            projectReviews,
+        },
         truncated:
             taskMap.size >= MAX_REVIEW_TASKS ||
             sourceGroups.some(([, entries]) => entries.length > MAX_REVIEW_GROUP_ITEMS),
@@ -227,6 +228,9 @@ function outputExampleFor(feature: AiFeatureId): string {
       "contexts": [],
       "tags": [],
       "note": null,
+      "outcome": null,
+      "dod": null,
+      "actionKind": "action",
       "reason": "原文明确要求确认验收标准。"
     }
   ],
@@ -283,7 +287,7 @@ function outputExampleFor(feature: AiFeatureId): string {
 }
 
 function schemaFor(feature: AiFeatureId): string {
-    const taskSchema = `"tasks": [{"title":"任务标题","kind":"task|project","sourceBlockId":"可选的现有源块ID","parentId":"可选的现有父任务ID","dependsOnIndexes":[0],"status":"可选状态","priority":"可选优先级","importance":4,"effort":4,"start":null,"due":null,"contexts":[],"tags":[],"note":null,"reason":"原因"}]`;
+    const taskSchema = `"tasks": [{"title":"任务标题","kind":"task|project","actionKind":"action|stage，仅 task 可用","outcome":"Project 的单行预期结果","dod":"Project 的多行完成判定","sourceBlockId":"可选的现有源块ID","parentId":"可选的现有父任务ID","dependsOnIndexes":[0],"status":"可选状态","priority":"可选优先级","importance":4,"effort":4,"start":null,"due":null,"contexts":[],"tags":[],"note":null,"reason":"原因"}]`;
     const featureSchema: Record<AiFeatureId, string> = {
         extractTasks: taskSchema,
         decomposeTask: taskSchema,
@@ -467,10 +471,9 @@ export async function runAiDecomposeTask(task: TaskCacheEntry): Promise<void> {
         if (!proposal.target) proposal.target = { type: "mcp_default" };
         if (proposal.tasks)
             proposal.tasks = proposal.tasks.map((item) => ({ ...item, parentId: item.parentId ?? task.blockId }));
-        const dialogTitle =
-            task.taskType === "2"
-                ? i18n?.aiDecomposeProject || "Break down project with AI"
-                : i18n?.aiDecomposeTask || "Break down with AI";
+        const dialogTitle = isProjectTask(task)
+            ? i18n?.aiDecomposeProject || "Break down project with AI"
+            : i18n?.aiDecomposeTask || "Break down with AI";
         await openComponent(dialogTitle, () => import("../components/AiProposalDialog.svelte"), {
             proposal,
             bridge,
@@ -546,7 +549,12 @@ export async function runAiReview(): Promise<void> {
             ...review.inboxTasks,
             ...review.waitingTasks,
             ...review.somedayTasks,
-            ...review.activeProjects,
+            ...review.projectReviews.flatMap((item) => [
+                item.summary.project,
+                ...item.summary.nextActions,
+                ...item.summary.waitingTasks,
+                ...item.summary.blockedTasks,
+            ]),
             ...review.reviewDueTasks,
         ]) {
             reviewTaskMap.set(task.blockId, task);

@@ -6,13 +6,20 @@ import {
     RPC_ERROR_INVALID_PARAMS,
     RPC_ERROR_TASK_NOT_FOUND,
 } from "../shared/constants";
+import { isProjectTask } from "../shared/project-domain";
 import { assertBlockId } from "../shared/block-id";
 import { sql } from "../shared/sql";
 import type { CacheManager } from "./cache-manager";
 import type { SiyuanApiPort } from "./siyuan-api";
-import type { TaskRepository } from "./task-repository";
+import type { ConfirmedTaskChanges, TaskRepository } from "./task-repository";
 import type { TaskRuntimeState } from "./task-runtime-state";
 import type { TaskIdentityResolver } from "./task-identity-resolver";
+
+function codedError(message: string, code: number): Error & { code: number } {
+    const error = new Error(message) as Error & { code: number };
+    error.code = code;
+    return error;
+}
 
 export class TaskRelationshipService {
     constructor(
@@ -25,6 +32,80 @@ export class TaskRelationshipService {
 
     async recalcAllOrders(): Promise<void> {
         this.repository.reconcileAllDerivedState();
+    }
+
+    async validateParentChange(
+        entry: Pick<TaskCacheEntry, "blockId" | "identificationSource" | "taskType">,
+        parentId: string,
+        nextTaskType = entry.taskType,
+    ): Promise<void> {
+        if (!parentId) return;
+        if (parentId === entry.blockId) {
+            throw codedError("Circular reference", RPC_ERROR_CIRCULAR_REF);
+        }
+
+        if (isProjectTask({ identificationSource: entry.identificationSource, taskType: nextTaskType })) {
+            throw codedError("Project cannot be child of another task", RPC_ERROR_INVALID_PARAMS);
+        }
+
+        const visited = new Set<string>([entry.blockId]);
+        let currentId = parentId;
+        let first = true;
+        while (currentId) {
+            if (visited.has(currentId)) {
+                throw codedError("Circular reference", RPC_ERROR_CIRCULAR_REF);
+            }
+            visited.add(currentId);
+            const current = this.cacheManager.get(currentId);
+            if (current) {
+                currentId = current.parentId;
+                first = false;
+                continue;
+            }
+            try {
+                const resolved = await this.identities.resolveTarget({
+                    blockId: currentId,
+                    taskType: "1",
+                    mode: "existing",
+                    readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+                });
+                if (resolved.kind === "convert-text") throw new Error("Parent task not found");
+                currentId = resolved.identity.effectiveParentId;
+                first = false;
+            } catch (_cause: unknown) {
+                if (!first) break;
+                throw codedError("Parent task not found", RPC_ERROR_TASK_NOT_FOUND);
+            }
+        }
+    }
+
+    async clearDirectProjectParents(projectId: string, changes: ConfirmedTaskChanges): Promise<void> {
+        const candidates = this.cacheManager.getByParent(projectId).filter((entry) => !isProjectTask(entry));
+        if (candidates.length === 0) return;
+        const attrsById = await this.repository.batchGetBlockAttrs(candidates.map((entry) => entry.blockId));
+
+        for (const child of candidates) {
+            if (attrsById[child.blockId]?.[ATTR_PARENT] !== projectId) continue;
+            const resolved = await this.identities.resolveTarget({
+                blockId: child.blockId,
+                taskType: "1",
+                mode: "existing",
+                readAttrs: (blockIds) => this.repository.batchGetBlockAttrs(blockIds),
+            });
+            if (resolved.kind === "convert-text") continue;
+            await changes.upsertAttrs({
+                blockId: child.blockId,
+                attrs: { [ATTR_PARENT]: "" },
+                existing: child,
+                identity: {
+                    identificationSource: resolved.identity.identificationSource,
+                    attrHostId: resolved.identity.attrHostId,
+                    contentBlockId: resolved.identity.contentBlockId,
+                    parentId: resolved.identity.structuralParentId,
+                    taskType: resolved.identity.taskType,
+                },
+            });
+        }
     }
 
     async rebuildParentRelationships(): Promise<number> {
@@ -137,31 +218,7 @@ export class TaskRelationshipService {
 
         const parentId = newParentId !== undefined ? newParentId : entry.parentId;
 
-        // 循环引用检测
-        if (parentId) {
-            let current: string | undefined = parentId;
-            const visited = new Set<string>();
-            while (current && !visited.has(current)) {
-                if (current === blockId) {
-                    const error = new Error("Circular reference") as Error & { code: number };
-                    error.code = RPC_ERROR_CIRCULAR_REF;
-                    throw error;
-                }
-                visited.add(current);
-                const parentEntry = this.cacheManager.get(current);
-                current = parentEntry?.parentId;
-            }
-        }
-
-        // 项目不能成为普通任务的子任务
-        if (entry.taskType === "2" && parentId) {
-            const parentEntry = this.cacheManager.get(parentId);
-            if (parentEntry && parentEntry.taskType === "1") {
-                const error = new Error("Project cannot be child of task") as Error & { code: number };
-                error.code = RPC_ERROR_INVALID_PARAMS;
-                throw error;
-            }
-        }
+        await this.validateParentChange(entry, parentId);
 
         return this.repository.withConfirmedChanges(async (changes) => {
             // 更新 na-parent

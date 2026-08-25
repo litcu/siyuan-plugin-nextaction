@@ -6,15 +6,23 @@ import { TaskService } from "../src/kernel/task-service.ts";
 import { TaskRepository } from "../src/kernel/task-repository.ts";
 import { SyncEngine } from "../src/kernel/sync-engine.ts";
 import {
+    ATTR_DOD,
     ATTR_DUE,
+    ATTR_KIND,
+    ATTR_NOTE,
+    ATTR_OUTCOME,
     ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_REPEAT,
     ATTR_REPEAT_STATE,
+    ATTR_REVIEW_DATE,
+    ATTR_REVIEW_INTERVAL,
     ATTR_STATUS,
     ATTR_SORT,
     ATTR_TASK,
     RPC_ERROR_CIRCULAR_REF,
+    RPC_ERROR_INVALID_PARAMS,
+    RPC_ERROR_TASK_NOT_FOUND,
     RPC_ERROR_TIMEOUT,
 } from "../src/shared/constants.ts";
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
@@ -34,6 +42,29 @@ function setup() {
     const service = new TaskService(cache, repository, myDay, api);
     service.setIsReady(true);
     return { api, cache, myDay, publisher, service };
+}
+
+class DiscoveryFakeSiyuanApi extends FakeSiyuanApi {
+    override async query<T = Record<string, unknown>>(statement: string): Promise<T[]> {
+        if (/WITH RECURSIVE native_tasks/i.test(statement)) {
+            const cursor = statement.match(/task\.id > '([^']*)'/)?.[1] || "";
+            return [...this.blocks.values()]
+                .filter((block) => block.type === "d" && Boolean(block.attrs[ATTR_TASK]) && block.id > cursor)
+                .sort((left, right) => left.id.localeCompare(right.id))
+                .map((block) => ({
+                    id: block.id,
+                    parent_id: block.parentId,
+                    content_block_id: "",
+                    title_content: block.content,
+                    markdown: block.markdown,
+                    structural_parent_id: "",
+                    source: "document",
+                    sort: 0,
+                    updated: "",
+                })) as T[];
+        }
+        return super.query<T>(statement);
+    }
 }
 
 test("转换、更新和移除均以权威属性回读驱动缓存与变更发布", async () => {
@@ -66,6 +97,51 @@ test("转换、更新和移除均以权威属性回读驱动缓存与变更发�
     assert.equal(publisher.changes[publisher.changes.length - 1], taskId);
 });
 
+test("Outcome、DoD 与 Stage 通过权威属性回读进入缓存并支持清空", async () => {
+    // Regression: project-control fields previously had no authoritative cache or broadcast data path.
+    const { api, cache, publisher, service } = setup();
+    const projectId = "20260816120010-project";
+    const projectBlock = api.addBlock(projectId, "d", "Ship project");
+    Object.assign(projectBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+
+    const project = await service.updateTask(projectId, {
+        [ATTR_OUTCOME]: "Users can complete the workflow",
+        [ATTR_DOD]: "Tests pass\nRelease is deployed",
+    });
+
+    assert.equal(project.outcome, "Users can complete the workflow");
+    assert.equal(project.dod, "Tests pass\nRelease is deployed");
+    assert.equal(projectBlock.attrs[ATTR_OUTCOME], project.outcome);
+    assert.equal(projectBlock.attrs[ATTR_DOD], project.dod);
+    assert.equal(cache.get(projectId)?.outcome, project.outcome);
+    assert.equal(publisher.changes[publisher.changes.length - 1], projectId);
+
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    assert.equal(api.blocks.get(taskId)?.attrs[ATTR_KIND], "action");
+    const stage = await service.updateTask(taskId, { [ATTR_KIND]: "stage" });
+    assert.equal(stage.actionKind, "stage");
+    assert.equal(cache.get(taskId)?.actionKind, "stage");
+
+    const cleared = await service.updateTask(projectId, { [ATTR_OUTCOME]: "", [ATTR_DOD]: "" });
+    assert.equal(cleared.outcome, "");
+    assert.equal(cleared.dod, "");
+});
+
+test("项目控制字段校验拒绝多行 Outcome、非法 Stage 类型和 Project 上的 kind", async () => {
+    // Regression: raw attribute callers must not bypass the Project/Action field contract.
+    const { api, cache, service } = setup();
+    const projectId = "20260816120011-project";
+    const projectBlock = api.addBlock(projectId, "d", "Ship project");
+    Object.assign(projectBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+
+    await assert.rejects(service.updateTask(projectId, { [ATTR_OUTCOME]: "line one\nline two" }), /single-line/);
+    await assert.rejects(service.updateTask(taskId, { [ATTR_KIND]: "milestone" }), /action or stage/);
+    await assert.rejects(service.updateTask(projectId, { [ATTR_KIND]: "stage" }), /ordinary Action/);
+});
+
 test("非法内部 URI 在 SQL、属性写入和缓存变化前失败", async () => {
     const { api, cache, service } = setup();
     await assert.rejects(service.convertToTask(`siyuan://blocks/${ID}`), (error: unknown) => {
@@ -82,6 +158,240 @@ test("内部 parent、after 与查询关系字段同样只接受 raw ID", async 
     await assert.rejects(service.reorderTask(ID, uri));
     assert.throws(() => service.getTasksByParent(uri));
     assert.equal(api.requests.length, 0);
+});
+
+test("父关系更新拒绝不存在的父任务", async () => {
+    // Regression: missing parents used to be accepted after only logging a warning.
+    const { service } = setup();
+    const taskId = (await service.convertToTask(ID, "Write tests")).blockId;
+    const missingParentId = "20260816129999-missing";
+
+    await assert.rejects(
+        service.updateTask(taskId, { [ATTR_PARENT]: missingParentId }),
+        (error: unknown) =>
+            error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_TASK_NOT_FOUND,
+    );
+    assert.equal(service.getTask(taskId)?.parentId, "");
+});
+
+test("父关系矩阵允许跨文档 Action 归属并拒绝 Project 成为任何任务的子项", async () => {
+    // Regression: Project-to-Project used to bypass the Project-as-child guard.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816121000-project";
+    const otherProjectId = "20260816121001-project";
+    const taskParentId = "20260816121002-parentx";
+    const actionId = "20260816121003-actionx";
+    const physicalDocumentId = "20260816121004-notedoc";
+    for (const [id, title, taskType] of [
+        [projectId, "Project", "2"],
+        [otherProjectId, "Other project", "2"],
+        [taskParentId, "Task parent", "1"],
+    ]) {
+        const block = api.addBlock(id, "d", title);
+        Object.assign(block.attrs, { [ATTR_TASK]: taskType, [ATTR_STATUS]: "todo" });
+    }
+    api.addBlock(physicalDocumentId, "d", "Notes");
+    const actionBlock = api.addBlock(actionId, "d", "Cross-document action", "notebook", "/Notes", {
+        parentId: physicalDocumentId,
+    });
+    Object.assign(actionBlock.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo" });
+
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(otherProjectId, { taskType: "2" }));
+    cache.set(taskFactory(taskParentId));
+    cache.set(taskFactory(actionId));
+
+    const joined = await service.updateTask(actionId, { [ATTR_PARENT]: projectId });
+    assert.equal(joined.parentId, projectId);
+    assert.equal(actionBlock.parentId, physicalDocumentId);
+    assert.equal((await service.updateTask(actionId, { [ATTR_PARENT]: taskParentId })).parentId, taskParentId);
+
+    for (const parentId of [otherProjectId, taskParentId]) {
+        await assert.rejects(
+            service.updateTask(projectId, { [ATTR_PARENT]: parentId }),
+            (error: unknown) =>
+                error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_INVALID_PARAMS,
+        );
+    }
+    await assert.rejects(
+        service.reorderTask(projectId, otherProjectId),
+        (error: unknown) =>
+            error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_INVALID_PARAMS,
+    );
+});
+
+test("父关系更新拒绝间接循环", async () => {
+    // Regression: every parent mutation path must reject cycles beyond direct self-parenting.
+    const api = new FakeSiyuanApi();
+    const firstId = "20260816121100-firstxx";
+    const secondId = "20260816121101-secondx";
+    for (const id of [firstId, secondId]) {
+        const block = api.addBlock(id, "d", id);
+        Object.assign(block.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo" });
+    }
+    api.blocks.get(secondId)!.attrs[ATTR_PARENT] = firstId;
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(firstId));
+    cache.set(taskFactory(secondId, { parentId: firstId }));
+
+    await assert.rejects(
+        service.updateTask(firstId, { [ATTR_PARENT]: secondId }),
+        (error: unknown) =>
+            error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_CIRCULAR_REF,
+    );
+});
+
+test("取消 Project 只清理项目标记和直接 Action 的显式归属", async () => {
+    // Regression: removing a Project used to clear every task field and reuse generic child re-parenting.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816122000-project";
+    const actionId = "20260816122001-actionx";
+    const nestedId = "20260816122002-nestedx";
+    const project = api.addBlock(projectId, "d", "Project");
+    const action = api.addBlock(actionId, "d", "Action", "notebook", "/Elsewhere");
+    const nested = api.addBlock(nestedId, "d", "Nested action", "notebook", "/Elsewhere");
+    Object.assign(project.attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "doing",
+        [ATTR_NOTE]: "A preserved project note",
+    });
+    Object.assign(action.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo", [ATTR_PARENT]: projectId });
+    Object.assign(nested.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo", [ATTR_PARENT]: actionId });
+
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(actionId, { parentId: projectId }));
+    cache.set(taskFactory(nestedId, { parentId: actionId }));
+
+    await service.removeTask(projectId);
+
+    assert.equal(project.attrs[ATTR_TASK], "");
+    assert.equal(project.attrs[ATTR_STATUS], "doing");
+    assert.equal(project.attrs[ATTR_NOTE], "A preserved project note");
+    assert.equal(cache.get(projectId), undefined);
+    assert.equal(action.attrs[ATTR_PARENT], "");
+    assert.equal(cache.get(actionId)?.parentId, "");
+    assert.equal(nested.attrs[ATTR_PARENT], actionId);
+    assert.equal(cache.get(nestedId)?.parentId, actionId);
+});
+
+test("通过属性更新取消 Project 身份复用直接 Action 清理语义", async () => {
+    // Regression: changing custom-na-task from 2 to 1 used to leave Project children attached.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816122100-project";
+    const actionId = "20260816122101-actionx";
+    const project = api.addBlock(projectId, "d", "Project");
+    const action = api.addBlock(actionId, "d", "Action");
+    Object.assign(project.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    Object.assign(action.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo", [ATTR_PARENT]: projectId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(actionId, { parentId: projectId }));
+
+    const demoted = await service.updateTask(projectId, { [ATTR_TASK]: "1" });
+
+    assert.equal(demoted.taskType, "1");
+    assert.equal(cache.get(projectId)?.taskType, "1");
+    assert.equal(action.attrs[ATTR_PARENT], "");
+    assert.equal(cache.get(actionId)?.parentId, "");
+});
+
+test("取消 Project 后原生 Action 回到结构父任务", async () => {
+    // Regression: direct Project cleanup must clear the explicit relation without discarding native structure.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816122200-project";
+    const documentId = "20260816122201-notedoc";
+    const structuralParentId = "20260816122202-parentx";
+    const nestedListId = "20260816122203-listxxx";
+    const actionId = "20260816122204-actionx";
+    const project = api.addBlock(projectId, "d", "Project");
+    api.addBlock(documentId, "d", "Notes");
+    api.addBlock(structuralParentId, "i", "Structural parent", "notebook", "/Notes", {
+        parentId: documentId,
+        subtype: "t",
+        markdown: "- [ ] Structural parent",
+    });
+    api.addBlock(nestedListId, "l", "", "notebook", "/Notes", {
+        parentId: structuralParentId,
+        subtype: "u",
+    });
+    const action = api.addBlock(actionId, "i", "Action", "notebook", "/Notes", {
+        parentId: nestedListId,
+        subtype: "t",
+        markdown: "- [ ] Action",
+    });
+    Object.assign(project.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    Object.assign(action.attrs, { [ATTR_STATUS]: "todo", [ATTR_PARENT]: projectId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(structuralParentId, { identificationSource: "native" }));
+    cache.set(taskFactory(actionId, { identificationSource: "native", parentId: projectId }));
+
+    await service.removeTask(projectId);
+
+    assert.equal(action.attrs[ATTR_PARENT], "");
+    assert.equal(cache.get(actionId)?.parentId, structuralParentId);
+    assert.equal(action.parentId, nestedListId);
+});
+
+test("缓存重建检测外部取消 Project 并清理直接归属", async () => {
+    // Regression: external custom-na-task changes used to leave orphaned Project parent relations after rebuild.
+    const api = new DiscoveryFakeSiyuanApi();
+    const projectId = "20260816122300-project";
+    const actionId = "20260816122301-actionx";
+    const project = api.addBlock(projectId, "d", "Project");
+    const action = api.addBlock(actionId, "d", "Action");
+    Object.assign(project.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    Object.assign(action.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo", [ATTR_PARENT]: projectId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(actionId, { parentId: projectId }));
+
+    project.attrs[ATTR_TASK] = "1";
+    await service.rebuildCache();
+
+    assert.equal(cache.get(projectId)?.taskType, "1");
+    assert.equal(action.attrs[ATTR_PARENT], "");
+    assert.equal(cache.get(actionId)?.parentId, "");
+});
+
+test("冷启动清理指向已取消 Project 的孤儿归属", async () => {
+    // Regression: cancelling a Project while the plugin was stopped used to leave its Action parent orphaned on load.
+    const api = new DiscoveryFakeSiyuanApi();
+    const projectId = "20260816122302-project";
+    const actionId = "20260816122303-actionx";
+    const project = api.addBlock(projectId, "d", "Project");
+    const action = api.addBlock(actionId, "d", "Action");
+    Object.assign(project.attrs, { [ATTR_TASK]: "", [ATTR_STATUS]: "doing" });
+    Object.assign(action.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo", [ATTR_PARENT]: projectId });
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+
+    await service.loadCache();
+
+    assert.equal(cache.get(projectId), undefined);
+    assert.equal(action.attrs[ATTR_PARENT], "");
+    assert.equal(cache.get(actionId)?.parentId, "");
 });
 
 test("未缓存任务更新校验失败时不写入缓存或发布变更", async () => {
@@ -114,6 +424,30 @@ test("未缓存任务更新校验失败时不写入缓存或发布变更", async
     );
     assert.equal(publisher.broadcasts, 0);
     assert.deepEqual(publisher.changes, []);
+});
+
+test("未缓存 Project 仍拒绝加入普通任务", async () => {
+    // Regression: an uncached Project used to be resolved with the caller's default Action type and accepted a parent.
+    const api = new FakeSiyuanApi();
+    const project = api.addBlock(ID, "d", "Uncached project");
+    const parent = api.addBlock(OTHER_ID, "d", "Parent task");
+    Object.assign(project.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "todo" });
+    Object.assign(parent.attrs, { [ATTR_TASK]: "1", [ATTR_STATUS]: "todo" });
+    const originalAttrs = { ...project.attrs };
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(OTHER_ID));
+
+    await assert.rejects(
+        service.updateTask(ID, { [ATTR_PARENT]: OTHER_ID }),
+        (error: unknown) =>
+            error instanceof Error && (error as Error & { code?: number }).code === RPC_ERROR_INVALID_PARAMS,
+    );
+
+    assert.deepEqual(project.attrs, originalAttrs);
+    assert.equal(cache.get(ID), undefined);
 });
 
 test("权威回读失败时不产生虚假的缓存成功状态", async () => {
@@ -240,17 +574,119 @@ test("下一步行动排除已完成和阻塞任务，并按统一优先级排�
     const doneId = "20260816123459-abcdefg";
     const blockedId = "20260816123500-abcdefg";
     const blockerId = "20260816123501-abcdefg";
+    const somedayId = "20260816123502-abcdefg";
     cache.set(taskFactory(lowId, { priority: "low", order: 10 }));
     cache.set(taskFactory(highId, { priority: "critical", order: 100 }));
     cache.set(taskFactory(doneId, { status: "done", order: 1000 }));
     cache.set(taskFactory(blockerId, { status: "waiting", order: 1000 }));
     cache.set(taskFactory(blockedId, { depends: blockerId, order: 1000 }));
+    cache.set(taskFactory(somedayId, { status: "someday", order: 2000 }));
 
+    // Regression: every read consumer must exclude someday through the shared Next Action predicate.
     assert.deepEqual(
         service.getNextActions().map((task) => task.blockId),
         [highId, lowId],
     );
+    assert.deepEqual(
+        service.getReviewData().nextActions.map((task) => task.blockId),
+        [lowId, highId],
+    );
     assert.equal(service.getTask(highId)?.priority, "critical");
+});
+
+test("Review 与完成提醒保留叶子已完成但尚未确认的项目", () => {
+    // Regression: Review only inspected direct unfinished children and hid completion candidates.
+    const { cache, service } = setup();
+    const projectId = "20260816123503-project";
+    const parentId = "20260816123504-parentx";
+    const leafId = "20260816123505-leafxxx";
+    cache.set(taskFactory(projectId, { taskType: "2", status: "doing", childIds: [parentId] }));
+    cache.set(taskFactory(parentId, { parentId: projectId, status: "done", childIds: [leafId] }));
+    cache.set(taskFactory(leafId, { parentId, status: "done" }));
+
+    assert.deepEqual(
+        service.getProjectReminders().map((task) => task.blockId),
+        [projectId],
+    );
+    assert.deepEqual(
+        service.getReviewData().projectReviews.map((item) => item.summary.project.blockId),
+        [projectId],
+    );
+});
+
+test("ReviewData 以项目摘要传递唯一队列项并从通用待回顾任务中排除 Project", () => {
+    // Regression: Project Review only exposed bare tasks and duplicated a project across generic Review groups.
+    const { cache, service } = setup();
+    const today = new Date();
+    const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const projectId = "20260816123506-project";
+    const actionId = "20260816123507-actionx";
+    const nextActionId = "20260816123507-nextact";
+    cache.set(
+        taskFactory(projectId, {
+            taskType: "2",
+            status: "doing",
+            childIds: [actionId, nextActionId],
+            blocked: true,
+            blockedReason: "dependency",
+            reviewInterval: 7,
+            reviewDate: todayString,
+        }),
+    );
+    cache.set(
+        taskFactory(actionId, {
+            parentId: projectId,
+            blocked: true,
+            blockedReason: "dependency",
+            due: "2000-01-01",
+        }),
+    );
+    cache.set(taskFactory(nextActionId, { parentId: projectId }));
+
+    const review = service.getReviewData();
+
+    assert.equal(review.projectReviews.length, 1);
+    assert.equal(review.projectReviews[0].summary.project.blockId, projectId);
+    assert.equal(review.projectReviews[0].summary.health, "blocked");
+    assert.deepEqual(review.projectReviews[0].triggers, ["schedule", "risk"]);
+    assert.deepEqual(review.reviewDueTasks, []);
+    assert.deepEqual(review.overdueTasks, []);
+    assert.deepEqual(review.nextActions, []);
+    assert.equal("activeProjects" in review, false);
+    assert.deepEqual(
+        review.reviewableProjects.map((summary) => summary.project.blockId),
+        [projectId],
+    );
+});
+
+test("完成项目回顾按周期更新下次回顾日期，无周期手动回顾不制造日期", async () => {
+    // Regression: project-level Review must preserve the existing authoritative reviewDate update semantics.
+    const { api, cache, service } = setup();
+    const scheduledId = "20260816123508-project";
+    const manualId = "20260816123509-project";
+    const scheduledBlock = api.addBlock(scheduledId, "d", "Scheduled project");
+    const manualBlock = api.addBlock(manualId, "d", "Manual project");
+    Object.assign(scheduledBlock.attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "doing",
+        [ATTR_REVIEW_INTERVAL]: "7",
+    });
+    Object.assign(manualBlock.attrs, { [ATTR_TASK]: "2", [ATTR_STATUS]: "doing" });
+    cache.set(taskFactory(scheduledId, { taskType: "2", status: "doing", reviewInterval: 7 }));
+    cache.set(taskFactory(manualId, { taskType: "2", status: "doing", reviewInterval: 0 }));
+    const expectedDate = new Date();
+    expectedDate.setDate(expectedDate.getDate() + 7);
+    const expectedDateString = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, "0")}-${String(expectedDate.getDate()).padStart(2, "0")}`;
+
+    const updated = await service.markTaskReviewed([scheduledId, manualId]);
+
+    assert.deepEqual(
+        updated.map((task) => task.blockId),
+        [scheduledId],
+    );
+    assert.equal(updated[0].reviewDate, expectedDateString);
+    assert.equal(scheduledBlock.attrs[ATTR_REVIEW_DATE], expectedDateString);
+    assert.equal(manualBlock.attrs[ATTR_REVIEW_DATE], undefined);
 });
 
 test("当期完成统计不计入缺少完成时间的任务", () => {
@@ -264,18 +700,57 @@ test("当期完成统计不计入缺少完成时间的任务", () => {
     assert.equal(service.getStatistics("month").summary.completedInPeriod, 1);
 });
 
-test("新建子任务显式写入父级和排序属性", async () => {
-    const { api, cache, service } = setup();
+test("已完成 Project 新建直属 Action 时恢复 doing、清除完成态并返回一次性风险提示", async () => {
+    // Regression: a completed Project could stay silently complete after gaining new direct work.
+    const { api, cache, myDay, service } = setup();
     const parentId = "20260816123457-parentx";
     const childId = "20260816123458-childxx";
-    api.addBlock(parentId, "d", "Parent").attrs[ATTR_TASK] = "2";
+    Object.assign(api.addBlock(parentId, "d", "Parent").attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "done",
+    });
     api.addBlock(childId, "p", "Child");
-    cache.set(taskFactory(parentId, { taskType: "2" }));
+    cache.set(taskFactory(parentId, { taskType: "2", status: "done" }));
+    await myDay.addTask(parentId);
+    await myDay.markTaskCompleted(parentId, Date.now());
 
-    const childTaskId = (await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId })).blockId;
+    const created = await service.convertToTask(childId, "Child", "1", { parentIdHint: parentId });
+    const childTaskId = created.blockId;
 
     assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_PARENT], parentId);
     assert.equal(api.blocks.get(childTaskId)?.attrs[ATTR_SORT], "0");
+    assert.equal(api.blocks.get(parentId)?.attrs[ATTR_STATUS], "doing");
+    assert.equal(service.getTask(parentId)?.status, "doing");
+    assert.equal(created._warning, "projectReopened");
+    assert.equal(myDay.state.tasks.find((entry) => entry.blockId === parentId)?.completedAt, undefined);
+});
+
+test("已完成 Project 的直属 Action 重新打开时恢复 doing、清除完成态并返回一次性风险提示", async () => {
+    // Regression: reopening direct work did not invalidate the Project's completed state.
+    const { api, cache, myDay, service } = setup();
+    const projectId = "20260816123600-project";
+    const actionId = "20260816123601-actionx";
+    Object.assign(api.addBlock(projectId, "d", "Completed project").attrs, {
+        [ATTR_TASK]: "2",
+        [ATTR_STATUS]: "done",
+    });
+    Object.assign(api.addBlock(actionId, "d", "Follow-up action").attrs, {
+        [ATTR_TASK]: "1",
+        [ATTR_STATUS]: "done",
+        [ATTR_PARENT]: projectId,
+    });
+    cache.set(taskFactory(projectId, { taskType: "2", status: "done", childIds: [actionId] }));
+    cache.set(taskFactory(actionId, { status: "done", parentId: projectId }));
+    await myDay.addTask(projectId);
+    await myDay.markTaskCompleted(projectId, Date.now());
+
+    const reopened = await service.updateTask(actionId, { [ATTR_STATUS]: "todo" });
+
+    assert.equal(reopened.status, "todo");
+    assert.equal(api.blocks.get(projectId)?.attrs[ATTR_STATUS], "doing");
+    assert.equal(service.getTask(projectId)?.status, "doing");
+    assert.equal(reopened._warning, "projectReopened");
+    assert.equal(myDay.state.tasks.find((entry) => entry.blockId === projectId)?.completedAt, undefined);
 });
 
 test("广播失败由 SyncEngine 隔离，已确认的权威缓存保持成功状态", async () => {

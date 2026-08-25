@@ -1,5 +1,6 @@
 import type { TaskCacheEntry, TaskChangeSetV2, TaskSnapshotV2 } from "../../shared/types";
 import { countReviewAttentionTasks } from "../../shared/review";
+import { isProjectTask } from "../../shared/project-domain";
 
 export interface TaskCollectionState {
     allTasks: TaskCacheEntry[];
@@ -46,7 +47,7 @@ function deriveProjectReminders(allTasks: TaskCacheEntry[]): TaskCacheEntry[] {
     const taskMap = new Map(allTasks.map((task) => [task.blockId, task]));
     return allTasks.filter(
         (entry) =>
-            entry.taskType === "2" &&
+            isProjectTask(entry) &&
             entry.status !== "done" &&
             entry.childIds.length > 0 &&
             entry.childIds.every((childId) => taskMap.get(childId)?.status === "done"),
@@ -79,10 +80,11 @@ export function reduceTaskChanges(
     const entries = [...byId.values()];
     const childIdsByParent = new Map<string, string[]>();
     for (const entry of entries) {
-        if (!entry.parentId) continue;
-        const childIds = childIdsByParent.get(entry.parentId);
+        const parentId = entry.parentId;
+        if (!parentId) continue;
+        const childIds = childIdsByParent.get(parentId);
         if (childIds) childIds.push(entry.blockId);
-        else childIdsByParent.set(entry.parentId, [entry.blockId]);
+        else childIdsByParent.set(parentId, [entry.blockId]);
     }
     const allTasks = entries.map((task) => {
         const childIds = childIdsByParent.get(task.blockId) || [];
@@ -117,6 +119,8 @@ function isTaskEntry(value: unknown, allowLegacyIdentity = false): value is Task
         "repeatState",
         "completed",
         "note",
+        "outcome",
+        "dod",
         "created",
         "tags",
         "blockedReason",
@@ -132,6 +136,7 @@ function isTaskEntry(value: unknown, allowLegacyIdentity = false): value is Task
         allowLegacyIdentity && task.identificationSource === undefined && task.attrHostId === undefined;
     return (
         stringFields.every((field) => typeof task[field] === "string") &&
+        (task.actionKind === "" || task.actionKind === "action" || task.actionKind === "stage") &&
         (hasCurrentIdentity || hasLegacyIdentity) &&
         (task.contentBlockId === undefined || typeof task.contentBlockId === "string") &&
         numberFields.every((field) => typeof task[field] === "number" && Number.isFinite(task[field] as number)) &&
@@ -180,6 +185,9 @@ function normalizeTaskEntry(value: unknown): TaskCacheEntry | null {
         sort: -1,
         completed: "",
         note: "",
+        outcome: "",
+        dod: "",
+        actionKind: source.taskType === "2" ? "" : "action",
         created: "",
         tags: "",
         blocked: false,
