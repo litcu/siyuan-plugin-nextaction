@@ -28,6 +28,7 @@ import {
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 import { isMyDayEntryDone } from "../src/shared/my-day.ts";
+import { McpToolError } from "../src/kernel/mcp-tool-error.ts";
 
 const ID = "20260816123456-abcdefg";
 const OTHER_ID = "20260816123457-hijklmn";
@@ -457,6 +458,67 @@ test("权威回读失败时不产生虚假的缓存成功状态", async () => {
     const native = [...api.blocks.values()].find((block) => block.type === "i" && block.subtype === "t");
     assert.equal(native?.attrs[ATTR_STATUS], undefined);
     assert.equal(cache.get(ID), undefined);
+});
+
+test("文本块转换回滚失败会报告部分写入而不是普通失败", async () => {
+    const { api, service } = setup();
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+    api.failAtRequest.set("/api/block/updateBlock", 2);
+
+    // Regression: 回滚失败被吞掉后会错误标记为可重试 failed，尽管来源块可能已经改变。
+    await assert.rejects(
+        service.convertToTask(ID, "Write tests"),
+        (error: unknown) => error instanceof McpToolError && error.mcpCode === "PARTIAL_SUCCESS",
+    );
+});
+
+test("文本块转换失败会用原始 Markdown 回滚而不是编辑后的标题", async () => {
+    const { api, service } = setup();
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+
+    // Regression: 原位候选编辑标题后，转换失败会用编辑标题回滚并永久改写来源。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.content, "Write tests");
+    assert.equal(api.blocks.get(ID)?.markdown, "Write tests");
+});
+
+test("空原始 Markdown 在转换失败时仍按空值回滚", async () => {
+    const { api, service } = setup();
+    const source = api.blocks.get(ID)!;
+    source.markdown = "";
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+
+    // Regression: 空原文曾被退化为来源标题，导致失败回滚永久写入并非原文的内容。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.markdown, "");
+});
+
+test("转换响应元数据无效时仍回滚已改写的来源", async () => {
+    class InvalidConversionMetadataApi extends FakeSiyuanApi {
+        override async request<T = unknown>(path: string, body: object = {}): Promise<T> {
+            const result = await super.request<T>(path, body);
+            const input = body as { dataType?: string; data?: string };
+            if (
+                path === "/api/block/updateBlock" &&
+                input.dataType === "markdown" &&
+                /^- \[ \] /.test(input.data || "")
+            ) {
+                return [] as T;
+            }
+            return result;
+        }
+    }
+
+    const api = new InvalidConversionMetadataApi();
+    api.addBlock(ID, "p", "Write tests");
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    // Regression: 响应缺少转换元数据时，来源已改写但 convertedRootId 尚未设置，回滚曾被跳过。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.markdown, "Write tests");
 });
 
 test("属性写入失败时保留既有权威缓存", async () => {

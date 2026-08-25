@@ -293,6 +293,9 @@ export class TaskCreationService {
         if (input.kind !== undefined && input.kind !== "task" && input.kind !== "project") {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
+        if (input.cleanTitle !== undefined && (typeof input.cleanTitle !== "string" || !input.cleanTitle.trim())) {
+            throw new McpToolError("INVALID_INPUT", "cleanTitle must be a non-empty string");
+        }
         if (
             input.properties !== undefined &&
             (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))
@@ -300,7 +303,11 @@ export class TaskCreationService {
             throw new McpToolError("INVALID_INPUT", "properties must be an object");
         }
         const kind = input.kind === "project" ? "2" : "1";
-        let task = await this.taskService.convertToTask(blockId, undefined, kind);
+        let task = await this.taskService.convertToTask(
+            blockId,
+            typeof input.cleanTitle === "string" ? input.cleanTitle.trim() : undefined,
+            kind,
+        );
         try {
             const properties = (input.properties || {}) as Record<string, unknown>;
             if (Object.keys(properties).length) {

@@ -28,7 +28,7 @@
     import { jumpToBlock } from "../utils";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
-    import { runAiDecomposeTask } from "../ai/ai-feature-service";
+    import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
@@ -365,6 +365,8 @@
                         {loadProjectSupport}
                         onOpenProjectSupport={jumpToBlock}
                         {onExtractAction}
+                        onAiExtractAction={(sourceBlockId, projectId) =>
+                            runAiExtractTasks([sourceBlockId], { projectId })}
                     />
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode

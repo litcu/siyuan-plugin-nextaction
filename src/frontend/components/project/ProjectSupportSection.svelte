@@ -13,6 +13,7 @@
     export let loadSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onOpen: (blockId: string) => void;
     export let onExtract: ((blockId: string, title: string) => void) | undefined = undefined;
+    export let onAiExtract: ((blockId: string) => void) | undefined = undefined;
 
     let data: ProjectSupportData | null = null;
     let loadedProjectId = "";
@@ -85,6 +86,14 @@
                             <NaBadge text={directionLabel(item.directions)} tone="info" />
                         </div>
                         <div class="na-project-support__actions">
+                            {#if onAiExtract}
+                                <NaIconButton
+                                    symbol="iconSparkles"
+                                    label={i18n.aiExtractTasks}
+                                    size={13}
+                                    on:click={() => onAiExtract?.(item.blockId)}
+                                />
+                            {/if}
                             {#if onExtract}
                                 <NaIconButton
                                     symbol="iconNextAction"

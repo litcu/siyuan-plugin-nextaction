@@ -1,5 +1,6 @@
 import { ALL_STATUSES, PRIORITY_WEIGHTS, TASK_TYPE_PROJECT, TASK_TYPE_TASK } from "./constants";
 import { isBlockId } from "./block-id";
+import type { MyDayState, TaskCacheEntry } from "./types";
 
 export type AiFeatureId = "extractTasks" | "decomposeTask" | "planMyDay" | "review";
 
@@ -60,6 +61,32 @@ export interface AiProposal {
     myDay?: AiMyDaySuggestion[];
     review?: AiReviewReport;
     warnings?: string[];
+}
+
+export interface AiProposalContext {
+    sourceBlockIds?: string[];
+    defaultProjectId?: string;
+}
+
+export type AiProposalApplyItemStatus = "created" | "converted" | "failed" | "partial";
+
+export interface AiProposalApplyItemResult {
+    index: number;
+    sourceBlockId?: string;
+    target: AiWriteTargetType;
+    status: AiProposalApplyItemStatus;
+    task?: TaskCacheEntry;
+    error?: string;
+    retryable: boolean;
+}
+
+export interface AiProposalApplyResult {
+    feature: AiProposal["feature"];
+    created: TaskCacheEntry[];
+    converted: TaskCacheEntry[];
+    myDay: MyDayState | null;
+    warnings: string[];
+    items: AiProposalApplyItemResult[];
 }
 
 export interface AiPlanValidationResult {
@@ -150,7 +177,7 @@ function normalizeOptionalScale(value: unknown): number | undefined {
     return value === null || value === undefined ? undefined : (value as number);
 }
 
-export function validateAiProposal(input: unknown): AiPlanValidationResult {
+export function validateAiProposal(input: unknown, context: AiProposalContext = {}): AiPlanValidationResult {
     const errors: string[] = [];
     if (!isRecord(input))
         return { proposal: { feature: "review", summary: "" }, errors: ["proposal must be an object"] };
@@ -323,9 +350,34 @@ export function validateAiProposal(input: unknown): AiPlanValidationResult {
         return item;
     });
 
+    if (proposal.feature === "extractTasks" && context.sourceBlockIds) {
+        const sourceBlockIds = new Set(context.sourceBlockIds);
+        proposal.tasks.forEach((task, index) => {
+            if (!task.sourceBlockId) {
+                errors.push(`tasks[${index}].sourceBlockId is required for extractTasks input context`);
+            } else if (!sourceBlockIds.has(task.sourceBlockId)) {
+                errors.push(`tasks[${index}].sourceBlockId must belong to the extractTasks input context`);
+            }
+        });
+    }
+
+    if (proposal.feature === "extractTasks" && context.defaultProjectId) {
+        if (!isBlockId(context.defaultProjectId)) {
+            errors.push("extractTasks default Project is invalid");
+        } else {
+            proposal.tasks = proposal.tasks.map((task) => ({ ...task, parentId: context.defaultProjectId }));
+        }
+    }
+
     if (proposal.target?.type === "original") {
+        const originalSourceIds = new Set<string>();
         proposal.tasks.forEach((task, index) => {
             if (!task.sourceBlockId) errors.push(`tasks[${index}].sourceBlockId is required for original target`);
+            else if (originalSourceIds.has(task.sourceBlockId)) {
+                errors.push("original target requires a unique sourceBlockId for every task");
+            } else {
+                originalSourceIds.add(task.sourceBlockId);
+            }
         });
     }
     if (proposal.target?.type === "source_child") {

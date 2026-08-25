@@ -81,10 +81,14 @@ class NextActionKernelPlugin {
             this.taskTargetResolver,
             this.taskCreationService,
         );
-        const createTask = async (input: Parameters<TaskCreationService["create"]>[0]) => {
+        const createTask = async (
+            input: Parameters<TaskCreationService["create"]>[0],
+            options?: Parameters<TaskCreationService["create"]>[2],
+        ) => {
             const outcome = await this.taskCreationService.create(
                 input,
                 this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+                options,
             );
             return this.mcpToolManager.executor.adaptTaskCreationOutcome(outcome);
         };
@@ -95,12 +99,13 @@ class NextActionKernelPlugin {
             );
             return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
         };
-        const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask);
+        const actionSourcePort = new SiyuanActionSourcePort(api);
+        const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask, actionSourcePort);
         const projectSupportService = new ProjectSupportService(new SiyuanProjectSupportQueryPort(api));
         const actionExtractionService = new ActionExtractionService(
             this.taskService,
             this.taskCreationService,
-            new SiyuanActionSourcePort(api),
+            actionSourcePort,
         );
 
         registerRpcMethods(this.taskService, {

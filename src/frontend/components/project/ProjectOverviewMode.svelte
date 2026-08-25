@@ -18,6 +18,7 @@
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onOpenProjectSupport: (blockId: string) => void;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+    export let onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -102,6 +103,7 @@
         loadSupport={loadProjectSupport}
         onOpen={onOpenProjectSupport}
         onExtract={(sourceBlockId, sourceTitle) => onExtractAction(sourceBlockId, sourceTitle, summary.project.blockId)}
+        onAiExtract={(sourceBlockId) => onAiExtractAction(sourceBlockId, summary.project.blockId)}
     />
 </div>
 

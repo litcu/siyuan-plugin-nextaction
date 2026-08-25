@@ -1,4 +1,4 @@
-import { validateAiProposal, type AiProposal } from "./ai";
+import { validateAiProposal, type AiProposal, type AiProposalApplyResult, type AiProposalContext } from "./ai";
 import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
 import { assertBlockId } from "./block-id";
 import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
@@ -84,13 +84,7 @@ export interface RpcCustomFieldDiagnostics {
     orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }>;
 }
 
-export interface RpcAiApplyResult {
-    feature: string;
-    created: TaskCacheEntry[];
-    converted: TaskCacheEntry[];
-    myDay: MyDayState | null;
-    warnings: string[];
-}
+export type RpcAiApplyResult = AiProposalApplyResult;
 
 export class RpcContractError extends Error {
     readonly code = RPC_ERROR_INVALID_PARAMS;
@@ -226,16 +220,53 @@ function extractActionParams(value: unknown): ExtractActionInput {
     };
 }
 
-function proposalParams(value: unknown): { proposal: AiProposal } {
-    const input = paramsRecord(value);
-    const validation = validateAiProposal(input.proposal);
-    if (validation.errors.length > 0) throw new RpcContractError(validation.errors[0]);
-    return { proposal: validation.proposal };
+function proposalContext(value: unknown): AiProposalContext {
+    if (value === undefined) return {};
+    const input = requiredObject(value, "context");
+    if (input.sourceBlockIds !== undefined && !Array.isArray(input.sourceBlockIds)) {
+        throw new RpcContractError("context.sourceBlockIds must be an array");
+    }
+    if (Array.isArray(input.sourceBlockIds) && input.sourceBlockIds.length > 100) {
+        throw new RpcContractError("context.sourceBlockIds must contain at most 100 items");
+    }
+    const defaultProjectId = optionalBlockId(input.defaultProjectId, "context.defaultProjectId");
+    return {
+        ...(Array.isArray(input.sourceBlockIds)
+            ? {
+                  sourceBlockIds: [
+                      ...new Set(
+                          input.sourceBlockIds.map((blockId, index) =>
+                              requiredBlockId(blockId, `context.sourceBlockIds[${index}]`),
+                          ),
+                      ),
+                  ],
+              }
+            : {}),
+        ...(defaultProjectId ? { defaultProjectId } : {}),
+    };
 }
 
-function rawProposalParams(value: unknown): { proposal: AiProposal } {
+function proposalParams(value: unknown): { proposal: AiProposal; context: AiProposalContext } {
     const input = paramsRecord(value);
-    return { proposal: requiredObject(input.proposal, "proposal") as unknown as AiProposal };
+    const context = proposalContext(input.context);
+    const validation = validateAiProposal(input.proposal, context);
+    if (validation.errors.length > 0) throw new RpcContractError(validation.errors[0]);
+    if (
+        validation.proposal.feature === "extractTasks" &&
+        (validation.proposal.tasks?.length || 0) > 0 &&
+        !context.sourceBlockIds?.length
+    ) {
+        throw new RpcContractError("context.sourceBlockIds is required for extractTasks");
+    }
+    return { proposal: validation.proposal, context };
+}
+
+function rawProposalParams(value: unknown): { proposal: AiProposal; context: AiProposalContext } {
+    const input = paramsRecord(value);
+    return {
+        proposal: requiredObject(input.proposal, "proposal") as unknown as AiProposal,
+        context: proposalContext(input.context),
+    };
 }
 
 export const RPC_CONTRACT = {
@@ -348,10 +379,11 @@ export const RPC_CONTRACT = {
         return { settings };
     }),
     getSettings: defineRpc<Record<string, never>, PluginSettings>(noParams),
-    validateAiProposal: defineRpc<{ proposal: AiProposal }, { proposal: AiProposal; errors: string[] }>(
-        rawProposalParams,
-    ),
-    applyAiProposal: defineRpc<{ proposal: AiProposal }, RpcAiApplyResult>(proposalParams),
+    validateAiProposal: defineRpc<
+        { proposal: AiProposal; context: AiProposalContext },
+        { proposal: AiProposal; errors: string[] }
+    >(rawProposalParams),
+    applyAiProposal: defineRpc<{ proposal: AiProposal; context: AiProposalContext }, RpcAiApplyResult>(proposalParams),
     getMcpStatus: defineRpc<Record<string, never>, RpcMcpStatus>(noParams),
     listMcpTargetNotebooks: defineRpc<Record<string, never>, RpcMcpNotebookTarget[]>(noParams),
     listMcpTargetDocuments: defineRpc<

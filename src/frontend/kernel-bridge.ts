@@ -9,7 +9,7 @@ import type {
     ProjectSupportData,
 } from "../shared/types";
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
-import type { AiProposal } from "../shared/ai";
+import type { AiProposal, AiProposalApplyResult, AiProposalContext } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type {
@@ -212,18 +212,15 @@ export class KernelBridge {
         return this.call("getSettings", {});
     }
 
-    async validateAiProposal(proposal: AiProposal): Promise<{ proposal: AiProposal; errors: string[] }> {
-        return this.call("validateAiProposal", { proposal });
+    async validateAiProposal(
+        proposal: AiProposal,
+        context: AiProposalContext = {},
+    ): Promise<{ proposal: AiProposal; errors: string[] }> {
+        return this.call("validateAiProposal", { proposal, context });
     }
 
-    async applyAiProposal(proposal: AiProposal): Promise<{
-        feature: string;
-        created: TaskCacheEntry[];
-        converted: TaskCacheEntry[];
-        myDay: MyDayState | null;
-        warnings: string[];
-    }> {
-        return this.call("applyAiProposal", { proposal });
+    async applyAiProposal(proposal: AiProposal, context: AiProposalContext = {}): Promise<AiProposalApplyResult> {
+        return this.call("applyAiProposal", { proposal, context });
     }
 
     async getMcpStatus(): Promise<RpcMcpStatus> {

@@ -123,10 +123,14 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
                 ? hooks.updateSettings(settings)
                 : Promise.resolve(taskService.updateSettings(settings)),
         getSettings: () => taskService.getSettings(),
-        validateAiProposal: ({ proposal }) =>
-            hooks.aiProposalService ? hooks.aiProposalService.validate(proposal) : unavailable("AI proposal service"),
-        applyAiProposal: ({ proposal }) =>
-            hooks.aiProposalService ? hooks.aiProposalService.apply(proposal) : unavailable("AI proposal service"),
+        validateAiProposal: ({ proposal, context }) =>
+            hooks.aiProposalService
+                ? hooks.aiProposalService.validate(proposal, context)
+                : unavailable("AI proposal service"),
+        applyAiProposal: ({ proposal, context }) =>
+            hooks.aiProposalService
+                ? hooks.aiProposalService.apply(proposal, context)
+                : unavailable("AI proposal service"),
         getMcpStatus: () =>
             hooks.getMcpStatus
                 ? hooks.getMcpStatus()
