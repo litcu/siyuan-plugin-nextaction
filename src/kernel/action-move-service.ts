@@ -202,6 +202,7 @@ export class ActionMoveService {
         } catch (reconcileCause: unknown) {
             recoveryCause = reconcileCause;
         }
+        changes.deleteEntry(prepared.plan.actionId);
         return {
             kind: "failed",
             error: moveError(

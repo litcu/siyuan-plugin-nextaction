@@ -39,11 +39,13 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
     private inspectTargetCount = 0;
     private activePrepares = 0;
     private undoSourceValid = true;
+    private restoreAttempted = false;
     maxConcurrentPrepares = 0;
 
     constructor(
         private readonly api: FakeSiyuanApi,
-        private readonly failure: "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" = "",
+        private readonly failure:
+            "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" | "undo-inspect" = "",
         private readonly delayPrepare = false,
     ) {}
 
@@ -94,6 +96,7 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
 
     async restore(plan: ActionMoveStructurePlan): Promise<void> {
         if (this.failure === "restore") throw new Error("restore failed");
+        this.restoreAttempted = true;
         this.api.blocks.get(ACTION_ID)!.parentId = plan.source.location.parentId;
         this.currentDocumentId = plan.source.location.documentId;
         if (this.failure === "undo-after") throw new Error("undo cleanup failed after mutation");
@@ -101,6 +104,7 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
 
     async inspect(actionId: string): Promise<ActionMoveStructureSnapshot> {
         assert.equal(actionId, ACTION_ID);
+        if (this.failure === "undo-inspect" && this.restoreAttempted) throw new Error("undo position unreadable");
         const parentId = this.api.blocks.get(ACTION_ID)?.parentId || "";
         const subtreeIds = [ACTION_ID, CONTENT_ID, CHILD_LIST_ID, CHILD_ACTION_ID, CHILD_CONTENT_ID];
         if (this.currentDocumentId === PROJECT_ID) this.inspectTargetCount++;
@@ -165,7 +169,7 @@ class StaleIdentitySiyuanApi extends FakeSiyuanApi {
 }
 
 function setup(
-    failure: "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" = "",
+    failure: "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" | "undo-inspect" = "",
     options: { staleIdentity?: boolean; projectParentId?: string; delayPrepare?: boolean } = {},
 ) {
     const api = options.staleIdentity ? new StaleIdentitySiyuanApi() : new FakeSiyuanApi();
@@ -387,6 +391,20 @@ test("撤销写入后清理失败时按实际来源结构校准权威缓存", as
     assert.equal(api.blocks.get(ACTION_ID)?.parentId, SOURCE_LIST_ID);
     assert.equal(cache.get(ACTION_ID)?.parentId, "");
     assert.ok(publisher.changes.includes(ACTION_ID));
+});
+
+test("撤销写入后无法权威判定位置时使缓存失效并广播", async () => {
+    // Regression: 反向写入后若来源与目标都无法确认，不能保留可能过期的目标 Project 缓存。
+    const { cache, publisher, service } = setup("undo-inspect");
+    const moved = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+
+    await assert.rejects(
+        () => service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32015 && /could not be confirmed/.test(error.message),
+    );
+
+    assert.equal(cache.get(ACTION_ID), undefined);
+    assert.equal(publisher.changes.filter((id) => id === ACTION_ID).length, 2);
 });
 
 test("移动后身份 SQL 祖先链滞后时仍按已确认的物理目标刷新有效父级", async () => {
