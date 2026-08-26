@@ -269,7 +269,7 @@ test("原位置相邻锚点删除后拒绝撤销且保持目标结构", async ()
     );
 
     const current = await port.inspect(ACTION_ID, plan);
-    assert.equal(port.isAtTarget(plan, current), true);
+    assert.equal(await port.isAtTarget(plan, current), true);
     assert.equal(api.blocks.get(SOURCE_LIST_ID)?.parentId, PROJECT_ID);
 });
 

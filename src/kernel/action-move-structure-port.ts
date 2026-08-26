@@ -36,7 +36,7 @@ export interface ActionMoveStructurePort {
     restore(plan: ActionMoveStructurePlan): Promise<void>;
     inspect(actionId: string, plan?: ActionMoveStructurePlan): Promise<ActionMoveStructureSnapshot>;
     isAtSource(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean;
-    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean;
+    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): Promise<boolean>;
     validateUndoSource(plan: ActionMoveStructurePlan): Promise<void>;
 }
 
@@ -383,14 +383,29 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
         );
     }
 
-    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean {
+    async isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): Promise<boolean> {
         const state = stateOf(plan);
-        return (
+        if (!(
             snapshot.location.documentId === plan.target.documentId &&
             snapshot.location.parentId === state.targetListId &&
             snapshot.location.previousId === "" &&
             snapshot.location.nextId === ""
-        );
+        )) {
+            return false;
+        }
+        for (let attempt = 0; attempt < this.consistencyAttempts; attempt++) {
+            const targetChildren = await this.childBlocks(plan.target.documentId);
+            const targetIndex = targetChildren.findIndex((item) => item.id === state.targetListId);
+            if (
+                targetIndex >= 0 &&
+                (targetChildren[targetIndex - 1]?.id || "") === plan.target.destination.previousId &&
+                (targetChildren[targetIndex + 1]?.id || "") === plan.target.destination.nextId
+            ) {
+                return true;
+            }
+            if (attempt + 1 < this.consistencyAttempts) await this.waitForConsistency();
+        }
+        return false;
     }
 
     async validateUndoSource(plan: ActionMoveStructurePlan): Promise<void> {

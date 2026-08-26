@@ -38,6 +38,9 @@ type ActionMoveExecution =
           error: Error & { code: number };
       };
 
+type ActionMoveUndoExecution =
+    { kind: "undone"; result: ActionMoveUndoResult } | { kind: "failed"; error: Error & { code: number } };
+
 interface ActionMoveUndoRecord {
     prepared: PreparedActionMove;
 }
@@ -77,7 +80,7 @@ export class ActionMoveService {
                 await this.confirmTargetStructure(prepared.plan);
                 await this.confirmTaskIdentity(prepared, changes, false);
                 await this.structure.commit(prepared.plan);
-                await this.confirmTargetStructure(prepared.plan);
+                await this.confirmTargetStructure(prepared.plan, true);
                 const task = await this.confirmTaskIdentity(
                     prepared,
                     changes,
@@ -97,10 +100,10 @@ export class ActionMoveService {
     async undo(input: ActionMoveUndoInput): Promise<ActionMoveUndoResult> {
         const record = this.consumeUndo(input.credential);
         const { prepared } = record;
-        return this.repository.withConfirmedChanges<ActionMoveUndoResult>(async (changes) => {
+        const execution = await this.repository.withConfirmedChanges<ActionMoveUndoExecution>(async (changes) => {
             const current = await this.structure.inspect(prepared.plan.actionId, prepared.plan);
             if (
-                !this.structure.isAtTarget(prepared.plan, current) ||
+                !(await this.structure.isAtTarget(prepared.plan, current)) ||
                 !sameIds(prepared.plan.source.subtreeIds, current.subtreeIds)
             ) {
                 throw moveError(
@@ -109,8 +112,11 @@ export class ActionMoveService {
                     undefined,
                 );
             }
+            let restoreAttempted = false;
             try {
+                await this.confirmTaskIdentity(prepared, changes, false);
                 await this.structure.validateUndoSource(prepared.plan);
+                restoreAttempted = true;
                 await this.structure.restore(prepared.plan);
                 const restored = await this.structure.inspect(prepared.plan.actionId, prepared.plan);
                 if (
@@ -125,12 +131,10 @@ export class ActionMoveService {
                     true,
                     prepared.preview.currentEffectiveParentId,
                 );
-                return {
-                    task,
-                    summary: `${prepared.preview.actionTitle}: ${prepared.preview.target.title} → ${prepared.preview.source.title}`,
-                };
+                return { kind: "undone", result: this.undoResult(prepared, task) };
             } catch (cause: unknown) {
                 if ((cause as { code?: unknown } | null)?.code === RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE) throw cause;
+                if (restoreAttempted) return this.reconcileUndoFailure(prepared, changes, cause);
                 throw moveError(
                     RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
                     "The original Action position is no longer safe; undo was not applied",
@@ -138,6 +142,74 @@ export class ActionMoveService {
                 );
             }
         });
+        if (execution.kind === "failed") throw execution.error;
+        return execution.result;
+    }
+
+    private undoResult(prepared: PreparedActionMove, task: ActionMoveUndoResult["task"]): ActionMoveUndoResult {
+        return {
+            task,
+            summary: `${prepared.preview.actionTitle}: ${prepared.preview.target.title} → ${prepared.preview.source.title}`,
+        };
+    }
+
+    private async reconcileUndoFailure(
+        prepared: PreparedActionMove,
+        changes: ConfirmedTaskChanges,
+        cause: unknown,
+    ): Promise<ActionMoveUndoExecution> {
+        let cleanupCompleted = false;
+        let recoveryCause = cause;
+        try {
+            await this.structure.restore(prepared.plan);
+            cleanupCompleted = true;
+        } catch (nextCause: unknown) {
+            recoveryCause = nextCause;
+        }
+
+        try {
+            const current = await this.structure.inspect(prepared.plan.actionId, prepared.plan);
+            const subtreeMatches = sameIds(prepared.plan.source.subtreeIds, current.subtreeIds);
+            if (this.structure.isAtSource(prepared.plan, current) && subtreeMatches) {
+                const task = await this.confirmTaskIdentity(
+                    prepared,
+                    changes,
+                    true,
+                    prepared.preview.currentEffectiveParentId,
+                    false,
+                );
+                if (cleanupCompleted) return { kind: "undone", result: this.undoResult(prepared, task) };
+                return {
+                    kind: "failed",
+                    error: moveError(
+                        RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
+                        "The Action was restored, but cleanup could not be confirmed; current state was reloaded",
+                        recoveryCause,
+                    ),
+                };
+            }
+            if ((await this.structure.isAtTarget(prepared.plan, current)) && subtreeMatches) {
+                await this.confirmTaskIdentity(prepared, changes, true, prepared.preview.nextEffectiveParentId, false);
+                return {
+                    kind: "failed",
+                    error: moveError(
+                        RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
+                        "Undo could not be applied; current Action state was reloaded",
+                        recoveryCause,
+                    ),
+                };
+            }
+        } catch (reconcileCause: unknown) {
+            recoveryCause = reconcileCause;
+        }
+        return {
+            kind: "failed",
+            error: moveError(
+                RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
+                "Undo outcome could not be confirmed; inspect the Action before continuing",
+                recoveryCause,
+            ),
+        };
     }
 
     private issueUndo(prepared: PreparedActionMove) {
@@ -178,13 +250,19 @@ export class ActionMoveService {
         return record;
     }
 
-    private async confirmTargetStructure(plan: ActionMoveStructurePlan): Promise<ActionMoveStructureSnapshot> {
+    private async confirmTargetStructure(
+        plan: ActionMoveStructurePlan,
+        requireFinalPlacement = false,
+    ): Promise<ActionMoveStructureSnapshot> {
         const moved = await this.structure.inspect(plan.actionId, plan);
         if (moved.location.documentId !== plan.projectId) {
             throw new Error("Action move confirmation failed: target document mismatch");
         }
         if (!sameIds(plan.source.subtreeIds, moved.subtreeIds)) {
             throw new Error("Action move confirmation failed: content subtree changed");
+        }
+        if (requireFinalPlacement && !(await this.structure.isAtTarget(plan, moved))) {
+            throw new Error("Action move confirmation failed: selected target placement changed");
         }
         return moved;
     }
@@ -194,6 +272,7 @@ export class ActionMoveService {
         changes: ConfirmedTaskChanges,
         refresh: boolean,
         confirmedEffectiveParentId?: string,
+        requireOriginalAttrs = true,
     ) {
         const resolved = await this.identities.resolveTarget({
             blockId: prepared.plan.actionId,
@@ -204,7 +283,7 @@ export class ActionMoveService {
         if (resolved.kind !== "reuse" || resolved.identity.identificationSource !== "native") {
             throw new Error("Action move confirmation failed: native task identity changed");
         }
-        if (!sameAttrs(taskAttrs(prepared.attrs), taskAttrs(resolved.attrs))) {
+        if (requireOriginalAttrs && !sameAttrs(taskAttrs(prepared.attrs), taskAttrs(resolved.attrs))) {
             throw new Error("Action move confirmation failed: task attributes changed");
         }
         if (!refresh) return this.cache.get(prepared.plan.actionId)!;

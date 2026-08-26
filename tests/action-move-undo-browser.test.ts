@@ -82,10 +82,12 @@ setTimeout(() => {
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
         const state = document.querySelector("#state");
         const afterUndo = document.body.textContent;
+        const reminderDismissAllVisible = Boolean(document.querySelector(".na-notification-host__dismiss-all"));
         [...document.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Close")?.click();
         setTimeout(() => finish({
             persistentSummary: before.includes("Source notes → Ship release"),
             shortcutVisible: before.includes("Ctrl/⌘+Z"),
+            reminderDismissAllVisible,
             successVisible: afterUndo.includes("Move undone") && afterUndo.includes("Ship release → Source notes"),
             undoCalls: state?.dataset.calls,
             selectedTaskId: state?.dataset.selected,
@@ -140,6 +142,7 @@ setTimeout(() => {
         assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), {
             persistentSummary: true,
             shortcutVisible: true,
+            reminderDismissAllVisible: false,
             successVisible: true,
             undoCalls: "1",
             selectedTaskId: "20260825130000-actionx",

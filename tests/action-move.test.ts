@@ -43,7 +43,7 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
 
     constructor(
         private readonly api: FakeSiyuanApi,
-        private readonly failure: "" | "before" | "after" | "confirm" | "restore" = "",
+        private readonly failure: "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" = "",
         private readonly delayPrepare = false,
     ) {}
 
@@ -96,6 +96,7 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
         if (this.failure === "restore") throw new Error("restore failed");
         this.api.blocks.get(ACTION_ID)!.parentId = plan.source.location.parentId;
         this.currentDocumentId = plan.source.location.documentId;
+        if (this.failure === "undo-after") throw new Error("undo cleanup failed after mutation");
     }
 
     async inspect(actionId: string): Promise<ActionMoveStructureSnapshot> {
@@ -127,8 +128,12 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
         );
     }
 
-    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean {
-        return snapshot.location.documentId === plan.target.documentId && snapshot.location.parentId === TARGET_LIST_ID;
+    async isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): Promise<boolean> {
+        return (
+            this.failure !== "placement" &&
+            snapshot.location.documentId === plan.target.documentId &&
+            snapshot.location.parentId === TARGET_LIST_ID
+        );
     }
 
     async validateUndoSource(_plan: ActionMoveStructurePlan): Promise<void> {
@@ -160,7 +165,7 @@ class StaleIdentitySiyuanApi extends FakeSiyuanApi {
 }
 
 function setup(
-    failure: "" | "before" | "after" | "confirm" | "restore" = "",
+    failure: "" | "before" | "after" | "confirm" | "restore" | "placement" | "undo-after" = "",
     options: { staleIdentity?: boolean; projectParentId?: string; delayPrepare?: boolean } = {},
 ) {
     const api = options.staleIdentity ? new StaleIdentitySiyuanApi() : new FakeSiyuanApi();
@@ -354,6 +359,36 @@ test("原位置锚点删除后撤销保持当前结构并消费凭据", async ()
     );
 });
 
+test("Action 属性在移动后变化时撤销不改动当前结构", async () => {
+    // Regression: 属性变化必须在反向移动前发现，不能恢复结构后才报告撤销失败。
+    const { api, cache, service } = setup();
+    const moved = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+    api.blocks.get(ACTION_ID)!.attrs[ATTR_NOTE] = "Changed after move";
+
+    await assert.rejects(
+        () => service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32015,
+    );
+
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, TARGET_LIST_ID);
+    assert.equal(cache.get(ACTION_ID)?.parentId, PROJECT_ID);
+});
+
+test("撤销写入后清理失败时按实际来源结构校准权威缓存", async () => {
+    // Regression: 反向移动已发生但后续失败时，不能保留仍指向目标 Project 的缓存。
+    const { api, cache, publisher, service } = setup("undo-after");
+    const moved = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+
+    await assert.rejects(
+        () => service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32015 && /restored/.test(error.message),
+    );
+
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, SOURCE_LIST_ID);
+    assert.equal(cache.get(ACTION_ID)?.parentId, "");
+    assert.ok(publisher.changes.includes(ACTION_ID));
+});
+
 test("移动后身份 SQL 祖先链滞后时仍按已确认的物理目标刷新有效父级", async () => {
     // Regression: moveBlock 已完成但身份 SQL 仍指向源文档时，缓存父级不应回退为空。
     const { service } = setup("", { staleIdentity: true });
@@ -361,6 +396,18 @@ test("移动后身份 SQL 祖先链滞后时仍按已确认的物理目标刷新
     const result = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
 
     assert.equal(result.task.parentId, PROJECT_ID);
+});
+
+test("最终落点偏离所选相邻锚点时不报告移动成功", async () => {
+    // Regression: Action 到达 Project 但不在所选落点时必须恢复，不能返回虚假成功。
+    const { api, service } = setup("placement");
+
+    await assert.rejects(
+        () => service.move({ actionId: ACTION_ID, projectId: PROJECT_ID }),
+        (error: Error & { code?: number }) => error.code === RPC_ERROR_ACTION_MOVE_RECOVERED,
+    );
+
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, SOURCE_LIST_ID);
 });
 
 test("并发移动在共享任务锁内重新准备结构计划", async () => {

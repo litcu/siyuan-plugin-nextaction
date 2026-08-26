@@ -160,13 +160,15 @@
                 {i18n}
             />
         {/each}
-        {#if overflowCount > 0}
-            <div class="na-notification-host__overflow">
-                {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
-            </div>
+        {#if hasNotifications}
+            {#if overflowCount > 0}
+                <div class="na-notification-host__overflow">
+                    {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
+                </div>
+            {/if}
+            <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>
+                {dismissAllLabel}
+            </button>
         {/if}
-        <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>
-            {dismissAllLabel}
-        </button>
     </div>
 {/if}
