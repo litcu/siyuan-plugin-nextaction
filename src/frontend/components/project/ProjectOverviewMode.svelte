@@ -3,9 +3,11 @@
     import type { I18nStrings } from "../../../shared/i18n";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
     import NaTaskList from "../../ui/NaTaskList.svelte";
     import ProjectSupportSection from "./ProjectSupportSection.svelte";
     import type { ProjectSupportData } from "../../../shared/types";
+    import { shouldOfferProjectRiskAction } from "../../utils/project-view-state";
 
     export let summary: ProjectSummary;
     export let risks: ProjectControlRisk[];
@@ -19,6 +21,7 @@
     export let onOpenProjectSupport: (blockId: string) => void;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
     export let onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
+    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -39,14 +42,28 @@
             <p class="na-project-muted">{i18n?.projectNoRisks || "No obvious risks"}</p>
         {:else}
             {#each risks as item (item.kind + item.taskId)}
-                <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(item.target)}>
-                    <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
-                    <span
-                        ><strong>{riskLabel(item.kind)}</strong><small
-                            >{item.target.title || i18n?.untitled || "(untitled)"}</small
-                        ></span
-                    >
-                </button>
+                <div class="na-project-risk-row">
+                    <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(item.target)}>
+                        <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
+                        <span
+                            ><strong>{riskLabel(item.kind)}</strong><small
+                                >{item.target.title || i18n?.untitled || "(untitled)"}</small
+                            ></span
+                        >
+                    </button>
+                    {#if shouldOfferProjectRiskAction(item) && onCreateAction}
+                        <NaIconButton
+                            symbol="iconAdd"
+                            label={i18n.projectCreateNextAction}
+                            size={14}
+                            compact
+                            on:click={(event) => {
+                                event.stopPropagation();
+                                onCreateAction?.(summary.project);
+                            }}
+                        />
+                    {/if}
+                </div>
             {/each}
         {/if}
     </section>
@@ -152,6 +169,15 @@
         background: transparent;
         text-align: left;
         cursor: pointer;
+    }
+    .na-project-risk-row {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-xs);
+    }
+    .na-project-risk-row .na-project-risk {
+        flex: 1;
+        min-width: 0;
     }
     .na-project-risk:hover {
         color: var(--na-accent);

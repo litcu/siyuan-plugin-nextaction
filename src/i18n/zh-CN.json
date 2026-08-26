@@ -165,6 +165,7 @@
     "projectNoRisks": "暂无明显风险",
     "projectNextActions": "下一步行动",
     "projectNoNextActions": "暂无可执行的下一步行动",
+    "projectCreateNextAction": "创建下一步行动",
     "projectSnapshot": "项目快照",
     "projectWaiting": "等待任务",
     "projectNoDue": "无日期",

@@ -395,6 +395,7 @@
                         {loadProjectSupport}
                         onOpenProjectSupport={jumpToBlock}
                         {onExtractAction}
+                        onCreateAction={onCreateChild}
                         onAiExtractAction={(sourceBlockId, projectId) =>
                             runAiExtractTasks([sourceBlockId], { projectId })}
                     />

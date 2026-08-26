@@ -52,6 +52,7 @@
     let projectFocusId = "";
     let reviewManualProjectIds: string[] = [];
     let reviewExpandedProjectId = "";
+    let reviewScrollTop = 0;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegistry();
 
@@ -404,9 +405,11 @@
                     {selectedTaskId}
                     bind:manualProjectIds={reviewManualProjectIds}
                     bind:expandedProjectId={reviewExpandedProjectId}
+                    bind:reviewScrollTop
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onOpenProject={handleOpenProject}
+                    onCreateAction={(project) => openCreate(project)}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     {i18n}

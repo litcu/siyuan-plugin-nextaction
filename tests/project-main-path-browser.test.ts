@@ -181,6 +181,155 @@ setTimeout(() => {
     }
 });
 
+test("Review 打开项目并返回后恢复滚动位置", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-review-scroll-"));
+    try {
+        const reviewPath = resolve("src/frontend/components/ReviewView.svelte").replace(/\\\\/g, "/");
+        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
+        writeFileSync(
+            join(fixtureRoot, "index.html"),
+            '<!doctype html><html><head><style>html,body,#app{height:120px;margin:0}</style></head><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
+        );
+        writeFileSync(
+            join(fixtureRoot, "siyuan.js"),
+            "export class Menu {}\nexport class Dialog {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+        );
+        writeFileSync(
+            join(fixtureRoot, "Harness.svelte"),
+            `<script>
+import { tick } from "svelte";
+import ReviewView from ${JSON.stringify(reviewPath)};
+
+const task = {
+    blockId: "action", identificationSource: "document", attrHostId: "action", parentId: "project",
+    status: "todo", priority: "medium", importance: 4, effort: 4, due: "", start: "", context: "",
+    taskType: "1", order: 0, childIds: [], title: "Action", depends: "", depMode: "all",
+    sequential: false, repeat: "", repeatState: "", sort: 0, completed: "", note: "", outcome: "",
+    dod: "", actionKind: "action", created: "", tags: "", blocked: false, blockedReason: "",
+    reviewInterval: 0, reviewDate: "", reminder: "", customFields: {},
+};
+const project = { ...task, blockId: "project", attrHostId: "project", parentId: "", taskType: "2", title: "Project", childIds: ["action"] };
+const summary = {
+    project, descendants: [task], leafActions: [task], subtreeProgress: {}, empty: false,
+    clarificationNeeded: false, completionCandidate: false, incompleteNonLeafActions: [], openCount: 1,
+    doneCount: 0, progress: 0, nextActions: [task], overdueTasks: [], blockedTasks: [], waitingTasks: [],
+    risks: [], health: "onTrack",
+};
+const reviewData = {
+    lastReviewAt: "", overdueTasks: [], nextActions: [], inboxTasks: [], waitingTasks: [], somedayTasks: [],
+    reviewDueTasks: [], projectReviews: [], reviewableProjects: [summary],
+};
+const bridge = {
+    getReviewData: async () => reviewData, markTaskReviewed: async () => [], completeReview: async () => reviewData,
+    updateTask: async () => project,
+};
+const i18n = new Proxy({
+    reviewOpenProject: "Open project", editProject: "Edit", markReviewed: "Reviewed", reviewProjectTitle: "Projects",
+    reviewProjectManualTitle: "Manual", reviewProjectManualHint: "Choose", reviewProjectManualPlaceholder: "Choose",
+    reviewProjectManualEmpty: "Empty", noMatches: "No matches", loadingMore: "Loading", clearSelection: "Clear",
+    reviewProjectQueueEmpty: "Empty", reviewProjectManualTrigger: "Manual", reviewProjectOnTrack: "On track",
+    statusTodo: "Todo", outcome: "Outcome", definitionOfDone: "DoD", projectProgressStats: "Progress",
+    reviewProjectPlan: "Plan", projectNextActions: "Next actions", projectNoNextActions: "None",
+    reviewProjectWaitingBlocked: "Risks", reviewProjectNoWaitingBlocked: "None", actionKindAction: "Action",
+    untitled: "Untitled", reviewGuideTitle: "Guide", reviewDueTitle: "Due", reviewChecklistStatus: "Checklist",
+    reviewNeverCompleted: "Never", aiReview: "AI", reviewCompleteChecklist: "Complete", noData: "No data",
+}, { get: (target, key) => target[key] || String(key) });
+let showingReview = true;
+let reviewScrollTop = 0;
+async function openProject() {
+    showingReview = false;
+    await tick();
+    showingReview = true;
+}
+const noop = () => {};
+</script>
+
+<style>
+    :global(.na-view-shell) { height: 120px; }
+    :global(.na-review__section) { min-height: 160px; }
+</style>
+
+{#if showingReview}
+    <ReviewView {bridge} selectedTaskId="" bind:reviewScrollTop {i18n}
+        manualProjectIds={["project"]} expandedProjectId="project"
+        onSelectTask={noop} onEdit={noop} {openProject} onStatusClick={noop} onContextMenu={noop} />
+{:else}
+    <div id="project-target"></div>
+{/if}`,
+        );
+        writeFileSync(
+            join(fixtureRoot, "main.js"),
+            `import Harness from "./Harness.svelte";
+new Harness({ target: document.querySelector("#app") });
+const finish = (value) => {
+    const result = document.createElement("pre");
+    result.id = "browser-result";
+    result.textContent = JSON.stringify(value);
+    document.body.appendChild(result);
+};
+setTimeout(() => {
+    const scroll = document.querySelector(".na-review__scroll");
+    scroll.scrollTop = 48;
+    scroll.dispatchEvent(new Event("scroll"));
+    [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Open project")?.click();
+    setTimeout(() => finish({ scrollTop: document.querySelector(".na-review__scroll")?.scrollTop }), 100);
+}, 100);`,
+        );
+
+        await build({
+            root: fixtureRoot,
+            base: "./",
+            configFile: false,
+            logLevel: "silent",
+            resolve: {
+                alias: [
+                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
+                    {
+                        find: /^svelte\/internal\/disclose-version$/,
+                        replacement: join(svelteRoot, "src/runtime/internal/disclose-version/index.js"),
+                    },
+                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/runtime/internal/index.js") },
+                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/runtime/store/index.js") },
+                    { find: /^svelte$/, replacement: join(svelteRoot, "src/runtime/index.js") },
+                ],
+            },
+            plugins: [svelte({ preprocess: vitePreprocess() })],
+            build: { outDir: "dist" },
+        });
+
+        const browser = findBrowserExecutable();
+        const rendered = spawnSync(
+            browser,
+            [
+                "--headless=new",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--allow-file-access-from-files",
+                "--disable-web-security",
+                "--no-first-run",
+                "--no-sandbox",
+                "--virtual-time-budget=1000",
+                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
+                "--dump-dom",
+                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
+            ],
+            { encoding: "utf8", timeout: 20_000 },
+        );
+        assert.equal(
+            rendered.status,
+            0,
+            rendered.stderr ||
+                rendered.error?.message ||
+                `浏览器滚动恢复测试执行失败（signal: ${rendered.signal || "none"}）`,
+        );
+        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
+        assert.ok(match, `浏览器未输出滚动恢复结果：${rendered.stdout.slice(0, 2_000)}`);
+        assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { scrollTop: 48 });
+    } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+});
+
 test("Project Support 隔离加载错误并支持刷新、重试和打开原文", async () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-support-"));
     try {

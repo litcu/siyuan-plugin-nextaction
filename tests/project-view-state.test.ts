@@ -8,6 +8,7 @@ import {
     buildProjectViewModel as buildProjectViewModelFromControl,
     confirmProjectCompletion,
     executeProjectBoardMove,
+    shouldOfferProjectRiskAction,
     shouldShowProjectCompletionPanel,
     type ProjectViewState,
 } from "../src/frontend/utils/project-view-state.ts";
@@ -263,6 +264,14 @@ test("空 Draft 不直接显示异常完成面板，Planned 和 Active 空项目
     assert.equal(shouldShowProjectCompletionPanel(draft), false);
     assert.equal(shouldShowProjectCompletionPanel(planned), true);
     assert.equal(shouldShowProjectCompletionPanel(active), true);
+});
+
+test("项目风险只为没有 Next Action 提供创建入口", () => {
+    // Regression: project risks previously exposed observation only, leaving no direct recovery action.
+    assert.equal(shouldOfferProjectRiskAction({ kind: "noNextAction" }), true);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "waiting" }), false);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "blocked" }), false);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "overdue" }), false);
 });
 
 test("看板移动先更新状态再重排并向上抛出失败", async () => {

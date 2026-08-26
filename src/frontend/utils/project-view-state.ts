@@ -3,6 +3,7 @@ import type {
     ProjectControlProject,
     ProjectControlRisk,
     ProjectControlState,
+    ProjectRisk,
     ProjectSummary,
     TaskCacheEntry,
 } from "../../shared/types";
@@ -45,7 +46,7 @@ export async function confirmProjectCompletion(
     summary: ProjectSummary,
     updateTask: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<unknown>,
 ): Promise<void> {
-    if (summary.project.status === "done" || (!summary.completionCandidate && !summary.empty)) {
+    if (!shouldShowProjectCompletionPanel(summary)) {
         throw new Error("Project is not ready for completion confirmation");
     }
     await updateTask(summary.project, { [ATTR_STATUS]: "done" });
@@ -54,6 +55,10 @@ export async function confirmProjectCompletion(
 export function shouldShowProjectCompletionPanel(summary: ProjectSummary): boolean {
     if (summary.project.status === "done") return false;
     return summary.completionCandidate || (summary.empty && ["todo", "doing"].includes(summary.project.status));
+}
+
+export function shouldOfferProjectRiskAction(risk: Pick<ProjectRisk, "kind">): boolean {
+    return risk.kind === "noNextAction";
 }
 
 export interface ProjectViewState {

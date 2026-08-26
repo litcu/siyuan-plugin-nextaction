@@ -165,6 +165,7 @@
     "projectNoRisks": "No obvious risks",
     "projectNextActions": "Next actions",
     "projectNoNextActions": "No available next action",
+    "projectCreateNextAction": "Create next action",
     "projectSnapshot": "Snapshot",
     "projectWaiting": "Waiting tasks",
     "projectNoDue": "No date",
