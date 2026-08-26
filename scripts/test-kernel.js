@@ -425,16 +425,35 @@ async function testActionMove() {
         "Action move preview reports the structural effective-parent change",
         JSON.stringify(preview.result),
     );
+    const selectedPlacement = preview.result?.placements?.find(
+        (placement) => !placement.documentEnd && placement.previousTitle && placement.nextTitle,
+    );
+    assert(
+        selectedPlacement?.destination?.previousId && selectedPlacement?.destination?.nextId,
+        "Action move preview offers a precise Project document placement",
+        JSON.stringify(preview.result?.placements),
+    );
+    if (!selectedPlacement) throw new Error("Action move did not return a selectable precise placement");
 
     const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
     const move = await snapshotAfter("Action move", snapshotBefore, () =>
-        rpc("moveActionToProject", { actionId, projectId: project.id }),
+        rpc("moveActionToProject", {
+            actionId,
+            projectId: project.id,
+            destination: selectedPlacement.destination,
+        }),
     );
     const movedTask = move.result?.result?.task;
+    const undo = move.result?.result?.undo;
     assert(
         movedTask?.blockId === actionId && movedTask?.parentId === project.id,
         "Action move preserves identity and refreshes the effective Project parent",
         JSON.stringify(movedTask),
+    );
+    assert(
+        typeof undo?.credential === "string" && !undo.credential.includes(actionId) && undo.summary,
+        "Action move returns an opaque session undo credential and readable summary",
+        JSON.stringify(undo),
     );
     await waitForBlockDocument(actionId, project.id);
 
@@ -452,19 +471,17 @@ async function testActionMove() {
     );
 
     const actionRows = await siyuanAPI("/api/query/sql", {
-        stmt: `SELECT parent_id, root_id FROM blocks WHERE id = '${actionId}' LIMIT 1`,
+        stmt: `SELECT root_id FROM blocks WHERE id = '${actionId}' LIMIT 1`,
     });
-    const targetListId = actionRows[0]?.parent_id;
-    const targetListRows = await siyuanAPI("/api/query/sql", {
-        stmt: `SELECT parent_id FROM blocks WHERE id = '${targetListId}' LIMIT 1`,
-    });
-    const targetTail = await siyuanAPI("/api/query/sql", {
-        stmt: `SELECT id, type FROM blocks WHERE parent_id = '${targetListRows[0]?.parent_id}' ORDER BY sort DESC LIMIT 1`,
-    });
+    const targetChildren = await siyuanAPI("/api/block/getChildBlocks", { id: project.id });
+    const targetListIndex = targetChildren.findIndex((row) => row.id === sourceListId);
     assert(
-        actionRows[0]?.root_id === project.id && targetTail[0]?.id === targetListId && targetTail[0]?.type === "l",
-        "Action move appends its native task list at the Project document end",
-        JSON.stringify({ actionRows, targetTail }),
+        actionRows[0]?.root_id === project.id &&
+            targetListIndex >= 0 &&
+            targetChildren[targetListIndex - 1]?.id === selectedPlacement.destination.previousId &&
+            targetChildren[targetListIndex + 1]?.id === selectedPlacement.destination.nextId,
+        "Action move uses the selected Project document placement",
+        JSON.stringify({ actionRows, targetChildren, selectedPlacement }),
     );
     const sourceResidue = await siyuanAPI("/api/query/sql", {
         stmt: `SELECT id, content FROM blocks WHERE root_id = '${source.id}' AND (id = '${sourceListId}' OR content LIKE 'NextAction temporary move%')`,
@@ -474,6 +491,53 @@ async function testActionMove() {
         "Action move removes the empty source list and all temporary structure",
         JSON.stringify(sourceResidue),
     );
+
+    const undoResult = await snapshotAfter("Action move undo", move.snapshot, () =>
+        rpc("undoActionMove", { credential: undo.credential }),
+    );
+    assert(
+        undoResult.result?.result?.task?.blockId === actionId && undoResult.result?.result?.task?.parentId === "",
+        "Action move undo restores the authoritative task and effective parent",
+        JSON.stringify(undoResult.result),
+    );
+    await waitForBlockDocument(actionId, source.id);
+    const sourceChildren = await siyuanAPI("/api/block/getChildBlocks", { id: source.id });
+    const sourceListIndex = sourceChildren.findIndex((row) => row.id === sourceListId);
+    assert(
+        sourceListIndex > 0 && sourceChildren[sourceListIndex - 1]?.type === "h",
+        "Action move undo restores the original list container beside its source anchor",
+        JSON.stringify(sourceChildren),
+    );
+
+    const repeatedUndo = await rpc("undoActionMove", { credential: undo.credential });
+    assert(
+        repeatedUndo.result?._rpcError?.code === -32014,
+        "Action move undo credential can only be used once",
+        JSON.stringify(repeatedUndo.result),
+    );
+
+    const secondPreview = await rpc("previewActionMove", { actionId, projectId: project.id });
+    const secondPlacement = secondPreview.result?.placements?.find(
+        (placement) => !placement.documentEnd && placement.previousTitle && placement.nextTitle,
+    );
+    if (!secondPlacement) throw new Error("Action move did not return a second selectable precise placement");
+    const secondMove = await rpc("moveActionToProject", {
+        actionId,
+        projectId: project.id,
+        destination: secondPlacement.destination,
+    });
+    const sourceHeadingId = requireBlockId(
+        sourceChildren.find((row) => row.type === "h")?.id,
+        "Action move source anchor",
+    );
+    await siyuanAPI("/api/block/deleteBlock", { id: sourceHeadingId });
+    const unsafeUndo = await rpc("undoActionMove", { credential: secondMove.result?.undo?.credential });
+    assert(
+        unsafeUndo.result?._rpcError?.code === -32015,
+        "Action move undo stops safely when the original anchor is missing",
+        JSON.stringify(unsafeUndo.result),
+    );
+    await waitForBlockDocument(actionId, project.id);
 }
 
 async function runTests() {

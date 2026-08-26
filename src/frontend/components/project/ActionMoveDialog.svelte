@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import type { ActionMovePreview } from "../../../shared/action-move";
+    import type { ActionMovePlacement, ActionMovePreview, ActionMoveResult } from "../../../shared/action-move";
     import {
         RPC_ERROR_ACTION_MOVE_NOT_MOVED,
         RPC_ERROR_ACTION_MOVE_RECOVERED,
@@ -19,13 +19,14 @@
     export let i18n: I18nStrings;
     export let task: TaskCacheEntry;
     export let project: TaskCacheEntry;
-    export let onMoved: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onMoved: ((result: ActionMoveResult) => void) | undefined = undefined;
     export let onClose: (() => void) | undefined = undefined;
 
     let preview: ActionMovePreview | null = null;
     let loading = true;
     let moving = false;
     let error = "";
+    let selectedPlacementId = "";
 
     onMount(loadPreview);
 
@@ -34,12 +35,34 @@
         error = "";
         try {
             preview = await bridge.previewActionMove(task.blockId, project.blockId);
+            selectedPlacementId =
+                preview.placements.find(
+                    (placement) =>
+                        placement.destination.previousId === preview?.destination.previousId &&
+                        placement.destination.nextId === preview?.destination.nextId,
+                )?.id ||
+                preview.placements[preview.placements.length - 1]?.id ||
+                "";
         } catch (cause: unknown) {
             const detail = formatOperationError(cause, i18n);
             error = (i18n.moveActionPreviewFailed || "Cannot preview move: {error}").replace("{error}", detail);
         } finally {
             loading = false;
         }
+    }
+
+    function placementLabel(placement: ActionMovePlacement): string {
+        if (placement.documentEnd) return i18n.moveActionDestinationEnd || "Project document end";
+        if (!placement.previousTitle) {
+            return i18n.moveActionDestinationStart || "Project document start";
+        }
+        return (i18n.moveActionDestinationBetween || "Between {previous} and {next}")
+            .replace("{previous}", placement.previousTitle)
+            .replace("{next}", placement.nextTitle);
+    }
+
+    function selectedPlacement(): ActionMovePlacement | undefined {
+        return preview?.placements.find((placement) => placement.id === selectedPlacementId);
     }
 
     function moveFailureMessage(cause: unknown): string {
@@ -55,8 +78,12 @@
         moving = true;
         error = "";
         try {
-            const result = await bridge.moveActionToProject(task.blockId, project.blockId);
-            onMoved?.(result.task);
+            const result = await bridge.moveActionToProject(
+                task.blockId,
+                project.blockId,
+                selectedPlacement()?.destination || preview.destination,
+            );
+            onMoved?.(result);
         } catch (cause: unknown) {
             error = moveFailureMessage(cause);
         } finally {
@@ -91,7 +118,17 @@
                 <div>
                     <dt>{i18n.moveActionTarget || "Target"}</dt>
                     <dd>{preview.target.title}</dd>
-                    <small>{i18n.moveActionDestinationEnd || "Project document end"}</small>
+                    <label for="na-action-move-destination">{i18n.moveActionDestination || "Destination"}</label>
+                    <select
+                        id="na-action-move-destination"
+                        class="na-select"
+                        bind:value={selectedPlacementId}
+                        disabled={moving}
+                    >
+                        {#each preview.placements as placement (placement.id)}
+                            <option value={placement.id}>{placementLabel(placement)}</option>
+                        {/each}
+                    </select>
                 </div>
             </dl>
             <NaInlineNotice
@@ -148,7 +185,7 @@
         background: var(--b3-theme-background);
     }
     .na-action-move__route dt,
-    .na-action-move__route small {
+    .na-action-move__route label {
         color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
     }
@@ -157,6 +194,10 @@
         overflow-wrap: anywhere;
         color: var(--na-text-primary);
         font-weight: 600;
+    }
+    .na-action-move__route label {
+        display: block;
+        margin: var(--na-space-sm) 0 var(--na-space-xs);
     }
     @media (max-width: 420px) {
         .na-action-move {

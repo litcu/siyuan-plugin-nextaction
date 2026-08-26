@@ -1,7 +1,13 @@
 import { RPC_ERROR_INTERNAL } from "../shared/constants";
 import type { AiProposalService } from "./ai-proposal-service";
 import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
-import type { ActionMoveInput, ActionMovePreview, ActionMoveResult } from "../shared/action-move";
+import type {
+    ActionMoveInput,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoInput,
+    ActionMoveUndoResult,
+} from "../shared/action-move";
 import type { TaskService } from "./task-service";
 import type {
     RpcChildTargetResult,
@@ -39,6 +45,7 @@ export interface RpcServerHooks {
     getProjectSupport?: (projectId: string) => Promise<ProjectSupportData>;
     previewActionMove?: (input: ActionMoveInput) => Promise<ActionMovePreview>;
     moveActionToProject?: (input: ActionMoveInput) => Promise<ActionMoveResult>;
+    undoActionMove?: (input: ActionMoveUndoInput) => Promise<ActionMoveUndoResult>;
     extractAction?: (input: ExtractActionInput) => Promise<ExtractActionResult>;
     broadcastTaskReset?: () => void;
 }
@@ -106,6 +113,8 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
             hooks.previewActionMove ? hooks.previewActionMove(input) : unavailable("Action move preview"),
         moveActionToProject: (input) =>
             hooks.moveActionToProject ? hooks.moveActionToProject(input) : unavailable("Action move"),
+        undoActionMove: (input) =>
+            hooks.undoActionMove ? hooks.undoActionMove(input) : unavailable("Action move undo"),
         extractAction: (input) => (hooks.extractAction ? hooks.extractAction(input) : unavailable("Action extraction")),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),

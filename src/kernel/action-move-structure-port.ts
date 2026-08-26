@@ -1,4 +1,5 @@
-import { RPC_ERROR_INVALID_PARAMS } from "../shared/constants";
+import { RPC_ERROR_ACTION_MOVE_TARGET_CHANGED, RPC_ERROR_INVALID_PARAMS } from "../shared/constants";
+import type { ActionMoveDestination, ActionMovePlacement } from "../shared/action-move";
 import { sql } from "../shared/sql";
 import type { SiyuanApiPort } from "./siyuan-api";
 
@@ -22,17 +23,21 @@ export interface ActionMoveStructurePlan {
     target: {
         documentId: string;
         documentTitle: string;
+        destination: ActionMoveDestination;
+        placements: ActionMovePlacement[];
     };
     state?: unknown;
 }
 
 export interface ActionMoveStructurePort {
-    prepare(actionId: string, projectId: string): Promise<ActionMoveStructurePlan>;
+    prepare(actionId: string, projectId: string, destination?: ActionMoveDestination): Promise<ActionMoveStructurePlan>;
     execute(plan: ActionMoveStructurePlan): Promise<void>;
     commit(plan: ActionMoveStructurePlan): Promise<void>;
     restore(plan: ActionMoveStructurePlan): Promise<void>;
     inspect(actionId: string, plan?: ActionMoveStructurePlan): Promise<ActionMoveStructureSnapshot>;
     isAtSource(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean;
+    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean;
+    validateUndoSource(plan: ActionMoveStructurePlan): Promise<void>;
 }
 
 interface StructureRow {
@@ -45,7 +50,11 @@ interface StructureRow {
 
 interface SiyuanActionMoveState {
     sourceSiblingIds: string[];
-    sourceGuardId: string;
+    moveWholeSourceList: boolean;
+    sourceUnitId: string;
+    sourceUnitLocation: ActionMovePhysicalLocation;
+    sourceFallbackPreviousId: string;
+    placementGuardListId: string;
     targetListId: string;
     targetAnchorId: string;
 }
@@ -73,6 +82,12 @@ function invalidStructure(message: string): Error & { code: number } {
     return error;
 }
 
+function targetChanged(message: string): Error & { code: number } {
+    const error = new Error(message) as Error & { code: number };
+    error.code = RPC_ERROR_ACTION_MOVE_TARGET_CHANGED;
+    return error;
+}
+
 function stateOf(plan: ActionMoveStructurePlan): SiyuanActionMoveState {
     const state = plan.state as SiyuanActionMoveState | undefined;
     if (!state) throw new Error("Action move structure plan is missing its runtime state");
@@ -92,7 +107,11 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
         this.consistencyDelayMs = Math.max(0, options.consistencyDelayMs ?? 50);
     }
 
-    async prepare(actionId: string, projectId: string): Promise<ActionMoveStructurePlan> {
+    async prepare(
+        actionId: string,
+        projectId: string,
+        destination?: ActionMoveDestination,
+    ): Promise<ActionMoveStructurePlan> {
         const [source, ancestry, targetRows] = await Promise.all([
             this.inspect(actionId),
             this.loadAncestry(actionId),
@@ -118,18 +137,34 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
         if (actionId === projectId || source.subtreeIds.includes(projectId)) {
             throw invalidStructure("An Action cannot be moved into itself or its descendants");
         }
+        const targetChildren = await this.childBlocks(projectId);
+        const targetDestination = this.resolveTargetDestination(targetChildren, destination);
+        const targetPlacements = await this.buildTargetPlacements(projectId, targetChildren);
         const sourceSiblings = await this.childBlocks(parent.id);
         if (!sourceSiblings.some((item) => item.id === actionId)) {
             throw invalidStructure("The Action is no longer present in its source list");
         }
+        const moveWholeSourceList = sourceSiblings.filter((item) => item.type === "i").length === 1;
+        const sourceUnitId = moveWholeSourceList ? parent.id : actionId;
+        const sourceUnit = moveWholeSourceList ? await this.inspect(parent.id) : source;
+        const sourceUnitParent = ancestry.find((item) => item.id === sourceUnit.location.parentId);
         return {
             actionId,
             projectId,
             source,
-            target: { documentId: projectId, documentTitle: target.content || projectId },
+            target: {
+                documentId: projectId,
+                documentTitle: target.content || projectId,
+                destination: targetDestination,
+                placements: targetPlacements,
+            },
             state: {
                 sourceSiblingIds: sourceSiblings.filter((item) => item.type === "i").map((item) => item.id),
-                sourceGuardId: "",
+                moveWholeSourceList,
+                sourceUnitId,
+                sourceUnitLocation: sourceUnit.location,
+                sourceFallbackPreviousId: sourceUnitParent?.type === "h" ? sourceUnitParent.id : "",
+                placementGuardListId: "",
                 targetListId: "",
                 targetAnchorId: "",
             } satisfies SiyuanActionMoveState,
@@ -138,57 +173,66 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
 
     async execute(plan: ActionMoveStructurePlan): Promise<void> {
         const state = stateOf(plan);
-        if (state.sourceSiblingIds.length === 1) {
-            const operation = await this.insertTemporaryTask("insertBlock", {
+        await this.confirmTargetDestination(plan);
+        const targetList = await this.insertTemporaryTask(
+            plan.target.destination.previousId || plan.target.destination.nextId ? "insertBlock" : "appendBlock",
+            {
                 dataType: "markdown",
-                data: "- [ ] NextAction temporary move guard",
-                previousID: plan.actionId,
-            });
-            state.sourceGuardId = operation.id;
-            if (operation.parentId !== plan.source.location.parentId) {
-                throw new Error("SiYuan inserted the move guard outside the source list");
-            }
+                data: "- [ ] NextAction temporary move anchor",
+                ...(plan.target.destination.previousId
+                    ? { previousID: plan.target.destination.previousId }
+                    : plan.target.destination.nextId
+                      ? { nextID: plan.target.destination.nextId }
+                      : { parentID: plan.projectId }),
+            },
+        );
+        if (targetList.parentId !== plan.projectId) {
+            throw targetChanged("The selected Project destination no longer resolves to the target document");
         }
-
-        const targetList = await this.insertTemporaryTask("appendBlock", {
-            dataType: "markdown",
-            data: "- [ ] NextAction temporary move anchor",
-            parentID: plan.projectId,
-        });
-        state.targetListId = targetList.id;
-        const targetChildren = await this.childBlocks(state.targetListId);
+        const targetChildren = await this.childBlocks(targetList.id);
         const anchor = targetChildren.find((item) => item.type === "i");
         if (!anchor) throw new Error("SiYuan did not create a target task-list anchor");
         state.targetAnchorId = anchor.id;
 
-        await this.api.request("/api/block/moveBlock", {
-            id: plan.actionId,
-            previousID: state.targetAnchorId,
-            parentID: state.targetListId,
-        });
+        if (state.moveWholeSourceList) {
+            state.placementGuardListId = targetList.id;
+            state.targetListId = state.sourceUnitId;
+            await this.api.request("/api/block/moveBlock", {
+                id: state.sourceUnitId,
+                previousID: state.placementGuardListId,
+                parentID: plan.projectId,
+            });
+        } else {
+            state.targetListId = targetList.id;
+            await this.api.request("/api/block/moveBlock", {
+                id: plan.actionId,
+                previousID: state.targetAnchorId,
+                parentID: state.targetListId,
+            });
+        }
     }
 
     async commit(plan: ActionMoveStructurePlan): Promise<void> {
         const state = stateOf(plan);
-        await this.deleteIfPresent(state.targetAnchorId);
-        state.targetAnchorId = "";
-        if (state.sourceGuardId) {
-            await this.deleteIfPresent(plan.source.location.parentId);
-            state.sourceGuardId = "";
+        if (state.placementGuardListId) {
+            await this.deleteIfPresent(state.placementGuardListId);
+            state.placementGuardListId = "";
+        } else {
+            await this.deleteIfPresent(state.targetAnchorId);
         }
+        state.targetAnchorId = "";
     }
 
     async restore(plan: ActionMoveStructurePlan): Promise<void> {
         const state = stateOf(plan);
         const current = await this.inspect(plan.actionId, plan);
         if (!this.isAtSource(plan, current)) {
-            const previousAvailable =
-                plan.source.location.previousId && (await this.blockExists(plan.source.location.previousId));
+            const sourceLocation = state.sourceUnitLocation;
+            const restorePreviousId = sourceLocation.previousId || state.sourceFallbackPreviousId;
+            const previousAvailable = restorePreviousId && (await this.blockExists(restorePreviousId));
             await this.api.request("/api/block/moveBlock", {
-                id: plan.actionId,
-                ...(previousAvailable
-                    ? { previousID: plan.source.location.previousId }
-                    : { parentID: plan.source.location.parentId }),
+                id: state.sourceUnitId,
+                ...(previousAvailable ? { previousID: restorePreviousId } : { parentID: sourceLocation.parentId }),
             });
         }
 
@@ -199,9 +243,9 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
         ) {
             throw new Error("SiYuan did not restore the Action to its source list");
         }
-        await this.deleteIfPresent(state.sourceGuardId);
-        state.sourceGuardId = "";
-        await this.deleteIfPresent(state.targetListId);
+        await this.deleteIfPresent(state.placementGuardListId);
+        state.placementGuardListId = "";
+        if (!state.moveWholeSourceList) await this.deleteIfPresent(state.targetListId);
         state.targetListId = "";
         state.targetAnchorId = "";
 
@@ -255,6 +299,29 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
         plan: ActionMoveStructurePlan,
     ): Promise<ActionMoveStructureSnapshot> {
         const state = stateOf(plan);
+        if (state.moveWholeSourceList) {
+            const targetChildren = await this.childBlocks(plan.target.documentId);
+            const atTarget = targetChildren.some((item) => item.id === state.sourceUnitId);
+            const sourceChildren = await this.childBlocks(state.sourceUnitLocation.parentId);
+            const atSource = sourceChildren.some((item) => item.id === state.sourceUnitId);
+            if (!atTarget && !atSource) {
+                throw new TransientStructureMismatch("The moved Action list is outside its expected documents");
+            }
+            const parentId = state.sourceUnitId;
+            const siblings = await this.childBlocks(parentId);
+            const index = siblings.findIndex((item) => item.id === actionId);
+            if (index < 0) throw new TransientStructureMismatch("The Action is missing from its original list");
+            return {
+                location: {
+                    documentId: atTarget ? plan.target.documentId : plan.source.location.documentId,
+                    documentTitle: atTarget ? plan.target.documentTitle : plan.source.location.documentTitle,
+                    parentId,
+                    previousId: siblings[index - 1]?.id || "",
+                    nextId: siblings[index + 1]?.id || "",
+                },
+                subtreeIds: await this.loadSubtreeIds(actionId),
+            };
+        }
         const candidates = [
             ...(state.targetListId
                 ? [
@@ -308,15 +375,37 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
 
     isAtSource(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean {
         const state = stateOf(plan);
-        const nextMatches =
-            snapshot.location.nextId === plan.source.location.nextId ||
-            Boolean(state.sourceGuardId && snapshot.location.nextId === state.sourceGuardId);
         return (
             snapshot.location.documentId === plan.source.location.documentId &&
             snapshot.location.parentId === plan.source.location.parentId &&
             snapshot.location.previousId === plan.source.location.previousId &&
-            nextMatches
+            snapshot.location.nextId === plan.source.location.nextId
         );
+    }
+
+    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean {
+        const state = stateOf(plan);
+        return (
+            snapshot.location.documentId === plan.target.documentId &&
+            snapshot.location.parentId === state.targetListId &&
+            snapshot.location.previousId === "" &&
+            snapshot.location.nextId === ""
+        );
+    }
+
+    async validateUndoSource(plan: ActionMoveStructurePlan): Promise<void> {
+        const state = stateOf(plan);
+        const location = state.sourceUnitLocation;
+        const siblings = await this.childBlocks(location.parentId);
+        const previousIndex = location.previousId ? siblings.findIndex((item) => item.id === location.previousId) : -1;
+        const nextIndex = location.nextId ? siblings.findIndex((item) => item.id === location.nextId) : siblings.length;
+        if (
+            (location.previousId && previousIndex < 0) ||
+            (location.nextId && nextIndex < 0) ||
+            nextIndex !== previousIndex + 1
+        ) {
+            throw targetChanged("The original Action anchors have changed; undo was not applied");
+        }
     }
 
     private loadAncestry(actionId: string): Promise<StructureRow[]> {
@@ -334,6 +423,63 @@ export class SiyuanActionMoveStructurePort implements ActionMoveStructurePort {
 
     private childBlocks(parentId: string): Promise<Array<{ id: string; type: string; subtype?: string }>> {
         return this.api.request("/api/block/getChildBlocks", { id: parentId });
+    }
+
+    private resolveTargetDestination(
+        children: Array<{ id: string }>,
+        requested?: ActionMoveDestination,
+    ): ActionMoveDestination {
+        if (!requested) {
+            return { previousId: children[children.length - 1]?.id || "", nextId: "" };
+        }
+        const previousIndex = requested.previousId
+            ? children.findIndex((item) => item.id === requested.previousId)
+            : -1;
+        const nextIndex = requested.nextId
+            ? children.findIndex((item) => item.id === requested.nextId)
+            : children.length;
+        if (
+            (requested.previousId && previousIndex < 0) ||
+            (requested.nextId && nextIndex < 0) ||
+            nextIndex !== previousIndex + 1
+        ) {
+            throw targetChanged("The selected Project destination has changed; preview the move again");
+        }
+        return { previousId: requested.previousId, nextId: requested.nextId };
+    }
+
+    private async confirmTargetDestination(plan: ActionMoveStructurePlan): Promise<void> {
+        const children = await this.childBlocks(plan.projectId);
+        this.resolveTargetDestination(children, plan.target.destination);
+    }
+
+    private async buildTargetPlacements(
+        projectId: string,
+        children: Array<{ id: string }>,
+    ): Promise<ActionMovePlacement[]> {
+        const titles = new Map(
+            await Promise.all(
+                children.map(async (child) => {
+                    const rows = await this.api.query<Pick<StructureRow, "id" | "content">>(sql`
+                        SELECT id, content FROM blocks WHERE id = ${child.id} LIMIT 1
+                    `);
+                    return [child.id, rows[0]?.content || child.id] as const;
+                }),
+            ),
+        );
+        const placements: ActionMovePlacement[] = [];
+        for (let index = 0; index <= children.length; index++) {
+            const previousId = children[index - 1]?.id || "";
+            const nextId = children[index]?.id || "";
+            placements.push({
+                id: `${projectId}:${index}:${previousId}:${nextId}`,
+                destination: { previousId, nextId },
+                previousTitle: previousId ? titles.get(previousId) || previousId : "",
+                nextTitle: nextId ? titles.get(nextId) || nextId : "",
+                documentEnd: index === children.length,
+            });
+        }
+        return placements;
     }
 
     private async insertTemporaryTask(

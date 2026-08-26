@@ -33,6 +33,7 @@ const projectId = "20260825110001-project";
 let attempts = 0;
 let movedTaskId = "";
 let closed = false;
+let selectedPreviousId = "";
 const task = { blockId: actionId, title: "Move safely" };
 const project = { blockId: projectId, title: "Ship release" };
 const bridge = {
@@ -40,13 +41,20 @@ const bridge = {
         actionId, actionTitle: task.title,
         source: { documentId: "20260825110002-sourced", title: "Source notes" },
         target: { projectId, title: project.title },
+        placements: [
+            { id: "start", destination: { previousId: "", nextId: "20260825110003-heading" }, previousTitle: "", nextTitle: "Plan", documentEnd: false },
+            { id: "between", destination: { previousId: "20260825110003-heading", nextId: "20260825110004-notesxx" }, previousTitle: "Plan", nextTitle: "Notes", documentEnd: false },
+            { id: "end", destination: { previousId: "20260825110004-notesxx", nextId: "" }, previousTitle: "Notes", nextTitle: "", documentEnd: true },
+        ],
+        destination: { previousId: "20260825110004-notesxx", nextId: "" },
         currentEffectiveParentId: "",
         nextEffectiveParentId: projectId,
         effectiveParentWillChange: true,
         explicitParentPreserved: false,
     }),
-    moveActionToProject: async () => {
+    moveActionToProject: async (_actionId, _projectId, destination) => {
         attempts++;
+        selectedPreviousId = destination?.previousId || "";
         if (attempts === 1) {
             const error = new Error("restored");
             error.code = -32011;
@@ -61,6 +69,10 @@ const unchangedBridge = {
         actionId, actionTitle: task.title,
         source: { documentId: projectId, title: project.title },
         target: { projectId, title: project.title },
+        placements: [
+            { id: "end", destination: { previousId: "20260825110004-notesxx", nextId: "" }, previousTitle: "Notes", nextTitle: "", documentEnd: true },
+        ],
+        destination: { previousId: "20260825110004-notesxx", nextId: "" },
         currentEffectiveParentId: projectId,
         nextEffectiveParentId: projectId,
         effectiveParentWillChange: false,
@@ -70,6 +82,8 @@ const unchangedBridge = {
 const i18n = new Proxy({
     moveActionTitle: "Move Action", moveActionDescription: "Move the native Action and its full subtree",
     moveActionSource: "Source", moveActionTarget: "Target", moveActionDestinationEnd: "Project document end",
+    moveActionDestination: "Destination", moveActionDestinationStart: "Document start",
+    moveActionDestinationBetween: "Between {previous} and {next}",
     moveActionParentChange: "Effective parent will change", moveActionParentUnchanged: "Explicit parent is preserved",
     moveActionEffectiveParentUnchanged: "Effective parent will not change",
     moveActionConfirm: "Move to project document", moveActionRecovered: "Move failed; original position restored.",
@@ -78,9 +92,9 @@ const i18n = new Proxy({
 }, { get: (target, key) => target[key] || String(key) });
 </script>
 
-<div id="harness" data-attempts={attempts} data-moved={movedTaskId} data-closed={closed}>
+<div id="harness" data-attempts={attempts} data-moved={movedTaskId} data-closed={closed} data-previous={selectedPreviousId}>
     <ActionMoveDialog {bridge} {i18n} {task} {project}
-        onMoved={(moved) => (movedTaskId = moved.blockId)} onClose={() => (closed = true)} />
+        onMoved={(moved) => (movedTaskId = moved.task.blockId)} onClose={() => (closed = true)} />
 </div>
 <div id="unchanged-parent"><ActionMoveDialog bridge={unchangedBridge} {i18n} {task} {project} /></div>`,
         );
@@ -95,6 +109,12 @@ const finish = (value) => {
 };
 setTimeout(() => {
     const before = document.body.textContent;
+    const placement = document.querySelector("#na-action-move-destination");
+    if (placement) {
+        placement.value = "between";
+        placement.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    const placementVisible = document.body.textContent.includes("Between Plan and Notes");
     findButton("Move to project document")?.click();
     setTimeout(() => {
         const recovered = document.querySelector('[role="alert"]')?.textContent || "";
@@ -106,6 +126,7 @@ setTimeout(() => {
                 parentChangeVisible: before.includes("Effective parent will change"),
                 unchangedParentVisible: document.querySelector("#unchanged-parent")?.textContent.includes("Effective parent will not change"),
                 recoveredVisible: recovered.includes("original position restored"),
+                placementVisible, selectedPreviousId: harness?.dataset.previous,
                 attempts: harness?.dataset.attempts, moved: harness?.dataset.moved, closed: harness?.dataset.closed,
             });
         }, 60);
@@ -164,6 +185,8 @@ setTimeout(() => {
             parentChangeVisible: true,
             unchangedParentVisible: true,
             recoveredVisible: true,
+            placementVisible: true,
+            selectedPreviousId: "20260825110003-heading",
             attempts: "2",
             moved: "20260825110000-actionx",
             closed: "false",
@@ -260,7 +283,7 @@ document.body.appendChild(result);
                 "--disable-web-security",
                 "--no-first-run",
                 "--no-sandbox",
-                "--virtual-time-budget=800",
+                "--virtual-time-budget=5000",
                 `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
                 "--dump-dom",
                 pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,

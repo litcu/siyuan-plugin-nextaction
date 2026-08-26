@@ -6,6 +6,7 @@ import type {
     ActionMoveStructurePort,
     ActionMoveStructureSnapshot,
 } from "../src/kernel/action-move-structure-port.ts";
+import type { ActionMoveDestination } from "../src/shared/action-move.ts";
 import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { Mutex } from "../src/kernel/mutex.ts";
 import { TaskIdentityResolver } from "../src/kernel/task-identity-resolver.ts";
@@ -37,6 +38,7 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
     private currentDocumentId = SOURCE_DOCUMENT_ID;
     private inspectTargetCount = 0;
     private activePrepares = 0;
+    private undoSourceValid = true;
     maxConcurrentPrepares = 0;
 
     constructor(
@@ -45,7 +47,11 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
         private readonly delayPrepare = false,
     ) {}
 
-    async prepare(actionId: string, projectId: string): Promise<ActionMoveStructurePlan> {
+    async prepare(
+        actionId: string,
+        projectId: string,
+        destination?: ActionMoveDestination,
+    ): Promise<ActionMoveStructurePlan> {
         this.activePrepares++;
         this.maxConcurrentPrepares = Math.max(this.maxConcurrentPrepares, this.activePrepares);
         try {
@@ -56,7 +62,20 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
                 actionId,
                 projectId,
                 source: await this.inspect(actionId),
-                target: { documentId: PROJECT_ID, documentTitle: "Ship release" },
+                target: {
+                    documentId: PROJECT_ID,
+                    documentTitle: "Ship release",
+                    destination: destination || { previousId: "", nextId: "" },
+                    placements: [
+                        {
+                            id: "project-end",
+                            destination: { previousId: "", nextId: "" },
+                            previousTitle: "",
+                            nextTitle: "",
+                            documentEnd: true,
+                        },
+                    ],
+                },
             };
         } finally {
             this.activePrepares--;
@@ -106,6 +125,22 @@ class InMemoryActionMoveStructurePort implements ActionMoveStructurePort {
             snapshot.location.documentId === plan.source.location.documentId &&
             snapshot.location.parentId === plan.source.location.parentId
         );
+    }
+
+    isAtTarget(plan: ActionMoveStructurePlan, snapshot: ActionMoveStructureSnapshot): boolean {
+        return snapshot.location.documentId === plan.target.documentId && snapshot.location.parentId === TARGET_LIST_ID;
+    }
+
+    async validateUndoSource(_plan: ActionMoveStructurePlan): Promise<void> {
+        if (!this.undoSourceValid) {
+            const error = new Error("source anchor missing") as Error & { code: number };
+            error.code = -32013;
+            throw error;
+        }
+    }
+
+    invalidateUndoSource(): void {
+        this.undoSourceValid = false;
     }
 }
 
@@ -222,6 +257,101 @@ test("移动原生 Action 到 Project 文档末尾时保留身份、属性和完
     assert.equal(cache.get(ACTION_ID)?.parentId, PROJECT_ID);
     assert.ok(publisher.changes.includes(ACTION_ID));
     assert.ok(publisher.changes.includes(PROJECT_ID));
+});
+
+test("成功移动返回会话内单次撤销凭据并恢复权威任务", async () => {
+    const { api, cache, service } = setup();
+
+    const moved = (await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID })) as Awaited<
+        ReturnType<ActionMoveService["move"]>
+    > & {
+        undo: { credential: string; summary: string };
+    };
+    assert.ok(moved.undo.credential);
+    assert.equal(moved.undo.credential.includes(ACTION_ID), false);
+    assert.match(moved.undo.summary, /Source notes.*Ship release/);
+
+    const undone = await (
+        service as unknown as {
+            undo(input: {
+                credential: string;
+            }): Promise<{ task: { blockId: string; parentId: string }; summary: string }>;
+        }
+    ).undo({ credential: moved.undo.credential });
+
+    assert.equal(undone.task.blockId, ACTION_ID);
+    assert.equal(undone.task.parentId, "");
+    assert.match(undone.summary, /Source notes/);
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, SOURCE_LIST_ID);
+    assert.equal(cache.get(ACTION_ID)?.parentId, "");
+    await assert.rejects(
+        () =>
+            (service as unknown as { undo(input: { credential: string }): Promise<unknown> }).undo({
+                credential: moved.undo.credential,
+            }),
+        (error: Error & { code?: number }) => error.code === -32014,
+    );
+});
+
+test("内核运行时没有 Web Crypto 时仍签发不含 Action ID 的撤销凭据", async () => {
+    // Regression: 思源内核不提供 globalThis.crypto，移动成功后不能因 randomUUID 崩溃。
+    const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: undefined });
+    try {
+        const { service } = setup();
+
+        const moved = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+
+        assert.ok(moved.undo.credential.length >= 24);
+        assert.equal(moved.undo.credential.includes(ACTION_ID), false);
+    } finally {
+        if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor);
+        else delete (globalThis as { crypto?: Crypto }).crypto;
+    }
+});
+
+test("撤销凭据在新的内核服务会话中失效", async () => {
+    const firstSession = setup();
+    const secondSession = setup();
+    const moved = await firstSession.service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+
+    await assert.rejects(
+        () => secondSession.service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32014,
+    );
+    assert.equal(secondSession.api.blocks.get(ACTION_ID)?.parentId, SOURCE_LIST_ID);
+});
+
+test("Action 再次移动后旧撤销凭据失效且不改变当前结构", async () => {
+    // Regression: 旧凭据不能在再次移动后把 Action 拉回过期来源。
+    const { api, service } = setup();
+    const first = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+    const second = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+
+    await assert.rejects(
+        () => service.undo({ credential: first.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32014,
+    );
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, TARGET_LIST_ID);
+    assert.notEqual(second.undo.credential, first.undo.credential);
+});
+
+test("原位置锚点删除后撤销保持当前结构并消费凭据", async () => {
+    // Regression: 原锚点失效时撤销必须在任何反向写入前停止。
+    const { api, cache, service, structure } = setup();
+    const moved = await service.move({ actionId: ACTION_ID, projectId: PROJECT_ID });
+    structure.invalidateUndoSource();
+
+    await assert.rejects(
+        () => service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32015,
+    );
+    assert.equal(api.blocks.get(ACTION_ID)?.parentId, TARGET_LIST_ID);
+    assert.equal(cache.get(ACTION_ID)?.parentId, PROJECT_ID);
+    await assert.rejects(
+        () => service.undo({ credential: moved.undo.credential }),
+        (error: Error & { code?: number }) => error.code === -32014,
+    );
 });
 
 test("移动后身份 SQL 祖先链滞后时仍按已确认的物理目标刷新有效父级", async () => {

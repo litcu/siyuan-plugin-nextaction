@@ -139,6 +139,10 @@ class NextActionKernelPlugin {
                 this.taskService.assertReady();
                 return actionMoveService.move(input);
             },
+            undoActionMove: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.undo(input);
+            },
             extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),

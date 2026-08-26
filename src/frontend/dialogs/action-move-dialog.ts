@@ -1,9 +1,10 @@
 import { Dialog } from "siyuan";
+import type { ActionMoveResult } from "../../shared/action-move";
 import type { I18nStrings } from "../../shared/i18n";
 import type { TaskCacheEntry } from "../../shared/types";
 import type { KernelBridge } from "../kernel-bridge";
-import { notifyInfo } from "../notify";
 import { taskStore } from "../stores/task-store";
+import { showActionMoveUndo } from "../stores/action-move-undo-store";
 
 export interface OpenActionMoveDialogOptions {
     bridge: KernelBridge;
@@ -11,6 +12,7 @@ export interface OpenActionMoveDialogOptions {
     task: TaskCacheEntry;
     project: TaskCacheEntry;
     onMoved?: (task: TaskCacheEntry) => void;
+    onUndone?: (task: TaskCacheEntry) => void;
 }
 
 export async function openActionMoveDialog(options: OpenActionMoveDialogOptions): Promise<void> {
@@ -61,10 +63,10 @@ export async function openActionMoveDialog(options: OpenActionMoveDialogOptions)
             task: options.task,
             project: options.project,
             onClose: () => dialog.destroy(),
-            onMoved: (task: TaskCacheEntry) => {
-                taskStore.applyUpdate(task);
-                options.onMoved?.(task);
-                notifyInfo(options.i18n.moveActionSuccess);
+            onMoved: (result: ActionMoveResult) => {
+                taskStore.applyUpdate(result.task);
+                options.onMoved?.(result.task);
+                showActionMoveUndo(result.undo, options.onUndone);
                 dialog.destroy();
             },
         },

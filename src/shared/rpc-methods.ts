@@ -1,6 +1,12 @@
 import { validateAiProposal, type AiProposal, type AiProposalApplyResult, type AiProposalContext } from "./ai";
 import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
-import type { ActionMoveInput, ActionMovePreview, ActionMoveResult } from "./action-move";
+import type {
+    ActionMoveInput,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoInput,
+    ActionMoveUndoResult,
+} from "./action-move";
 import { assertBlockId } from "./block-id";
 import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
 import type { RepeatRuleV2 } from "./repeat";
@@ -162,9 +168,21 @@ function blockIdParams(value: unknown): { blockId: string } {
 
 function actionMoveParams(value: unknown): ActionMoveInput {
     const input = paramsRecord(value);
+    let destination: ActionMoveInput["destination"];
+    if (input.destination !== undefined) {
+        const rawDestination = requiredObject(input.destination, "destination");
+        destination = {
+            previousId:
+                rawDestination.previousId === ""
+                    ? ""
+                    : requiredBlockId(rawDestination.previousId, "destination.previousId"),
+            nextId: rawDestination.nextId === "" ? "" : requiredBlockId(rawDestination.nextId, "destination.nextId"),
+        };
+    }
     return {
         actionId: requiredBlockId(input.actionId, "actionId"),
         projectId: requiredBlockId(input.projectId, "projectId"),
+        ...(destination ? { destination } : {}),
     };
 }
 
@@ -345,6 +363,10 @@ export const RPC_CONTRACT = {
     }),
     previewActionMove: defineRpc<ActionMoveInput, ActionMovePreview>(actionMoveParams),
     moveActionToProject: defineRpc<ActionMoveInput, ActionMoveResult>(actionMoveParams),
+    undoActionMove: defineRpc<ActionMoveUndoInput, ActionMoveUndoResult>((value) => {
+        const input = paramsRecord(value);
+        return { credential: requiredString(input.credential, "credential") };
+    }),
     extractAction: defineRpc<ExtractActionInput, ExtractActionResult>(extractActionParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);

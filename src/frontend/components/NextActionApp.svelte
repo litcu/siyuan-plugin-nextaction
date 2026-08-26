@@ -282,6 +282,9 @@
             onMoved: (updated) => {
                 if (selectedTask?.blockId === updated.blockId) selectedTask = updated;
             },
+            onUndone: (updated) => {
+                selectedTask = updated;
+            },
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 

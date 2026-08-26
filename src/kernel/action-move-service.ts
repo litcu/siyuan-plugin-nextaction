@@ -3,9 +3,17 @@ import {
     RPC_ERROR_ACTION_MOVE_NOT_MOVED,
     RPC_ERROR_ACTION_MOVE_RECOVERED,
     RPC_ERROR_ACTION_MOVE_RECOVERY_FAILED,
+    RPC_ERROR_ACTION_MOVE_UNDO_INVALID,
+    RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
     RPC_ERROR_CIRCULAR_REF,
 } from "../shared/constants";
-import type { ActionMoveInput, ActionMovePreview, ActionMoveResult } from "../shared/action-move";
+import type {
+    ActionMoveInput,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoInput,
+    ActionMoveUndoResult,
+} from "../shared/action-move";
 import { assertBlockId } from "../shared/block-id";
 import { isProjectTask } from "../shared/project-domain";
 import type { CacheManager } from "./cache-manager";
@@ -24,7 +32,15 @@ interface PreparedActionMove {
 }
 
 type ActionMoveExecution =
-    { kind: "moved"; result: ActionMoveResult } | { kind: "failed"; error: Error & { code: number } };
+    | { kind: "moved"; task: ActionMoveResult["task"]; prepared: PreparedActionMove }
+    | {
+          kind: "failed";
+          error: Error & { code: number };
+      };
+
+interface ActionMoveUndoRecord {
+    prepared: PreparedActionMove;
+}
 
 function sameIds(left: readonly string[], right: readonly string[]): boolean {
     if (left.length !== right.length) return false;
@@ -38,6 +54,10 @@ function taskAttrs(attrs: Record<string, string>): Record<string, string> {
 
 /** Moves native Action structure while keeping task state synchronized from authoritative reads. */
 export class ActionMoveService {
+    private readonly undoRecords = new Map<string, ActionMoveUndoRecord>();
+    private readonly undoCredentialByAction = new Map<string, string>();
+    private undoCredentialSequence = 0;
+
     constructor(
         private readonly cache: CacheManager,
         private readonly repository: TaskRepository,
@@ -64,13 +84,98 @@ export class ActionMoveService {
                     true,
                     prepared.preview.nextEffectiveParentId,
                 );
-                return { kind: "moved", result: { task, preview: prepared.preview } };
+                return { kind: "moved", task, prepared };
             } catch (cause: unknown) {
                 return this.recover(prepared, changes, cause);
             }
         });
         if (execution.kind === "failed") throw execution.error;
-        return execution.result;
+        const undo = this.issueUndo(execution.prepared);
+        return { task: execution.task, preview: execution.prepared.preview, undo };
+    }
+
+    async undo(input: ActionMoveUndoInput): Promise<ActionMoveUndoResult> {
+        const record = this.consumeUndo(input.credential);
+        const { prepared } = record;
+        return this.repository.withConfirmedChanges<ActionMoveUndoResult>(async (changes) => {
+            const current = await this.structure.inspect(prepared.plan.actionId, prepared.plan);
+            if (
+                !this.structure.isAtTarget(prepared.plan, current) ||
+                !sameIds(prepared.plan.source.subtreeIds, current.subtreeIds)
+            ) {
+                throw moveError(
+                    RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
+                    "The Action has moved again or changed; undo was not applied",
+                    undefined,
+                );
+            }
+            try {
+                await this.structure.validateUndoSource(prepared.plan);
+                await this.structure.restore(prepared.plan);
+                const restored = await this.structure.inspect(prepared.plan.actionId, prepared.plan);
+                if (
+                    !this.structure.isAtSource(prepared.plan, restored) ||
+                    !sameIds(prepared.plan.source.subtreeIds, restored.subtreeIds)
+                ) {
+                    throw new Error("Action undo confirmation failed");
+                }
+                const task = await this.confirmTaskIdentity(
+                    prepared,
+                    changes,
+                    true,
+                    prepared.preview.currentEffectiveParentId,
+                );
+                return {
+                    task,
+                    summary: `${prepared.preview.actionTitle}: ${prepared.preview.target.title} → ${prepared.preview.source.title}`,
+                };
+            } catch (cause: unknown) {
+                if ((cause as { code?: unknown } | null)?.code === RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE) throw cause;
+                throw moveError(
+                    RPC_ERROR_ACTION_MOVE_UNDO_UNSAFE,
+                    "The original Action position is no longer safe; undo was not applied",
+                    cause,
+                );
+            }
+        });
+    }
+
+    private issueUndo(prepared: PreparedActionMove) {
+        const previousCredential = this.undoCredentialByAction.get(prepared.plan.actionId);
+        if (previousCredential) this.undoRecords.delete(previousCredential);
+        const credential = this.createUndoCredential();
+        this.undoRecords.set(credential, { prepared });
+        this.undoCredentialByAction.set(prepared.plan.actionId, credential);
+        return {
+            credential,
+            actionId: prepared.plan.actionId,
+            summary: `${prepared.preview.actionTitle}: ${prepared.preview.source.title} → ${prepared.preview.target.title}`,
+        };
+    }
+
+    private createUndoCredential(): string {
+        this.undoCredentialSequence++;
+        const randomPart = () =>
+            Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+                .toString(36)
+                .padStart(11, "0");
+        return `${Date.now().toString(36)}-${this.undoCredentialSequence.toString(36)}-${randomPart()}-${randomPart()}`;
+    }
+
+    private consumeUndo(credential: string): ActionMoveUndoRecord {
+        const record = this.undoRecords.get(credential);
+        if (!record) {
+            throw moveError(
+                RPC_ERROR_ACTION_MOVE_UNDO_INVALID,
+                "This undo is unavailable, expired, or already used",
+                undefined,
+            );
+        }
+        this.undoRecords.delete(credential);
+        if (this.undoCredentialByAction.get(record.prepared.plan.actionId) === credential) {
+            this.undoCredentialByAction.delete(record.prepared.plan.actionId);
+        }
+        return record;
     }
 
     private async confirmTargetStructure(plan: ActionMoveStructurePlan): Promise<ActionMoveStructureSnapshot> {
@@ -191,7 +296,7 @@ export class ActionMoveService {
         if (!project || !isProjectTask(project)) throw new Error("Move target must be a valid Project document");
 
         const [plan, attrs] = await Promise.all([
-            this.structure.prepare(actionId, projectId),
+            this.structure.prepare(actionId, projectId, input.destination),
             this.repository.getBlockAttrs(actionId),
         ]);
         const explicitParentId = attrs[ATTR_PARENT] || "";
@@ -208,6 +313,8 @@ export class ActionMoveService {
                     title: plan.source.location.documentTitle,
                 },
                 target: { projectId, title: plan.target.documentTitle || project.title },
+                placements: plan.target.placements,
+                destination: plan.target.destination,
                 currentEffectiveParentId: action.parentId,
                 nextEffectiveParentId,
                 effectiveParentWillChange: action.parentId !== nextEffectiveParentId,
