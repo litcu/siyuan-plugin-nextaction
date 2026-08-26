@@ -1,5 +1,6 @@
 import { validateAiProposal, type AiProposal, type AiProposalApplyResult, type AiProposalContext } from "./ai";
 import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
+import type { ActionMoveInput, ActionMovePreview, ActionMoveResult } from "./action-move";
 import { assertBlockId } from "./block-id";
 import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
 import type { RepeatRuleV2 } from "./repeat";
@@ -157,6 +158,14 @@ function noParams(value: unknown): Record<string, never> {
 function blockIdParams(value: unknown): { blockId: string } {
     const input = paramsRecord(value);
     return { blockId: requiredBlockId(input.blockId) };
+}
+
+function actionMoveParams(value: unknown): ActionMoveInput {
+    const input = paramsRecord(value);
+    return {
+        actionId: requiredBlockId(input.actionId, "actionId"),
+        projectId: requiredBlockId(input.projectId, "projectId"),
+    };
 }
 
 function createTaskParams(value: unknown): CreateTaskInput {
@@ -334,6 +343,8 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { projectId: requiredBlockId(input.projectId, "projectId") };
     }),
+    previewActionMove: defineRpc<ActionMoveInput, ActionMovePreview>(actionMoveParams),
+    moveActionToProject: defineRpc<ActionMoveInput, ActionMoveResult>(actionMoveParams),
     extractAction: defineRpc<ExtractActionInput, ExtractActionResult>(extractActionParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);

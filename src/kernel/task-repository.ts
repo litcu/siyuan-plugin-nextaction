@@ -59,6 +59,7 @@ export interface ConfirmedTaskChanges {
     upsertAttrs(request: TaskAttrUpsert): Promise<TaskCacheEntry>;
     upsertAttrsBatch(requests: TaskAttrUpsert[]): Promise<ConfirmedTaskBatchResult>;
     upsertAttrsWithConfirmedRollback(requests: TaskAttrUpsert[]): Promise<TaskCacheEntry[]>;
+    refreshEntry(request: TaskAttrUpsert & { attrs: Record<string, string> }): TaskCacheEntry;
     upsertEntry(entry: TaskCacheEntry): void;
     deleteEntry(blockId: string): void;
 }
@@ -150,6 +151,19 @@ export class TaskRepository {
             upsertAttrs: (request) => this.upsertAttrs(request, changedIds),
             upsertAttrsBatch: (requests) => this.upsertAttrsBatch(requests, changedIds),
             upsertAttrsWithConfirmedRollback: (requests) => this.upsertAttrsWithConfirmedRollback(requests, changedIds),
+            refreshEntry: (request) => {
+                const entry = buildTaskEntryFromAttrs(
+                    request.blockId,
+                    request.attrs,
+                    this.settings,
+                    request.existing ?? this.cacheManager.get(request.blockId),
+                    request.titleOverride,
+                    request.identity,
+                );
+                this.cacheManager.set(entry);
+                changedIds.add(entry.blockId);
+                return entry;
+            },
             upsertEntry: (entry) => {
                 this.cacheManager.set(entry);
                 changedIds.add(entry.blockId);

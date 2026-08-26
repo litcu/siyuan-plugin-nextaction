@@ -26,6 +26,7 @@
         ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
+    export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
 
     let busyTaskId = "";
     let editingTaskId = "";
@@ -327,6 +328,13 @@
                                     >{i18n?.moveDown || "Move down"}</NaButton
                                 >
                             </div>
+                            <NaButton
+                                size="sm"
+                                disabled={Boolean(busyTaskId) || !onMoveAction}
+                                ariaLabel={`${i18n?.moveActionConfirm || "Move to project document"}: ${row.task.title}`}
+                                on:click={() => onMoveAction?.(row.task, project)}
+                                >{i18n?.moveActionConfirm || "Move to project document"}</NaButton
+                            >
                         </div>
                     </div>
                 {/each}

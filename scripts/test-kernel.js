@@ -10,6 +10,7 @@
 const baseURL = process.argv[2] || "http://127.0.0.1:6806";
 const apiToken = process.env.SIYUAN_API_TOKEN || "";
 const pluginName = "siyuan-plugin-nextaction";
+const integrationCase = process.env.NEXTACTION_INTEGRATION_CASE || "";
 
 function requestHeaders() {
     return {
@@ -125,6 +126,43 @@ async function waitForReferenceIndex(defBlockId, sourceRootId) {
         await sleep(250);
     }
     throw new Error(`Block reference was not indexed in time: ${sourceRootId} -> ${defBlockId}`);
+}
+
+async function waitForNativeActions(documentId, expectedCount) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT item.id, item.parent_id, item.root_id, item.type, item.subtype, list.parent_id AS list_parent_id FROM blocks item INNER JOIN blocks list ON list.id = item.parent_id WHERE item.root_id = '${documentId.replace(/'/g, "''")}' AND item.type = 'i' ORDER BY item.sort ASC`,
+        });
+        if (Array.isArray(rows) && rows.length >= expectedCount) return rows;
+        await sleep(250);
+    }
+    throw new Error(`Native Actions were not indexed in time for document: ${documentId}`);
+}
+
+async function waitForBlockDocument(blockId, documentId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT root_id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows[0]?.root_id === documentId) return;
+        await sleep(250);
+    }
+    throw new Error(`Block ${blockId} did not reach document ${documentId} in time`);
+}
+
+async function loadSubtreeIds(blockId) {
+    const rows = await siyuanAPI("/api/query/sql", {
+        stmt: `WITH RECURSIVE selected(id) AS (SELECT id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' UNION ALL SELECT child.id FROM blocks child INNER JOIN selected parent ON child.parent_id = parent.id) SELECT id FROM selected`,
+    });
+    return rows.map((row) => row.id).sort();
+}
+
+function taskAttrs(attrs) {
+    return Object.fromEntries(
+        Object.entries(attrs || {})
+            .filter(([key]) => key.startsWith("custom-na-"))
+            .sort(([left], [right]) => left.localeCompare(right)),
+    );
 }
 
 async function createTemporaryDocument(options = {}) {
@@ -322,6 +360,122 @@ async function testProjectSupport() {
     );
 }
 
+async function testActionMove() {
+    console.log("\n--- Action move ---");
+    const actionTitle = "Move integration parent";
+    const childTitle = "Move integration nested child";
+    const source = await createTemporaryDocument({
+        titlePrefix: "NextAction Move Source",
+        markdown: `# Move source\n\n- [ ] ${actionTitle}\n  - [ ] ${childTitle}`,
+    });
+    const project = await createTemporaryDocument({
+        titlePrefix: "NextAction Move Project",
+        markdown: "# Move project\n\nExisting project content must stay before the moved Action.",
+    });
+    const nativeActions = await waitForNativeActions(source.id, 2);
+    const actionId = requireBlockId(
+        nativeActions.find((row) => nativeActions.some((child) => child.list_parent_id === row.id))?.id,
+        "Action move source",
+    );
+    const childId = requireBlockId(
+        nativeActions.find((row) => row.list_parent_id === actionId)?.id,
+        "Action move nested child",
+    );
+    const sourceListId = nativeActions.find((row) => row.id === actionId)?.parent_id;
+
+    const projectConversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        projectConversion.result?.taskType === "2" && !projectConversion.result?._rpcError,
+        "Action move target is a Project document",
+        JSON.stringify(projectConversion.result),
+    );
+    await waitForTaskAttributeIndex(project.id);
+    await rpc("rebuildCache");
+    const cachedAction = await rpc("getTask", { blockId: actionId });
+    assert(
+        cachedAction.result?.identificationSource === "native" && cachedAction.result?.taskType === "1",
+        "Action move source is discovered as one native Action",
+        JSON.stringify(cachedAction.result),
+    );
+
+    const updated = await rpc("updateTask", {
+        blockId: actionId,
+        attrs: {
+            "na-status": "doing",
+            "na-note": "Preserve this move integration note",
+            "na-depends": childId,
+        },
+    });
+    assert(
+        updated.result?.status === "doing" && updated.result?.depends === childId,
+        "Action move fixture has authoritative task attributes",
+        JSON.stringify(updated.result),
+    );
+    const attrsBefore = taskAttrs(await siyuanAPI("/api/attr/getBlockAttrs", { id: actionId }));
+    const subtreeBefore = await loadSubtreeIds(actionId);
+
+    const preview = await rpc("previewActionMove", { actionId, projectId: project.id });
+    assert(
+        preview.result?.source?.documentId === source.id && preview.result?.target?.projectId === project.id,
+        "Action move preview names the authoritative source and target",
+        JSON.stringify(preview.result),
+    );
+    assert(
+        preview.result?.nextEffectiveParentId === project.id && preview.result?.effectiveParentWillChange === true,
+        "Action move preview reports the structural effective-parent change",
+        JSON.stringify(preview.result),
+    );
+
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const move = await snapshotAfter("Action move", snapshotBefore, () =>
+        rpc("moveActionToProject", { actionId, projectId: project.id }),
+    );
+    const movedTask = move.result?.result?.task;
+    assert(
+        movedTask?.blockId === actionId && movedTask?.parentId === project.id,
+        "Action move preserves identity and refreshes the effective Project parent",
+        JSON.stringify(movedTask),
+    );
+    await waitForBlockDocument(actionId, project.id);
+
+    const attrsAfter = taskAttrs(await siyuanAPI("/api/attr/getBlockAttrs", { id: actionId }));
+    assert(
+        JSON.stringify(attrsAfter) === JSON.stringify(attrsBefore),
+        "Action move preserves every task attribute",
+        JSON.stringify({ before: attrsBefore, after: attrsAfter }),
+    );
+    const subtreeAfter = await loadSubtreeIds(actionId);
+    assert(
+        JSON.stringify(subtreeAfter) === JSON.stringify(subtreeBefore),
+        "Action move preserves the complete Action subtree",
+        JSON.stringify({ before: subtreeBefore, after: subtreeAfter }),
+    );
+
+    const actionRows = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT parent_id, root_id FROM blocks WHERE id = '${actionId}' LIMIT 1`,
+    });
+    const targetListId = actionRows[0]?.parent_id;
+    const targetListRows = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT parent_id FROM blocks WHERE id = '${targetListId}' LIMIT 1`,
+    });
+    const targetTail = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT id, type FROM blocks WHERE parent_id = '${targetListRows[0]?.parent_id}' ORDER BY sort DESC LIMIT 1`,
+    });
+    assert(
+        actionRows[0]?.root_id === project.id && targetTail[0]?.id === targetListId && targetTail[0]?.type === "l",
+        "Action move appends its native task list at the Project document end",
+        JSON.stringify({ actionRows, targetTail }),
+    );
+    const sourceResidue = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT id, content FROM blocks WHERE root_id = '${source.id}' AND (id = '${sourceListId}' OR content LIKE 'NextAction temporary move%')`,
+    });
+    assert(
+        sourceResidue.length === 0,
+        "Action move removes the empty source list and all temporary structure",
+        JSON.stringify(sourceResidue),
+    );
+}
+
 async function runTests() {
     console.log("\nNextAction Kernel RPC Integration Test");
     console.log(`Target: ${baseURL}\n`);
@@ -335,6 +489,11 @@ async function runTests() {
         "echo preserves array parameters",
         JSON.stringify(echo.result),
     );
+
+    if (integrationCase === "action-move") {
+        await testActionMove();
+        return;
+    }
 
     const temporary = await createTemporaryDocument();
     console.log(`Setup: created temporary document ${temporary.id}`);
@@ -488,6 +647,7 @@ async function runTests() {
 
     await testProjectSupport();
     await testActionExtraction();
+    await testActionMove();
 }
 
 async function main() {

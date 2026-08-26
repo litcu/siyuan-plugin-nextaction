@@ -61,6 +61,7 @@
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
+    export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
     export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
@@ -379,6 +380,7 @@
                             onRenameTask={onTaskRename}
                             {onTaskUpdate}
                             {onTaskReorder}
+                            {onMoveAction}
                         />
                     {/if}
                     <ProjectOverviewMode

@@ -38,6 +38,7 @@
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
     import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
+    import { openActionMoveDialog } from "../dialogs/action-move-dialog";
     import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
 
@@ -272,6 +273,18 @@
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
+    function openActionMove(task: TaskCacheEntry, project: TaskCacheEntry) {
+        openActionMoveDialog({
+            bridge,
+            i18n,
+            task,
+            project,
+            onMoved: (updated) => {
+                if (selectedTask?.blockId === updated.blockId) selectedTask = updated;
+            },
+        }).catch((error) => notifyError(formatRpcError(error, i18n)));
+    }
+
     $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
     $: activeViewMeta = (() => {
         const labels: Record<string, { title: string; icon: string }> = {
@@ -355,6 +368,7 @@
                     onTaskReorder={handleProjectTaskReorder}
                     onCreateChild={(task) => openCreate(task)}
                     onCreateStage={(project) => openCreate(project, "stage")}
+                    onMoveAction={openActionMove}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
                     onExtractAction={openExtractAction}
                     {projectDefinitionControllerRegistry}

@@ -195,6 +195,7 @@ const i18n = new Proxy({
     createStage: "Create Stage", renameStage: "Rename", save: "Save", cancel: "Cancel",
     actionKind: "Action kind", actionKindAction: "Action", actionKindStage: "Stage",
     parentItem: "Parent", moveUp: "Move up", moveDown: "Move down", retry: "Retry",
+    moveActionConfirm: "Move to project document",
     projectPlanWriteFailed: "Plan update failed: {error}", untitled: "Untitled",
 }, { get: (target, key) => target[key] || String(key) });
 
@@ -241,6 +242,9 @@ async function reorderTask(blockId, parentId, afterId) {
     const reordered = new Map(siblings.map((entry, index) => [entry.blockId, { ...entry, sort: index * 10000 }]));
     tasks = tasks.map((entry) => reordered.get(entry.blockId) || entry);
 }
+function moveAction(task, targetProject) {
+    calls = [...calls, "physical:" + task.blockId + ":" + targetProject.blockId];
+}
 </script>
 
 <button id="fail-next" on:click={() => (failNext = true)}>fail</button>
@@ -250,7 +254,7 @@ async function reorderTask(blockId, parentId, afterId) {
         {project} {model} {i18n} {selectedTaskId}
         onSelectTask={(task) => (selectedTaskId = task.blockId)}
         onCreateStage={() => (calls = [...calls, "create"])}
-        onRenameTask={renameTask} onTaskUpdate={updateTask} onTaskReorder={reorderTask}
+        onRenameTask={renameTask} onTaskUpdate={updateTask} onTaskReorder={reorderTask} onMoveAction={moveAction}
     />
 </div>`,
         );
@@ -307,6 +311,9 @@ setTimeout(() => {
                                 const focusedAfterRetry = document.activeElement === kindControl;
                                 const errorAfterRetry = Boolean(document.querySelector('[role="alert"]'));
                                 const moveDownLabel = button("Move down")?.getAttribute("aria-label");
+                                const physicalMove = button("Move to project document");
+                                const physicalMoveLabel = physicalMove?.getAttribute("aria-label") || "";
+                                physicalMove?.click();
                                 document.querySelector("#fail-next")?.click();
                                 change('select[data-role="kind"]', "action");
                                 setTimeout(() => {
@@ -315,7 +322,7 @@ setTimeout(() => {
                                     setTimeout(() => finish({ calls: JSON.parse(harness?.dataset.calls || "[]"), failed,
                                         selectedAfterFailure, selectedTaskId: selectedTaskAtFailure, errorAfterRetry, focusedRename,
                                         focusedAfterSave, focusedAfterMove, focusedAfterFailure, focusedAfterRetry,
-                                        moveDownLabel, errorBeforeProjectSwitch,
+                                        moveDownLabel, physicalMoveLabel, errorBeforeProjectSwitch,
                                         errorAfterProjectSwitch: Boolean(document.querySelector('[role="alert"]')),
                                         retryAfterProjectSwitch: [...document.querySelectorAll("button")]
                                             .some((item) => item.textContent.trim() === "Retry") }), 50);
@@ -380,6 +387,7 @@ setTimeout(() => {
             "reorder:stage:project:sibling",
             "reorder:stage:sibling:first",
             "kind:stage:stage",
+            "physical:stage:project",
         ]);
         assert.equal(result.failed, true);
         assert.equal(result.selectedAfterFailure, "true");
@@ -391,6 +399,7 @@ setTimeout(() => {
         assert.equal(result.focusedAfterFailure, true);
         assert.equal(result.focusedAfterRetry, true);
         assert.equal(result.moveDownLabel, "Move down: Delivery");
+        assert.equal(result.physicalMoveLabel, "Move to project document: Delivery");
         assert.equal(result.errorBeforeProjectSwitch, true);
         assert.equal(result.errorAfterProjectSwitch, false);
         assert.equal(result.retryAfterProjectSwitch, false);

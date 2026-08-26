@@ -24,6 +24,8 @@ import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
 import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/project-support-service";
 import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action-extraction-service";
+import { ActionMoveService } from "./kernel/action-move-service";
+import { SiyuanActionMoveStructurePort } from "./kernel/action-move-structure-port";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -107,6 +109,12 @@ class NextActionKernelPlugin {
             this.taskCreationService,
             actionSourcePort,
         );
+        const actionMoveService = new ActionMoveService(
+            this.cacheManager,
+            taskRepository,
+            taskIdentities,
+            new SiyuanActionMoveStructurePort(api),
+        );
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -122,6 +130,14 @@ class NextActionKernelPlugin {
             getProjectSupport: async (projectId) => {
                 this.taskService.assertReady();
                 return projectSupportService.load(this.taskService.getTask(projectId));
+            },
+            previewActionMove: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.preview(input);
+            },
+            moveActionToProject: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.move(input);
             },
             extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),

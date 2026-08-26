@@ -1,6 +1,7 @@
 import { RPC_ERROR_INTERNAL } from "../shared/constants";
 import type { AiProposalService } from "./ai-proposal-service";
 import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
+import type { ActionMoveInput, ActionMovePreview, ActionMoveResult } from "../shared/action-move";
 import type { TaskService } from "./task-service";
 import type {
     RpcChildTargetResult,
@@ -36,6 +37,8 @@ export interface RpcServerHooks {
     aiProposalService?: AiProposalService;
     getTaskSnapshotV2?: () => TaskSnapshotV2;
     getProjectSupport?: (projectId: string) => Promise<ProjectSupportData>;
+    previewActionMove?: (input: ActionMoveInput) => Promise<ActionMovePreview>;
+    moveActionToProject?: (input: ActionMoveInput) => Promise<ActionMoveResult>;
     extractAction?: (input: ExtractActionInput) => Promise<ExtractActionResult>;
     broadcastTaskReset?: () => void;
 }
@@ -99,6 +102,10 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getTaskSnapshotV2: () => (hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2")),
         getProjectSupport: ({ projectId }) =>
             hooks.getProjectSupport ? hooks.getProjectSupport(projectId) : unavailable("Project Support"),
+        previewActionMove: (input) =>
+            hooks.previewActionMove ? hooks.previewActionMove(input) : unavailable("Action move preview"),
+        moveActionToProject: (input) =>
+            hooks.moveActionToProject ? hooks.moveActionToProject(input) : unavailable("Action move"),
         extractAction: (input) => (hooks.extractAction ? hooks.extractAction(input) : unavailable("Action extraction")),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),

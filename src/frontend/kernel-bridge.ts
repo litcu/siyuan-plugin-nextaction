@@ -23,6 +23,7 @@ import type {
     RpcReturn,
 } from "../shared/rpc-methods";
 import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
+import type { ActionMovePreview, ActionMoveResult } from "../shared/action-move";
 import { isRpcFailure } from "../shared/rpc-methods";
 import { assertBlockId } from "../shared/block-id";
 import { RPC_ERROR_NOT_READY } from "../shared/constants";
@@ -144,6 +145,20 @@ export class KernelBridge {
 
     async getProjectSupport(projectId: string): Promise<ProjectSupportData> {
         return this.call("getProjectSupport", { projectId: assertBlockId(projectId, "projectId") });
+    }
+
+    async previewActionMove(actionId: string, projectId: string): Promise<ActionMovePreview> {
+        return this.call("previewActionMove", {
+            actionId: assertBlockId(actionId, "actionId"),
+            projectId: assertBlockId(projectId, "projectId"),
+        });
+    }
+
+    async moveActionToProject(actionId: string, projectId: string): Promise<ActionMoveResult> {
+        return this.call("moveActionToProject", {
+            actionId: assertBlockId(actionId, "actionId"),
+            projectId: assertBlockId(projectId, "projectId"),
+        });
     }
 
     async extractAction(input: ExtractActionInput): Promise<ExtractActionResult> {
