@@ -22,6 +22,7 @@
     "release:minor": "node scripts/release-version.js minor",
     "release:major": "node scripts/release-version.js major",
     "release:version": "node scripts/release-version.js",
+    "release:publish": "node scripts/release-publish.js",
     "check:types": "run-p check:types:shared check:types:frontend check:types:kernel check:types:tests",
     "check:types:shared": "tsc -p tsconfig.shared.json",
     "check:types:frontend": "tsc -p tsconfig.frontend.json",

@@ -223,7 +223,7 @@ pnpm run release:package  # 构建市场发布用 package.zip
 <details>
 <summary><b>发布新版本</b></summary>
 
-发布由 Git tag 触发。发布前，先在 [CHANGELOG.md](./CHANGELOG.md) 的 `[Unreleased]` 区域中选择合适分类，至少填写一条以 `- ` 开头的更新内容，并提交该改动。没有内容的分类不会出现在 GitHub Release 正文中。
+发布由 Git tag 触发，发布 commit 必须通过 Pull Request 进入受保护的 `main` 分支。发布前，从最新的 `origin/main` 创建发布分支，在 [CHANGELOG.md](./CHANGELOG.md) 的 `[Unreleased]` 区域中选择合适分类，至少填写一条以 `- ` 开头的更新内容，并提交该更新日志改动。没有内容的分类不会出现在 GitHub Release 正文中。
 
 ```bash
 pnpm run release:patch
@@ -233,7 +233,17 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-命令会校验并封版更新日志，在需要时同步 `package.json` 和 `plugin.json` 的版本号，提交发布文件，创建 `vX.Y.Z` tag，并推送 commit 和 tag。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。GitHub Actions 收到 tag 后会构建 `package.zip`，使用该版本的更新日志作为 GitHub Release 正文，并附上相对前一版本的完整变更链接。
+这些命令必须在非 `main` 分支运行。命令会校验并封版更新日志，在需要时同步 `package.json` 和 `plugin.json` 的版本号，构建发布包，并创建发布 commit；不会推送分支，也不会创建 tag。随后手动推送发布分支、创建 Pull Request，等待检查通过后合并到 `main`。第一次发布时，如果当前版本号已经正确，可以用 `release:current`。
+
+Pull Request 合并后，同步本地 `main` 并发布 tag：
+
+```bash
+git switch main
+git pull --ff-only origin main
+pnpm run release:publish
+```
+
+`release:publish` 会确认工作区干净、当前分支为 `main`、本地 `main` 与 `origin/main` 完全一致、两个版本文件相符且存在对应版本的更新日志，然后只创建并推送 `vX.Y.Z` tag。GitHub Actions 收到 tag 后会构建 `package.zip`，使用该版本的更新日志作为 GitHub Release 正文，并附上相对前一版本的完整变更链接。
 
 </details>
 

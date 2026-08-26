@@ -8,23 +8,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const releaseArg = process.argv[2];
-const packageJsonPath = path.join(projectRoot, "package.json");
-const pluginJsonPath = path.join(projectRoot, "plugin.json");
-const changelogPath = path.join(projectRoot, "CHANGELOG.md");
-
-function run(command, args, options = {}) {
+function run(projectDirectory, command, args, options = {}) {
     execFileSync(command, args, {
-        cwd: projectRoot,
+        cwd: projectDirectory,
         stdio: "inherit",
         shell: shouldUseShell(command),
         ...options,
     });
 }
 
-function output(command, args) {
+function output(projectDirectory, command, args) {
     return execFileSync(command, args, {
-        cwd: projectRoot,
+        cwd: projectDirectory,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         shell: shouldUseShell(command),
@@ -39,11 +34,19 @@ function readJson(filePath) {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function assertCleanWorktree() {
-    const status = output("git", ["status", "--porcelain"]);
+function assertCleanWorktree(commandOutput) {
+    const status = commandOutput("git", ["status", "--porcelain"]);
     if (status) {
         throw new Error("Working tree is not clean. Commit or stash changes before creating a release.");
     }
+}
+
+function assertReleaseBranch(commandOutput) {
+    const branch = commandOutput("git", ["branch", "--show-current"]);
+    if (!branch || branch === "main") {
+        throw new Error("Create and switch to a release branch before preparing a release; main is protected.");
+    }
+    return branch;
 }
 
 function parseVersion(version) {
@@ -54,7 +57,7 @@ function parseVersion(version) {
     return match.slice(1, 4).map(Number);
 }
 
-function nextVersion(current, bump) {
+export function nextVersion(current, bump) {
     const [major, minor, patch] = parseVersion(current);
     switch (bump) {
         case "current":
@@ -81,21 +84,29 @@ function replaceVersion(filePath, version) {
     fs.writeFileSync(filePath, updated);
 }
 
-function finalizeChangelog(version) {
+function finalizeChangelog(changelogPath, version, now) {
     const changelog = fs.readFileSync(changelogPath, "utf8");
-    const now = new Date();
     const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
         .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
         .join("-");
     return finalizeUnreleased(changelog, version, date);
 }
 
-function main() {
+export function prepareRelease(releaseArg, options = {}) {
     if (!releaseArg) {
         throw new Error("Missing release version. Use patch, minor, major, or an explicit x.y.z version.");
     }
 
-    assertCleanWorktree();
+    const projectDirectory = options.projectRoot || projectRoot;
+    const runCommand = options.runCommand || ((command, args) => run(projectDirectory, command, args));
+    const commandOutput = options.commandOutput || ((command, args) => output(projectDirectory, command, args));
+    const now = options.now || new Date();
+    const packageJsonPath = path.join(projectDirectory, "package.json");
+    const pluginJsonPath = path.join(projectDirectory, "plugin.json");
+    const changelogPath = path.join(projectDirectory, "CHANGELOG.md");
+
+    assertCleanWorktree(commandOutput);
+    const branch = assertReleaseBranch(commandOutput);
 
     const pkg = readJson(packageJsonPath);
     const plugin = readJson(pluginJsonPath);
@@ -105,7 +116,7 @@ function main() {
 
     const version = nextVersion(pkg.version, releaseArg);
     const tag = `v${version}`;
-    const finalizedChangelog = finalizeChangelog(version);
+    const finalizedChangelog = finalizeChangelog(changelogPath, version, now);
 
     const shouldCommitVersion = version !== pkg.version;
     if (shouldCommitVersion) {
@@ -114,16 +125,28 @@ function main() {
     }
     fs.writeFileSync(changelogPath, finalizedChangelog);
 
-    run("pnpm", ["run", "release:package"]);
+    runCommand("pnpm", ["run", "release:package"]);
 
-    run("git", ["add", "package.json", "plugin.json", "CHANGELOG.md"]);
-    run("git", ["commit", "-m", `chore: release ${tag}`]);
-    run("git", ["tag", tag]);
-    run("git", ["push", "origin", "HEAD"]);
-    run("git", ["push", "origin", tag]);
+    runCommand("git", ["add", "package.json", "plugin.json", "CHANGELOG.md"]);
+    runCommand("git", ["commit", "-m", `chore: release ${tag}`]);
 
-    console.log(`Release tag pushed: ${tag}`);
-    console.log("GitHub Actions will build package.zip and create the GitHub Release.");
+    console.log(`Release commit prepared on ${branch}: ${tag}`);
+    console.log(`Push ${branch}, open a pull request, and merge it into main.`);
+    console.log("After the merge, update local main and run: pnpm run release:publish");
+
+    return { branch, tag, version };
 }
 
-main();
+function isDirectExecution() {
+    if (!process.argv[1]) return false;
+    return path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+}
+
+if (isDirectExecution()) {
+    try {
+        prepareRelease(process.argv[2]);
+    } catch (error) {
+        console.error(error instanceof Error ? error.message : error);
+        process.exitCode = 1;
+    }
+}
