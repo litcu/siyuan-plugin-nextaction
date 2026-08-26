@@ -4,7 +4,7 @@
 
 ### 任务散落在笔记各处，攒多了就分不清下一步要做什么。
 
-![version](https://img.shields.io/badge/version-0.6.0-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
+![version](https://img.shields.io/badge/version-0.8.0-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
 
 [English](./README.md)
 
