@@ -58,6 +58,8 @@ export interface ConfirmedTaskBatchResult {
 export interface ConfirmedTaskChanges {
     upsertAttrs(request: TaskAttrUpsert): Promise<TaskCacheEntry>;
     upsertAttrsBatch(requests: TaskAttrUpsert[]): Promise<ConfirmedTaskBatchResult>;
+    upsertAttrsWithConfirmedRollback(requests: TaskAttrUpsert[]): Promise<TaskCacheEntry[]>;
+    refreshEntry(request: TaskAttrUpsert & { attrs: Record<string, string> }): TaskCacheEntry;
     upsertEntry(entry: TaskCacheEntry): void;
     deleteEntry(blockId: string): void;
 }
@@ -148,6 +150,20 @@ export class TaskRepository {
         const changes: ConfirmedTaskChanges = {
             upsertAttrs: (request) => this.upsertAttrs(request, changedIds),
             upsertAttrsBatch: (requests) => this.upsertAttrsBatch(requests, changedIds),
+            upsertAttrsWithConfirmedRollback: (requests) => this.upsertAttrsWithConfirmedRollback(requests, changedIds),
+            refreshEntry: (request) => {
+                const entry = buildTaskEntryFromAttrs(
+                    request.blockId,
+                    request.attrs,
+                    this.settings,
+                    request.existing ?? this.cacheManager.get(request.blockId),
+                    request.titleOverride,
+                    request.identity,
+                );
+                this.cacheManager.set(entry);
+                changedIds.add(entry.blockId);
+                return entry;
+            },
             upsertEntry: (entry) => {
                 this.cacheManager.set(entry);
                 changedIds.add(entry.blockId);
@@ -341,6 +357,80 @@ export class TaskRepository {
             );
             return this.upsertAttrsIndividually(requests, changedIds);
         }
+    }
+
+    private async upsertAttrsWithConfirmedRollback(
+        requests: TaskAttrUpsert[],
+        changedIds: Set<string>,
+    ): Promise<TaskCacheEntry[]> {
+        if (requests.length === 0) return [];
+        const uniqueBlockIds = new Set(requests.map((request) => request.blockId));
+        if (uniqueBlockIds.size !== requests.length) {
+            throw new Error("Rollback-confirmed task attribute batch contains duplicate block IDs");
+        }
+
+        const blockIds = requests.map((request) => request.blockId);
+        const previousAttrsByBlockId = await this.api.batchGetBlockAttrs(blockIds);
+        const rollbackRequests = requests.map((request) => {
+            const previousAttrs = previousAttrsByBlockId[request.blockId] || {};
+            return {
+                id: request.blockId,
+                attrs: Object.fromEntries(Object.keys(request.attrs).map((key) => [key, previousAttrs[key] || ""])),
+            };
+        });
+
+        let confirmedAttrsByBlockId: Record<string, Record<string, string>>;
+        try {
+            await this.api.batchSetBlockAttrs(
+                requests.map((request) => ({ id: request.blockId, attrs: request.attrs })),
+            );
+            confirmedAttrsByBlockId = await this.api.batchGetBlockAttrs(blockIds);
+            for (const request of requests) {
+                const confirmedAttrs = confirmedAttrsByBlockId[request.blockId];
+                const confirmed =
+                    confirmedAttrs &&
+                    Object.entries(request.attrs).every(([key, value]) => (confirmedAttrs[key] || "") === value);
+                if (!confirmed) throw new Error(`Task attribute confirmation failed for ${request.blockId}`);
+            }
+        } catch (cause: unknown) {
+            try {
+                await this.api.batchSetBlockAttrs(rollbackRequests);
+                const rolledBackAttrsByBlockId = await this.api.batchGetBlockAttrs(blockIds);
+                for (const rollback of rollbackRequests) {
+                    const rolledBackAttrs = rolledBackAttrsByBlockId[rollback.id];
+                    const confirmed =
+                        rolledBackAttrs &&
+                        Object.entries(rollback.attrs).every(([key, value]) => (rolledBackAttrs[key] || "") === value);
+                    if (!confirmed) throw new Error(`Task attribute rollback confirmation failed for ${rollback.id}`);
+                }
+            } catch (rollbackError: unknown) {
+                const message = this.errorMessage(rollbackError);
+                void this.api.log("error", `TaskRepository: confirmed attribute rollback failed: ${message}`);
+                const error = new Error(
+                    `Task update failed and rollback could not be confirmed: ${message}`,
+                ) as Error & {
+                    cause?: unknown;
+                };
+                error.cause = cause;
+                throw error;
+            }
+            throw cause;
+        }
+
+        const entries = requests.map((request) => {
+            const entry = buildTaskEntryFromAttrs(
+                request.blockId,
+                confirmedAttrsByBlockId[request.blockId],
+                this.settings,
+                request.existing ?? this.cacheManager.get(request.blockId),
+                request.titleOverride,
+                request.identity,
+            );
+            this.cacheManager.set(entry);
+            changedIds.add(entry.blockId);
+            return entry;
+        });
+        return entries;
     }
 
     private async upsertAttrsIndividually(

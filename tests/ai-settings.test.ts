@@ -64,4 +64,7 @@ test("AI 请求会显式插入功能输入数据并附带严格 JSON 示例", ()
     assert.match(aiServiceSource, /【必须模仿的完整 JSON 示例】/);
     assert.match(aiServiceSource, /第一个字符必须是 \{/);
     assert.match(aiServiceSource, /禁止 Markdown、代码围栏/);
+    // Regression: extractTasks 示例将必填 sourceBlockId 错写为 null，导致真实模型输出无法通过来源校验。
+    assert.doesNotMatch(aiServiceSource, /"sourceBlockId": null/);
+    assert.match(aiServiceSource, /sourceBlockId.*sourceBlockIds/);
 });

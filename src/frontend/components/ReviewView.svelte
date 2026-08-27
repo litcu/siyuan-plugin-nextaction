@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount, tick } from "svelte";
     import { runAiReview } from "../ai/ai-feature-service";
     import type { KernelBridge } from "../kernel-bridge";
-    import type { TaskCacheEntry, ReviewData } from "../../shared/types";
+    import type { ProjectSummary, TaskCacheEntry, ReviewData } from "../../shared/types";
     import ReviewGuide from "./ReviewGuide.svelte";
     import ReviewDueList from "./ReviewDueList.svelte";
     import ProjectReviewQueue from "./ProjectReviewQueue.svelte";
@@ -12,6 +12,7 @@
     import { taskStore } from "../stores/task-store";
     import { notifyOperationError } from "../notify";
     import { excludeManualProjectReviewTasks } from "../../shared/review";
+    import { confirmProjectCompletion } from "../utils/project-view-state";
 
     export let bridge: KernelBridge;
     export let selectedTaskId: string;
@@ -20,14 +21,17 @@
     export let onOpenProject: (project: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
     export let i18n: any;
     export let manualProjectIds: string[] = [];
     export let expandedProjectId: string = "";
+    export let reviewScrollTop = 0;
 
     let reviewData: ReviewData | null = null;
     let loading = false;
     let completing = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let reviewScrollElement: HTMLDivElement | null = null;
 
     $: visibleReviewData = reviewData ? excludeManualProjectReviewTasks(reviewData, manualProjectIds) : null;
 
@@ -51,6 +55,8 @@
         loading = true;
         try {
             reviewData = await bridge.getReviewData();
+            await tick();
+            if (reviewScrollElement) reviewScrollElement.scrollTop = reviewScrollTop;
         } catch (e: any) {
             console.error("[NextAction] loadReviewData failed:", e);
             reviewData = null;
@@ -88,12 +94,28 @@
         }
     }
 
+    async function handleConfirmProject(summary: ProjectSummary): Promise<boolean> {
+        try {
+            await confirmProjectCompletion(summary, async (task, attrs) => {
+                const updated = await bridge.updateTask(task.blockId, attrs);
+                taskStore.applyUpdate(updated);
+                return updated;
+            });
+            await loadReviewData();
+            return true;
+        } catch (error: any) {
+            console.error("[NextAction] confirm project completion failed:", error);
+            notifyOperationError(error, i18n);
+            return false;
+        }
+    }
+
     onMount(() => {
         if (refreshTimer) {
             clearTimeout(refreshTimer);
             refreshTimer = null;
         }
-        loadReviewData();
+        void loadReviewData();
     });
 
     onDestroy(() => {
@@ -109,6 +131,7 @@
     empty={!reviewData && !loading}
     emptyText={i18n?.noData || "No data"}
     hint={i18n?.viewHintReview}
+    scrollMode="none"
 >
     <svelte:fragment slot="toolbar"
         ><NaToolbar compact>
@@ -130,7 +153,11 @@
         </NaToolbar></svelte:fragment
     >
     {#if visibleReviewData}
-        <div class="na-review__scroll">
+        <div
+            class="na-review__scroll"
+            bind:this={reviewScrollElement}
+            on:scroll={() => (reviewScrollTop = reviewScrollElement?.scrollTop || 0)}
+        >
             <section class="na-review__section">
                 <h3 class="na-review__section-title">{i18n?.reviewProjectTitle || "Project Reviews"}</h3>
                 <ProjectReviewQueue
@@ -145,6 +172,8 @@
                     {onStatusClick}
                     {onContextMenu}
                     onMarkReviewed={handleMarkReviewed}
+                    {onCreateAction}
+                    onConfirmCompletion={handleConfirmProject}
                 />
             </section>
             <section class="na-review__section">

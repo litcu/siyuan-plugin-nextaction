@@ -1,6 +1,14 @@
-import { validateAiProposal, type AiProposal } from "./ai";
+import { validateAiProposal, type AiProposal, type AiProposalApplyResult, type AiProposalContext } from "./ai";
+import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
+import type {
+    ActionMoveInput,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoInput,
+    ActionMoveUndoResult,
+} from "./action-move";
 import { assertBlockId } from "./block-id";
-import { RPC_ERROR_INVALID_PARAMS } from "./constants";
+import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
 import type { RepeatRuleV2 } from "./repeat";
 import { validateSettings, type PluginSettings } from "./settings";
 import type { CompletedTasksPageOptions } from "./task-pagination";
@@ -15,6 +23,7 @@ import type {
     CompletedTasksPage,
     MyDayState,
     ReviewData,
+    ProjectSupportData,
     StatisticsResult,
     TaskCacheEntry,
     TaskSnapshotV2,
@@ -82,13 +91,7 @@ export interface RpcCustomFieldDiagnostics {
     orphans: Array<{ key: string; count: number; sampleBlockIds: string[] }>;
 }
 
-export interface RpcAiApplyResult {
-    feature: string;
-    created: TaskCacheEntry[];
-    converted: TaskCacheEntry[];
-    myDay: MyDayState | null;
-    warnings: string[];
-}
+export type RpcAiApplyResult = AiProposalApplyResult;
 
 export class RpcContractError extends Error {
     readonly code = RPC_ERROR_INVALID_PARAMS;
@@ -163,6 +166,26 @@ function blockIdParams(value: unknown): { blockId: string } {
     return { blockId: requiredBlockId(input.blockId) };
 }
 
+function actionMoveParams(value: unknown): ActionMoveInput {
+    const input = paramsRecord(value);
+    let destination: ActionMoveInput["destination"];
+    if (input.destination !== undefined) {
+        const rawDestination = requiredObject(input.destination, "destination");
+        destination = {
+            previousId:
+                rawDestination.previousId === ""
+                    ? ""
+                    : requiredBlockId(rawDestination.previousId, "destination.previousId"),
+            nextId: rawDestination.nextId === "" ? "" : requiredBlockId(rawDestination.nextId, "destination.nextId"),
+        };
+    }
+    return {
+        actionId: requiredBlockId(input.actionId, "actionId"),
+        projectId: requiredBlockId(input.projectId, "projectId"),
+        ...(destination ? { destination } : {}),
+    };
+}
+
 function createTaskParams(value: unknown): CreateTaskInput {
     const input = paramsRecord(value);
     const title = requiredString(input.title, "title");
@@ -201,16 +224,76 @@ function createTaskParams(value: unknown): CreateTaskInput {
     return { ...input, title, destination } as unknown as CreateTaskInput;
 }
 
-function proposalParams(value: unknown): { proposal: AiProposal } {
+function extractActionParams(value: unknown): ExtractActionInput {
     const input = paramsRecord(value);
-    const validation = validateAiProposal(input.proposal);
-    if (validation.errors.length > 0) throw new RpcContractError(validation.errors[0]);
-    return { proposal: validation.proposal };
+    const status = requiredString(input.status, "status");
+    if (!(ALL_STATUSES as readonly string[]).includes(status)) {
+        throw new RpcContractError("status is invalid");
+    }
+    if (input.actionKind !== ACTION_KIND_ACTION && input.actionKind !== ACTION_KIND_STAGE) {
+        throw new RpcContractError("actionKind must be action or stage");
+    }
+    const start = optionalString(input.start, "start");
+    const due = optionalString(input.due, "due");
+    const projectId = optionalBlockId(input.projectId, "projectId");
+    return {
+        sourceBlockId: requiredBlockId(input.sourceBlockId, "sourceBlockId"),
+        title: requiredString(input.title, "title"),
+        status,
+        actionKind: input.actionKind,
+        ...(start !== undefined ? { start } : {}),
+        ...(due !== undefined ? { due } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
+    };
 }
 
-function rawProposalParams(value: unknown): { proposal: AiProposal } {
+function proposalContext(value: unknown): AiProposalContext {
+    if (value === undefined) return {};
+    const input = requiredObject(value, "context");
+    if (input.sourceBlockIds !== undefined && !Array.isArray(input.sourceBlockIds)) {
+        throw new RpcContractError("context.sourceBlockIds must be an array");
+    }
+    if (Array.isArray(input.sourceBlockIds) && input.sourceBlockIds.length > 100) {
+        throw new RpcContractError("context.sourceBlockIds must contain at most 100 items");
+    }
+    const defaultProjectId = optionalBlockId(input.defaultProjectId, "context.defaultProjectId");
+    return {
+        ...(Array.isArray(input.sourceBlockIds)
+            ? {
+                  sourceBlockIds: [
+                      ...new Set(
+                          input.sourceBlockIds.map((blockId, index) =>
+                              requiredBlockId(blockId, `context.sourceBlockIds[${index}]`),
+                          ),
+                      ),
+                  ],
+              }
+            : {}),
+        ...(defaultProjectId ? { defaultProjectId } : {}),
+    };
+}
+
+function proposalParams(value: unknown): { proposal: AiProposal; context: AiProposalContext } {
     const input = paramsRecord(value);
-    return { proposal: requiredObject(input.proposal, "proposal") as unknown as AiProposal };
+    const context = proposalContext(input.context);
+    const validation = validateAiProposal(input.proposal, context);
+    if (validation.errors.length > 0) throw new RpcContractError(validation.errors[0]);
+    if (
+        validation.proposal.feature === "extractTasks" &&
+        (validation.proposal.tasks?.length || 0) > 0 &&
+        !context.sourceBlockIds?.length
+    ) {
+        throw new RpcContractError("context.sourceBlockIds is required for extractTasks");
+    }
+    return { proposal: validation.proposal, context };
+}
+
+function rawProposalParams(value: unknown): { proposal: AiProposal; context: AiProposalContext } {
+    const input = paramsRecord(value);
+    return {
+        proposal: requiredObject(input.proposal, "proposal") as unknown as AiProposal,
+        context: proposalContext(input.context),
+    };
 }
 
 export const RPC_CONTRACT = {
@@ -250,6 +333,10 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { blockId: requiredBlockId(input.blockId), attrs: stringRecord(input.attrs, "attrs") };
     }),
+    updateTaskTitle: defineRpc<{ blockId: string; title: string }, TaskCacheEntry>((value) => {
+        const input = paramsRecord(value);
+        return { blockId: requiredBlockId(input.blockId), title: requiredString(input.title, "title") };
+    }),
     setRepeatRule: defineRpc<{ blockId: string; rule: RepeatRuleV2 }, TaskCacheEntry>((value) => {
         const input = paramsRecord(value);
         return {
@@ -270,6 +357,17 @@ export const RPC_CONTRACT = {
         return { status: optionalString(input.status, "status"), sortBy: optionalString(input.sortBy, "sortBy") };
     }),
     getTaskSnapshotV2: defineRpc<Record<string, never>, TaskSnapshotV2>(noParams),
+    getProjectSupport: defineRpc<{ projectId: string }, ProjectSupportData>((value) => {
+        const input = paramsRecord(value);
+        return { projectId: requiredBlockId(input.projectId, "projectId") };
+    }),
+    previewActionMove: defineRpc<ActionMoveInput, ActionMovePreview>(actionMoveParams),
+    moveActionToProject: defineRpc<ActionMoveInput, ActionMoveResult>(actionMoveParams),
+    undoActionMove: defineRpc<ActionMoveUndoInput, ActionMoveUndoResult>((value) => {
+        const input = paramsRecord(value);
+        return { credential: requiredString(input.credential, "credential") };
+    }),
+    extractAction: defineRpc<ExtractActionInput, ExtractActionResult>(extractActionParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);
         for (const key of ["page", "pageSize"] as const) {
@@ -318,10 +416,11 @@ export const RPC_CONTRACT = {
         return { settings };
     }),
     getSettings: defineRpc<Record<string, never>, PluginSettings>(noParams),
-    validateAiProposal: defineRpc<{ proposal: AiProposal }, { proposal: AiProposal; errors: string[] }>(
-        rawProposalParams,
-    ),
-    applyAiProposal: defineRpc<{ proposal: AiProposal }, RpcAiApplyResult>(proposalParams),
+    validateAiProposal: defineRpc<
+        { proposal: AiProposal; context: AiProposalContext },
+        { proposal: AiProposal; errors: string[] }
+    >(rawProposalParams),
+    applyAiProposal: defineRpc<{ proposal: AiProposal; context: AiProposalContext }, RpcAiApplyResult>(proposalParams),
     getMcpStatus: defineRpc<Record<string, never>, RpcMcpStatus>(noParams),
     listMcpTargetNotebooks: defineRpc<Record<string, never>, RpcMcpNotebookTarget[]>(noParams),
     listMcpTargetDocuments: defineRpc<

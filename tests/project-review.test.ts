@@ -7,6 +7,7 @@ import {
     projectReviewPlanTasks,
 } from "../src/shared/review.ts";
 import { buildProjectSummaries } from "../src/shared/project-domain.ts";
+import { buildProjectControlState } from "../src/shared/project-control.ts";
 import type { ReviewData, TaskCacheEntry } from "../src/shared/types.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -59,9 +60,9 @@ test("项目周期到期与多个风险合并为唯一 Review 队列项", () => 
     });
     const overdue = task("overdue", { parentId: project.blockId, due: "2026-08-20" });
     const blocked = task("blocked", { parentId: project.blockId, blocked: true, blockedReason: "dependency" });
-    const summaries = buildProjectSummaries([project, overdue, blocked], { today: "2026-08-25" });
+    const control = buildProjectControlState([project, overdue, blocked], { today: "2026-08-25" });
 
-    const result = buildProjectReviewQueue(summaries, "2026-08-25");
+    const result = buildProjectReviewQueue(control, "2026-08-25");
 
     assert.equal(result.queue.length, 1);
     assert.equal(result.queue[0].summary.project.blockId, project.blockId);
@@ -81,8 +82,8 @@ test("风险消失后项目离开自动队列，但仍可手动立即回顾", ()
         blocked: true,
         blockedReason: "dependency",
     });
-    const risky = buildProjectSummaries([project, blockedAction], { today: "2026-08-25" });
-    const healthy = buildProjectSummaries([project, task("action", { parentId: project.blockId })], {
+    const risky = buildProjectControlState([project, blockedAction], { today: "2026-08-25" });
+    const healthy = buildProjectControlState([project, task("action", { parentId: project.blockId })], {
         today: "2026-08-25",
     });
 
@@ -108,9 +109,9 @@ test("叶子行动完成后的 completionCandidate 进入项目回顾队列", ()
     // Regression: removing the generic active-project checklist could hide completion candidates from Review.
     const project = task("project", { taskType: "2", status: "doing" });
     const completedAction = task("action", { parentId: project.blockId, status: "done" });
-    const summaries = buildProjectSummaries([project, completedAction], { today: "2026-08-25" });
+    const control = buildProjectControlState([project, completedAction], { today: "2026-08-25" });
 
-    const result = buildProjectReviewQueue(summaries, "2026-08-25");
+    const result = buildProjectReviewQueue(control, "2026-08-25");
 
     assert.equal(result.queue.length, 1);
     assert.equal(result.queue[0].summary.completionCandidate, true);
@@ -128,7 +129,7 @@ test("项目自身阻塞时即使存在可执行子项也进入风险回顾", ()
     const action = task("action", { parentId: project.blockId });
 
     const result = buildProjectReviewQueue(
-        buildProjectSummaries([project, action], { today: "2026-08-25" }),
+        buildProjectControlState([project, action], { today: "2026-08-25" }),
         "2026-08-25",
     );
 

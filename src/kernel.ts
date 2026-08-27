@@ -22,6 +22,10 @@ import { TaskIdentityResolver } from "./kernel/task-identity-resolver";
 import { RpcContractError } from "./shared/rpc-methods";
 import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
+import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/project-support-service";
+import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action-extraction-service";
+import { ActionMoveService } from "./kernel/action-move-service";
+import { SiyuanActionMoveStructurePort } from "./kernel/action-move-structure-port";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -79,10 +83,14 @@ class NextActionKernelPlugin {
             this.taskTargetResolver,
             this.taskCreationService,
         );
-        const createTask = async (input: Parameters<TaskCreationService["create"]>[0]) => {
+        const createTask = async (
+            input: Parameters<TaskCreationService["create"]>[0],
+            options?: Parameters<TaskCreationService["create"]>[2],
+        ) => {
             const outcome = await this.taskCreationService.create(
                 input,
                 this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+                options,
             );
             return this.mcpToolManager.executor.adaptTaskCreationOutcome(outcome);
         };
@@ -93,7 +101,20 @@ class NextActionKernelPlugin {
             );
             return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
         };
-        const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask);
+        const actionSourcePort = new SiyuanActionSourcePort(api);
+        const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask, actionSourcePort);
+        const projectSupportService = new ProjectSupportService(new SiyuanProjectSupportQueryPort(api));
+        const actionExtractionService = new ActionExtractionService(
+            this.taskService,
+            this.taskCreationService,
+            actionSourcePort,
+        );
+        const actionMoveService = new ActionMoveService(
+            this.cacheManager,
+            taskRepository,
+            taskIdentities,
+            new SiyuanActionMoveStructurePort(api),
+        );
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -106,6 +127,23 @@ class NextActionKernelPlugin {
             resolveChildTarget: (value) => this.taskTargetResolver.resolveChildTarget(value),
             createTask,
             aiProposalService,
+            getProjectSupport: async (projectId) => {
+                this.taskService.assertReady();
+                return projectSupportService.load(this.taskService.getTask(projectId));
+            },
+            previewActionMove: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.preview(input);
+            },
+            moveActionToProject: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.move(input);
+            },
+            undoActionMove: (input) => {
+                this.taskService.assertReady();
+                return actionMoveService.undo(input);
+            },
+            extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),
         });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,27 +8,10 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import { findBrowserExecutable } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-
-function findBrowserExecutable(): string {
-    const configured = process.env.NA_LAYOUT_BROWSER;
-    const candidates = [
-        configured,
-        process.platform === "win32" ? "C:/Program Files/Google/Chrome/Application/chrome.exe" : undefined,
-        process.platform === "win32" ? "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" : undefined,
-        process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined,
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-    ].filter((candidate): candidate is string => Boolean(candidate));
-
-    const executable = candidates.find((candidate) => existsSync(candidate));
-    assert.ok(executable, "未找到用于布局回归测试的 Chrome/Edge；可通过 NA_LAYOUT_BROWSER 指定浏览器路径");
-    return executable;
-}
 
 // Regression: 多选搜索框的选项总宽度超过控件宽度时不得横向溢出。
 test("多选搜索框会在固定宽度内容纳过长选项", async () => {

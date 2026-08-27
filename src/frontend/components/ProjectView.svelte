@@ -8,6 +8,8 @@
     import ProjectBoardMode from "./project/ProjectBoardMode.svelte";
     import ProjectPlanMode from "./project/ProjectPlanMode.svelte";
     import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
+    import ProjectDefinitionEditor from "./project/ProjectDefinitionEditor.svelte";
+    import ProjectStagePlan from "./project/ProjectStagePlan.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -17,14 +19,23 @@
     import NaToggle from "../ui/NaToggle.svelte";
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
-    import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+    import type {
+        ProjectControlRisk,
+        ProjectRisk,
+        ProjectSummary,
+        ProjectSupportData,
+        TaskCacheEntry,
+    } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
+    import { jumpToBlock } from "../utils";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
     import { taskStore } from "../stores/task-store";
-    import { runAiDecomposeTask } from "../ai/ai-feature-service";
+    import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
+    import type { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
         buildProjectViewModel,
+        buildProjectViewControl,
         confirmProjectCompletion,
         executeProjectBoardMove,
         shouldShowProjectCompletionPanel,
@@ -43,18 +54,26 @@
     export let selectedTaskOverride: TaskCacheEntry | null = null;
     export let requestedProjectId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onTaskUpdate: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<void>) | undefined =
-        undefined;
+    export let onTaskUpdate:
+        ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
+    export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
+    export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
+    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+    export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
 
-    type RiskItem = { summary: ProjectSummary; risk: ProjectRisk; target: TaskCacheEntry };
+    type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
     let mode: ProjectViewMode = "overview";
     let activeProjectId = "";
     let appliedRequestedProjectId = "";
+    let appliedSelectedTaskId = selectedTaskId;
     let requestedProjectFilterBypassId = "";
+    let preferActiveProject = false;
     let collapsedIds: Set<string> = new Set();
     let showCompleted = false;
     let riskFilter: ProjectRiskFilter = "all";
@@ -65,17 +84,24 @@
 
     $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
         activeProjectId = requestedProjectId;
+        preferActiveProject = true;
         requestedProjectFilterBypassId = requestedProjectId;
         appliedRequestedProjectId = requestedProjectId;
     }
 
+    $: if (selectedTaskId !== appliedSelectedTaskId) {
+        appliedSelectedTaskId = selectedTaskId;
+        preferActiveProject = false;
+    }
+
     $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: viewModel = buildProjectViewModel($taskStore.allTasks, $taskStore.settings.customFields, {
+    $: viewState = {
         mode,
         activeProjectId,
         filterBypassProjectId: requestedProjectFilterBypassId,
         selectedTaskId,
         selectedTaskOverride,
+        preferActiveProject,
         showCompleted,
         riskFilter,
         dateFilter,
@@ -84,11 +110,14 @@
         collapsedIds,
         ganttSortMode,
         startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
-    });
+    };
+    $: projectControl = buildProjectViewControl($taskStore.allTasks, viewState);
+    $: viewModel = buildProjectViewModel(projectControl, $taskStore.settings.customFields, viewState);
     $: resolvedActiveProjectId = viewModel.activeProjectId;
     $: summaries = viewModel.summaries;
     $: visibleSummaries = viewModel.visibleSummaries;
     $: selectedSummary = viewModel.selectedSummary;
+    $: selectedProject = viewModel.selectedProject;
     $: riskItems = viewModel.riskItems;
     $: projectTreeModel = viewModel.projectTreeModel;
     $: boardTasks = viewModel.boardTasks;
@@ -127,6 +156,7 @@
     function selectProject(summary: ProjectSummary) {
         requestedProjectFilterBypassId = "";
         activeProjectId = summary.project.blockId;
+        preferActiveProject = true;
     }
 
     function workItemCount(summary: ProjectSummary): number {
@@ -329,15 +359,45 @@
                     />
                 {/if}
 
+                <div hidden={mode !== "overview"}>
+                    <ProjectDefinitionEditor
+                        project={selectedSummary.project}
+                        {i18n}
+                        onSave={onTaskUpdate}
+                        controllerRegistry={projectDefinitionControllerRegistry}
+                    />
+                </div>
+
                 {#if mode === "overview"}
+                    {#if projectTreeModel}
+                        <ProjectStagePlan
+                            project={selectedSummary.project}
+                            model={projectTreeModel}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            onCreateStage={onCreateStage ? () => onCreateStage?.(selectedSummary.project) : undefined}
+                            onRenameTask={onTaskRename}
+                            {onTaskUpdate}
+                            {onTaskReorder}
+                            {onMoveAction}
+                        />
+                    {/if}
                     <ProjectOverviewMode
                         summary={selectedSummary}
+                        risks={selectedProject?.risks || []}
                         {selectedTaskId}
                         {i18n}
                         {onSelectTask}
                         {onEdit}
                         {onStatusClick}
                         {onContextMenu}
+                        {loadProjectSupport}
+                        onOpenProjectSupport={jumpToBlock}
+                        {onExtractAction}
+                        onCreateAction={onCreateChild}
+                        onAiExtractAction={(sourceBlockId, projectId) =>
+                            runAiExtractTasks([sourceBlockId], { projectId })}
                     />
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode
@@ -407,13 +467,13 @@
                         class="na-project-risk-rail__item"
                         on:click={() => {
                             activeProjectId = item.summary.project.blockId;
-                            onSelectTask?.(item.target);
+                            onSelectTask?.(item.risk.target);
                         }}
                     >
                         <span class="na-project-risk__marker na-project-risk__marker--{item.risk.severity}"></span>
                         <span
                             ><strong>{riskLabel(item.risk.kind)}</strong><small
-                                >{item.target.title || i18n?.untitled || "(untitled)"}</small
+                                >{item.risk.target.title || i18n?.untitled || "(untitled)"}</small
                             ><em>{item.summary.project.title || i18n?.untitled || "(untitled)"}</em></span
                         >
                     </button>

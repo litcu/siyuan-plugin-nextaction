@@ -28,6 +28,7 @@ import {
 import { FakeMyDayTaskPort, FakeSiyuanApi, FakeTaskChangePublisher, taskFactory } from "./helpers/fakes.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 import { isMyDayEntryDone } from "../src/shared/my-day.ts";
+import { McpToolError } from "../src/kernel/mcp-tool-error.ts";
 
 const ID = "20260816123456-abcdefg";
 const OTHER_ID = "20260816123457-hijklmn";
@@ -248,6 +249,89 @@ test("父关系更新拒绝间接循环", async () => {
     );
 });
 
+test("Stage 重排部分写入失败时回滚父级与所有排序", async () => {
+    // Regression: a later reorder write could fail after the parent or a sibling sort had already persisted.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816121200-project";
+    const stageId = "20260816121201-stagexx";
+    const firstId = "20260816121202-firstxx";
+    const secondId = "20260816121203-secondx";
+    for (const [id, taskType, parentId, sort] of [
+        [projectId, "2", "", "0"],
+        [stageId, "1", projectId, "1"],
+        [firstId, "1", projectId, "2"],
+        [secondId, "1", projectId, "3"],
+    ]) {
+        const block = api.addBlock(id, "d", id);
+        Object.assign(block.attrs, {
+            [ATTR_TASK]: taskType,
+            [ATTR_STATUS]: "todo",
+            [ATTR_PARENT]: parentId,
+            [ATTR_SORT]: sort,
+        });
+    }
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2", sort: 0 }));
+    cache.set(taskFactory(stageId, { parentId: projectId, actionKind: "stage", sort: 1 }));
+    cache.set(taskFactory(firstId, { parentId: projectId, sort: 2 }));
+    cache.set(taskFactory(secondId, { parentId: projectId, sort: 3 }));
+
+    const originalBatchWrite = api.batchSetBlockAttrs.bind(api);
+    let batchWriteCount = 0;
+    api.batchSetBlockAttrs = async (requests) => {
+        batchWriteCount++;
+        if (batchWriteCount === 1) {
+            await api.setBlockAttrs(requests[0].id, requests[0].attrs);
+            throw new Error("simulated partial reorder failure");
+        }
+        await originalBatchWrite(requests);
+    };
+
+    await assert.rejects(service.reorderTask(stageId, projectId, firstId), /simulated partial reorder failure/);
+    assert.equal(api.blocks.get(stageId)?.attrs[ATTR_PARENT], projectId);
+    assert.equal(api.blocks.get(stageId)?.attrs[ATTR_SORT], "1");
+    assert.equal(api.blocks.get(firstId)?.attrs[ATTR_SORT], "2");
+    assert.equal(api.blocks.get(secondId)?.attrs[ATTR_SORT], "3");
+    assert.equal(service.getTask(stageId)?.parentId, projectId);
+    assert.equal(service.getTask(stageId)?.sort, 1);
+});
+
+test("Stage 结构写入拒绝缺失父级、自身父级与后代循环", async () => {
+    // Regression: Project plan relationship edits must use the same structural validation as every other caller.
+    const api = new FakeSiyuanApi();
+    const projectId = "20260816121300-project";
+    const stageId = "20260816121301-stagexx";
+    const childId = "20260816121302-childxx";
+    for (const [id, taskType, parentId] of [
+        [projectId, "2", ""],
+        [stageId, "1", projectId],
+        [childId, "1", stageId],
+    ]) {
+        const block = api.addBlock(id, "d", id);
+        Object.assign(block.attrs, {
+            [ATTR_TASK]: taskType,
+            [ATTR_STATUS]: "todo",
+            [ATTR_PARENT]: parentId,
+        });
+    }
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+    cache.set(taskFactory(projectId, { taskType: "2" }));
+    cache.set(taskFactory(stageId, { parentId: projectId, actionKind: "stage" }));
+    cache.set(taskFactory(childId, { parentId: stageId }));
+
+    for (const invalidParentId of ["20260816121399-missing", stageId, childId]) {
+        await assert.rejects(service.reorderTask(stageId, invalidParentId));
+    }
+    assert.equal(service.getTask(stageId)?.parentId, projectId);
+    assert.equal(api.blocks.get(stageId)?.attrs[ATTR_PARENT], projectId);
+});
+
 test("取消 Project 只清理项目标记和直接 Action 的显式归属", async () => {
     // Regression: removing a Project used to clear every task field and reuse generic child re-parenting.
     const api = new FakeSiyuanApi();
@@ -457,6 +541,67 @@ test("权威回读失败时不产生虚假的缓存成功状态", async () => {
     const native = [...api.blocks.values()].find((block) => block.type === "i" && block.subtype === "t");
     assert.equal(native?.attrs[ATTR_STATUS], undefined);
     assert.equal(cache.get(ID), undefined);
+});
+
+test("文本块转换回滚失败会报告部分写入而不是普通失败", async () => {
+    const { api, service } = setup();
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+    api.failAtRequest.set("/api/block/updateBlock", 2);
+
+    // Regression: 回滚失败被吞掉后会错误标记为可重试 failed，尽管来源块可能已经改变。
+    await assert.rejects(
+        service.convertToTask(ID, "Write tests"),
+        (error: unknown) => error instanceof McpToolError && error.mcpCode === "PARTIAL_SUCCESS",
+    );
+});
+
+test("文本块转换失败会用原始 Markdown 回滚而不是编辑后的标题", async () => {
+    const { api, service } = setup();
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+
+    // Regression: 原位候选编辑标题后，转换失败会用编辑标题回滚并永久改写来源。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.content, "Write tests");
+    assert.equal(api.blocks.get(ID)?.markdown, "Write tests");
+});
+
+test("空原始 Markdown 在转换失败时仍按空值回滚", async () => {
+    const { api, service } = setup();
+    const source = api.blocks.get(ID)!;
+    source.markdown = "";
+    api.failAtRequest.set("/api/attr/getBlockAttrs", 2);
+
+    // Regression: 空原文曾被退化为来源标题，导致失败回滚永久写入并非原文的内容。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.markdown, "");
+});
+
+test("转换响应元数据无效时仍回滚已改写的来源", async () => {
+    class InvalidConversionMetadataApi extends FakeSiyuanApi {
+        override async request<T = unknown>(path: string, body: object = {}): Promise<T> {
+            const result = await super.request<T>(path, body);
+            const input = body as { dataType?: string; data?: string };
+            if (
+                path === "/api/block/updateBlock" &&
+                input.dataType === "markdown" &&
+                /^- \[ \] /.test(input.data || "")
+            ) {
+                return [] as T;
+            }
+            return result;
+        }
+    }
+
+    const api = new InvalidConversionMetadataApi();
+    api.addBlock(ID, "p", "Write tests");
+    const cache = new CacheManager(api);
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
+    const service = new TaskService(cache, repository, new FakeMyDayTaskPort(), api);
+    service.setIsReady(true);
+
+    // Regression: 响应缺少转换元数据时，来源已改写但 convertedRootId 尚未设置，回滚曾被跳过。
+    await assert.rejects(service.convertToTask(ID, "Edited Action"));
+    assert.equal(api.blocks.get(ID)?.markdown, "Write tests");
 });
 
 test("属性写入失败时保留既有权威缓存", async () => {

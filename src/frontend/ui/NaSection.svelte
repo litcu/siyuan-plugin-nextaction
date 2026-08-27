@@ -1,11 +1,14 @@
 <script lang="ts">
     import NaIcon from "./NaIcon.svelte";
+    import NaSpinner from "./NaSpinner.svelte";
 
     export let title: string;
     export let description = "";
     export let icon = "";
     export let actionLabel = "";
     export let onAction: (() => void) | undefined = undefined;
+    export let actionLoading = false;
+    export let actionDisabled = false;
     export let tone: "default" | "warning" = "default";
 </script>
 
@@ -21,8 +24,14 @@
             </div>
         </div>
         {#if actionLabel && onAction}
-            <button type="button" class="b3-button b3-button--text na-section__action" on:click={onAction}>
-                <NaIcon symbol="iconRefresh" size={13} />
+            <button
+                type="button"
+                class="b3-button b3-button--text na-section__action"
+                disabled={actionDisabled || actionLoading}
+                aria-busy={actionLoading || undefined}
+                on:click={onAction}
+            >
+                {#if actionLoading}<NaSpinner />{:else}<NaIcon symbol="iconRefresh" size={13} />{/if}
                 <span>{actionLabel}</span>
             </button>
         {/if}

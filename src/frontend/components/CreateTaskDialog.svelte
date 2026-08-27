@@ -20,6 +20,7 @@
     export let i18n: any;
     export let dialog: any;
     export let parentTask: TaskCacheEntry | null = null;
+    export let initialActionKind: "action" | "stage" = "action";
     export let onCreated: ((task: TaskCacheEntry) => void) | undefined = undefined;
 
     type TargetMode = CreateTaskDestinationType;
@@ -35,6 +36,7 @@
     const initialSettings = get(taskStore).settings;
     let title = "";
     let kind: "task" | "project" = "task";
+    let actionKind: "action" | "stage" = initialActionKind;
     let status = "inbox";
     let priority = "medium";
     let start = "";
@@ -139,6 +141,7 @@
             properties: {
                 status,
                 priority,
+                ...(kind === "task" && initialActionKind === "stage" ? { actionKind } : {}),
                 ...(parentTask ? { parentId: parentTask.blockId } : {}),
                 ...(start ? { start } : {}),
                 ...(due ? { due } : {}),
@@ -223,6 +226,20 @@
                         >{/each}</select
                 >
             </label>
+            {#if kind === "task" && initialActionKind === "stage"}
+                <label class="na-create-task__field">
+                    <span>{i18n?.actionKind || "Action kind"}</span>
+                    <select
+                        class="na-select"
+                        bind:value={actionKind}
+                        disabled={busy}
+                        aria-label={i18n?.actionKind || "Action kind"}
+                    >
+                        <option value="action">{i18n?.actionKindAction || "Action"}</option>
+                        <option value="stage">{i18n?.actionKindStage || "Stage"}</option>
+                    </select>
+                </label>
+            {/if}
             <div class="na-create-task__field">
                 <span>{i18n?.startDate || "Start"}</span>
                 <NaDatePicker bind:value={start} {i18n} disabled={busy} fixedDropdown />
@@ -321,7 +338,9 @@
     <footer class="na-create-task__actions">
         <NaButton disabled={busy} on:click={() => dialog?.destroy?.()}>{i18n?.cancel || "Cancel"}</NaButton>
         <NaButton type="submit" variant="primary" icon="iconAdd" loading={busy}
-            >{i18n?.createTask || "Create task"}</NaButton
+            >{kind === "task" && actionKind === "stage"
+                ? i18n?.createStage || "Create Stage"
+                : i18n?.createTask || "Create task"}</NaButton
         >
     </footer>
 </form>

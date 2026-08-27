@@ -1,17 +1,27 @@
 <script lang="ts">
-    import type { ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
+    import type { ProjectControlRisk, ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
     import NaTaskList from "../../ui/NaTaskList.svelte";
+    import ProjectSupportSection from "./ProjectSupportSection.svelte";
+    import type { ProjectSupportData } from "../../../shared/types";
+    import { shouldOfferProjectRiskAction } from "../../utils/project-view-state";
 
     export let summary: ProjectSummary;
+    export let risks: ProjectControlRisk[];
     export let selectedTaskId = "";
     export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+    export let onOpenProjectSupport: (blockId: string) => void;
+    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+    export let onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
+    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -26,21 +36,34 @@
     <section class="na-project-section na-project-section--risks">
         <div class="na-project-section__heading">
             <h3>{i18n?.projectRisks || "Risks"}</h3>
-            <span>{summary.risks.length}</span>
+            <span>{risks.length}</span>
         </div>
-        {#if summary.risks.length === 0}
+        {#if risks.length === 0}
             <p class="na-project-muted">{i18n?.projectNoRisks || "No obvious risks"}</p>
         {:else}
-            {#each summary.risks as item (item.kind + item.taskId)}
-                {@const target = summary.descendants.find((task) => task.blockId === item.taskId) || summary.project}
-                <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(target)}>
-                    <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
-                    <span
-                        ><strong>{riskLabel(item.kind)}</strong><small
-                            >{target.title || i18n?.untitled || "(untitled)"}</small
-                        ></span
-                    >
-                </button>
+            {#each risks as item (item.kind + item.taskId)}
+                <div class="na-project-risk-row">
+                    <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(item.target)}>
+                        <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
+                        <span
+                            ><strong>{riskLabel(item.kind)}</strong><small
+                                >{item.target.title || i18n?.untitled || "(untitled)"}</small
+                            ></span
+                        >
+                    </button>
+                    {#if shouldOfferProjectRiskAction(item) && onCreateAction}
+                        <NaIconButton
+                            symbol="iconAdd"
+                            label={i18n.projectCreateNextAction}
+                            size={14}
+                            compact
+                            on:click={(event) => {
+                                event.stopPropagation();
+                                onCreateAction?.(summary.project);
+                            }}
+                        />
+                    {/if}
+                </div>
             {/each}
         {/if}
     </section>
@@ -91,6 +114,14 @@
             </div>
         </dl>
     </section>
+    <ProjectSupportSection
+        projectId={summary.project.blockId}
+        {i18n}
+        loadSupport={loadProjectSupport}
+        onOpen={onOpenProjectSupport}
+        onExtract={(sourceBlockId, sourceTitle) => onExtractAction(sourceBlockId, sourceTitle, summary.project.blockId)}
+        onAiExtract={(sourceBlockId) => onAiExtractAction(sourceBlockId, summary.project.blockId)}
+    />
 </div>
 
 <style lang="scss">
@@ -104,6 +135,9 @@
         padding: 12px;
         border-top: 2px solid var(--na-color-divider);
         background: var(--b3-theme-surface);
+    }
+    .na-project-overview :global(.na-project-support) {
+        grid-column: 1 / -1;
     }
     .na-project-section--risks {
         border-top-color: var(--na-color-warning);
@@ -135,6 +169,15 @@
         background: transparent;
         text-align: left;
         cursor: pointer;
+    }
+    .na-project-risk-row {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-xs);
+    }
+    .na-project-risk-row .na-project-risk {
+        flex: 1;
+        min-width: 0;
     }
     .na-project-risk:hover {
         color: var(--na-accent);

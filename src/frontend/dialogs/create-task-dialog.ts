@@ -7,14 +7,18 @@ export interface OpenCreateTaskDialogOptions {
     bridge: KernelBridge;
     i18n: any;
     parentTask?: TaskCacheEntry | null;
+    initialActionKind?: "action" | "stage";
     onCreated?: (task: TaskCacheEntry) => void;
 }
 
 export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions): Promise<void> {
     const dialog = new Dialog({
-        title: options.parentTask
-            ? options.i18n?.createChildTask || "Create child task"
-            : options.i18n?.createTask || "Create task",
+        title:
+            options.initialActionKind === "stage"
+                ? options.i18n?.createStage || "Create Stage"
+                : options.parentTask
+                  ? options.i18n?.createChildTask || "Create child task"
+                  : options.i18n?.createTask || "Create task",
         content: '<div class="nextaction na-create-task-host"></div>',
         width: "640px",
         destroyCallback: () => {
@@ -41,6 +45,7 @@ export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions)
             i18n: options.i18n,
             dialog,
             parentTask: options.parentTask || null,
+            initialActionKind: options.initialActionKind || "action",
             onCreated: options.onCreated,
         },
     });

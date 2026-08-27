@@ -10,6 +10,7 @@
 const baseURL = process.argv[2] || "http://127.0.0.1:6806";
 const apiToken = process.env.SIYUAN_API_TOKEN || "";
 const pluginName = "siyuan-plugin-nextaction";
+const integrationCase = process.env.NEXTACTION_INTEGRATION_CASE || "";
 
 function requestHeaders() {
     return {
@@ -20,7 +21,8 @@ function requestHeaders() {
 
 let passed = 0;
 let failed = 0;
-let testDocumentId = "";
+const testDocumentIds = [];
+const testTaskIds = [];
 
 async function siyuanAPI(path, body = {}) {
     const response = await fetch(baseURL + path, {
@@ -115,37 +117,427 @@ async function waitForTaskAttributeIndex(blockId) {
     throw new Error(`Temporary task attributes were not indexed in time: ${blockId}`);
 }
 
-async function createTemporaryDocument() {
+async function waitForReferenceIndex(defBlockId, sourceRootId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT block_id FROM refs WHERE def_block_id = '${defBlockId.replace(/'/g, "''")}' AND root_id = '${sourceRootId.replace(/'/g, "''")}' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows.length > 0) return;
+        await sleep(250);
+    }
+    throw new Error(`Block reference was not indexed in time: ${sourceRootId} -> ${defBlockId}`);
+}
+
+async function waitForNativeActions(documentId, expectedCount) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT item.id, item.parent_id, item.root_id, item.type, item.subtype, list.parent_id AS list_parent_id FROM blocks item INNER JOIN blocks list ON list.id = item.parent_id WHERE item.root_id = '${documentId.replace(/'/g, "''")}' AND item.type = 'i' ORDER BY item.sort ASC`,
+        });
+        if (Array.isArray(rows) && rows.length >= expectedCount) return rows;
+        await sleep(250);
+    }
+    throw new Error(`Native Actions were not indexed in time for document: ${documentId}`);
+}
+
+async function waitForBlockDocument(blockId, documentId) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const rows = await siyuanAPI("/api/query/sql", {
+            stmt: `SELECT root_id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' LIMIT 1`,
+        });
+        if (Array.isArray(rows) && rows[0]?.root_id === documentId) return;
+        await sleep(250);
+    }
+    throw new Error(`Block ${blockId} did not reach document ${documentId} in time`);
+}
+
+async function loadSubtreeIds(blockId) {
+    const rows = await siyuanAPI("/api/query/sql", {
+        stmt: `WITH RECURSIVE selected(id) AS (SELECT id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' UNION ALL SELECT child.id FROM blocks child INNER JOIN selected parent ON child.parent_id = parent.id) SELECT id FROM selected`,
+    });
+    return rows.map((row) => row.id).sort();
+}
+
+function taskAttrs(attrs) {
+    return Object.fromEntries(
+        Object.entries(attrs || {})
+            .filter(([key]) => key.startsWith("custom-na-"))
+            .sort(([left], [right]) => left.localeCompare(right)),
+    );
+}
+
+async function createTemporaryDocument(options = {}) {
     const notebooks = await siyuanAPI("/api/notebook/lsNotebooks");
     const notebook = notebooks?.notebooks?.find((item) => !item.closed);
     if (!notebook?.id) throw new Error("No open notebook is available for the integration test");
 
     const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const title = `NextAction Stage 1 Test ${unique}`;
+    const title = `${options.titlePrefix || "NextAction Stage 1 Test"} ${unique}`;
     const id = await siyuanAPI("/api/filetree/createDocWithMd", {
         notebook: notebook.id,
         path: `/${title}`,
-        markdown: `# ${title}`,
+        markdown: options.markdown || `# ${title}`,
     });
     if (typeof id !== "string" || !/^\d{14}-[0-9a-z]{7}$/.test(id)) {
         throw new Error(`SiYuan returned an invalid temporary document ID: ${String(id)}`);
     }
-    testDocumentId = id;
+    testDocumentIds.push(id);
     await waitForIndexedBlock(id);
     return { id, title };
 }
 
-async function removeTemporaryDocument() {
-    if (!testDocumentId) return;
-    try {
-        await siyuanAPI("/api/filetree/removeDocByID", { id: testDocumentId });
-        console.log(`\nCleanup: removed temporary document ${testDocumentId}`);
-    } catch (error) {
-        failed++;
-        console.error(`\nCleanup failed for ${testDocumentId}:`, error);
-    } finally {
-        testDocumentId = "";
+async function removeTemporaryDocuments() {
+    for (const documentId of testDocumentIds.reverse()) {
+        try {
+            await siyuanAPI("/api/filetree/removeDocByID", { id: documentId });
+            console.log(`\nCleanup: removed temporary document ${documentId}`);
+        } catch (error) {
+            failed++;
+            console.error(`\nCleanup failed for ${documentId}:`, error);
+        }
     }
+    testDocumentIds.length = 0;
+}
+
+async function removeTemporaryTasks() {
+    for (const taskId of testTaskIds.reverse()) {
+        try {
+            await rpc("removeTask", { blockId: taskId });
+            await siyuanAPI("/api/block/deleteBlock", { id: taskId });
+            console.log(`\nCleanup: removed temporary task ${taskId}`);
+        } catch (error) {
+            failed++;
+            console.error(`\nCleanup failed for temporary task ${taskId}:`, error);
+        }
+    }
+    testTaskIds.length = 0;
+}
+
+async function testActionExtraction() {
+    console.log("\n--- Action extraction ---");
+    const source = await createTemporaryDocument({
+        titlePrefix: "NextAction Extraction Source",
+        markdown: "# Extraction source\n\nKeep this source note unchanged.",
+    });
+    const project = await createTemporaryDocument({ titlePrefix: "NextAction Extraction Project" });
+    const projectConversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        projectConversion.result?.taskType === "2" && !projectConversion.result?._rpcError,
+        "Action extraction target is a Project document",
+        JSON.stringify(projectConversion.result),
+    );
+    const sourceBefore = await siyuanAPI("/api/block/getBlockKramdown", { id: source.id });
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const extraction = await snapshotAfter("Action extraction", snapshotBefore, () =>
+        rpc("extractAction", {
+            sourceBlockId: source.id,
+            title: "Verify extracted Action",
+            status: "todo",
+            actionKind: "stage",
+            projectId: project.id,
+        }),
+    );
+    const task = extraction.result?.result?.task;
+    const taskId = requireBlockId(task?.blockId, "Action extraction");
+    testTaskIds.push(taskId);
+    assert(
+        task?.parentId === project.id && task?.actionKind === "stage" && task?.status === "todo",
+        "Action extraction applies Project, Stage, and status through authoritative task state",
+        JSON.stringify(task),
+    );
+    const actionKramdown = await siyuanAPI("/api/block/getBlockKramdown", { id: taskId });
+    assert(
+        String(actionKramdown?.kramdown || "").includes(source.id),
+        "Extracted Action contains a native reference to its source",
+        JSON.stringify(actionKramdown),
+    );
+    const sourceAfter = await siyuanAPI("/api/block/getBlockKramdown", { id: source.id });
+    assert(
+        sourceAfter?.kramdown === sourceBefore?.kramdown,
+        "Action extraction preserves the source block",
+        JSON.stringify({ before: sourceBefore, after: sourceAfter }),
+    );
+
+    const unassignedExtraction = await snapshotAfter("Unassigned Action extraction", extraction.snapshot, () =>
+        rpc("extractAction", {
+            sourceBlockId: source.id,
+            title: "Verify unassigned extracted Action",
+            status: "inbox",
+            actionKind: "action",
+        }),
+    );
+    const unassignedTask = unassignedExtraction.result?.result?.task;
+    const unassignedTaskId = requireBlockId(unassignedTask?.blockId, "Unassigned Action extraction");
+    testTaskIds.push(unassignedTaskId);
+    assert(
+        !unassignedTask?.parentId,
+        "Action extraction supports an unassigned authoritative result",
+        JSON.stringify(unassignedTask),
+    );
+
+    const invalidSource = await rpc("extractAction", {
+        sourceBlockId: "20991231235959-missing",
+        title: "Must not create an Action",
+        status: "todo",
+        actionKind: "action",
+    });
+    assert(
+        Boolean(invalidSource.result?._rpcError) && !invalidSource.result?.task,
+        "Action extraction rejects a nonexistent source without false success",
+        JSON.stringify(invalidSource),
+    );
+}
+
+async function testProjectSupport() {
+    console.log("\n--- Project Support ---");
+    const indirectTarget = await createTemporaryDocument({ titlePrefix: "NextAction Support Indirect Target" });
+    const firstTarget = await createTemporaryDocument({
+        titlePrefix: "NextAction Support First Target",
+        markdown: `# Project Support first target\n\nIndirect support: ((${indirectTarget.id} "Indirect support"))`,
+    });
+    const secondTarget = await createTemporaryDocument({ titlePrefix: "NextAction Support Second Target" });
+    const project = await createTemporaryDocument({
+        titlePrefix: "NextAction Support Project",
+        markdown: `# Project Support integration\n\nForward first: ((${firstTarget.id} "Forward first"))\n\n## Forward second ((${secondTarget.id} "Forward second"))`,
+    });
+    const backlink = await createTemporaryDocument({
+        titlePrefix: "NextAction Support Backlink",
+        markdown: `# Project Support backlink\n\nBacklink: ((${project.id} "Project Support integration"))`,
+    });
+    await Promise.all([
+        waitForReferenceIndex(indirectTarget.id, firstTarget.id),
+        waitForReferenceIndex(firstTarget.id, project.id),
+        waitForReferenceIndex(secondTarget.id, project.id),
+        waitForReferenceIndex(project.id, backlink.id),
+    ]);
+
+    const conversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        conversion.result?.taskType === "2" && !conversion.result?._rpcError,
+        "Project Support target is converted to a Project document",
+        JSON.stringify(conversion.result),
+    );
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const support = await rpc("getProjectSupport", { projectId: project.id });
+    assert(!support.result?._rpcError, "getProjectSupport succeeds", JSON.stringify(support.result));
+    const items = support.result?.items || [];
+    const forward = items.find((item) => item.blockId === firstTarget.id);
+    const directBacklink = items.find((item) => item.documentId === backlink.id);
+    assert(
+        forward?.directions?.includes("forward"),
+        "Project Support returns the direct forward document reference",
+        JSON.stringify(items),
+    );
+    assert(
+        directBacklink?.directions?.includes("backlink"),
+        "Project Support returns the direct backlink source",
+        JSON.stringify(items),
+    );
+    // Regression: forward support follows its first occurrence in the Project document, not block-type sort weight.
+    assert(
+        items.findIndex((item) => item.blockId === firstTarget.id) <
+            items.findIndex((item) => item.blockId === secondTarget.id),
+        "Project Support keeps direct forward references in document occurrence order",
+        JSON.stringify(items),
+    );
+    // Regression: Project Support does not traverse references found inside a direct support target.
+    assert(
+        !items.some((item) => item.blockId === indirectTarget.id),
+        "Project Support does not include second-level references",
+        JSON.stringify(items),
+    );
+    const snapshotAfterRead = (await rpc("getTaskSnapshotV2")).result;
+    assert(
+        snapshotAfterRead?.revision === snapshotBefore?.revision,
+        "Project Support reads do not enter the task snapshot or advance its revision",
+        `${snapshotBefore?.revision} -> ${snapshotAfterRead?.revision}`,
+    );
+
+    const ordinaryTarget = await rpc("getProjectSupport", { projectId: firstTarget.id });
+    assert(
+        ordinaryTarget.result?._rpcError?.code === -32001,
+        "getProjectSupport rejects a non-Project document",
+        JSON.stringify(ordinaryTarget.result),
+    );
+}
+
+async function testActionMove() {
+    console.log("\n--- Action move ---");
+    const actionTitle = "Move integration parent";
+    const childTitle = "Move integration nested child";
+    const source = await createTemporaryDocument({
+        titlePrefix: "NextAction Move Source",
+        markdown: `# Move source\n\n- [ ] ${actionTitle}\n  - [ ] ${childTitle}`,
+    });
+    const project = await createTemporaryDocument({
+        titlePrefix: "NextAction Move Project",
+        markdown: "# Move project\n\nExisting project content must stay before the moved Action.",
+    });
+    const nativeActions = await waitForNativeActions(source.id, 2);
+    const actionId = requireBlockId(
+        nativeActions.find((row) => nativeActions.some((child) => child.list_parent_id === row.id))?.id,
+        "Action move source",
+    );
+    const childId = requireBlockId(
+        nativeActions.find((row) => row.list_parent_id === actionId)?.id,
+        "Action move nested child",
+    );
+    const sourceListId = nativeActions.find((row) => row.id === actionId)?.parent_id;
+
+    const projectConversion = await rpc("convertToTask", { blockId: project.id, taskType: "2" });
+    assert(
+        projectConversion.result?.taskType === "2" && !projectConversion.result?._rpcError,
+        "Action move target is a Project document",
+        JSON.stringify(projectConversion.result),
+    );
+    await waitForTaskAttributeIndex(project.id);
+    await rpc("rebuildCache");
+    const cachedAction = await rpc("getTask", { blockId: actionId });
+    assert(
+        cachedAction.result?.identificationSource === "native" && cachedAction.result?.taskType === "1",
+        "Action move source is discovered as one native Action",
+        JSON.stringify(cachedAction.result),
+    );
+
+    const updated = await rpc("updateTask", {
+        blockId: actionId,
+        attrs: {
+            "na-status": "doing",
+            "na-note": "Preserve this move integration note",
+            "na-depends": childId,
+        },
+    });
+    assert(
+        updated.result?.status === "doing" && updated.result?.depends === childId,
+        "Action move fixture has authoritative task attributes",
+        JSON.stringify(updated.result),
+    );
+    const attrsBefore = taskAttrs(await siyuanAPI("/api/attr/getBlockAttrs", { id: actionId }));
+    const subtreeBefore = await loadSubtreeIds(actionId);
+
+    const preview = await rpc("previewActionMove", { actionId, projectId: project.id });
+    assert(
+        preview.result?.source?.documentId === source.id && preview.result?.target?.projectId === project.id,
+        "Action move preview names the authoritative source and target",
+        JSON.stringify(preview.result),
+    );
+    assert(
+        preview.result?.nextEffectiveParentId === project.id && preview.result?.effectiveParentWillChange === true,
+        "Action move preview reports the structural effective-parent change",
+        JSON.stringify(preview.result),
+    );
+    const selectedPlacement = preview.result?.placements?.find(
+        (placement) => !placement.documentEnd && placement.previousTitle && placement.nextTitle,
+    );
+    assert(
+        selectedPlacement?.destination?.previousId && selectedPlacement?.destination?.nextId,
+        "Action move preview offers a precise Project document placement",
+        JSON.stringify(preview.result?.placements),
+    );
+    if (!selectedPlacement) throw new Error("Action move did not return a selectable precise placement");
+
+    const snapshotBefore = (await rpc("getTaskSnapshotV2")).result;
+    const move = await snapshotAfter("Action move", snapshotBefore, () =>
+        rpc("moveActionToProject", {
+            actionId,
+            projectId: project.id,
+            destination: selectedPlacement.destination,
+        }),
+    );
+    const movedTask = move.result?.result?.task;
+    const undo = move.result?.result?.undo;
+    assert(
+        movedTask?.blockId === actionId && movedTask?.parentId === project.id,
+        "Action move preserves identity and refreshes the effective Project parent",
+        JSON.stringify(movedTask),
+    );
+    assert(
+        typeof undo?.credential === "string" && !undo.credential.includes(actionId) && undo.summary,
+        "Action move returns an opaque session undo credential and readable summary",
+        JSON.stringify(undo),
+    );
+    await waitForBlockDocument(actionId, project.id);
+
+    const attrsAfter = taskAttrs(await siyuanAPI("/api/attr/getBlockAttrs", { id: actionId }));
+    assert(
+        JSON.stringify(attrsAfter) === JSON.stringify(attrsBefore),
+        "Action move preserves every task attribute",
+        JSON.stringify({ before: attrsBefore, after: attrsAfter }),
+    );
+    const subtreeAfter = await loadSubtreeIds(actionId);
+    assert(
+        JSON.stringify(subtreeAfter) === JSON.stringify(subtreeBefore),
+        "Action move preserves the complete Action subtree",
+        JSON.stringify({ before: subtreeBefore, after: subtreeAfter }),
+    );
+
+    const actionRows = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT root_id FROM blocks WHERE id = '${actionId}' LIMIT 1`,
+    });
+    const targetChildren = await siyuanAPI("/api/block/getChildBlocks", { id: project.id });
+    const targetListIndex = targetChildren.findIndex((row) => row.id === sourceListId);
+    assert(
+        actionRows[0]?.root_id === project.id &&
+            targetListIndex >= 0 &&
+            targetChildren[targetListIndex - 1]?.id === selectedPlacement.destination.previousId &&
+            targetChildren[targetListIndex + 1]?.id === selectedPlacement.destination.nextId,
+        "Action move uses the selected Project document placement",
+        JSON.stringify({ actionRows, targetChildren, selectedPlacement }),
+    );
+    const sourceResidue = await siyuanAPI("/api/query/sql", {
+        stmt: `SELECT id, content FROM blocks WHERE root_id = '${source.id}' AND (id = '${sourceListId}' OR content LIKE 'NextAction temporary move%')`,
+    });
+    assert(
+        sourceResidue.length === 0,
+        "Action move removes the empty source list and all temporary structure",
+        JSON.stringify(sourceResidue),
+    );
+
+    const undoResult = await snapshotAfter("Action move undo", move.snapshot, () =>
+        rpc("undoActionMove", { credential: undo.credential }),
+    );
+    assert(
+        undoResult.result?.result?.task?.blockId === actionId && undoResult.result?.result?.task?.parentId === "",
+        "Action move undo restores the authoritative task and effective parent",
+        JSON.stringify(undoResult.result),
+    );
+    await waitForBlockDocument(actionId, source.id);
+    const sourceChildren = await siyuanAPI("/api/block/getChildBlocks", { id: source.id });
+    const sourceListIndex = sourceChildren.findIndex((row) => row.id === sourceListId);
+    assert(
+        sourceListIndex > 0 && sourceChildren[sourceListIndex - 1]?.type === "h",
+        "Action move undo restores the original list container beside its source anchor",
+        JSON.stringify(sourceChildren),
+    );
+
+    const repeatedUndo = await rpc("undoActionMove", { credential: undo.credential });
+    assert(
+        repeatedUndo.result?._rpcError?.code === -32014,
+        "Action move undo credential can only be used once",
+        JSON.stringify(repeatedUndo.result),
+    );
+
+    const secondPreview = await rpc("previewActionMove", { actionId, projectId: project.id });
+    const secondPlacement = secondPreview.result?.placements?.find(
+        (placement) => !placement.documentEnd && placement.previousTitle && placement.nextTitle,
+    );
+    if (!secondPlacement) throw new Error("Action move did not return a second selectable precise placement");
+    const secondMove = await rpc("moveActionToProject", {
+        actionId,
+        projectId: project.id,
+        destination: secondPlacement.destination,
+    });
+    const sourceHeadingId = requireBlockId(
+        sourceChildren.find((row) => row.type === "h")?.id,
+        "Action move source anchor",
+    );
+    await siyuanAPI("/api/block/deleteBlock", { id: sourceHeadingId });
+    const unsafeUndo = await rpc("undoActionMove", { credential: secondMove.result?.undo?.credential });
+    assert(
+        unsafeUndo.result?._rpcError?.code === -32015,
+        "Action move undo stops safely when the original anchor is missing",
+        JSON.stringify(unsafeUndo.result),
+    );
+    await waitForBlockDocument(actionId, project.id);
 }
 
 async function runTests() {
@@ -161,6 +553,11 @@ async function runTests() {
         "echo preserves array parameters",
         JSON.stringify(echo.result),
     );
+
+    if (integrationCase === "action-move") {
+        await testActionMove();
+        return;
+    }
 
     const temporary = await createTemporaryDocument();
     console.log(`Setup: created temporary document ${temporary.id}`);
@@ -311,6 +708,10 @@ async function runTests() {
 
     const attrs = await siyuanAPI("/api/attr/getBlockAttrs", { id: temporary.id });
     assert(!attrs?.["custom-na-task"], "task marker is cleared authoritatively");
+
+    await testProjectSupport();
+    await testActionExtraction();
+    await testActionMove();
 }
 
 async function main() {
@@ -320,7 +721,8 @@ async function main() {
         failed++;
         console.error("Integration test error:", error);
     } finally {
-        await removeTemporaryDocument();
+        await removeTemporaryTasks();
+        await removeTemporaryDocuments();
     }
 
     console.log("\n" + "=".repeat(48));

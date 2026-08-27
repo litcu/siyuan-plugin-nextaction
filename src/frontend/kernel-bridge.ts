@@ -6,9 +6,10 @@ import type {
     MyDayState,
     ReviewData,
     CompletedTasksPage,
+    ProjectSupportData,
 } from "../shared/types";
 import type { CompletedTasksPageOptions } from "../shared/task-pagination";
-import type { AiProposal } from "../shared/ai";
+import type { AiProposal, AiProposalApplyResult, AiProposalContext } from "../shared/ai";
 import type { RepeatRuleV2 } from "../shared/repeat";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type {
@@ -21,6 +22,13 @@ import type {
     RpcParams,
     RpcReturn,
 } from "../shared/rpc-methods";
+import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
+import type {
+    ActionMoveDestination,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoResult,
+} from "../shared/action-move";
 import { isRpcFailure } from "../shared/rpc-methods";
 import { assertBlockId } from "../shared/block-id";
 import { RPC_ERROR_NOT_READY } from "../shared/constants";
@@ -108,6 +116,10 @@ export class KernelBridge {
         return this.call("updateTask", { blockId: assertBlockId(blockId), attrs });
     }
 
+    async updateTaskTitle(blockId: string, title: string): Promise<TaskCacheEntry> {
+        return this.call("updateTaskTitle", { blockId: assertBlockId(blockId), title });
+    }
+
     async setRepeatRule(blockId: string, rule: RepeatRuleV2): Promise<TaskCacheEntry> {
         return this.call("setRepeatRule", { blockId: assertBlockId(blockId), rule });
     }
@@ -134,6 +146,46 @@ export class KernelBridge {
 
     async getTaskSnapshotV2(): Promise<TaskSnapshotV2> {
         return this.call("getTaskSnapshotV2", {});
+    }
+
+    async getProjectSupport(projectId: string): Promise<ProjectSupportData> {
+        return this.call("getProjectSupport", { projectId: assertBlockId(projectId, "projectId") });
+    }
+
+    async previewActionMove(
+        actionId: string,
+        projectId: string,
+        destination?: ActionMoveDestination,
+    ): Promise<ActionMovePreview> {
+        return this.call("previewActionMove", {
+            actionId: assertBlockId(actionId, "actionId"),
+            projectId: assertBlockId(projectId, "projectId"),
+            ...(destination ? { destination } : {}),
+        });
+    }
+
+    async moveActionToProject(
+        actionId: string,
+        projectId: string,
+        destination?: ActionMoveDestination,
+    ): Promise<ActionMoveResult> {
+        return this.call("moveActionToProject", {
+            actionId: assertBlockId(actionId, "actionId"),
+            projectId: assertBlockId(projectId, "projectId"),
+            ...(destination ? { destination } : {}),
+        });
+    }
+
+    async undoActionMove(credential: string): Promise<ActionMoveUndoResult> {
+        return this.call("undoActionMove", { credential });
+    }
+
+    async extractAction(input: ExtractActionInput): Promise<ExtractActionResult> {
+        return this.call("extractAction", {
+            ...input,
+            sourceBlockId: assertBlockId(input.sourceBlockId, "sourceBlockId"),
+            ...(input.projectId ? { projectId: assertBlockId(input.projectId, "projectId") } : {}),
+        });
     }
 
     async getCompletedTasksPage(options: CompletedTasksPageOptions = {}): Promise<CompletedTasksPage> {
@@ -198,18 +250,15 @@ export class KernelBridge {
         return this.call("getSettings", {});
     }
 
-    async validateAiProposal(proposal: AiProposal): Promise<{ proposal: AiProposal; errors: string[] }> {
-        return this.call("validateAiProposal", { proposal });
+    async validateAiProposal(
+        proposal: AiProposal,
+        context: AiProposalContext = {},
+    ): Promise<{ proposal: AiProposal; errors: string[] }> {
+        return this.call("validateAiProposal", { proposal, context });
     }
 
-    async applyAiProposal(proposal: AiProposal): Promise<{
-        feature: string;
-        created: TaskCacheEntry[];
-        converted: TaskCacheEntry[];
-        myDay: MyDayState | null;
-        warnings: string[];
-    }> {
-        return this.call("applyAiProposal", { proposal });
+    async applyAiProposal(proposal: AiProposal, context: AiProposalContext = {}): Promise<AiProposalApplyResult> {
+        return this.call("applyAiProposal", { proposal, context });
     }
 
     async getMcpStatus(): Promise<RpcMcpStatus> {

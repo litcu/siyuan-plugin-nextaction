@@ -4,7 +4,7 @@
 
 ### Tasks scatter across your notes — once they pile up, you can no longer tell which to do first.
 
-![version](https://img.shields.io/badge/version-0.6.0-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
+![version](https://img.shields.io/badge/version-0.8.0-blue) ![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)
 
 [中文文档](./README.zh-CN.md)
 
@@ -224,7 +224,7 @@ with the same name takes precedence, which is useful when temporarily deploying 
 <details>
 <summary><b>Releasing a new version</b></summary>
 
-Releases are driven by Git tags. Before releasing, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), then commit that change. Empty categories are omitted from the GitHub Release notes.
+Releases are driven by Git tags, while release commits must enter the protected `main` branch through a pull request. Start from an up-to-date `origin/main`, create a release branch, add at least one bullet under the appropriate category in the `[Unreleased]` section of [CHANGELOG.md](./CHANGELOG.md), and commit that changelog update. Empty categories are omitted from the GitHub Release notes.
 
 ```bash
 pnpm run release:patch
@@ -234,7 +234,17 @@ pnpm run release:current
 pnpm run release:version -- 1.2.3
 ```
 
-The command validates and finalizes the changelog, updates `package.json` and `plugin.json` when needed, commits the release files, creates a `vX.Y.Z` tag, and pushes both commit and tag. GitHub Actions builds `package.zip`, uses that version's changelog section as the GitHub Release notes, and appends a link to the complete diff from the previous tag.
+These commands must run on a non-`main` branch. They validate and finalize the changelog, update `package.json` and `plugin.json` when needed, build the release package, and create the release commit. They do not push the branch or create a tag. Push the branch, open a pull request, and merge it into `main` after all checks pass.
+
+After the pull request is merged, synchronize local `main` and publish the tag:
+
+```bash
+git switch main
+git pull --ff-only origin main
+pnpm run release:publish
+```
+
+`release:publish` verifies that the worktree is clean, the current branch is `main`, local `main` exactly matches `origin/main`, both version files agree, and the matching changelog section exists. It then creates and pushes only the `vX.Y.Z` tag. GitHub Actions builds `package.zip`, uses that version's changelog section as the GitHub Release notes, and appends a link to the complete diff from the previous tag.
 
 </details>
 

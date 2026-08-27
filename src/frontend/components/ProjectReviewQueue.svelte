@@ -13,9 +13,11 @@
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaEmpty from "../ui/NaEmpty.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
     import NaProgressBar from "../ui/NaProgressBar.svelte";
     import NaSearchSelect from "../ui/NaSearchSelect.svelte";
     import TaskCard from "./TaskCard.svelte";
+    import { shouldOfferProjectRiskAction, shouldShowProjectCompletionPanel } from "../utils/project-view-state";
 
     export let reviewData: ReviewData;
     export let i18n: I18nStrings;
@@ -26,11 +28,14 @@
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onMarkReviewed: (blockIds: string[]) => Promise<boolean>;
+    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
+    export let onConfirmCompletion: ((summary: ProjectSummary) => Promise<boolean>) | undefined = undefined;
     export let manualProjectIds: string[] = [];
     export let expandedProjectId: string = "";
 
     let manualProjectId = "";
     let reviewingIds = new Set<string>();
+    let completingIds = new Set<string>();
 
     $: reviewItems = mergeManualProjectReviews(
         reviewData.projectReviews,
@@ -82,10 +87,6 @@
         return i18n.priorityLow;
     }
 
-    function relatedTask(summary: ProjectSummary, taskId: string): TaskCacheEntry {
-        return summary.descendants.find((task) => task.blockId === taskId) || summary.project;
-    }
-
     function attentionTasks(summary: ProjectSummary): TaskCacheEntry[] {
         return Array.from(
             new Map([...summary.waitingTasks, ...summary.blockedTasks].map((task) => [task.blockId, task])).values(),
@@ -119,6 +120,19 @@
             const next = new Set(reviewingIds);
             next.delete(projectId);
             reviewingIds = next;
+        }
+    }
+
+    async function handleCompletion(item: ProjectReviewItem) {
+        const projectId = item.summary.project.blockId;
+        if (!onConfirmCompletion || completingIds.has(projectId)) return;
+        completingIds = new Set(completingIds).add(projectId);
+        try {
+            await onConfirmCompletion(item.summary);
+        } finally {
+            const next = new Set(completingIds);
+            next.delete(projectId);
+            completingIds = next;
         }
     }
 </script>
@@ -157,7 +171,7 @@
                     title={project.title || i18n.untitled}
                     description={triggerLabel(item)}
                     icon="iconFolder"
-                    count={summary.risks.length}
+                    count={item.risks.length}
                     tone={health.accordionTone}
                     open={expandedProjectId === project.blockId}
                     on:openChange={(event) => (expandedProjectId = event.detail ? project.blockId : "")}
@@ -173,6 +187,15 @@
                             <NaButton size="sm" variant="text" on:click={() => onEdit(project)}
                                 >{i18n.editProject}</NaButton
                             >
+                            {#if onConfirmCompletion && shouldShowProjectCompletionPanel(summary)}
+                                <NaButton
+                                    size="sm"
+                                    variant="primary"
+                                    loading={completingIds.has(project.blockId)}
+                                    disabled={completingIds.has(project.blockId)}
+                                    on:click={() => handleCompletion(item)}>{i18n.projectConfirmComplete}</NaButton
+                                >
+                            {/if}
                             <NaButton
                                 size="sm"
                                 variant="primary"
@@ -281,24 +304,31 @@
                         </section>
                     </div>
 
-                    {#if summary.risks.length > 0}
+                    {#if item.risks.length > 0}
                         <div class="na-project-review__risks" aria-label={i18n.projectRisks}>
-                            {#each summary.risks as risk (risk.kind + risk.taskId)}
-                                <NaButton
-                                    size="sm"
-                                    variant="text"
-                                    on:click={() => onSelectTask(relatedTask(summary, risk.taskId))}
-                                >
-                                    <NaBadge
-                                        text={`${translateKey(i18n, projectRiskI18nKey(risk.kind), risk.kind)} · ${riskSeverityLabel(risk.severity)}`}
-                                        tone={risk.severity === "high"
-                                            ? "danger"
-                                            : risk.severity === "medium"
-                                              ? "warning"
-                                              : "info"}
-                                    />
-                                    <span>{relatedTask(summary, risk.taskId).title}</span>
-                                </NaButton>
+                            {#each item.risks as risk (risk.kind + risk.taskId)}
+                                <div class="na-project-review__risk-item">
+                                    <NaButton size="sm" variant="text" on:click={() => onSelectTask(risk.target)}>
+                                        <NaBadge
+                                            text={`${translateKey(i18n, projectRiskI18nKey(risk.kind), risk.kind)} · ${riskSeverityLabel(risk.severity)}`}
+                                            tone={risk.severity === "high"
+                                                ? "danger"
+                                                : risk.severity === "medium"
+                                                  ? "warning"
+                                                  : "info"}
+                                        />
+                                        <span>{risk.target.title}</span>
+                                    </NaButton>
+                                    {#if shouldOfferProjectRiskAction(risk) && onCreateAction}
+                                        <NaIconButton
+                                            symbol="iconAdd"
+                                            label={i18n.projectCreateNextAction}
+                                            size={14}
+                                            compact
+                                            on:click={() => onCreateAction?.(project)}
+                                        />
+                                    {/if}
+                                </div>
                             {/each}
                         </div>
                     {/if}
@@ -400,6 +430,12 @@
         margin-top: var(--na-space-md);
         padding-top: var(--na-space-md);
         border-top: 1px solid var(--na-color-divider);
+    }
+    .na-project-review__risk-item {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        gap: var(--na-space-xxs);
     }
     .na-project-review__risks :global(.na-button > span) {
         display: inline-flex;

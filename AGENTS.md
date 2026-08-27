@@ -71,6 +71,8 @@ Always load the relevant guideline files before providing design feedback.
 
 根目录存在 `.codegraph/`。定位符号、调用链或影响范围时，先运行 `codegraph explore "问题或符号"`，再按需使用 `rg` 和直接读取文件。不要覆盖用户已有的未提交改动。
 
+需要部署到本机思源、运行真实内核/MCP 集成测试或处理 `/check-auth` 登录时，先读取 `docs/agents/local-siyuan.md`。
+
 ## Agent skills
 
 ### Issue tracker

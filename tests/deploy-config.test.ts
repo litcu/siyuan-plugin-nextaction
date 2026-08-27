@@ -5,6 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import { copyDeploymentReadmes, resolveDeployTarget } from "../scripts/deploy.js";
 
+const environmentExample = readFileSync(path.resolve(".env.example"), "utf8");
+const packageJson = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as {
+    scripts: Record<string, string>;
+};
+const agentInstructions = readFileSync(path.resolve("AGENTS.md"), "utf8");
+const localSiyuanInstructions = readFileSync(path.resolve("docs/agents/local-siyuan.md"), "utf8");
+
 test("部署目标跟随每台机器配置的思源插件目录", () => {
     // Regression: 部署路径曾写死为单个开发者的本机目录。
     const firstPluginsRoot = path.resolve("fixtures", "developer-a", "data", "plugins");
@@ -49,4 +56,15 @@ test("发布部署同步中英文 README", () => {
     } finally {
         rmSync(temporaryRoot, { recursive: true, force: true });
     }
+});
+
+test("本地思源配置模板和 Agent 指引覆盖部署、访问授权与 API token", () => {
+    assert.match(environmentExample, /^SIYUAN_PLUGINS_DIR=/m);
+    assert.match(environmentExample, /^SIYUAN_ACCESS_AUTH_CODE=/m);
+    assert.match(environmentExample, /^SIYUAN_API_TOKEN=/m);
+    assert.match(packageJson.scripts["test:integration:kernel"], /--env-file-if-exists=\.env\.local/);
+    assert.match(packageJson.scripts["test:integration:mcp"], /--env-file-if-exists=\.env\.local/);
+    assert.match(agentInstructions, /docs\/agents\/local-siyuan\.md/);
+    assert.match(localSiyuanInstructions, /Authorization: Token <SIYUAN_API_TOKEN>/);
+    assert.match(localSiyuanInstructions, /不输出值/);
 });

@@ -9,6 +9,7 @@ import {
     type CompletedTasksPage,
     type MyDayState,
 } from "../shared/types";
+import { McpToolError, getErrorMessage } from "./mcp-tool-error";
 import { paginateCompletedTasks, type CompletedTasksPageOptions } from "../shared/task-pagination";
 import {
     ATTR_TASK,
@@ -325,11 +326,21 @@ export class TaskLifecycleService {
         let title = cleanTitle || (resolved.kind === "convert-text" ? resolved.title : resolved.identity.title);
 
         let convertedRootId = "";
+        let originalConversionMarkdown = "";
         return this.repository.withConfirmedChanges(async (changes) => {
             try {
                 if (resolved.kind === "convert-text") {
                     const originalBlockId = resolved.blockId;
+                    const originalTitle = resolved.title;
+                    const originalBlock = await this.api.request<{ kramdown?: string }>("/api/block/getBlockKramdown", {
+                        id: originalBlockId,
+                    });
+                    originalConversionMarkdown =
+                        typeof originalBlock?.kramdown === "string"
+                            ? originalBlock.kramdown
+                            : escapeMarkdownText(originalTitle);
                     title = cleanTitle || title || (await this.fetchBlockTitle(originalBlockId));
+                    convertedRootId = originalBlockId;
                     const result = await this.api.request<unknown[]>("/api/block/updateBlock", {
                         id: originalBlockId,
                         dataType: "markdown",
@@ -402,11 +413,14 @@ export class TaskLifecycleService {
                         await this.api.request("/api/block/updateBlock", {
                             id: convertedRootId,
                             dataType: "markdown",
-                            data: escapeMarkdownText(title),
+                            data: originalConversionMarkdown,
                             lockType: false,
                         });
-                    } catch {
-                        // Preserve the original conversion error; rollback is best effort.
+                    } catch (rollbackError: unknown) {
+                        throw new McpToolError(
+                            "PARTIAL_SUCCESS",
+                            `Task conversion failed and its rollback also failed: ${getErrorMessage(rollbackError)}`,
+                        );
                     }
                 }
                 throw error;

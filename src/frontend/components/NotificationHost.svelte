@@ -7,8 +7,20 @@
     } from "../stores/reminder-store";
     import NotificationCard from "./NotificationCard.svelte";
     import { REMINDER_MAX_VISIBLE } from "../../shared/constants";
+    import type { KernelBridge } from "../kernel-bridge";
+    import { formatOperationError } from "../error-format";
+    import { taskStore } from "../stores/task-store";
+    import {
+        actionMoveUndoFeedback,
+        completeActionMoveUndo,
+        dismissActionMoveUndo,
+        failActionMoveUndo,
+        markActionMoveUndoWorking,
+    } from "../stores/action-move-undo-store";
+    import ActionMoveUndoCard from "./ActionMoveUndoCard.svelte";
 
     export let i18n: any;
+    export let bridge: KernelBridge | undefined = undefined;
 
     $: hasNotifications = $visibleNotifications.length > 0;
     $: overflowCount = Math.max(0, $notificationQueue.filter((r) => !r.dismissed).length - REMINDER_MAX_VISIBLE);
@@ -27,6 +39,42 @@
 
     function handleDismissAll() {
         dismissAllReminders();
+    }
+
+    async function handleActionMoveUndo(): Promise<void> {
+        const feedback = $actionMoveUndoFeedback;
+        if (!feedback || feedback.status !== "available") return;
+        markActionMoveUndoWorking();
+        try {
+            if (!bridge) throw new Error("Kernel bridge is unavailable");
+            const result = await bridge.undoActionMove(feedback.undo.credential);
+            taskStore.applyUpdate(result.task);
+            completeActionMoveUndo(result.task, result.summary);
+        } catch (cause: unknown) {
+            const detail = formatOperationError(cause, i18n);
+            failActionMoveUndo((i18n?.moveActionUndoFailed || "Undo failed: {error}").replace("{error}", detail));
+        }
+    }
+
+    function handleUndoKeydown(event: KeyboardEvent): void {
+        if (
+            !$actionMoveUndoFeedback ||
+            $actionMoveUndoFeedback.status !== "available" ||
+            event.defaultPrevented ||
+            event.key.toLowerCase() !== "z" ||
+            (!event.ctrlKey && !event.metaKey)
+        ) {
+            return;
+        }
+        const target = event.target;
+        if (
+            target instanceof HTMLElement &&
+            (target.isContentEditable || target.matches("input, textarea, select, [role='textbox']"))
+        ) {
+            return;
+        }
+        event.preventDefault();
+        void handleActionMoveUndo();
     }
 
     function getMessage(item: {
@@ -89,8 +137,18 @@
     }
 </script>
 
-{#if hasNotifications}
-    <div class="na-notification-host">
+<svelte:window on:keydown={handleUndoKeydown} />
+
+{#if hasNotifications || $actionMoveUndoFeedback}
+    <div class="nextaction na-notification-host">
+        {#if $actionMoveUndoFeedback}
+            <ActionMoveUndoCard
+                feedback={$actionMoveUndoFeedback}
+                {i18n}
+                onUndo={() => void handleActionMoveUndo()}
+                onDismiss={dismissActionMoveUndo}
+            />
+        {/if}
         {#each $visibleNotifications as item (item.blockId + "|" + item.baseDateStr + "|" + item.minutesBefore + "|" + item.type)}
             <NotificationCard
                 title={item.title}
@@ -102,13 +160,15 @@
                 {i18n}
             />
         {/each}
-        {#if overflowCount > 0}
-            <div class="na-notification-host__overflow">
-                {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
-            </div>
+        {#if hasNotifications}
+            {#if overflowCount > 0}
+                <div class="na-notification-host__overflow">
+                    {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
+                </div>
+            {/if}
+            <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>
+                {dismissAllLabel}
+            </button>
         {/if}
-        <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>
-            {dismissAllLabel}
-        </button>
     </div>
 {/if}

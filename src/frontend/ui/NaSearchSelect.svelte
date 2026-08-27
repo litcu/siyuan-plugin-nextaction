@@ -18,6 +18,7 @@
     export let clearLabel: string = "Clear selection";
     export let removeLabel: string = "Remove selection";
     export let fixedDropdown: boolean = false;
+    export let disabled: boolean = false;
 
     const dispatch = createEventDispatcher<{ change: { selected: string | string[] } }>();
 
@@ -41,6 +42,19 @@
         labelMap = merged;
     }
     let isClicking = false;
+    let previousDisabled = disabled;
+
+    $: if (disabled !== previousDisabled) {
+        previousDisabled = disabled;
+        if (disabled) {
+            dropdownOpen = false;
+            isClicking = false;
+            if (searchTimer) {
+                clearTimeout(searchTimer);
+                searchTimer = null;
+            }
+        }
+    }
 
     $: selectedArray = Array.isArray(selected) ? (selected as string[]) : selected ? [selected] : [];
     $: availableOptions = allOptions.filter((o) => !selectedArray.includes(o));
@@ -76,6 +90,7 @@
     }
 
     function openDropdown() {
+        if (disabled) return;
         if (hasDropdownContent) {
             // Cached results available — open immediately, no flicker
             dropdownOpen = true;
@@ -86,10 +101,12 @@
     }
 
     function handleBoxMousedown() {
+        if (disabled) return;
         isClicking = true;
     }
 
     function handleBoxClick() {
+        if (disabled) return;
         if (dropdownOpen) {
             dropdownOpen = false;
         } else {
@@ -104,6 +121,7 @@
     }
 
     function clearAndReopen() {
+        if (disabled) return;
         selected = "";
         selectedLabel = "";
         results = [];
@@ -117,6 +135,7 @@
     }
 
     async function doSearch() {
+        if (disabled) return;
         searching = true;
         try {
             if (searchFn) {
@@ -128,7 +147,9 @@
                 results = [];
             }
             // Open (or keep open) now that we have results
-            if (hasDropdownContent || allowCreate) {
+            if (disabled) {
+                dropdownOpen = false;
+            } else if (hasDropdownContent || allowCreate) {
                 dropdownOpen = true;
                 scheduleDropdownPosition();
             } else if (allOptions.length === 0) {
@@ -147,11 +168,13 @@
     }
 
     function onInputChange() {
+        if (disabled) return;
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(doSearch, 200);
     }
 
     function selectItem(item: { id: string; label: string }) {
+        if (disabled) return;
         if (multi) {
             const arr = [...selectedArray];
             if (!arr.includes(item.id)) {
@@ -173,6 +196,7 @@
     }
 
     function removeItem(id: string) {
+        if (disabled) return;
         if (multi) {
             selected = selectedArray.filter((x) => x !== id);
         } else {
@@ -183,6 +207,7 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
+        if (disabled) return;
         if (e.key === "Enter") {
             e.preventDefault();
             if (filteredResults.length > 0) {
@@ -227,10 +252,12 @@
     <div
         class="na-search-select__box"
         class:na-search-select__box--multi={multi}
+        class:na-search-select__box--disabled={disabled}
         role="combobox"
         aria-controls="na-search-select-options"
         aria-expanded={dropdownOpen}
-        tabindex="0"
+        aria-disabled={disabled}
+        tabindex={disabled ? -1 : 0}
         on:mousedown={handleBoxMousedown}
         on:click={handleBoxClick}
         on:keydown={(event) => {
@@ -240,9 +267,11 @@
         {#if !multi && selected}
             <span class="na-search-select__selected">{selectedLabel || String(selected)}</span>
             <button
+                type="button"
                 class="na-search-select__clear b3-tooltips b3-tooltips__n"
                 on:click|stopPropagation={clearAndReopen}
                 aria-label={clearLabel}
+                {disabled}
             >
                 <NaIcon symbol="iconCloseRound" size={10} />
             </button>
@@ -253,9 +282,11 @@
                         <span class="na-search-select__chip">
                             {labelMap.get(item) || item}
                             <button
+                                type="button"
                                 class="na-search-select__chip-remove b3-tooltips b3-tooltips__n"
                                 on:click|stopPropagation={() => removeItem(item)}
                                 aria-label={`${removeLabel}: ${labelMap.get(item) || item}`}
+                                {disabled}
                             >
                                 <NaIcon symbol="iconCloseRound" size={8} />
                             </button>
@@ -264,6 +295,7 @@
                 {/if}
                 <input
                     type="text"
+                    {disabled}
                     bind:this={inputEl}
                     bind:value={input}
                     on:input={onInputChange}
@@ -355,6 +387,11 @@
     .na-search-select__box--multi {
         height: auto;
         min-height: 30px;
+    }
+
+    .na-search-select__box--disabled {
+        cursor: not-allowed;
+        opacity: 0.48;
     }
 
     .na-search-select__selected {

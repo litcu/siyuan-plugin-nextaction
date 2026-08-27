@@ -4,9 +4,11 @@ import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
 import { ATTR_STATUS } from "../src/shared/constants.ts";
 import {
-    buildProjectViewModel,
+    buildProjectViewControl,
+    buildProjectViewModel as buildProjectViewModelFromControl,
     confirmProjectCompletion,
     executeProjectBoardMove,
+    shouldOfferProjectRiskAction,
     shouldShowProjectCompletionPanel,
     type ProjectViewState,
 } from "../src/frontend/utils/project-view-state.ts";
@@ -58,6 +60,7 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         filterBypassProjectId: "",
         selectedTaskId: "",
         selectedTaskOverride: null,
+        preferActiveProject: false,
         showCompleted: false,
         riskFilter: "all",
         dateFilter: "all",
@@ -68,6 +71,14 @@ function state(overrides: Partial<ProjectViewState> = {}): ProjectViewState {
         startPreviewDays: 0,
         ...overrides,
     };
+}
+
+function buildProjectViewModel(
+    tasks: TaskCacheEntry[],
+    customFields: Parameters<typeof buildProjectViewModelFromControl>[1],
+    currentState: ProjectViewState,
+) {
+    return buildProjectViewModelFromControl(buildProjectViewControl(tasks, currentState), customFields, currentState);
 }
 
 const projects = [
@@ -137,6 +148,22 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.activeProjectId, "p1");
     assert.equal(model.detailTasks[0].title, "edited before broadcast");
     assert.equal(model.boardTasks[0].status, "doing");
+});
+
+test("显式切换 Project 不会把旧任务选择带入新项目", () => {
+    // Regression: selecting a Project briefly reused the previous Action selection or opened the Project detail drawer.
+    const explicitProjectState = state({
+        activeProjectId: "p2",
+        selectedTaskId: "a",
+        preferActiveProject: true,
+    });
+
+    const control = buildProjectViewControl(projects, explicitProjectState);
+    const model = buildProjectViewModelFromControl(control, [], explicitProjectState);
+
+    assert.deepEqual(control.selection, { projectId: "p2", taskId: "" });
+    assert.equal(model.activeProjectId, "p2");
+    assert.equal(model.selectedSummary?.project.blockId, "p2");
 });
 
 test("从 Review 打开的项目不受项目视图既有任务筛选影响", () => {
@@ -237,6 +264,14 @@ test("空 Draft 不直接显示异常完成面板，Planned 和 Active 空项目
     assert.equal(shouldShowProjectCompletionPanel(draft), false);
     assert.equal(shouldShowProjectCompletionPanel(planned), true);
     assert.equal(shouldShowProjectCompletionPanel(active), true);
+});
+
+test("项目风险只为没有 Next Action 提供创建入口", () => {
+    // Regression: project risks previously exposed observation only, leaving no direct recovery action.
+    assert.equal(shouldOfferProjectRiskAction({ kind: "noNextAction" }), true);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "waiting" }), false);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "blocked" }), false);
+    assert.equal(shouldOfferProjectRiskAction({ kind: "overdue" }), false);
 });
 
 test("看板移动先更新状态再重排并向上抛出失败", async () => {

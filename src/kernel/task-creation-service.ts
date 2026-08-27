@@ -1,4 +1,5 @@
 import type { PluginSettings } from "../shared/settings";
+import { assertBlockId } from "../shared/block-id";
 import {
     CREATE_TASK_DESTINATION_TYPES,
     CREATE_TASK_FORMATS,
@@ -24,6 +25,11 @@ export type TaskPropertyApplier = (
     properties: Record<string, unknown>,
 ) => Promise<TaskCacheEntry>;
 
+export interface TaskCreationOptions {
+    sourceReferenceBlockId?: string;
+    expectedParentTaskId?: string;
+}
+
 export class TaskCreationService {
     constructor(
         private readonly taskService: TaskService,
@@ -32,7 +38,11 @@ export class TaskCreationService {
         private readonly getSettings: () => PluginSettings,
     ) {}
 
-    async create(input: CreateTaskInput, applyProperties?: TaskPropertyApplier): Promise<TaskCreationOutcome> {
+    async create(
+        input: CreateTaskInput,
+        applyProperties?: TaskPropertyApplier,
+        options: TaskCreationOptions = {},
+    ): Promise<TaskCreationOutcome> {
         if (typeof input.title !== "string") throw new McpToolError("INVALID_INPUT", "title is required");
         const title = input.title.replace(/[\r\n]+/g, " ").trim();
         if (!title || title.length > 512)
@@ -41,6 +51,19 @@ export class TaskCreationService {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
         const kind = input.kind === "project" ? "2" : "1";
+        const sourceReferenceBlockId = options.sourceReferenceBlockId
+            ? assertBlockId(options.sourceReferenceBlockId, "sourceReferenceBlockId")
+            : "";
+        const hasExpectedParentTask = options.expectedParentTaskId !== undefined;
+        const expectedParentTaskId = options.expectedParentTaskId
+            ? assertBlockId(options.expectedParentTaskId, "expectedParentTaskId")
+            : "";
+        if (sourceReferenceBlockId && kind === "2") {
+            throw new McpToolError("INVALID_INPUT", "Source references only apply to Actions");
+        }
+        const nativeTaskMarkdown = `- [ ] ${escapeMarkdownText(title)}${
+            sourceReferenceBlockId ? `\n  - ((${sourceReferenceBlockId}))` : ""
+        }`;
         const settings = this.getSettings();
         const destination = input.destination || { type: settings.taskCreationSettings.defaultCreateTarget };
         if (!destination || typeof destination !== "object" || Array.isArray(destination)) {
@@ -100,7 +123,7 @@ export class TaskCreationService {
                 const inserted = await this.api.request<unknown[]>("/api/block/appendBlock", {
                     parentID: childTarget.containerId,
                     dataType: "markdown",
-                    data: `- [ ] ${escapeMarkdownText(title)}`,
+                    data: nativeTaskMarkdown,
                 });
                 parentTaskHint = childTarget.taskBlockId;
                 insertedMeta = extractInsertedBlockMeta(inserted);
@@ -124,10 +147,20 @@ export class TaskCreationService {
                 if (!notebooks.some((item) => item.id === notebookId)) {
                     throw new McpToolError("TARGET_NOT_FOUND", `Notebook unavailable: ${notebookId}`);
                 }
+                if (sourceReferenceBlockId) {
+                    const dailyNote = await this.api.request<{ id?: string }>("/api/filetree/createDailyNote", {
+                        notebook: notebookId,
+                    });
+                    if (!dailyNote?.id) {
+                        throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the daily note document ID");
+                    }
+                    this.assertDifferentSourceTarget(sourceReferenceBlockId, dailyNote.id);
+                    this.assertCompatibleTaskTarget(dailyNote.id, hasExpectedParentTask, expectedParentTaskId);
+                }
                 const inserted = await this.api.request<unknown[]>("/api/block/appendDailyNoteBlock", {
                     notebook: notebookId,
                     dataType: "markdown",
-                    data: `- [ ] ${escapeMarkdownText(title)}`,
+                    data: nativeTaskMarkdown,
                 });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -143,10 +176,12 @@ export class TaskCreationService {
                         : settings.taskCreationSettings.inboxDocumentId;
                 if (!rawDocumentId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Inbox document is not configured");
                 const document = await this.targets.resolveDocument(rawDocumentId);
+                this.assertDifferentSourceTarget(sourceReferenceBlockId, document.id);
+                this.assertCompatibleTaskTarget(document.id, hasExpectedParentTask, expectedParentTaskId);
                 const inserted = await this.api.request<unknown[]>("/api/block/appendBlock", {
                     parentID: document.id,
                     dataType: "markdown",
-                    data: `- [ ] ${escapeMarkdownText(title)}`,
+                    data: nativeTaskMarkdown,
                 });
                 insertedMeta = extractInsertedBlockMeta(inserted);
                 blockId = insertedMeta.id;
@@ -225,6 +260,30 @@ export class TaskCreationService {
         }
     }
 
+    private assertDifferentSourceTarget(sourceBlockId: string, targetDocumentId: string): void {
+        if (sourceBlockId && sourceBlockId === targetDocumentId) {
+            throw new McpToolError(
+                "INVALID_INPUT",
+                "The source document is also the Action creation target; choose a different target",
+            );
+        }
+    }
+
+    private assertCompatibleTaskTarget(
+        targetDocumentId: string,
+        hasExpectedParentTask: boolean,
+        expectedParentTaskId: string,
+    ): void {
+        if (!hasExpectedParentTask) return;
+        const targetTask = this.taskService.getTask(targetDocumentId);
+        if (targetTask && targetTask.blockId !== expectedParentTaskId) {
+            throw new McpToolError(
+                "INVALID_INPUT",
+                "The Action creation target would assign a different structural parent",
+            );
+        }
+    }
+
     async convertExisting(
         input: Record<string, unknown>,
         applyProperties?: TaskPropertyApplier,
@@ -234,6 +293,9 @@ export class TaskCreationService {
         if (input.kind !== undefined && input.kind !== "task" && input.kind !== "project") {
             throw new McpToolError("INVALID_INPUT", "kind must be task or project");
         }
+        if (input.cleanTitle !== undefined && (typeof input.cleanTitle !== "string" || !input.cleanTitle.trim())) {
+            throw new McpToolError("INVALID_INPUT", "cleanTitle must be a non-empty string");
+        }
         if (
             input.properties !== undefined &&
             (!input.properties || typeof input.properties !== "object" || Array.isArray(input.properties))
@@ -241,7 +303,11 @@ export class TaskCreationService {
             throw new McpToolError("INVALID_INPUT", "properties must be an object");
         }
         const kind = input.kind === "project" ? "2" : "1";
-        let task = await this.taskService.convertToTask(blockId, undefined, kind);
+        let task = await this.taskService.convertToTask(
+            blockId,
+            typeof input.cleanTitle === "string" ? input.cleanTitle.trim() : undefined,
+            kind,
+        );
         try {
             const properties = (input.properties || {}) as Record<string, unknown>;
             if (Object.keys(properties).length) {

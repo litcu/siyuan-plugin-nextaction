@@ -1,5 +1,6 @@
-import type { ProjectReviewItem, ProjectSummary, ReviewData, TaskCacheEntry } from "./types";
-import { buildProjectSummaries, isProjectTask } from "./project-domain";
+import type { ProjectControlState, ProjectReviewItem, ProjectSummary, ReviewData, TaskCacheEntry } from "./types";
+import { isProjectTask } from "./project-domain";
+import { buildProjectControlState } from "./project-control";
 
 export function localDateString(date: Date = new Date()): string {
     const year = date.getFullYear();
@@ -27,18 +28,20 @@ export function isTaskReviewDue(
 }
 
 export function buildProjectReviewQueue(
-    summaries: ProjectSummary[],
+    control: ProjectControlState,
     today = localDateString(),
 ): { queue: ProjectReviewItem[]; reviewableProjects: ProjectSummary[] } {
-    const reviewableProjects = summaries.filter((summary) => summary.project.status !== "done");
-    const queue = reviewableProjects.flatMap((summary): ProjectReviewItem[] => {
+    const reviewableProjectStates = control.projects.filter((project) => project.summary.project.status !== "done");
+    const reviewableProjects = reviewableProjectStates.map((project) => project.summary);
+    const queue = reviewableProjectStates.flatMap(({ summary, risks }): ProjectReviewItem[] => {
         const reviewDue = isTaskReviewDue(summary.project, today);
-        const riskDue = summary.risks.length > 0;
+        const riskDue = risks.length > 0;
         const completionDue = summary.completionCandidate;
         if (!reviewDue && !riskDue && !completionDue) return [];
         return [
             {
                 summary,
+                risks,
                 triggers: [
                     reviewDue ? "schedule" : null,
                     riskDue ? "risk" : null,
@@ -70,7 +73,7 @@ export function mergeManualProjectReviews(
             continue;
         }
         const summary = summaries.get(projectId);
-        if (summary) items.set(projectId, { summary, triggers: ["manual"], schedule: "none" });
+        if (summary) items.set(projectId, { summary, risks: [], triggers: ["manual"], schedule: "none" });
     }
     return Array.from(items.values());
 }
@@ -116,7 +119,7 @@ export function countReviewAttentionTasks(
     // Snapshot accessor-backed entries once before the domain summary revisits
     // relationships for progress, blocking, and risk calculations.
     const stableTasks = tasks.map((task) => ({ ...task }));
-    const projectReviews = buildProjectReviewQueue(buildProjectSummaries(stableTasks, { today }), today).queue;
+    const projectReviews = buildProjectReviewQueue(buildProjectControlState(stableTasks, { today }), today).queue;
     const aggregatedIds = projectReviewAggregateIds(projectReviews);
     let count = projectReviews.length;
     for (const task of stableTasks) {

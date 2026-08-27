@@ -1,5 +1,13 @@
 import { RPC_ERROR_INTERNAL } from "../shared/constants";
 import type { AiProposalService } from "./ai-proposal-service";
+import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
+import type {
+    ActionMoveInput,
+    ActionMovePreview,
+    ActionMoveResult,
+    ActionMoveUndoInput,
+    ActionMoveUndoResult,
+} from "../shared/action-move";
 import type { TaskService } from "./task-service";
 import type {
     RpcChildTargetResult,
@@ -16,7 +24,7 @@ import type {
 import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rpc-methods";
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type { PluginSettings } from "../shared/settings";
-import type { ReviewData, TaskSnapshotV2 } from "../shared/types";
+import type { ProjectSupportData, ReviewData, TaskSnapshotV2 } from "../shared/types";
 import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
@@ -34,6 +42,11 @@ export interface RpcServerHooks {
     createTask?: (input: CreateTaskInput) => Promise<CreateTaskResult>;
     aiProposalService?: AiProposalService;
     getTaskSnapshotV2?: () => TaskSnapshotV2;
+    getProjectSupport?: (projectId: string) => Promise<ProjectSupportData>;
+    previewActionMove?: (input: ActionMoveInput) => Promise<ActionMovePreview>;
+    moveActionToProject?: (input: ActionMoveInput) => Promise<ActionMoveResult>;
+    undoActionMove?: (input: ActionMoveUndoInput) => Promise<ActionMoveUndoResult>;
+    extractAction?: (input: ExtractActionInput) => Promise<ExtractActionResult>;
     broadcastTaskReset?: () => void;
 }
 
@@ -86,6 +99,7 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
             return { success: true };
         },
         updateTask: ({ blockId, attrs }) => taskService.updateTask(blockId, attrs),
+        updateTaskTitle: ({ blockId, title }) => taskService.updateTaskTitle(blockId, title),
         setRepeatRule: ({ blockId, rule }) => taskService.setRepeatRule(blockId, rule),
         skipRepeatOccurrence: ({ blockId }) => taskService.skipRepeatOccurrence(blockId),
         setRepeatPaused: ({ blockId, paused }) => taskService.setRepeatPaused(blockId, paused),
@@ -93,6 +107,15 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
         getNextActions: () => taskService.getNextActions(),
         getAllTasks: ({ status, sortBy }) => taskService.getAllTasks({ status, sortBy }),
         getTaskSnapshotV2: () => (hooks.getTaskSnapshotV2 ? hooks.getTaskSnapshotV2() : unavailable("task sync V2")),
+        getProjectSupport: ({ projectId }) =>
+            hooks.getProjectSupport ? hooks.getProjectSupport(projectId) : unavailable("Project Support"),
+        previewActionMove: (input) =>
+            hooks.previewActionMove ? hooks.previewActionMove(input) : unavailable("Action move preview"),
+        moveActionToProject: (input) =>
+            hooks.moveActionToProject ? hooks.moveActionToProject(input) : unavailable("Action move"),
+        undoActionMove: (input) =>
+            hooks.undoActionMove ? hooks.undoActionMove(input) : unavailable("Action move undo"),
+        extractAction: (input) => (hooks.extractAction ? hooks.extractAction(input) : unavailable("Action extraction")),
         getCompletedTasksPage: (params) => taskService.getCompletedTasksPage(params),
         getTasksByParent: ({ parentBlockId }) => taskService.getTasksByParent(parentBlockId),
         recalcAllOrders: async () => {
@@ -117,10 +140,14 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
                 ? hooks.updateSettings(settings)
                 : Promise.resolve(taskService.updateSettings(settings)),
         getSettings: () => taskService.getSettings(),
-        validateAiProposal: ({ proposal }) =>
-            hooks.aiProposalService ? hooks.aiProposalService.validate(proposal) : unavailable("AI proposal service"),
-        applyAiProposal: ({ proposal }) =>
-            hooks.aiProposalService ? hooks.aiProposalService.apply(proposal) : unavailable("AI proposal service"),
+        validateAiProposal: ({ proposal, context }) =>
+            hooks.aiProposalService
+                ? hooks.aiProposalService.validate(proposal, context)
+                : unavailable("AI proposal service"),
+        applyAiProposal: ({ proposal, context }) =>
+            hooks.aiProposalService
+                ? hooks.aiProposalService.apply(proposal, context)
+                : unavailable("AI proposal service"),
         getMcpStatus: () =>
             hooks.getMcpStatus
                 ? hooks.getMcpStatus()

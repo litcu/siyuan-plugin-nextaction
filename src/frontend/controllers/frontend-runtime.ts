@@ -47,7 +47,10 @@ export class FrontendRuntime {
             getCurrentDocumentId: this.getCurrentDocumentId,
         });
         void initReminderStore(this.plugin);
-        this.notificationHost = new NotificationHost({ target: document.body, props: { i18n: this.plugin.i18n } });
+        this.notificationHost = new NotificationHost({
+            target: document.body,
+            props: { i18n: this.plugin.i18n, bridge },
+        });
         this.plugin.eventBus.on("kernel-plugin-state-change", this.kernelStateHandler);
         this.plugin.kernel.rpc.bind("tasksChangedV2", this.tasksChangedV2Handler);
         this.plugin.kernel.rpc.bind("myDayChanged", this.myDayChangedHandler);

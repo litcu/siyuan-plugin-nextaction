@@ -37,6 +37,9 @@
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+    import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
+    import { openActionMoveDialog } from "../dialogs/action-move-dialog";
+    import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
 
     export let bridge: KernelBridge;
@@ -49,7 +52,9 @@
     let projectFocusId = "";
     let reviewManualProjectIds: string[] = [];
     let reviewExpandedProjectId = "";
+    let reviewScrollTop = 0;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
+    const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegistry();
 
     // Safety-net refresh: most data is kept in sync by revisioned task broadcasts
     // and local derivation in applyUpdate/applyChangeSetV2. This timer
@@ -194,13 +199,29 @@
         }
     }
 
-    async function handleProjectTaskUpdate(task: TaskCacheEntry, attrs: Record<string, string>): Promise<void> {
+    async function handleProjectTaskUpdate(
+        task: TaskCacheEntry,
+        attrs: Record<string, string>,
+    ): Promise<TaskCacheEntry> {
         try {
             const updated = await bridge.updateTask(task.blockId, attrs);
             taskStore.applyUpdate(updated);
             if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
             const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
             if (warningMessage) notifyInfo(warningMessage);
+            return updated;
+        } catch (error: any) {
+            notifyError(formatRpcError(error, i18n));
+            throw error;
+        }
+    }
+
+    async function handleProjectTaskRename(task: TaskCacheEntry, title: string): Promise<TaskCacheEntry> {
+        try {
+            const updated = await bridge.updateTaskTitle(task.blockId, title);
+            taskStore.applyUpdate(updated);
+            if (selectedTask && selectedTask.blockId === updated.blockId) selectedTask = updated;
+            return updated;
         } catch (error: any) {
             notifyError(formatRpcError(error, i18n));
             throw error;
@@ -232,12 +253,39 @@
         void handleEdit(task);
     }
 
-    function openCreate(parentTask: TaskCacheEntry | null = null) {
+    function openCreate(parentTask: TaskCacheEntry | null = null, initialActionKind: "action" | "stage" = "action") {
         openCreateTaskDialog({
             bridge,
             i18n,
             parentTask,
+            initialActionKind,
             onCreated: handleTaskCreated,
+        }).catch((error) => notifyError(formatRpcError(error, i18n)));
+    }
+
+    function openExtractAction(sourceBlockId: string, sourceTitle: string, projectId: string) {
+        openExtractActionDialog({
+            bridge,
+            i18n,
+            sourceBlockId,
+            sourceTitle,
+            defaultProjectId: projectId,
+            onCreated: handleTaskCreated,
+        }).catch((error) => notifyError(formatRpcError(error, i18n)));
+    }
+
+    function openActionMove(task: TaskCacheEntry, project: TaskCacheEntry) {
+        openActionMoveDialog({
+            bridge,
+            i18n,
+            task,
+            project,
+            onMoved: (updated) => {
+                if (selectedTask?.blockId === updated.blockId) selectedTask = updated;
+            },
+            onUndone: (updated) => {
+                selectedTask = updated;
+            },
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
@@ -320,8 +368,14 @@
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     onTaskUpdate={handleProjectTaskUpdate}
+                    onTaskRename={handleProjectTaskRename}
                     onTaskReorder={handleProjectTaskReorder}
                     onCreateChild={(task) => openCreate(task)}
+                    onCreateStage={(project) => openCreate(project, "stage")}
+                    onMoveAction={openActionMove}
+                    loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
+                    onExtractAction={openExtractAction}
+                    {projectDefinitionControllerRegistry}
                     {i18n}
                 />
             {:else if activeView === VIEW_SOMEDAY}
@@ -351,9 +405,11 @@
                     {selectedTaskId}
                     bind:manualProjectIds={reviewManualProjectIds}
                     bind:expandedProjectId={reviewExpandedProjectId}
+                    bind:reviewScrollTop
                     onSelectTask={handleSelectTask}
                     onEdit={handleEdit}
                     onOpenProject={handleOpenProject}
+                    onCreateAction={(project) => openCreate(project)}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
                     {i18n}

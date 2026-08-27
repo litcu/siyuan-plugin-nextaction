@@ -99,6 +99,7 @@ test("发布工作流从 CHANGELOG 提取正文而不是写死默认文案", () 
 
     assert.match(workflow, /node scripts\/changelog\.js extract "\$GITHUB_REF_NAME" release-notes\.md/);
     assert.match(workflow, /fetch-depth: 0/);
+    assert.match(workflow, /git merge-base --is-ancestor "\$TAG_COMMIT" refs\/remotes\/origin\/main/);
     assert.match(workflow, /查看完整变更/);
     assert.match(workflow, /--notes-file release-notes\.md/);
     assert.doesNotMatch(workflow, /Automated release/);

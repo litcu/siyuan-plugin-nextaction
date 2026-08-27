@@ -10,6 +10,7 @@ import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
 import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
 import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
 import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
+import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
 import { openTaskDetailDialog as openSharedTaskDetailDialog } from "../dialogs/task-detail-dialog";
 import {
     closestTaskTarget,
@@ -46,6 +47,12 @@ export class EditorTaskIntegration {
             },
         }).catch((error) => notifyOperationError(error, this.plugin.i18n));
     };
+
+    private sourceTitle(blockElement: HTMLElement): string {
+        const editable = blockElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        const title = (editable?.textContent || blockElement.textContent || "").replace(/\s+/g, " ").trim();
+        return title.slice(0, 512) || this.plugin.i18n.untitled || "(untitled)";
+    }
 
     /**
      * Handle clicks on the ::before status checkbox in the editor.
@@ -410,6 +417,21 @@ export class EditorTaskIntegration {
                 ? get(taskStore).allTasks.find((task) => task.blockId === resolvedTask.blockId)
                 : undefined;
             const isProjectBlock = !!resolvedTaskEntry && isProjectTask(resolvedTaskEntry);
+            if (blockElements.length === 1 && blockElements[0].dataset.nodeId) {
+                const sourceBlock = blockElements[0];
+                detail.menu.addItem({
+                    icon: "iconNextAction",
+                    label: `[NextAction] ${this.plugin.i18n.extractAction}`,
+                    click: () => {
+                        void openExtractActionDialog({
+                            bridge: this.getBridge(),
+                            i18n: this.i18n,
+                            sourceBlockId: sourceBlock.dataset.nodeId!,
+                            sourceTitle: this.sourceTitle(sourceBlock),
+                        }).catch((error) => notifyOperationError(error, this.plugin.i18n));
+                    },
+                });
+            }
             detail.menu.addItem({
                 icon: "iconSparkles",
                 label: `[NextAction] ${this.plugin.i18n.ai || "AI"}`,
@@ -515,6 +537,18 @@ export class EditorTaskIntegration {
         this.editorTitleIconHandler = ({ detail }) => {
             const docId = detail.data?.id;
             if (!docId) return;
+            detail.menu.addItem({
+                icon: "iconNextAction",
+                label: `[NextAction] ${this.plugin.i18n.extractAction}`,
+                click: () => {
+                    void openExtractActionDialog({
+                        bridge: this.getBridge(),
+                        i18n: this.i18n,
+                        sourceBlockId: docId,
+                        sourceTitle: detail.data?.name?.trim() || this.plugin.i18n.untitled || "(untitled)",
+                    }).catch((error) => notifyOperationError(error, this.plugin.i18n));
+                },
+            });
             detail.menu.addItem({
                 icon: "iconSparkles",
                 label: `[NextAction] ${this.plugin.i18n.aiExtractTasks || "AI 提取任务"}`,

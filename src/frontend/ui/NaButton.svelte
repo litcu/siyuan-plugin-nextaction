@@ -1,5 +1,6 @@
 <script lang="ts">
     import NaIcon from "./NaIcon.svelte";
+    import NaSpinner from "./NaSpinner.svelte";
 
     export let variant: "default" | "primary" | "danger" | "text" = "default";
     export let size: "md" | "sm" = "md";
@@ -7,6 +8,7 @@
     export let disabled = false;
     export let loading = false;
     export let type: "button" | "submit" | "reset" = "button";
+    export let ariaLabel = "";
 </script>
 
 <button
@@ -18,12 +20,10 @@
     class:na-button--sm={size === "sm"}
     disabled={disabled || loading}
     aria-busy={loading || undefined}
+    aria-label={ariaLabel || undefined}
     on:click
 >
-    {#if loading}<span class="na-button__spinner" aria-hidden="true"></span>{:else if icon}<NaIcon
-            symbol={icon}
-            size={size === "sm" ? 13 : 14}
-        />{/if}
+    {#if loading}<NaSpinner />{:else if icon}<NaIcon symbol={icon} size={size === "sm" ? 13 : 14} />{/if}
     <span><slot /></span>
 </button>
 
@@ -100,23 +100,5 @@
     .na-button--text:hover:not(:disabled) {
         background: var(--b3-theme-primary-lightest);
         border-color: transparent;
-    }
-    .na-button__spinner {
-        width: 12px;
-        height: 12px;
-        border: 2px solid currentColor;
-        border-right-color: transparent;
-        border-radius: 50%;
-        animation: na-button-spin 0.7s linear infinite;
-    }
-    @keyframes na-button-spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .na-button__spinner {
-            animation: none;
-        }
     }
 </style>

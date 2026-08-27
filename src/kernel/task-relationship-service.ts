@@ -221,15 +221,6 @@ export class TaskRelationshipService {
         await this.validateParentChange(entry, parentId);
 
         return this.repository.withConfirmedChanges(async (changes) => {
-            // 更新 na-parent
-            if (newParentId !== undefined && newParentId !== entry.parentId) {
-                await changes.upsertAttrs({
-                    blockId,
-                    attrs: { [ATTR_PARENT]: newParentId ?? "" },
-                    existing: entry,
-                });
-            }
-
             // 获取目标位置的兄弟列表（排除被拖任务自身）
             const siblings = parentId
                 ? this.cacheManager.getByParent(parentId).filter((s) => s.blockId !== blockId)
@@ -269,6 +260,11 @@ export class TaskRelationshipService {
             }
 
             // 间距不够，重新编号所有兄弟后插入
+            const requests: Array<{
+                blockId: string;
+                attrs: Record<string, string>;
+                existing: TaskCacheEntry;
+            }> = [];
             if (newSort === null) {
                 // 给兄弟分配均匀间距，为插入位置留出空位
                 const step = 10000;
@@ -277,31 +273,29 @@ export class TaskRelationshipService {
                     sort: index < insertIndex ? index * step : (index + 1) * step,
                 }));
                 for (const { sibling, sort } of plannedSiblings) {
-                    try {
-                        const cachedSibling = this.cacheManager.get(sibling.blockId);
-                        if (cachedSibling) {
-                            await changes.upsertAttrs({
-                                blockId: sibling.blockId,
-                                attrs: { [ATTR_SORT]: String(sort) },
-                                existing: cachedSibling,
-                            });
-                        }
-                    } catch (error: unknown) {
-                        const message = error instanceof Error ? error.message : String(error);
-                        void this.api.log(
-                            "warn",
-                            `reorderTask: failed to write sort for ${sibling.blockId}: ${message}`,
-                        );
+                    const cachedSibling = this.cacheManager.get(sibling.blockId);
+                    if (cachedSibling) {
+                        requests.push({
+                            blockId: sibling.blockId,
+                            attrs: { [ATTR_SORT]: String(sort) },
+                            existing: cachedSibling,
+                        });
                     }
                 }
                 newSort = insertIndex * step;
             }
 
-            return changes.upsertAttrs({
+            const movedAttrs: Record<string, string> = { [ATTR_SORT]: String(newSort) };
+            if (newParentId !== undefined && newParentId !== entry.parentId) {
+                movedAttrs[ATTR_PARENT] = newParentId;
+            }
+            requests.push({
                 blockId,
-                attrs: { [ATTR_SORT]: String(newSort) },
-                existing: this.cacheManager.get(blockId) ?? entry,
+                attrs: movedAttrs,
+                existing: entry,
             });
+            const updatedEntries = await changes.upsertAttrsWithConfirmedRollback(requests);
+            return updatedEntries.find((updated) => updated.blockId === blockId) ?? entry;
         });
     }
 

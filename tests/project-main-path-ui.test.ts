@@ -22,8 +22,11 @@ test("项目回顾可以打开对应项目并将目标选择传递给项目视�
     assert.match(app, /let reviewExpandedProjectId = ""/);
     assert.match(app, /bind:manualProjectIds=\{reviewManualProjectIds\}/);
     assert.match(app, /bind:expandedProjectId=\{reviewExpandedProjectId\}/);
+    assert.match(app, /bind:reviewScrollTop/);
     assert.match(review, /export let manualProjectIds: string\[\]/);
     assert.match(review, /export let expandedProjectId: string/);
+    assert.match(review, /export let reviewScrollTop = 0/);
+    assert.match(review, /on:scroll=\{\(\) => \(reviewScrollTop = reviewScrollElement\?\.scrollTop \|\| 0\)\}/);
     assert.match(queue, /export let expandedProjectId: string/);
     assert.match(projectView, /export let requestedProjectId/);
     assert.match(projectView, /activeProjectId = requestedProjectId/);
@@ -32,6 +35,19 @@ test("项目回顾可以打开对应项目并将目标选择传递给项目视�
         projectView,
         /function handleFilterChange\(state: FilterState\) \{\s*requestedProjectFilterBypassId = "";/,
     );
+});
+
+test("风险处置入口提供创建下一步行动与统一完成确认", () => {
+    const overview = source("../src/frontend/components/project/ProjectOverviewMode.svelte");
+    const queue = source("../src/frontend/components/ProjectReviewQueue.svelte");
+    const review = source("../src/frontend/components/ReviewView.svelte");
+
+    assert.match(overview, /shouldOfferProjectRiskAction\(item\)/);
+    assert.match(overview, /onCreateAction\?\.\(summary\.project\)/);
+    assert.match(queue, /shouldOfferProjectRiskAction\(risk\)/);
+    assert.match(queue, /onCreateAction\?\.\(project\)/);
+    assert.match(queue, /onConfirmCompletion/);
+    assert.match(review, /confirmProjectCompletion\(summary/);
 });
 
 test("任务详情区分逻辑加入项目、物理移动和取消项目身份", () => {
