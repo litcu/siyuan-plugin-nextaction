@@ -74,6 +74,7 @@
     let appliedSelectedTaskId = selectedTaskId;
     let requestedProjectFilterBypassId = "";
     let preferActiveProject = false;
+    let collapsedByProject: Record<string, string[]> = {};
     let collapsedIds: Set<string> = new Set();
     let showCompleted = false;
     let riskFilter: ProjectRiskFilter = "all";
@@ -107,7 +108,7 @@
         dateFilter,
         actionFilter,
         filterState,
-        collapsedIds,
+        collapsedByProject,
         ganttSortMode,
         startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
     };
@@ -120,6 +121,7 @@
     $: selectedProject = viewModel.selectedProject;
     $: riskItems = viewModel.riskItems;
     $: projectTreeModel = viewModel.projectTreeModel;
+    $: collapsedIds = new Set(collapsedByProject[resolvedActiveProjectId] || []);
     $: boardTasks = viewModel.boardTasks;
     $: planGroups = viewModel.planGroups;
     $: activeProjectsCount = viewModel.metrics.activeProjects;
@@ -168,6 +170,8 @@
         if (next.has(blockId)) next.delete(blockId);
         else next.add(blockId);
         collapsedIds = next;
+        const projectId = resolvedActiveProjectId;
+        if (projectId) collapsedByProject = { ...collapsedByProject, [projectId]: [...next] };
     }
 
     async function handleBoardMove(intent: ProjectBoardMoveIntent) {
@@ -401,8 +405,8 @@
                     />
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode
+                        project={selectedSummary.project}
                         model={projectTreeModel}
-                        {collapsedIds}
                         {selectedTaskId}
                         {i18n}
                         {onSelectTask}
@@ -410,6 +414,8 @@
                         {onStatusClick}
                         {onContextMenu}
                         onToggleCollapse={toggleCollapse}
+                        {onTaskRename}
+                        {onTaskReorder}
                     />
                 {:else if mode === "board"}
                     <ProjectBoardMode
@@ -436,7 +442,6 @@
                     <GanttView
                         model={projectTreeModel}
                         projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
-                        {collapsedIds}
                         {selectedTaskId}
                         {i18n}
                         sortMode={ganttSortMode}

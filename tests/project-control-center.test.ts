@@ -28,11 +28,12 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
     assert.match(view, /selectedTaskOverride/);
     assert.match(source("../src/frontend/components/NextActionApp.svelte"), /selectedTaskOverride=\{selectedTask\}/);
     assert.match(hierarchy, /model\.rows/);
-    assert.match(hierarchy, /padding-left: \{row\.depth \* 18\}px/);
+    assert.match(hierarchy, /role="tree"/);
+    assert.match(hierarchy, /--na-project-tree-depth/);
     assert.match(state, /matchedTaskIds/);
     assert.match(state, /selectedMatchedTaskIds/);
     assert.match(hierarchy, /onToggleCollapse\(row\.task\.blockId\)/);
-    assert.match(hierarchy, /isCollapsed=\{collapsedIds\.has\(row\.task\.blockId\)\}/);
+    assert.match(hierarchy, /isCollapsed=\{Boolean\(row\.isCollapsed\)\}/);
 });
 
 test("项目视图窄屏筛选控件流式换行并与搜索区保持间距", () => {

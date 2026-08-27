@@ -73,7 +73,8 @@ export interface ProjectViewState {
     dateFilter: ProjectDateFilter;
     actionFilter: ProjectActionFilter;
     filterState: FilterState;
-    collapsedIds: ReadonlySet<string>;
+    collapsedIds?: ReadonlySet<string>;
+    collapsedByProject?: Readonly<Record<string, readonly string[]>>;
     ganttSortMode: ProjectTreeSortMode;
     startPreviewDays: number;
 }
@@ -172,11 +173,16 @@ export function buildProjectViewModel(
                       .map((task) => task.blockId),
               );
     const projectTreeModel = selectedSummary
-        ? buildProjectTreeModel(selectedSummary, state.collapsedIds, {
-              showCompleted: state.showCompleted,
-              matchedTaskIds: selectedMatchedTaskIds,
-              sortMode: state.mode === "gantt" ? state.ganttSortMode : "manual",
-          })
+        ? buildProjectTreeModel(
+              selectedSummary,
+              new Set(state.collapsedByProject?.[activeProjectId] || state.collapsedIds || []),
+              {
+                  showCompleted: state.showCompleted,
+                  matchedTaskIds: selectedMatchedTaskIds,
+                  revealedTaskIds: state.selectedTaskId ? new Set([state.selectedTaskId]) : null,
+                  sortMode: state.mode === "gantt" ? state.ganttSortMode : "manual",
+              },
+          )
         : null;
     const detailTasks = (selectedSummary?.descendants || []).filter(
         (task) =>

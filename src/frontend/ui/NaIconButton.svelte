@@ -10,6 +10,8 @@
     export let tone: "default" | "danger" = "default";
     export let type: "button" | "submit" = "button";
     export let compact = false;
+    export let draggable = false;
+    export let tabIndex: number | undefined = undefined;
     export let tooltipPosition: "top" | "bottom" | "left" | "right" = "bottom";
 </script>
 
@@ -23,7 +25,11 @@
         aria-label={label}
         aria-pressed={active || undefined}
         {disabled}
+        {draggable}
+        tabindex={tabIndex}
         on:click
+        on:dragstart
+        on:dragend
     >
         <NaIcon {symbol} {size} />
     </button>

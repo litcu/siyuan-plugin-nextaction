@@ -5,6 +5,10 @@ export interface ProjectTreeRow {
     depth: number;
     hasChildren: boolean;
     childCount: number;
+    visibleParentId?: string;
+    positionInSet?: number;
+    setSize?: number;
+    isCollapsed?: boolean;
     subtreeProgress?: ProjectProgress;
 }
 
@@ -20,6 +24,7 @@ export interface ProjectTreeModel {
 export interface ProjectTreeOptions {
     showCompleted: boolean;
     matchedTaskIds?: ReadonlySet<string> | null;
+    revealedTaskIds?: ReadonlySet<string> | null;
     sortMode?: ProjectTreeSortMode;
 }
 
@@ -94,7 +99,18 @@ export function buildProjectTreeModel(
     markConnected(summary.project.blockId);
 
     const matchedTaskIds = options.matchedTaskIds;
+    const revealedTaskIds = options.revealedTaskIds;
     const includedIds = new Set<string>([summary.project.blockId]);
+    const walkAncestors = (taskId: string, target: Set<string>) => {
+        let currentId = taskId;
+        const pathVisited = new Set<string>();
+        while (currentId && !pathVisited.has(currentId)) {
+            pathVisited.add(currentId);
+            target.add(currentId);
+            if (currentId === summary.project.blockId) break;
+            currentId = parentByChild.get(currentId) || "";
+        }
+    };
     if (!matchedTaskIds) {
         for (const task of summary.descendants) {
             if (options.showCompleted || task.status !== "done") includedIds.add(task.blockId);
@@ -103,15 +119,14 @@ export function buildProjectTreeModel(
         for (const taskId of matchedTaskIds) {
             const task = taskById.get(taskId);
             if (!task || (!options.showCompleted && task.status === "done")) continue;
-            let currentId = taskId;
-            const pathVisited = new Set<string>();
-            while (currentId && !pathVisited.has(currentId)) {
-                pathVisited.add(currentId);
-                includedIds.add(currentId);
-                if (currentId === summary.project.blockId) break;
-                currentId = parentByChild.get(currentId) || "";
-            }
+            walkAncestors(taskId, includedIds);
         }
+    }
+
+    for (const taskId of revealedTaskIds || []) {
+        const task = taskById.get(taskId);
+        if (!task || (!options.showCompleted && task.status === "done")) continue;
+        walkAncestors(taskId, includedIds);
     }
 
     const includedDescendantMemo = new Map<string, boolean>();
@@ -126,43 +141,62 @@ export function buildProjectTreeModel(
         return result;
     };
 
-    const rowMeta = (task: TaskCacheEntry, depth: number): ProjectTreeRow => {
-        const includedChildren = (childrenByParent.get(task.blockId) || []).filter(
-            (child) => includedIds.has(child.blockId) || hasIncludedDescendant(child.blockId),
+    const forcedExpandedIds = new Set<string>();
+    for (const taskId of [...(matchedTaskIds || []), ...(revealedTaskIds || [])]) {
+        walkAncestors(parentByChild.get(taskId) || "", forcedExpandedIds);
+    }
+
+    const isDisplayable = (task: TaskCacheEntry): boolean =>
+        includedIds.has(task.blockId) &&
+        (task.blockId === summary.project.blockId || options.showCompleted || task.status !== "done");
+    const visibleChildren = (parentId: string, path = new Set<string>()): TaskCacheEntry[] => {
+        if (path.has(parentId)) return [];
+        const nextPath = new Set(path).add(parentId);
+        const result: TaskCacheEntry[] = [];
+        for (const child of childrenByParent.get(parentId) || []) {
+            if (parentByChild.get(child.blockId) !== parentId) continue;
+            if (!includedIds.has(child.blockId) && !hasIncludedDescendant(child.blockId)) continue;
+            if (isDisplayable(child)) result.push(child);
+            else result.push(...visibleChildren(child.blockId, nextPath));
+        }
+        return result.filter(
+            (task, index, tasks) => tasks.findIndex((candidate) => candidate.blockId === task.blockId) === index,
         );
-        return {
+    };
+
+    const rows: ProjectTreeRow[] = [];
+    const visited = new Set<string>();
+    const addRow = (
+        task: TaskCacheEntry,
+        depth: number,
+        visibleParentId: string,
+        siblings: TaskCacheEntry[],
+        position: number,
+    ): void => {
+        if (visited.has(task.blockId)) return;
+        visited.add(task.blockId);
+        const children = visibleChildren(task.blockId);
+        const isCollapsed = collapseState.has(task.blockId) && !forcedExpandedIds.has(task.blockId);
+        rows.push({
             task,
             depth,
-            hasChildren: includedChildren.length > 0,
-            childCount: includedChildren.length,
+            hasChildren: children.length > 0,
+            childCount: children.length,
+            visibleParentId,
+            positionInSet: position + 1,
+            setSize: siblings.length,
+            isCollapsed,
             subtreeProgress: summary.subtreeProgress[task.blockId],
-        };
+        });
+        if (isCollapsed) return;
+        children.forEach((child, index) => addRow(child, depth + 1, task.blockId, children, index));
     };
 
-    const rows: ProjectTreeRow[] = [rowMeta(summary.project, 0)];
-    const visited = new Set<string>([summary.project.blockId]);
-    const visit = (parentId: string, depth: number) => {
-        for (const child of childrenByParent.get(parentId) || []) {
-            if (visited.has(child.blockId)) continue;
-            if (!includedIds.has(child.blockId) && !hasIncludedDescendant(child.blockId)) continue;
-            visited.add(child.blockId);
-            if (!options.showCompleted && child.status === "done") {
-                visit(child.blockId, depth);
-                continue;
-            }
-            rows.push(rowMeta(child, depth));
-            if (!collapseState.has(child.blockId)) visit(child.blockId, depth + 1);
-        }
-    };
-
-    if (!collapseState.has(summary.project.blockId)) visit(summary.project.blockId, 1);
-    for (const task of summary.descendants) {
-        if (connectedIds.has(task.blockId) || visited.has(task.blockId) || !includedIds.has(task.blockId)) continue;
-        if (!options.showCompleted && task.status === "done") continue;
-        rows.push(rowMeta(task, 0));
-        visited.add(task.blockId);
-        if (!collapseState.has(task.blockId)) visit(task.blockId, 1);
-    }
+    addRow(summary.project, 0, "", [summary.project], 0);
+    const disconnected = summary.descendants.filter(
+        (task) => !connectedIds.has(task.blockId) && !visited.has(task.blockId) && isDisplayable(task),
+    );
+    disconnected.forEach((task, index) => addRow(task, 0, "", disconnected, index));
 
     const includedTasks = allTasks.filter(
         (task) =>
