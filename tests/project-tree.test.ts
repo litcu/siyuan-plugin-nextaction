@@ -123,6 +123,31 @@ test("子任务筛选保留必要祖先并排除无关兄弟", () => {
     assert.equal(model.includedIds.has("x"), false);
 });
 
+test("筛选命中和当前选择会揭示被折叠祖先下的 Action", () => {
+    const project = task("p", { taskType: "2", childIds: ["stage"] });
+    const stage = task("stage", { parentId: "p", childIds: ["parent"] });
+    const parent = task("parent", { parentId: "stage", childIds: ["matched", "selected"] });
+    const matched = task("matched", { parentId: "parent" });
+    const selected = task("selected", { parentId: "parent" });
+
+    const model = buildProjectTreeModel(
+        summary(project, [stage, parent, matched, selected]),
+        new Set(["stage", "parent"]),
+        {
+            showCompleted: true,
+            matchedTaskIds: new Set([matched.blockId]),
+            revealedTaskIds: new Set([selected.blockId]),
+        },
+    );
+
+    assert.deepEqual(
+        model.rows.map((row) => row.task.blockId),
+        ["p", "stage", "parent", "matched", "selected"],
+    );
+    assert.equal(model.rows.find((row) => row.task.blockId === "stage")?.isCollapsed, false);
+    assert.equal(model.rows.find((row) => row.task.blockId === "parent")?.isCollapsed, false);
+});
+
 test("隐藏已完成父任务时提升其未完成后代", () => {
     const project = task("p", { taskType: "2", childIds: ["done-parent"] });
     const doneParent = task("done-parent", { parentId: "p", status: "done", childIds: ["child"] });
@@ -138,6 +163,37 @@ test("隐藏已完成父任务时提升其未完成后代", () => {
     assert.deepEqual(
         model.includedTasks.map((entry) => entry.blockId),
         ["p", "child"],
+    );
+    assert.equal(model.rows[0].childCount, 1);
+    assert.equal(model.rows[1].visibleParentId, "p");
+    assert.equal(model.rows[1].positionInSet, 1);
+    assert.equal(model.rows[1].setSize, 1);
+});
+
+test("隐藏已完成父任务时直接子项计数使用提升后的可见层级", () => {
+    // Regression: a hidden completed parent used to count as one child even when it promoted multiple visible Actions.
+    const project = task("p", { taskType: "2", childIds: ["done-parent"] });
+    const doneParent = task("done-parent", { parentId: "p", status: "done", childIds: ["a", "b"] });
+    const a = task("a", { parentId: "done-parent" });
+    const b = task("b", { parentId: "done-parent" });
+
+    const model = buildProjectTreeModel(summary(project, [doneParent, a, b]), new Set(), { showCompleted: false });
+
+    assert.deepEqual(
+        model.rows.map((row) => [row.task.blockId, row.depth]),
+        [
+            ["p", 0],
+            ["a", 1],
+            ["b", 1],
+        ],
+    );
+    assert.equal(model.rows[0].childCount, 2);
+    assert.deepEqual(
+        model.rows.slice(1).map((row) => [row.visibleParentId, row.positionInSet, row.setSize]),
+        [
+            ["p", 1, 2],
+            ["p", 2, 2],
+        ],
     );
 });
 

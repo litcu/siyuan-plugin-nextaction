@@ -174,6 +174,7 @@
     "projectPlanThisWeek": "本周",
     "projectPlanLater": "以后",
     "projectPlanUnscheduled": "无日期",
+    "projectHierarchyWriteFailed": "层级更新失败：{error}",
     "projectNoPlan": "项目中暂无带日期的任务",
     "projectDropHere": "将任务拖到这里",
     "projectSelectTitle": "选择一个项目",

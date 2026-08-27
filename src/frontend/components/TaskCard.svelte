@@ -26,6 +26,7 @@
     export let onActivate: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let isRoot = true;
     export let completedOverride: boolean | undefined = undefined;
+    export let managedFocus = false;
 
     $: isInbox = task.status === "inbox";
     $: isBlocked = task.blocked;
@@ -114,7 +115,7 @@
     class:selected
     style="--na-task-card-accent: {cardAccentColor}"
     role="button"
-    tabindex="0"
+    tabindex={managedFocus ? -1 : 0}
     on:click={() => {
         if (onSelect) onSelect(task);
     }}
@@ -124,12 +125,12 @@
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
     <div class="na-task-card__content">
-        <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} />
+        <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} focusable={!managedFocus} />
         <div
             class="na-task-card__body"
             class:na-task-card__body--metadata-empty={!hasCardMetadata}
             role="button"
-            tabindex="0"
+            tabindex={managedFocus ? -1 : 0}
             on:click|stopPropagation={() => onEdit(task)}
             on:keydown|stopPropagation={(event) => {
                 if (event.key === "Enter" || event.key === " ") onEdit(task);
@@ -295,6 +296,7 @@
             {#if isInbox && onActivate}
                 <button
                     class="na-task-card__activate-btn"
+                    tabindex={managedFocus ? -1 : 0}
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
@@ -305,6 +307,7 @@
             {#if isSomeday && onActivate}
                 <button
                     class="na-task-card__activate-btn"
+                    tabindex={managedFocus ? -1 : 0}
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
@@ -336,6 +339,7 @@
             {#if hasChildren}
                 <NaIconButton
                     compact
+                    tabIndex={managedFocus ? -1 : undefined}
                     symbol={isCollapsed ? "iconExpand" : "iconContract"}
                     label={isCollapsed ? i18n?.expandChildren || "Expand" : i18n?.collapseChildren || "Collapse"}
                     on:click={handleToggleCollapse}
@@ -343,6 +347,7 @@
             {/if}
             <NaIconButton
                 compact
+                tabIndex={managedFocus ? -1 : undefined}
                 symbol="iconOpenWindow"
                 label={i18n?.jumpToBlock || "Jump to Block"}
                 on:click={handleJump}

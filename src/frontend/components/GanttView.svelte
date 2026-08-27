@@ -20,7 +20,6 @@
 
     export let model: ProjectTreeModel;
     export let projectTasks: TaskCacheEntry[];
-    export let collapsedIds: ReadonlySet<string>;
     export let selectedTaskId = "";
     export let i18n: any;
     export let sortMode: ProjectTreeSortMode = "timeline";
@@ -206,8 +205,8 @@
                     >
                         {#if row.hasChildren}
                             <NaIconButton
-                                symbol={collapsedIds.has(row.task.blockId) ? "iconRight" : "iconDown"}
-                                label={collapsedIds.has(row.task.blockId)
+                                symbol={row.isCollapsed ? "iconRight" : "iconDown"}
+                                label={row.isCollapsed
                                     ? i18n?.expandChildren || "Expand subtasks"
                                     : i18n?.collapseChildren || "Collapse subtasks"}
                                 size={12}

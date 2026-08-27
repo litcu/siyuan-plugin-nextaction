@@ -174,6 +174,7 @@
     "projectPlanThisWeek": "This week",
     "projectPlanLater": "Later",
     "projectPlanUnscheduled": "Unscheduled",
+    "projectHierarchyWriteFailed": "Hierarchy update failed: {error}",
     "projectNoPlan": "No dated tasks in this project",
     "projectDropHere": "Drop tasks here",
     "projectSelectTitle": "Select a project",
