@@ -420,6 +420,7 @@
                 {:else if mode === "board"}
                     <ProjectBoardMode
                         tasks={boardTasks}
+                        projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
                         {selectedTaskId}
                         {i18n}
                         {onSelectTask}

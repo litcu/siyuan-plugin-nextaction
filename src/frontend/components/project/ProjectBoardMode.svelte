@@ -2,13 +2,19 @@
     import { onDestroy, onMount } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
-    import { buildProjectBoardColumns, type ProjectBoardStatus } from "../../../shared/project-board";
+    import {
+        buildProjectBoardColumns,
+        PROJECT_BOARD_UNASSIGNED_STAGE,
+        type ProjectBoardColumn,
+        type ProjectBoardGroupBy,
+    } from "../../../shared/project-board";
     import type { ProjectBoardMoveIntent } from "../../utils/project-view-state";
-    import { statusI18nKey, translateKey } from "../../i18n";
+    import { priorityI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
     import NaIconButton from "../../ui/NaIconButton.svelte";
 
     export let tasks: TaskCacheEntry[];
+    export let projectTasks: TaskCacheEntry[] = tasks;
     export let selectedTaskId = "";
     export let i18n: I18nStrings;
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
@@ -18,20 +24,34 @@
     export let onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
 
     let draggingTask: TaskCacheEntry | null = null;
-    let dropStatus: ProjectBoardStatus | "" = "";
+    let dropColumnKey = "";
     let busy = false;
     let boardElement: HTMLDivElement;
     let resizeObserver: ResizeObserver | null = null;
     let boardWidth = 1024;
     let narrowColumnIndex = 0;
+    let groupBy: ProjectBoardGroupBy = "status";
 
-    $: columns = buildProjectBoardColumns(tasks);
+    $: columns = buildProjectBoardColumns(tasks, groupBy, projectTasks);
     $: narrow = boardWidth <= 780;
     $: narrowColumnIndex = Math.max(0, Math.min(narrowColumnIndex, columns.length - 1));
     $: visibleColumns = narrow ? [columns[narrowColumnIndex]] : columns;
 
-    function statusLabel(status: string): string {
-        return translateKey(i18n, statusI18nKey(status), status);
+    function groupLabel(group: ProjectBoardGroupBy): string {
+        if (group === "status") return i18n?.status || "Status";
+        if (group === "priority") return i18n?.priority || "Priority";
+        if (group === "importance") return i18n?.importance || "Importance";
+        return i18n?.projectBoardStage || "Stage";
+    }
+
+    function columnLabel(column: ProjectBoardColumn): string {
+        if (column.groupBy === "status") return translateKey(i18n, statusI18nKey(column.label), column.label);
+        if (column.groupBy === "priority") return translateKey(i18n, priorityI18nKey(column.label), column.label);
+        if (column.groupBy === "importance") return `${i18n?.importance || "Importance"} ${column.label}`;
+        if (column.key === PROJECT_BOARD_UNASSIGNED_STAGE) {
+            return i18n?.projectBoardUnassignedStage || "Unassigned stage";
+        }
+        return column.label || i18n?.untitled || "Untitled";
     }
 
     function handleDragStart(task: TaskCacheEntry, event: DragEvent) {
@@ -42,14 +62,22 @@
 
     function resetDrag() {
         draggingTask = null;
-        dropStatus = "";
+        dropColumnKey = "";
     }
 
-    async function handleDrop(status: ProjectBoardStatus, afterId = "") {
+    async function handleDrop(column: ProjectBoardColumn, afterId = "", afterParentId = "") {
         if (!draggingTask || busy) return;
+        if (groupBy === "stage") return;
         busy = true;
         try {
-            await onMoveTask({ task: draggingTask, status, afterId: afterId || undefined });
+            await onMoveTask({
+                task: draggingTask,
+                status: column.status || "",
+                groupBy,
+                value: column.value,
+                afterId: afterId || undefined,
+                afterParentId: afterParentId || undefined,
+            });
         } catch (error) {
             console.error("[NextAction] project board drop failed:", error);
         } finally {
@@ -73,6 +101,15 @@
 </script>
 
 <div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
+    <div class="na-project-board__toolbar">
+        <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
+        <select id="na-project-board-group-by" class="na-select na-select--sm" bind:value={groupBy}>
+            <option value="status">{groupLabel("status")}</option>
+            <option value="stage">{groupLabel("stage")}</option>
+            <option value="priority">{groupLabel("priority")}</option>
+            <option value="importance">{groupLabel("importance")}</option>
+        </select>
+    </div>
     {#if narrow}
         <div class="na-project-board__pager">
             <NaIconButton
@@ -81,7 +118,7 @@
                 disabled={narrowColumnIndex === 0}
                 on:click={() => (narrowColumnIndex -= 1)}
             />
-            <span aria-live="polite">{statusLabel(columns[narrowColumnIndex].status)}</span>
+            <span aria-live="polite">{columnLabel(columns[narrowColumnIndex])}</span>
             <NaIconButton
                 symbol="iconRight"
                 label={i18n?.nextPage || "Next"}
@@ -90,27 +127,32 @@
             />
         </div>
     {/if}
-    <div class="na-project-board__columns" class:na-project-board__columns--narrow={narrow}>
-        {#each visibleColumns as column (column.status)}
+    <div
+        class="na-project-board__columns"
+        class:na-project-board__columns--narrow={narrow}
+        style={`--na-project-board-column-count: ${columns.length}`}
+    >
+        {#each visibleColumns as column (column.key)}
             <section
                 class="na-project-board__column"
                 role="list"
-                class:drop-active={dropStatus === column.status}
-                on:dragover|preventDefault={() => (dropStatus = column.status)}
-                on:dragleave={() => (dropStatus = "")}
-                on:drop|preventDefault={() => handleDrop(column.status)}
+                class:drop-active={dropColumnKey === column.key}
+                on:dragover|preventDefault={() => (dropColumnKey = column.key)}
+                on:dragleave={() => (dropColumnKey = "")}
+                on:drop|preventDefault={() => handleDrop(column)}
             >
-                <header><span>{statusLabel(column.status)}</span><span>{column.tasks.length}</span></header>
+                <header><span>{columnLabel(column)}</span><span>{column.tasks.length}</span></header>
                 <div class="na-project-board__cards">
                     {#each column.tasks as task (task.blockId)}
                         <div
                             class="na-project-board__card"
                             role="listitem"
-                            draggable={!busy}
+                            draggable={!busy && groupBy !== "stage"}
                             on:dragstart={(event) => handleDragStart(task, event)}
                             on:dragend={resetDrag}
-                            on:dragover|preventDefault={() => (dropStatus = column.status)}
-                            on:drop|preventDefault|stopPropagation={() => handleDrop(column.status, task.blockId)}
+                            on:dragover|preventDefault={() => (dropColumnKey = column.key)}
+                            on:drop|preventDefault|stopPropagation={() =>
+                                handleDrop(column, task.blockId, task.parentId)}
                         >
                             <TaskCard
                                 {task}
@@ -139,9 +181,20 @@
         min-height: 0;
         min-width: 900px;
     }
+    .na-project-board__toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+    }
+    .na-project-board__toolbar label {
+        white-space: nowrap;
+    }
     .na-project-board__columns {
         display: grid;
-        grid-template-columns: repeat(6, minmax(150px, 1fr));
+        grid-template-columns: repeat(var(--na-project-board-column-count, 6), minmax(150px, 1fr));
         gap: 8px;
         align-items: stretch;
     }

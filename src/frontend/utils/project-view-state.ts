@@ -7,8 +7,8 @@ import type {
     ProjectSummary,
     TaskCacheEntry,
 } from "../../shared/types";
-import { ATTR_STATUS } from "../../shared/constants";
-import { isProjectBoardTask } from "../../shared/project-board";
+import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../../shared/constants";
+import { isProjectBoardTask, type ProjectBoardGroupBy } from "../../shared/project-board";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
 import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
 import { buildProjectControlState } from "../../shared/project-control";
@@ -22,7 +22,10 @@ export type ProjectActionFilter = "all" | "missing" | "available";
 export interface ProjectBoardMoveIntent {
     task: TaskCacheEntry;
     status: string;
+    groupBy?: ProjectBoardGroupBy;
+    value?: string | number;
     afterId?: string;
+    afterParentId?: string;
 }
 
 export interface ProjectBoardMoveHandlers {
@@ -35,10 +38,21 @@ export async function executeProjectBoardMove(
     projectId: string,
     handlers: ProjectBoardMoveHandlers,
 ): Promise<void> {
-    if (intent.task.status !== intent.status && handlers.updateTask) {
-        await handlers.updateTask(intent.task, { "na-status": intent.status });
+    const groupBy = intent.groupBy || "status";
+    const targetValue = intent.value ?? intent.status;
+    const attrs: Record<string, string> = {};
+    if (groupBy === "status" && intent.task.status !== targetValue) {
+        attrs[ATTR_STATUS] = String(targetValue);
+    } else if (groupBy === "priority" && intent.task.priority !== targetValue) {
+        attrs[ATTR_PRIORITY] = String(targetValue);
+    } else if (groupBy === "importance" && intent.task.importance !== targetValue) {
+        attrs[ATTR_IMPORTANCE] = String(targetValue);
     }
-    if (handlers.reorderTask) {
+    if (Object.keys(attrs).length > 0 && handlers.updateTask) {
+        await handlers.updateTask(intent.task, attrs);
+    }
+    const sameParentTarget = !intent.afterParentId || intent.afterParentId === (intent.task.parentId || projectId);
+    if (handlers.reorderTask && (groupBy !== "stage" || (intent.afterId && sameParentTarget))) {
         await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
     }
 }
