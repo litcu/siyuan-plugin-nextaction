@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onDestroy, onMount } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import { buildProjectBoardColumns, type ProjectBoardStatus } from "../../../shared/project-board";
@@ -19,11 +20,13 @@
     let draggingTask: TaskCacheEntry | null = null;
     let dropStatus: ProjectBoardStatus | "" = "";
     let busy = false;
-    let viewportWidth = 1024;
+    let boardElement: HTMLDivElement;
+    let resizeObserver: ResizeObserver | null = null;
+    let boardWidth = 1024;
     let narrowColumnIndex = 0;
 
     $: columns = buildProjectBoardColumns(tasks);
-    $: narrow = viewportWidth <= 780;
+    $: narrow = boardWidth <= 780;
     $: narrowColumnIndex = Math.max(0, Math.min(narrowColumnIndex, columns.length - 1));
     $: visibleColumns = narrow ? [columns[narrowColumnIndex]] : columns;
 
@@ -54,11 +57,22 @@
             resetDrag();
         }
     }
+
+    onMount(() => {
+        const measure = () => {
+            if (boardElement) boardWidth = boardElement.clientWidth;
+        };
+        measure();
+        if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(measure);
+            resizeObserver.observe(boardElement);
+        }
+    });
+
+    onDestroy(() => resizeObserver?.disconnect());
 </script>
 
-<svelte:window bind:innerWidth={viewportWidth} />
-
-<div class="na-project-board" aria-busy={busy}>
+<div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
     {#if narrow}
         <div class="na-project-board__pager">
             <NaIconButton

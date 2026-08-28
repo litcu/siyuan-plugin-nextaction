@@ -94,6 +94,13 @@ test("看板通过父组件回调进入统一任务写入链路", () => {
     assert.doesNotMatch(board, /KernelBridge|bridge\.updateTask|bridge\.reorderTask/);
 });
 
+test("看板窄屏断点跟随自身容器而不是窗口宽度", () => {
+    const board = source("../src/frontend/components/project/ProjectBoardMode.svelte");
+    assert.match(board, /ResizeObserver/);
+    assert.match(board, /boardElement\.clientWidth/);
+    assert.doesNotMatch(board, /svelte:window/);
+});
+
 test("项目入口与共享详情按条目类型使用项目语义", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
     const detail = source("../src/frontend/components/TaskDetail.svelte");
