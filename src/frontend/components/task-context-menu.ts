@@ -14,7 +14,12 @@ interface ContextMenuCallbacks {
     onEdit?: (task: TaskCacheEntry) => void;
     onMyDayToggle?: (blockId: string, inMyDay: boolean) => void;
     onReminderEdit?: (blockId: string) => void;
-    onProjectBoardMove?: (task: TaskCacheEntry, status: string, position?: "top" | "bottom") => Promise<void>;
+    onProjectBoardMove?: (
+        task: TaskCacheEntry,
+        groupBy: "status" | "priority" | "importance",
+        value: string | number,
+        position?: "top" | "bottom",
+    ) => Promise<void>;
 }
 
 export function showTaskContextMenu(
@@ -64,16 +69,16 @@ export function showTaskContextMenu(
             submenu: STATUS_LIST.map((status) => ({
                 icon: status === task.status ? "iconSelect" : "",
                 label: i18n?.[toI18nKey("status", status)] || status,
-                click: () => callbacks.onProjectBoardMove!(task, status, "bottom"),
+                click: () => callbacks.onProjectBoardMove!(task, "status", status, "bottom"),
             })),
         });
         menu.addItem({
             label: i18n?.projectBoardMoveTop || "Move to top",
-            click: () => callbacks.onProjectBoardMove!(task, task.status, "top"),
+            click: () => callbacks.onProjectBoardMove!(task, "status", task.status, "top"),
         });
         menu.addItem({
             label: i18n?.projectBoardMoveBottom || "Move to bottom",
-            click: () => callbacks.onProjectBoardMove!(task, task.status, "bottom"),
+            click: () => callbacks.onProjectBoardMove!(task, "status", task.status, "bottom"),
         });
         menu.addSeparator();
     }
@@ -87,8 +92,12 @@ export function showTaskContextMenu(
             label: i18n?.[toI18nKey("priority", p)] || p,
             click: async () => {
                 try {
-                    const updated = await bridge.updateTask(task.blockId, { "na-priority": p });
-                    callbacks.onUpdated(updated);
+                    if (callbacks.onProjectBoardMove) {
+                        await callbacks.onProjectBoardMove(task, "priority", p, "bottom");
+                    } else {
+                        const updated = await bridge.updateTask(task.blockId, { "na-priority": p });
+                        callbacks.onUpdated(updated);
+                    }
                 } catch (e: any) {
                     console.error("[NextAction] updateTask (priority) failed:", e);
                     notifyError(formatRpcError(e, i18n));
@@ -96,6 +105,19 @@ export function showTaskContextMenu(
             },
         })),
     });
+
+    if (callbacks.onProjectBoardMove && !isProject) {
+        menu.addItem({
+            icon: "iconRating",
+            label: i18n?.importance || "Importance",
+            type: "submenu",
+            submenu: [1, 2, 3, 4, 5, 6, 7].map((value) => ({
+                icon: value === (task.importance ?? 4) ? "iconSelect" : "",
+                label: (i18n?.importanceLevel || "Importance {value}").replace("{value}", String(value)),
+                click: () => callbacks.onProjectBoardMove!(task, "importance", value, "bottom"),
+            })),
+        });
+    }
 
     menu.addSeparator();
 

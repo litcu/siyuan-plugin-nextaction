@@ -4,6 +4,7 @@ import {
     ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_STATUS,
+    ALL_STATUSES,
     RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
     RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_INVALID,
     RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE,
@@ -18,6 +19,7 @@ import type {
 import type { TaskCacheEntry } from "../shared/types";
 import { assertBlockId } from "../shared/block-id";
 import { isProjectTask } from "../shared/project-domain";
+import { PROJECT_BOARD_IMPORTANCES, PROJECT_BOARD_PRIORITIES } from "../shared/project-board";
 import type { CacheManager } from "./cache-manager";
 import type { TaskService } from "./task-service";
 
@@ -54,23 +56,25 @@ export class ProjectBoardMoveService {
         if (Object.keys(attrs).length > 0) updated = await this.tasks.updateTask(prepared.task.blockId, attrs);
 
         let reordered = false;
-        try {
-            const siblings = this.siblings(updated.parentId || prepared.input.projectId, updated.blockId);
-            const afterId = this.resolveReorderAnchor(prepared, siblings);
-            updated = await this.tasks.reorderTask(
-                updated.blockId,
-                updated.parentId || prepared.input.projectId,
-                afterId,
-            );
-            reordered = true;
-        } catch (error: unknown) {
-            const current = this.cache.get(updated.blockId) || updated;
-            return {
-                status: "partial",
-                task: current,
-                reordered: false,
-                warning: error instanceof Error ? error.message : String(error),
-            };
+        if (!prepared.input.sortBy || prepared.input.sortBy === "order") {
+            try {
+                const siblings = this.siblings(updated.parentId || prepared.input.projectId, updated.blockId);
+                const afterId = this.resolveReorderAnchor(prepared, siblings);
+                updated = await this.tasks.reorderTask(
+                    updated.blockId,
+                    updated.parentId || prepared.input.projectId,
+                    afterId,
+                );
+                reordered = true;
+            } catch (error: unknown) {
+                const current = this.cache.get(updated.blockId) || updated;
+                return {
+                    status: "partial",
+                    task: current,
+                    reordered: false,
+                    warning: error instanceof Error ? error.message : String(error),
+                };
+            }
         }
 
         const undo = this.issueUndo({ ...prepared, previousAttrs, expected: updated });
@@ -96,11 +100,13 @@ export class ProjectBoardMoveService {
         this.consume(credential, record);
         let restored = await this.tasks.updateTask(record.task.blockId, record.previousAttrs);
         try {
-            restored = await this.tasks.reorderTask(
-                record.task.blockId,
-                record.task.parentId || record.input.projectId,
-                record.previousAfterId,
-            );
+            if (!record.input.sortBy || record.input.sortBy === "order") {
+                restored = await this.tasks.reorderTask(
+                    record.task.blockId,
+                    record.task.parentId || record.input.projectId,
+                    record.previousAfterId,
+                );
+            }
         } catch (error: unknown) {
             // Restore the fields even when the order cannot be restored; callers get a clear failure.
             throw moveError(
@@ -132,6 +138,21 @@ export class ProjectBoardMoveService {
                 "Task does not belong to the selected Project",
             );
         }
+        if (
+            input.groupBy === "status" &&
+            (typeof input.value !== "string" || !ALL_STATUSES.includes(input.value as never))
+        )
+            throw moveError(RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET, "The selected status is invalid");
+        if (
+            input.groupBy === "priority" &&
+            (typeof input.value !== "string" || !PROJECT_BOARD_PRIORITIES.includes(input.value as never))
+        )
+            throw moveError(RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET, "The selected priority is invalid");
+        if (
+            input.groupBy === "importance" &&
+            (typeof input.value !== "number" || !PROJECT_BOARD_IMPORTANCES.includes(input.value as never))
+        )
+            throw moveError(RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET, "The selected importance is invalid");
         if (input.afterId) {
             const afterId = assertBlockId(input.afterId, "afterId");
             if (afterId === taskId || !input.visibleTaskIds || !input.visibleTaskIds.includes(afterId)) {

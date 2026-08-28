@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { ProjectBoardMoveService } from "../src/kernel/project-board-move-service.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
-import { ATTR_STATUS } from "../src/shared/constants.ts";
+import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../src/shared/constants.ts";
 
 const id = (n: number) => `2026082800000${n}-abcdefg`;
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -59,7 +59,12 @@ function fixture() {
         updateTask: async (blockId: string, attrs: Record<string, string>) => {
             updates.push({ id: blockId, attrs });
             const current = cache.get(blockId)!;
-            const next = task(blockId, { ...current, status: attrs[ATTR_STATUS] || current.status });
+            const next = task(blockId, {
+                ...current,
+                status: attrs[ATTR_STATUS] || current.status,
+                priority: attrs[ATTR_PRIORITY] || current.priority,
+                importance: attrs[ATTR_IMPORTANCE] ? Number(attrs[ATTR_IMPORTANCE]) : current.importance,
+            });
             cache.set(next);
             return next;
         },
@@ -169,6 +174,66 @@ test("属性已成功但重排失败时返回部分成功", async () => {
     });
     assert.equal(result.status, "partial");
     assert.equal(result.reordered, false);
+});
+
+// Regression: none 是独立优先级分组，不能归一化为 veryLow
+test("优先级移动保留 none 语义并保持逻辑父级", async () => {
+    const { service, project, moving, updates } = fixture();
+    const result = await service.move({
+        taskId: moving.blockId,
+        projectId: project.blockId,
+        groupBy: "priority",
+        value: "none",
+        sortBy: "order",
+        visibleTaskIds: [moving.blockId],
+    });
+    assert.equal(result.task.priority, "none");
+    assert.equal(result.task.parentId, project.blockId);
+    assert.deepEqual(updates[0]?.attrs, { [ATTR_PRIORITY]: "none" });
+});
+
+// Regression: 非手动排序只写分组字段，不调用重排
+test("重要性看板在非手动排序时只更新重要性", async () => {
+    const { service, project, moving, updates } = fixture();
+    const result = await service.move({
+        taskId: moving.blockId,
+        projectId: project.blockId,
+        groupBy: "importance",
+        value: 7,
+        sortBy: "due",
+        visibleTaskIds: [moving.blockId],
+    });
+    assert.equal(result.status, "success");
+    assert.equal(result.reordered, false);
+    assert.equal(result.task.importance, 7);
+    assert.equal(result.task.parentId, project.blockId);
+    assert.deepEqual(updates[0]?.attrs, { [ATTR_IMPORTANCE]: "7" });
+});
+
+// Regression: 字段写入成功后的重排失败必须回读缓存中的权威字段值
+test("优先级写入成功但重排失败时返回权威部分成功状态", async () => {
+    const { cache, project, moving } = fixture();
+    const failing = new ProjectBoardMoveService(cache, {
+        updateTask: async () => {
+            const updated = task(moving.blockId, { ...moving, priority: "critical" });
+            cache.set(updated);
+            return updated;
+        },
+        reorderTask: async () => {
+            throw new Error("order unavailable");
+        },
+    } as never);
+    const result = await failing.move({
+        taskId: moving.blockId,
+        projectId: project.blockId,
+        groupBy: "priority",
+        value: "critical",
+        sortBy: "order",
+        visibleTaskIds: [moving.blockId],
+    });
+    assert.equal(result.status, "partial");
+    assert.equal(result.task.priority, "critical");
+    assert.equal(result.task.parentId, project.blockId);
 });
 
 test("移动撤销在任务被外部修改后安全拒绝", async () => {

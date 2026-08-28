@@ -28,6 +28,7 @@
     "priorityVeryLow": "极低",
     "priorityNone": "未设置",
     "importance": "重要性",
+    "importanceLevel": "重要性 {value}",
     "effort": "工作量",
     "dueDate": "截止日期",
     "startDate": "开始日期",
@@ -832,5 +833,8 @@
     "projectBoardMovePartial": "任务属性已更新，但顺序未能确认",
     "projectBoardMove": "在看板中移动",
     "projectBoardMoveTop": "移到顶部",
-    "projectBoardMoveBottom": "移到底部"
+    "projectBoardMoveBottom": "移到底部",
+    "projectBoardMoveUndoSuccess": "看板移动已撤销",
+    "projectBoardMoveUndoInvalid": "此看板移动撤销已不可用",
+    "projectBoardMoveUndoUnsafe": "撤销已拒绝：任务在移动后发生了变化"
 }

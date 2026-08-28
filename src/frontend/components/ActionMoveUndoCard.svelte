@@ -22,7 +22,12 @@
     </header>
     <p>{feedback.status === "success" ? feedback.resultSummary : feedback.undo.summary}</p>
     {#if feedback.status === "success"}
-        <NaInlineNotice message={i18n.moveActionUndoSuccess || "Move undone."} tone="success" />
+        <NaInlineNotice
+            message={feedback.kind === "projectBoard"
+                ? i18n.projectBoardMoveUndoSuccess || "Move undone."
+                : i18n.moveActionUndoSuccess || "Move undone."}
+            tone="success"
+        />
     {:else if feedback.status === "error"}
         <NaInlineNotice message={feedback.error} tone="error" />
     {:else}

@@ -1,4 +1,5 @@
 import type { ProjectBoardGroupBy } from "./project-board";
+import type { ProjectBoardSortBy } from "./project-board-preferences";
 import type { TaskCacheEntry } from "./types";
 
 export type ProjectBoardMoveResultStatus = "success" | "partial";
@@ -8,6 +9,8 @@ export interface ProjectBoardMoveInput {
     projectId: string;
     groupBy: ProjectBoardGroupBy;
     value: string | number;
+    /** Active board sort. Only manual order permits structural reordering. */
+    sortBy?: ProjectBoardSortBy;
     /** Visible card used as an insertion point. The task is inserted before it. */
     afterId?: string | null;
     /** Expected logical parent of afterId; never changes the moved task parent. */
