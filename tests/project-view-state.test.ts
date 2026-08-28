@@ -220,6 +220,23 @@ test("看板复用任务筛选但不受完成项开关隐藏 done 列", () => {
     );
 });
 
+test("看板排序独立于项目总览筛选排序", () => {
+    const project = [
+        task("board-project", { taskType: "2", childIds: ["late", "early"] }),
+        task("late", { parentId: "board-project", sort: 2, order: 1, due: "2026-12-31" }),
+        task("early", { parentId: "board-project", sort: 1, order: 2, due: "2026-01-01" }),
+    ];
+    const model = buildProjectViewModel(
+        project,
+        [],
+        state({ mode: "board", filterState: { ...DEFAULT_FILTER_STATE, sortBy: "due", sortAsc: true } }),
+    );
+    assert.deepEqual(
+        model.boardTasks.map((item) => item.blockId),
+        ["late", "early"],
+    );
+});
+
 test("看板支持状态、优先级、重要性和阶段四种分组轴", () => {
     const project = task("project", {
         taskType: "2",
@@ -498,4 +515,27 @@ test("看板按优先级和重要性移动写入对应属性，阶段分组不�
         ["a", { [ATTR_IMPORTANCE]: "7" }],
     ]);
     assert.deepEqual(reorders, ["a:p1", "a:p1"]);
+});
+
+test("非手动看板排序不会产生顺序插入意图", async () => {
+    const calls: string[] = [];
+    const item = task("20260816123456-abcdefg", { parentId: "20260816123457-project", status: "todo" });
+    await executeProjectBoardMove(
+        {
+            task: item,
+            status: "doing",
+            groupBy: "status",
+            value: "doing",
+            sortBy: "due",
+            afterId: "20260816123458-after",
+        },
+        "20260816123457-project",
+        {
+            updateTask: async () => undefined,
+            reorderTask: async () => {
+                calls.push("reordered");
+            },
+        },
+    );
+    assert.deepEqual(calls, []);
 });

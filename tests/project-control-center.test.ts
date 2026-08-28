@@ -100,6 +100,8 @@ test("看板窄屏断点跟随自身容器而不是窗口宽度", () => {
     const board = source("../src/frontend/components/project/ProjectBoardMode.svelte");
     assert.match(board, /ResizeObserver/);
     assert.match(board, /boardElement\.clientWidth/);
+    assert.match(board, /overflow-x:\s*auto/);
+    assert.match(board, /narrowColumnIndex/);
     assert.doesNotMatch(board, /svelte:window/);
 });
 

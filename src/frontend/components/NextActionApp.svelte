@@ -360,6 +360,7 @@
                 />
             {:else if activeView === VIEW_BY_PROJECT}
                 <ProjectView
+                    {bridge}
                     {selectedTaskId}
                     selectedTaskOverride={selectedTask}
                     requestedProjectId={projectFocusId}

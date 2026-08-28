@@ -25,6 +25,7 @@ import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rp
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type { PluginSettings } from "../shared/settings";
 import type { ProjectSupportData, ReviewData, TaskSnapshotV2 } from "../shared/types";
+import type { ProjectBoardPreference, ProjectBoardPreferences } from "../shared/project-board-preferences";
 import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
@@ -48,6 +49,11 @@ export interface RpcServerHooks {
     undoActionMove?: (input: ActionMoveUndoInput) => Promise<ActionMoveUndoResult>;
     extractAction?: (input: ExtractActionInput) => Promise<ExtractActionResult>;
     broadcastTaskReset?: () => void;
+    getProjectBoardPreferences?: () => Promise<ProjectBoardPreferences>;
+    updateProjectBoardPreference?: (
+        projectId: string,
+        preference: ProjectBoardPreference,
+    ) => Promise<ProjectBoardPreferences>;
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -140,6 +146,14 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
                 ? hooks.updateSettings(settings)
                 : Promise.resolve(taskService.updateSettings(settings)),
         getSettings: () => taskService.getSettings(),
+        getProjectBoardPreferences: () =>
+            hooks.getProjectBoardPreferences
+                ? hooks.getProjectBoardPreferences()
+                : unavailable("Project board preferences"),
+        updateProjectBoardPreference: ({ projectId, preference }) =>
+            hooks.updateProjectBoardPreference
+                ? hooks.updateProjectBoardPreference(projectId, preference)
+                : unavailable("Project board preferences"),
         validateAiProposal: ({ proposal, context }) =>
             hooks.aiProposalService
                 ? hooks.aiProposalService.validate(proposal, context)

@@ -23,6 +23,7 @@ import type {
     RpcReturn,
 } from "../shared/rpc-methods";
 import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
+import type { ProjectBoardPreference, ProjectBoardPreferences } from "../shared/project-board-preferences";
 import type {
     ActionMoveDestination,
     ActionMovePreview,
@@ -248,6 +249,17 @@ export class KernelBridge {
 
     async getSettings(): Promise<PluginSettings> {
         return this.call("getSettings", {});
+    }
+
+    async getProjectBoardPreferences(): Promise<ProjectBoardPreferences> {
+        return this.call("getProjectBoardPreferences", {});
+    }
+
+    async updateProjectBoardPreference(
+        projectId: string,
+        preference: ProjectBoardPreference,
+    ): Promise<ProjectBoardPreferences> {
+        return this.call("updateProjectBoardPreference", { projectId, preference });
     }
 
     async validateAiProposal(

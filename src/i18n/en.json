@@ -125,6 +125,7 @@
     "projectBoardGroupBy": "Group by",
     "projectBoardStage": "Stage",
     "projectBoardUnassignedStage": "Unassigned stage",
+    "projectBoardSortDirection": "Sort direction",
     "projectViewPlan": "Plan",
     "projectViewGantt": "Gantt",
     "ganttNoDates": "No scheduled tasks in this project",

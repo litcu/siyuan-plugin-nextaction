@@ -9,6 +9,7 @@
     export let loading = false;
     export let type: "button" | "submit" | "reset" = "button";
     export let ariaLabel = "";
+    export let ariaPressed: boolean | undefined = undefined;
 </script>
 
 <button
@@ -21,6 +22,7 @@
     disabled={disabled || loading}
     aria-busy={loading || undefined}
     aria-label={ariaLabel || undefined}
+    aria-pressed={ariaPressed}
     on:click
 >
     {#if loading}<NaSpinner />{:else if icon}<NaIcon symbol={icon} size={size === "sm" ? 13 : 14} />{/if}

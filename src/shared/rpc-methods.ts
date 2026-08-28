@@ -10,6 +10,11 @@ import type {
 import { assertBlockId } from "./block-id";
 import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
 import type { RepeatRuleV2 } from "./repeat";
+import {
+    normalizeProjectBoardPreferences,
+    type ProjectBoardPreference,
+    type ProjectBoardPreferences,
+} from "./project-board-preferences";
 import { validateSettings, type PluginSettings } from "./settings";
 import type { CompletedTasksPageOptions } from "./task-pagination";
 import {
@@ -416,6 +421,19 @@ export const RPC_CONTRACT = {
         return { settings };
     }),
     getSettings: defineRpc<Record<string, never>, PluginSettings>(noParams),
+    getProjectBoardPreferences: defineRpc<Record<string, never>, ProjectBoardPreferences>(noParams),
+    updateProjectBoardPreference: defineRpc<
+        { projectId: string; preference: ProjectBoardPreference },
+        ProjectBoardPreferences
+    >((value) => {
+        const input = paramsRecord(value);
+        const projectId = requiredBlockId(input.projectId, "projectId");
+        const preference = input.preference;
+        const normalized = normalizeProjectBoardPreferences({ version: 1, projects: { [projectId]: preference } });
+        const parsed = normalized.projects[projectId];
+        if (!parsed) throw new RpcContractError("preference is invalid");
+        return { projectId, preference: parsed };
+    }),
     validateAiProposal: defineRpc<
         { proposal: AiProposal; context: AiProposalContext },
         { proposal: AiProposal; errors: string[] }

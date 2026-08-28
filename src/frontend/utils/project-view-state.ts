@@ -10,9 +10,11 @@ import type {
 import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../../shared/constants";
 import { isProjectBoardTask, type ProjectBoardGroupBy } from "../../shared/project-board";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
+import { sortProjectBoardTasks } from "./project-board-sort";
 import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
 import { buildProjectControlState } from "../../shared/project-control";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
+import type { ProjectBoardSortBy } from "../../shared/project-board-preferences";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
 export type ProjectRiskFilter = "all" | "attention" | "blocked";
@@ -26,6 +28,7 @@ export interface ProjectBoardMoveIntent {
     value?: string | number;
     afterId?: string;
     afterParentId?: string;
+    sortBy?: ProjectBoardSortBy;
 }
 
 export interface ProjectBoardMoveHandlers {
@@ -52,7 +55,8 @@ export async function executeProjectBoardMove(
         await handlers.updateTask(intent.task, attrs);
     }
     const sameParentTarget = !intent.afterParentId || intent.afterParentId === (intent.task.parentId || projectId);
-    if (handlers.reorderTask && (groupBy !== "stage" || (intent.afterId && sameParentTarget))) {
+    const manualOrder = !intent.sortBy || intent.sortBy === "order";
+    if (handlers.reorderTask && manualOrder && (groupBy !== "stage" || (intent.afterId && sameParentTarget))) {
         await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
     }
 }
@@ -210,12 +214,16 @@ export function buildProjectViewModel(
         state.filterState.sortAsc,
         customFields,
     );
-    const boardTasks = sortTasksBy(
-        (selectedSummary?.descendants || []).filter((task) => !taskFiltersActive || matchedTaskIds.has(task.blockId)),
-        state.filterState.sortBy,
-        state.filterState.sortAsc,
+    // The board owns its ordering.  Do not reuse the project overview filter's
+    // sort state: changing the global view sort must not reshuffle a board.
+    const boardTasks = sortProjectBoardTasks(
+        (selectedSummary?.descendants || [])
+            .filter((task) => !taskFiltersActive || matchedTaskIds.has(task.blockId))
+            .filter((task, _index, tasks) => isProjectBoardTask(task, selectedSummary?.descendants || tasks)),
+        "order",
+        false,
         customFields,
-    ).filter((task, _index, tasks) => isProjectBoardTask(task, selectedSummary?.descendants || tasks));
+    );
     const planGroups = DATE_BUCKETS.map((bucket) => ({
         bucket,
         tasks: sortedDetailTasks.filter((task) => !isProjectTask(task) && getProjectDateBucket(task) === bucket),

@@ -2,6 +2,12 @@
     import { onDestroy, onMount } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
+    import type { CustomFieldDef } from "../../../shared/settings";
+    import {
+        DEFAULT_PROJECT_BOARD_PREFERENCE,
+        type ProjectBoardPreference,
+        type ProjectBoardSortBy,
+    } from "../../../shared/project-board-preferences";
     import {
         buildProjectBoardColumns,
         PROJECT_BOARD_UNASSIGNED_STAGE,
@@ -9,8 +15,10 @@
         type ProjectBoardGroupBy,
     } from "../../../shared/project-board";
     import type { ProjectBoardMoveIntent } from "../../utils/project-view-state";
+    import { sortProjectBoardTasks } from "../../utils/project-board-sort";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
+    import NaButton from "../../ui/NaButton.svelte";
     import NaIconButton from "../../ui/NaIconButton.svelte";
 
     export let tasks: TaskCacheEntry[];
@@ -22,6 +30,9 @@
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
+    export let customFields: CustomFieldDef[] = [];
+    export let preference: ProjectBoardPreference = { ...DEFAULT_PROJECT_BOARD_PREFERENCE };
+    export let onPreferenceChange: ((preference: ProjectBoardPreference) => void) | undefined = undefined;
 
     let draggingTask: TaskCacheEntry | null = null;
     let dropColumnKey = "";
@@ -29,13 +40,44 @@
     let boardElement: HTMLDivElement;
     let resizeObserver: ResizeObserver | null = null;
     let boardWidth = 1024;
-    let narrowColumnIndex = 0;
-    let groupBy: ProjectBoardGroupBy = "status";
+    let narrowColumnIndex = preference.narrowColumnIndex;
+    let groupBy: ProjectBoardGroupBy = preference.groupBy;
+    let sortBy: ProjectBoardSortBy = preference.sortBy;
+    let sortAsc = preference.sortAsc;
 
-    $: columns = buildProjectBoardColumns(tasks, groupBy, projectTasks);
+    $: if (preference.groupBy !== groupBy) groupBy = preference.groupBy;
+    $: if (preference.sortBy !== sortBy) sortBy = preference.sortBy;
+    $: if (preference.sortAsc !== sortAsc) sortAsc = preference.sortAsc;
+    $: if (preference.narrowColumnIndex !== narrowColumnIndex) narrowColumnIndex = preference.narrowColumnIndex;
+    $: orderedTasks = sortProjectBoardTasks(tasks, sortBy, sortAsc, customFields);
+    $: columns = buildProjectBoardColumns(orderedTasks, groupBy, projectTasks);
     $: narrow = boardWidth <= 780;
-    $: narrowColumnIndex = Math.max(0, Math.min(narrowColumnIndex, columns.length - 1));
+    $: {
+        const clamped = Math.max(0, Math.min(narrowColumnIndex, Math.max(0, columns.length - 1)));
+        if (clamped !== narrowColumnIndex) {
+            narrowColumnIndex = clamped;
+            persistPreference();
+        }
+    }
     $: visibleColumns = narrow ? [columns[narrowColumnIndex]] : columns;
+
+    function persistPreference() {
+        onPreferenceChange?.({ groupBy, sortBy, sortAsc, narrowColumnIndex });
+    }
+
+    function handleGroupByChange() {
+        narrowColumnIndex = 0;
+        persistPreference();
+    }
+
+    function handleSortChange() {
+        persistPreference();
+    }
+
+    function handleSortDirectionChange() {
+        sortAsc = !sortAsc;
+        persistPreference();
+    }
 
     function groupLabel(group: ProjectBoardGroupBy): string {
         if (group === "status") return i18n?.status || "Status";
@@ -75,8 +117,13 @@
                 status: column.status || "",
                 groupBy,
                 value: column.value,
-                afterId: afterId || undefined,
-                afterParentId: afterParentId || undefined,
+                sortBy,
+                ...(sortBy === "order"
+                    ? {
+                          afterId: afterId || undefined,
+                          afterParentId: afterParentId || undefined,
+                      }
+                    : {}),
             });
         } catch (error) {
             console.error("[NextAction] project board drop failed:", error);
@@ -103,12 +150,41 @@
 <div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
     <div class="na-project-board__toolbar">
         <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
-        <select id="na-project-board-group-by" class="na-select na-select--sm" bind:value={groupBy}>
+        <select
+            id="na-project-board-group-by"
+            class="na-select na-select--sm"
+            bind:value={groupBy}
+            on:change={handleGroupByChange}
+        >
             <option value="status">{groupLabel("status")}</option>
             <option value="stage">{groupLabel("stage")}</option>
             <option value="priority">{groupLabel("priority")}</option>
             <option value="importance">{groupLabel("importance")}</option>
         </select>
+        <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
+        <select
+            id="na-project-board-sort"
+            class="na-select na-select--sm"
+            bind:value={sortBy}
+            on:change={handleSortChange}
+        >
+            <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
+            <option value="due">{i18n?.sortByDue || "Due date"}</option>
+            <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
+            <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
+            {#each customFields.filter((field) => field.status === "active") as field (field.key)}
+                <option value={`custom:${field.key}`}>{field.label}</option>
+            {/each}
+        </select>
+        <NaButton
+            size="sm"
+            variant="text"
+            ariaLabel={i18n?.projectBoardSortDirection || "Sort direction"}
+            ariaPressed={sortAsc}
+            on:click={handleSortDirectionChange}
+        >
+            {sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}
+        </NaButton>
     </div>
     {#if narrow}
         <div class="na-project-board__pager">
@@ -116,14 +192,20 @@
                 symbol="iconLeft"
                 label={i18n?.previousPage || "Previous"}
                 disabled={narrowColumnIndex === 0}
-                on:click={() => (narrowColumnIndex -= 1)}
+                on:click={() => {
+                    narrowColumnIndex -= 1;
+                    persistPreference();
+                }}
             />
             <span aria-live="polite">{columnLabel(columns[narrowColumnIndex])}</span>
             <NaIconButton
                 symbol="iconRight"
                 label={i18n?.nextPage || "Next"}
                 disabled={narrowColumnIndex === columns.length - 1}
-                on:click={() => (narrowColumnIndex += 1)}
+                on:click={() => {
+                    narrowColumnIndex += 1;
+                    persistPreference();
+                }}
             />
         </div>
     {/if}
@@ -184,6 +266,7 @@
     .na-project-board__toolbar {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
         margin-bottom: 8px;
         color: var(--na-text-secondary);
@@ -197,6 +280,8 @@
         grid-template-columns: repeat(var(--na-project-board-column-count, 6), minmax(150px, 1fr));
         gap: 8px;
         align-items: stretch;
+        min-width: max-content;
+        overflow-x: auto;
     }
     .na-project-board__pager {
         display: none;
@@ -250,6 +335,8 @@
         .na-project-board__columns,
         .na-project-board__columns--narrow {
             grid-template-columns: minmax(0, 1fr);
+            min-width: 0;
+            overflow-x: hidden;
         }
         .na-project-board__pager {
             display: grid;

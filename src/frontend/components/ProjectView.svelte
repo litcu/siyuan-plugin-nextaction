@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
     import { DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
@@ -34,6 +35,14 @@
     import type { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
+        createDefaultProjectBoardPreferences,
+        getProjectBoardPreference,
+        normalizeProjectBoardPreferences,
+        withProjectBoardPreference,
+        type ProjectBoardPreference,
+        type ProjectBoardPreferences,
+    } from "../../shared/project-board-preferences";
+    import {
         buildProjectViewModel,
         buildProjectViewControl,
         confirmProjectCompletion,
@@ -65,6 +74,15 @@
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
     export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
+    export let bridge:
+        | {
+              getProjectBoardPreferences: () => Promise<ProjectBoardPreferences>;
+              updateProjectBoardPreference: (
+                  projectId: string,
+                  preference: ProjectBoardPreference,
+              ) => Promise<ProjectBoardPreferences>;
+          }
+        | undefined = undefined;
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
@@ -82,6 +100,24 @@
     let actionFilter: ProjectActionFilter = "all";
     let ganttSortMode: ProjectTreeSortMode = "timeline";
     let riskItems: RiskItem[] = [];
+    let boardPreferences: ProjectBoardPreferences = createDefaultProjectBoardPreferences();
+    let boardPreferenceSaveQueue: Promise<unknown> = Promise.resolve();
+    const dirtyBoardPreferenceProjects = new Set<string>();
+
+    onMount(() => {
+        if (!bridge) return;
+        void bridge
+            .getProjectBoardPreferences()
+            .then((value) => {
+                const loaded = normalizeProjectBoardPreferences(value);
+                for (const projectId of dirtyBoardPreferenceProjects) {
+                    const local = boardPreferences.projects[projectId];
+                    if (local) loaded.projects[projectId] = local;
+                }
+                boardPreferences = loaded;
+            })
+            .catch((error) => console.warn("[NextAction] board preferences load failed:", error));
+    });
 
     $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
         activeProjectId = requestedProjectId;
@@ -180,6 +216,19 @@
             updateTask: onTaskUpdate,
             reorderTask: onTaskReorder,
         });
+    }
+
+    function handleBoardPreferenceChange(preference: ProjectBoardPreference) {
+        const projectId = resolvedActiveProjectId;
+        if (!projectId) return;
+        dirtyBoardPreferenceProjects.add(projectId);
+        boardPreferences = withProjectBoardPreference(boardPreferences, projectId, preference);
+        if (!bridge) return;
+        // Keep persistence off the interaction path while preserving write order.
+        boardPreferenceSaveQueue = boardPreferenceSaveQueue
+            .catch(() => undefined)
+            .then(() => bridge!.updateProjectBoardPreference(projectId, preference))
+            .catch((error) => console.warn("[NextAction] board preference save failed:", error));
     }
 </script>
 
@@ -428,6 +477,9 @@
                         {onStatusClick}
                         {onContextMenu}
                         onMoveTask={handleBoardMove}
+                        customFields={$taskStore.settings.customFields}
+                        preference={getProjectBoardPreference(boardPreferences, resolvedActiveProjectId)}
+                        onPreferenceChange={handleBoardPreferenceChange}
                     />
                 {:else if mode === "plan"}
                     <ProjectPlanMode

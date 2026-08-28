@@ -26,6 +26,7 @@ import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/p
 import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action-extraction-service";
 import { ActionMoveService } from "./kernel/action-move-service";
 import { SiyuanActionMoveStructurePort } from "./kernel/action-move-structure-port";
+import { ProjectBoardPreferenceManager } from "./kernel/project-board-preference-manager";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -36,6 +37,7 @@ class NextActionKernelPlugin {
     private mcpToolManager!: McpToolManager;
     private taskTargetResolver!: TaskTargetResolver;
     private taskCreationService!: TaskCreationService;
+    private projectBoardPreferenceManager!: ProjectBoardPreferenceManager;
     private isReady = false;
 
     constructor() {
@@ -55,6 +57,8 @@ class NextActionKernelPlugin {
         this.cacheManager = new CacheManager(api, taskIdentities);
         this.syncEngine = new SyncEngine(api, this.cacheManager);
         const myDayManager = new MyDayManager(this.siyuan, { ...DEFAULT_SETTINGS });
+        this.projectBoardPreferenceManager = new ProjectBoardPreferenceManager(this.siyuan);
+        await this.projectBoardPreferenceManager.load();
         const taskRepository = new TaskRepository(
             api,
             this.cacheManager,
@@ -146,6 +150,9 @@ class NextActionKernelPlugin {
             extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),
+            getProjectBoardPreferences: () => this.projectBoardPreferenceManager.get(),
+            updateProjectBoardPreference: (projectId, preference) =>
+                this.projectBoardPreferenceManager.update(projectId, preference),
         });
         await this.mcpToolManager.reconcile(this.taskService.getSettings());
 
