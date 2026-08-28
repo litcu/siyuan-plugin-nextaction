@@ -833,5 +833,8 @@
     "projectBoardMovePartial": "Task field updated, but order could not be confirmed",
     "projectBoardMove": "Move on project board",
     "projectBoardMoveTop": "Move to top",
-    "projectBoardMoveBottom": "Move to bottom"
+    "projectBoardMoveBottom": "Move to bottom",
+    "projectBoardMoveUndoSuccess": "Board move undone",
+    "projectBoardMoveUndoInvalid": "This board move undo is no longer available",
+    "projectBoardMoveUndoUnsafe": "Undo refused: the task changed after the move"
 }

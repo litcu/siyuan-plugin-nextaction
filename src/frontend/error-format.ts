@@ -6,6 +6,8 @@ import {
     RPC_ERROR_NOT_READY,
     RPC_ERROR_NOT_TEXT_BLOCK,
     RPC_ERROR_PROJECT_REQUIRES_DOCUMENT,
+    RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_INVALID,
+    RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE,
     RPC_ERROR_TASK_NOT_FOUND,
     RPC_ERROR_TIMEOUT,
 } from "../shared/constants";
@@ -46,6 +48,8 @@ const ERROR_CODE_MAP: Record<number, string> = {
     [RPC_ERROR_NOT_READY]: "errNotReady",
     [RPC_ERROR_TIMEOUT]: "errWriteTimeout",
     [RPC_ERROR_INTERNAL]: "errInternal",
+    [RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_INVALID]: "projectBoardMoveUndoInvalid",
+    [RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE]: "projectBoardMoveUndoUnsafe",
 };
 
 export type I18nRecord = Record<string, string> | null | undefined;
