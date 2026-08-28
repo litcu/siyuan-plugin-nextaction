@@ -15,6 +15,7 @@ import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../
 import { buildProjectControlState } from "../../shared/project-control";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
 import type { ProjectBoardSortBy } from "../../shared/project-board-preferences";
+import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../../shared/project-board-move";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
 export type ProjectRiskFilter = "all" | "attention" | "blocked";
@@ -29,11 +30,13 @@ export interface ProjectBoardMoveIntent {
     afterId?: string;
     afterParentId?: string;
     sortBy?: ProjectBoardSortBy;
+    visibleTaskIds?: string[];
 }
 
 export interface ProjectBoardMoveHandlers {
     updateTask?: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<unknown>;
     reorderTask?: (blockId: string, parentId: string, afterId?: string) => Promise<void>;
+    moveProjectBoardTask?: (input: ProjectBoardMoveInput) => Promise<ProjectBoardMoveResult>;
 }
 
 export async function executeProjectBoardMove(
@@ -44,6 +47,7 @@ export async function executeProjectBoardMove(
     const groupBy = intent.groupBy || "status";
     const targetValue = intent.value ?? intent.status;
     const attrs: Record<string, string> = {};
+    const manualOrder = !intent.sortBy || intent.sortBy === "order";
     if (groupBy === "status" && intent.task.status !== targetValue) {
         attrs[ATTR_STATUS] = String(targetValue);
     } else if (groupBy === "priority" && intent.task.priority !== targetValue) {
@@ -51,11 +55,22 @@ export async function executeProjectBoardMove(
     } else if (groupBy === "importance" && intent.task.importance !== targetValue) {
         attrs[ATTR_IMPORTANCE] = String(targetValue);
     }
+    if (handlers.moveProjectBoardTask && manualOrder) {
+        await handlers.moveProjectBoardTask({
+            taskId: intent.task.blockId,
+            projectId,
+            groupBy,
+            value: targetValue,
+            afterId: intent.afterId,
+            afterParentId: intent.afterParentId,
+            visibleTaskIds: intent.visibleTaskIds,
+        });
+        return;
+    }
     if (Object.keys(attrs).length > 0 && handlers.updateTask) {
         await handlers.updateTask(intent.task, attrs);
     }
     const sameParentTarget = !intent.afterParentId || intent.afterParentId === (intent.task.parentId || projectId);
-    const manualOrder = !intent.sortBy || intent.sortBy === "order";
     if (handlers.reorderTask && manualOrder && (groupBy !== "stage" || (intent.afterId && sameParentTarget))) {
         await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
     }

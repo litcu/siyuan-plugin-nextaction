@@ -9,6 +9,7 @@ import type {
 } from "./action-move";
 import { assertBlockId } from "./block-id";
 import { ACTION_KIND_ACTION, ACTION_KIND_STAGE, ALL_STATUSES, RPC_ERROR_INVALID_PARAMS } from "./constants";
+import { PROJECT_BOARD_PRIORITIES, PROJECT_BOARD_IMPORTANCES } from "./project-board";
 import type { RepeatRuleV2 } from "./repeat";
 import {
     normalizeProjectBoardPreferences,
@@ -33,6 +34,12 @@ import type {
     TaskCacheEntry,
     TaskSnapshotV2,
 } from "./types";
+import type {
+    ProjectBoardMoveInput,
+    ProjectBoardMoveResult,
+    ProjectBoardUndoInput,
+    ProjectBoardUndoResult,
+} from "./project-board-move";
 
 export interface RpcErrorPayload {
     code: number;
@@ -189,6 +196,48 @@ function actionMoveParams(value: unknown): ActionMoveInput {
         projectId: requiredBlockId(input.projectId, "projectId"),
         ...(destination ? { destination } : {}),
     };
+}
+
+function projectBoardMoveParams(value: unknown): ProjectBoardMoveInput {
+    const input = paramsRecord(value);
+    const groupBy = requiredString(input.groupBy, "groupBy");
+    if (groupBy !== "status" && groupBy !== "priority" && groupBy !== "importance" && groupBy !== "stage") {
+        throw new RpcContractError("groupBy must be status, priority, importance, or stage");
+    }
+    if (typeof input.value !== "string" && typeof input.value !== "number") {
+        throw new RpcContractError("value must be a string or number");
+    }
+    if (
+        groupBy === "status" &&
+        (typeof input.value !== "string" || !(ALL_STATUSES as readonly string[]).includes(input.value))
+    ) {
+        throw new RpcContractError("value is not a valid status");
+    }
+    if (
+        groupBy === "priority" &&
+        (typeof input.value !== "string" || !(PROJECT_BOARD_PRIORITIES as readonly string[]).includes(input.value))
+    ) {
+        throw new RpcContractError("value is not a valid priority");
+    }
+    if (
+        groupBy === "importance" &&
+        (typeof input.value !== "number" || !(PROJECT_BOARD_IMPORTANCES as readonly number[]).includes(input.value))
+    ) {
+        throw new RpcContractError("value is not a valid importance");
+    }
+    if (!Array.isArray(input.visibleTaskIds) || input.visibleTaskIds.length === 0) {
+        throw new RpcContractError("visibleTaskIds must be a non-empty array");
+    }
+    const visibleTaskIds = input.visibleTaskIds?.map((id, index) => requiredBlockId(id, `visibleTaskIds[${index}]`));
+    return {
+        taskId: requiredBlockId(input.taskId, "taskId"),
+        projectId: requiredBlockId(input.projectId, "projectId"),
+        groupBy,
+        value: input.value,
+        afterId: optionalBlockId(input.afterId, "afterId"),
+        afterParentId: optionalBlockId(input.afterParentId, "afterParentId"),
+        ...(visibleTaskIds ? { visibleTaskIds } : {}),
+    } as ProjectBoardMoveInput;
 }
 
 function createTaskParams(value: unknown): CreateTaskInput {
@@ -368,6 +417,11 @@ export const RPC_CONTRACT = {
     }),
     previewActionMove: defineRpc<ActionMoveInput, ActionMovePreview>(actionMoveParams),
     moveActionToProject: defineRpc<ActionMoveInput, ActionMoveResult>(actionMoveParams),
+    moveProjectBoardTask: defineRpc<ProjectBoardMoveInput, ProjectBoardMoveResult>(projectBoardMoveParams),
+    undoProjectBoardMove: defineRpc<ProjectBoardUndoInput, ProjectBoardUndoResult>((value) => {
+        const input = paramsRecord(value);
+        return { credential: requiredString(input.credential, "credential") };
+    }),
     undoActionMove: defineRpc<ActionMoveUndoInput, ActionMoveUndoResult>((value) => {
         const input = paramsRecord(value);
         return { credential: requiredString(input.credential, "credential") };

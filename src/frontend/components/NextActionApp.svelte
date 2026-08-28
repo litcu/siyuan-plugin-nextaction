@@ -31,6 +31,7 @@
     import { notifyError, notifyInfo, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
+    import type { ProjectBoardMoveIntent } from "../utils/project-view-state";
     import { get } from "svelte/store";
     import NaDrawerHost from "../ui/NaDrawerHost.svelte";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
@@ -41,6 +42,7 @@
     import { openActionMoveDialog } from "../dialogs/action-move-dialog";
     import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
+    import { showProjectBoardMoveUndo } from "../stores/action-move-undo-store";
 
     export let bridge: KernelBridge;
     export let i18n: I18nStrings;
@@ -149,6 +151,7 @@
             onEdit: (task: TaskCacheEntry) => void;
             onMyDayToggle?: (blockId: string, isInMyDay: boolean) => Promise<void>;
             onReminderEdit?: (blockId: string) => void;
+            onProjectBoardMove?: (task: TaskCacheEntry, status: string, position?: "top" | "bottom") => Promise<void>;
         } = {
             onUpdated: (updated: TaskCacheEntry) => {
                 taskStore.applyUpdate(updated);
@@ -188,6 +191,62 @@
                 },
             });
         };
+        if (activeView === VIEW_BY_PROJECT)
+            callbacks.onProjectBoardMove = async (entry: TaskCacheEntry, status: string, position = "bottom") => {
+                const allTasks = get(taskStore).allTasks;
+                const byId = new Map(allTasks.map((item) => [item.blockId, item]));
+                let current: TaskCacheEntry | undefined = entry;
+                const seen = new Set<string>();
+                let projectId = "";
+                while (current && !seen.has(current.blockId)) {
+                    if (current.taskType === "2") {
+                        projectId = current.blockId;
+                        break;
+                    }
+                    seen.add(current.blockId);
+                    current = current.parentId ? byId.get(current.parentId) : undefined;
+                }
+                if (!projectId) return;
+                try {
+                    const result = await bridge.moveProjectBoardTask({
+                        taskId: entry.blockId,
+                        projectId,
+                        groupBy: "status",
+                        value: status,
+                        afterId:
+                            position === "top"
+                                ? allTasks
+                                      .filter(
+                                          (item) => item.parentId === entry.parentId && item.blockId !== entry.blockId,
+                                      )
+                                      .sort((a, b) => a.sort - b.sort)[0]?.blockId
+                                : undefined,
+                        afterParentId: entry.parentId || projectId,
+                        visibleTaskIds: allTasks
+                            .filter((item) => {
+                                let cursor: TaskCacheEntry | undefined = item;
+                                const chain = new Set<string>();
+                                while (cursor && !chain.has(cursor.blockId)) {
+                                    if (cursor.blockId === projectId) return true;
+                                    chain.add(cursor.blockId);
+                                    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+                                }
+                                return false;
+                            })
+                            .map((item) => item.blockId),
+                    });
+                    taskStore.applyUpdate(result.task);
+                    notifyInfo(
+                        result.status === "partial"
+                            ? i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed"
+                            : i18n?.projectBoardMoveSuccess || "Task moved",
+                    );
+                    if (result.status === "success" && result.undo)
+                        showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
+                } catch (error) {
+                    notifyError(formatRpcError(error, i18n));
+                }
+            };
         showTaskContextMenu(task, event, bridge, i18n, callbacks, activeView, inMyDay);
     }
 
@@ -232,6 +291,31 @@
         try {
             const updated = await bridge.reorderTask(blockId, parentId, afterId);
             taskStore.applyUpdate(updated);
+        } catch (error: any) {
+            notifyError(formatRpcError(error, i18n));
+            throw error;
+        }
+    }
+
+    async function handleProjectBoardMove(intent: ProjectBoardMoveIntent, projectId: string) {
+        try {
+            const result = await bridge.moveProjectBoardTask({
+                taskId: intent.task.blockId,
+                projectId,
+                groupBy: intent.groupBy || "status",
+                value: intent.value ?? intent.status,
+                afterId: intent.afterId,
+                afterParentId: intent.afterParentId,
+                visibleTaskIds: intent.visibleTaskIds,
+            });
+            taskStore.applyUpdate(result.task);
+            if (result.status === "partial") {
+                notifyInfo(i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed");
+            } else {
+                notifyInfo(i18n?.projectBoardMoveSuccess || "Task moved");
+                if (result.undo) showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
+            }
+            return result;
         } catch (error: any) {
             notifyError(formatRpcError(error, i18n));
             throw error;
@@ -371,6 +455,7 @@
                     onTaskUpdate={handleProjectTaskUpdate}
                     onTaskRename={handleProjectTaskRename}
                     onTaskReorder={handleProjectTaskReorder}
+                    onProjectBoardMove={handleProjectBoardMove}
                     onCreateChild={(task) => openCreate(task)}
                     onCreateStage={(project) => openCreate(project, "stage")}
                     onMoveAction={openActionMove}

@@ -84,7 +84,7 @@ test("看板通过父组件回调进入统一任务写入链路", () => {
     const app = source("../src/frontend/components/NextActionApp.svelte");
     assert.match(view, /onTaskUpdate/);
     assert.match(view, /onTaskReorder/);
-    assert.match(board, /draggable=\{!busy && groupBy !== "stage"\}/);
+    assert.match(board, /draggable=\{!busy\}/);
     assert.match(board, /onMoveTask\(\{/);
     assert.match(board, /groupBy,/);
     assert.match(board, /afterParentId/);

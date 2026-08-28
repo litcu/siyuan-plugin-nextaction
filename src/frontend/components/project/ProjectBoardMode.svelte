@@ -109,7 +109,6 @@
 
     async function handleDrop(column: ProjectBoardColumn, afterId = "", afterParentId = "") {
         if (!draggingTask || busy) return;
-        if (groupBy === "stage") return;
         busy = true;
         try {
             await onMoveTask({
@@ -118,6 +117,7 @@
                 groupBy,
                 value: column.value,
                 sortBy,
+                visibleTaskIds: tasks.map((item) => item.blockId),
                 ...(sortBy === "order"
                     ? {
                           afterId: afterId || undefined,
@@ -229,7 +229,7 @@
                         <div
                             class="na-project-board__card"
                             role="listitem"
-                            draggable={!busy && groupBy !== "stage"}
+                            draggable={!busy}
                             on:dragstart={(event) => handleDragStart(task, event)}
                             on:dragend={resetDrag}
                             on:dragover|preventDefault={() => (dropColumnKey = column.key)}

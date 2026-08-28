@@ -54,6 +54,7 @@
         type ProjectRiskFilter,
         type ProjectViewMode,
     } from "../utils/project-view-state";
+    import type { ProjectBoardMoveResult } from "../../shared/project-board-move";
 
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -67,6 +68,9 @@
         ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
+        undefined;
+    export let onProjectBoardMove:
+        ((intent: ProjectBoardMoveIntent, projectId: string) => Promise<ProjectBoardMoveResult>) | undefined =
         undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
@@ -215,6 +219,21 @@
         await executeProjectBoardMove(intent, selectedSummary.project.blockId, {
             updateTask: onTaskUpdate,
             reorderTask: onTaskReorder,
+            moveProjectBoardTask: onProjectBoardMove
+                ? (moveInput) =>
+                      onProjectBoardMove!(
+                          {
+                              ...intent,
+                              status: String(moveInput.value),
+                              groupBy: moveInput.groupBy,
+                              value: moveInput.value,
+                              afterId: moveInput.afterId || undefined,
+                              afterParentId: moveInput.afterParentId || undefined,
+                              visibleTaskIds: moveInput.visibleTaskIds,
+                          },
+                          selectedSummary.project.blockId,
+                      )
+                : undefined,
         });
     }
 

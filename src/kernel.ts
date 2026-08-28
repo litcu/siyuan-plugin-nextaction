@@ -27,6 +27,7 @@ import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action
 import { ActionMoveService } from "./kernel/action-move-service";
 import { SiyuanActionMoveStructurePort } from "./kernel/action-move-structure-port";
 import { ProjectBoardPreferenceManager } from "./kernel/project-board-preference-manager";
+import { ProjectBoardMoveService } from "./kernel/project-board-move-service";
 
 class NextActionKernelPlugin {
     private readonly siyuan: kernel.ISiyuan = siyuan;
@@ -119,6 +120,7 @@ class NextActionKernelPlugin {
             taskIdentities,
             new SiyuanActionMoveStructurePort(api),
         );
+        const projectBoardMoveService = new ProjectBoardMoveService(this.cacheManager, this.taskService);
 
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
@@ -142,6 +144,14 @@ class NextActionKernelPlugin {
             moveActionToProject: (input) => {
                 this.taskService.assertReady();
                 return actionMoveService.move(input);
+            },
+            moveProjectBoardTask: (input) => {
+                this.taskService.assertReady();
+                return projectBoardMoveService.move(input);
+            },
+            undoProjectBoardMove: ({ credential }) => {
+                this.taskService.assertReady();
+                return projectBoardMoveService.undo(credential);
             },
             undoActionMove: (input) => {
                 this.taskService.assertReady();

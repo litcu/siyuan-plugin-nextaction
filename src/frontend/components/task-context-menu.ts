@@ -14,6 +14,7 @@ interface ContextMenuCallbacks {
     onEdit?: (task: TaskCacheEntry) => void;
     onMyDayToggle?: (blockId: string, inMyDay: boolean) => void;
     onReminderEdit?: (blockId: string) => void;
+    onProjectBoardMove?: (task: TaskCacheEntry, status: string, position?: "top" | "bottom") => Promise<void>;
 }
 
 export function showTaskContextMenu(
@@ -54,6 +55,28 @@ export function showTaskContextMenu(
     }
 
     menu.addSeparator();
+
+    if (callbacks.onProjectBoardMove && !isProject) {
+        menu.addItem({
+            icon: "iconMove",
+            label: i18n?.projectBoardMove || "Move on project board",
+            type: "submenu",
+            submenu: STATUS_LIST.map((status) => ({
+                icon: status === task.status ? "iconSelect" : "",
+                label: i18n?.[toI18nKey("status", status)] || status,
+                click: () => callbacks.onProjectBoardMove!(task, status, "bottom"),
+            })),
+        });
+        menu.addItem({
+            label: i18n?.projectBoardMoveTop || "Move to top",
+            click: () => callbacks.onProjectBoardMove!(task, task.status, "top"),
+        });
+        menu.addItem({
+            label: i18n?.projectBoardMoveBottom || "Move to bottom",
+            click: () => callbacks.onProjectBoardMove!(task, task.status, "bottom"),
+        });
+        menu.addSeparator();
+    }
 
     menu.addItem({
         icon: "iconSort",
