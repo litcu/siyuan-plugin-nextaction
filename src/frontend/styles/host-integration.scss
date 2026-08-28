@@ -268,7 +268,13 @@
 
     // SiYuan uses ::after for its hover circle. It must not compete with
     // the StatusCheckbox state marker mounted on this same action.
-    &::before,
+    // Some themes (for example Asri) force the native checkbox pseudo-element
+    // with `content: ... !important`; keep it disabled so it cannot overlap
+    // the NextAction status marker.
+    &::before {
+        content: none !important;
+    }
+
     &::after {
         content: none;
     }
