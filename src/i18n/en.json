@@ -26,7 +26,7 @@
     "priorityMedium": "Medium",
     "priorityLow": "Low",
     "priorityVeryLow": "Very Low",
-    "priorityNone": "Very Low",
+    "priorityNone": "None",
     "importance": "Importance",
     "effort": "Effort",
     "dueDate": "Due Date",
@@ -122,6 +122,10 @@
     "projectViewOverview": "Overview",
     "projectViewHierarchy": "Hierarchy",
     "projectViewBoard": "Board",
+    "projectBoardGroupBy": "Group by",
+    "projectBoardStage": "Stage",
+    "projectBoardUnassignedStage": "Unassigned stage",
+    "projectBoardSortDirection": "Sort direction",
     "projectViewPlan": "Plan",
     "projectViewGantt": "Gantt",
     "ganttNoDates": "No scheduled tasks in this project",
@@ -823,5 +827,10 @@
     "extractActionProjectEmpty": "No Projects found",
     "extractActionSubmit": "Keep source and create Action",
     "extractActionSuccess": "Action created with a link to its source",
-    "extractActionDialogUnavailable": "Action extraction window is unavailable"
+    "extractActionDialogUnavailable": "Action extraction window is unavailable",
+    "projectBoardMoveSuccess": "Task moved",
+    "projectBoardMovePartial": "Task field updated, but order could not be confirmed",
+    "projectBoardMove": "Move on project board",
+    "projectBoardMoveTop": "Move to top",
+    "projectBoardMoveBottom": "Move to bottom"
 }

@@ -85,13 +85,24 @@ test("看板通过父组件回调进入统一任务写入链路", () => {
     assert.match(view, /onTaskUpdate/);
     assert.match(view, /onTaskReorder/);
     assert.match(board, /draggable=\{!busy\}/);
-    assert.match(board, /onMoveTask\(\{ task: draggingTask, status, afterId:/);
+    assert.match(board, /onMoveTask\(\{/);
+    assert.match(board, /groupBy,/);
+    assert.match(board, /afterParentId/);
     assert.match(app, /handleProjectTaskUpdate/);
     assert.match(app, /handleProjectTaskReorder/);
     assert.match(app, /onTaskUpdate=\{handleProjectTaskUpdate\}/);
     assert.match(app, /onTaskReorder=\{handleProjectTaskReorder\}/);
     assert.match(plan, /group\.bucket !== "unscheduled"/);
     assert.doesNotMatch(board, /KernelBridge|bridge\.updateTask|bridge\.reorderTask/);
+});
+
+test("看板窄屏断点跟随自身容器而不是窗口宽度", () => {
+    const board = source("../src/frontend/components/project/ProjectBoardMode.svelte");
+    assert.match(board, /ResizeObserver/);
+    assert.match(board, /boardElement\.clientWidth/);
+    assert.match(board, /overflow-x:\s*auto/);
+    assert.match(board, /narrowColumnIndex/);
+    assert.doesNotMatch(board, /svelte:window/);
 });
 
 test("项目入口与共享详情按条目类型使用项目语义", () => {

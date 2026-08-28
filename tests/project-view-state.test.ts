@@ -2,7 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
-import { ATTR_STATUS } from "../src/shared/constants.ts";
+import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../src/shared/constants.ts";
+import {
+    buildProjectBoardColumns,
+    isProjectBoardTask,
+    PROJECT_BOARD_PRIORITIES,
+    PROJECT_BOARD_STATUSES,
+    PROJECT_BOARD_UNASSIGNED_STAGE,
+} from "../src/shared/project-board.ts";
 import {
     buildProjectViewControl,
     buildProjectViewModel as buildProjectViewModelFromControl,
@@ -150,6 +157,175 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.boardTasks[0].status, "doing");
 });
 
+test("看板只展示普通 Action 和叶子 Stage，并始终保留六个状态列", () => {
+    const project = task("project", { taskType: "2", childIds: ["action", "parent-stage", "leaf-stage"] });
+    const action = task("action", { parentId: project.blockId, status: "todo", childIds: ["nested-action"] });
+    const parentStage = task("parent-stage", {
+        parentId: project.blockId,
+        status: "doing",
+        actionKind: "stage",
+        childIds: ["nested-action"],
+    });
+    const leafStage = task("leaf-stage", { parentId: project.blockId, status: "waiting", actionKind: "stage" });
+    const nestedAction = task("nested-action", { parentId: parentStage.blockId, status: "done" });
+    const descendants = [action, parentStage, leafStage, nestedAction];
+
+    assert.equal(isProjectBoardTask(project, descendants), false);
+    assert.equal(isProjectBoardTask(parentStage, descendants), false);
+    assert.equal(isProjectBoardTask(action, descendants), true);
+    assert.equal(isProjectBoardTask(leafStage, descendants), true);
+
+    const columns = buildProjectBoardColumns(descendants.filter((item) => isProjectBoardTask(item, descendants)));
+    assert.deepEqual(
+        columns.map((column) => column.status),
+        ["inbox", "todo", "doing", "waiting", "someday", "done"],
+    );
+    assert.deepEqual(
+        columns.find((column) => column.status === "todo")?.tasks.map((item) => item.blockId),
+        ["action"],
+    );
+    assert.deepEqual(
+        columns.find((column) => column.status === "waiting")?.tasks.map((item) => item.blockId),
+        ["leaf-stage"],
+    );
+    assert.deepEqual(columns.find((column) => column.status === "inbox")?.tasks, []);
+});
+
+test("看板复用任务筛选但不受完成项开关隐藏 done 列", () => {
+    // Regression: showCompleted=false made the board's done column empty even when a completed Action existed.
+    const boardProject = [
+        task("board-project", { taskType: "2", childIds: ["open-action", "finished-action"] }),
+        task("open-action", { parentId: "board-project", title: "Open work", status: "todo" }),
+        task("finished-action", { parentId: "board-project", title: "Release notes", status: "done" }),
+    ];
+
+    const unfiltered = buildProjectViewModel(boardProject, [], state({ mode: "board", showCompleted: false }));
+    assert.deepEqual(
+        unfiltered.boardTasks.map((item) => item.blockId),
+        ["finished-action", "open-action"],
+    );
+
+    const filtered = buildProjectViewModel(
+        boardProject,
+        [],
+        state({
+            mode: "board",
+            showCompleted: false,
+            filterState: { ...DEFAULT_FILTER_STATE, searchText: "release" },
+        }),
+    );
+    assert.deepEqual(
+        filtered.boardTasks.map((item) => item.blockId),
+        ["finished-action"],
+    );
+});
+
+test("看板排序独立于项目总览筛选排序", () => {
+    const project = [
+        task("board-project", { taskType: "2", childIds: ["late", "early"] }),
+        task("late", { parentId: "board-project", sort: 2, order: 1, due: "2026-12-31" }),
+        task("early", { parentId: "board-project", sort: 1, order: 2, due: "2026-01-01" }),
+    ];
+    const model = buildProjectViewModel(
+        project,
+        [],
+        state({ mode: "board", filterState: { ...DEFAULT_FILTER_STATE, sortBy: "due", sortAsc: true } }),
+    );
+    assert.deepEqual(
+        model.boardTasks.map((item) => item.blockId),
+        ["late", "early"],
+    );
+});
+
+test("看板支持状态、优先级、重要性和阶段四种分组轴", () => {
+    const project = task("project", {
+        taskType: "2",
+        childIds: ["stage-a", "stage-b", "root", "unset", "broken", "cycle-a"],
+    });
+    const stageA = task("stage-a", {
+        parentId: "project",
+        actionKind: "stage",
+        title: "准备",
+        sort: 1,
+        childIds: ["stage-b", "nested"],
+    });
+    const stageB = task("stage-b", {
+        parentId: "stage-a",
+        actionKind: "stage",
+        title: "执行",
+        sort: 1,
+    });
+    const root = task("root", { parentId: "project", priority: "critical", importance: 1, status: "doing" });
+    const nested = task("nested", { parentId: "stage-a", importance: 7, status: "waiting" });
+    const unset = task("unset", { parentId: "project", priority: "", importance: 7 });
+    const broken = task("broken", { parentId: "missing", priority: "unknown", importance: 99 });
+    const cycleA = task("cycle-a", { parentId: "cycle-b" });
+    const cycleB = task("cycle-b", { parentId: "cycle-a" });
+    const brokenStage = task("broken-stage", { parentId: "missing", actionKind: "stage" });
+    const cycleStageA = task("cycle-stage-a", { parentId: "cycle-stage-b", actionKind: "stage" });
+    const cycleStageB = task("cycle-stage-b", { parentId: "cycle-stage-a", actionKind: "stage" });
+    const allTasks = [
+        project,
+        stageA,
+        stageB,
+        root,
+        nested,
+        unset,
+        broken,
+        cycleA,
+        cycleB,
+        brokenStage,
+        cycleStageA,
+        cycleStageB,
+    ];
+    const boardTasks = [stageB, root, nested, unset, broken, cycleA, brokenStage, cycleStageA];
+
+    assert.deepEqual(
+        buildProjectBoardColumns(boardTasks).map((column) => column.value),
+        PROJECT_BOARD_STATUSES,
+    );
+    assert.deepEqual(
+        buildProjectBoardColumns(boardTasks, "priority", allTasks).map((column) => column.value),
+        PROJECT_BOARD_PRIORITIES,
+    );
+    assert.deepEqual(
+        buildProjectBoardColumns(boardTasks, "priority", allTasks)
+            .find((column) => column.value === "none")
+            ?.tasks.map((item) => item.blockId),
+        [unset, broken].map((item) => item.blockId),
+    );
+    assert.deepEqual(
+        buildProjectBoardColumns(boardTasks, "importance", allTasks).map((column) => column.value),
+        [1, 2, 3, 4, 5, 6, 7],
+    );
+    assert.deepEqual(
+        buildProjectBoardColumns(boardTasks, "importance", allTasks)
+            .find((column) => column.value === 4)
+            ?.tasks.map((item) => item.blockId),
+        [stageB, broken, cycleA, brokenStage, cycleStageA].map((item) => item.blockId),
+    );
+
+    const stageColumns = buildProjectBoardColumns(boardTasks, "stage", allTasks);
+    assert.deepEqual(
+        stageColumns.map((column) => column.value),
+        ["stage-a", "stage-b", PROJECT_BOARD_UNASSIGNED_STAGE],
+    );
+    assert.deepEqual(
+        stageColumns.find((column) => column.value === "stage-b")?.tasks.map((item) => item.blockId),
+        [],
+    );
+    assert.deepEqual(
+        stageColumns.find((column) => column.value === "stage-a")?.tasks.map((item) => item.blockId),
+        ["stage-b", "nested"],
+    );
+    assert.deepEqual(
+        stageColumns
+            .find((column) => column.value === PROJECT_BOARD_UNASSIGNED_STAGE)
+            ?.tasks.map((item) => item.blockId),
+        ["root", "unset", "broken", "cycle-a", "broken-stage", "cycle-stage-a"],
+    );
+});
+
 test("显式切换 Project 不会把旧任务选择带入新项目", () => {
     // Regression: selecting a Project briefly reused the previous Action selection or opened the Project detail drawer.
     const explicitProjectState = state({
@@ -278,7 +454,7 @@ test("看板移动先更新状态再重排并向上抛出失败", async () => {
     const calls: string[] = [];
     await executeProjectBoardMove({ task: projects[1], status: "doing", afterId: "after" }, "p1", {
         updateTask: async (_task, attrs) => {
-            calls.push(`update:${attrs["na-status"]}`);
+            calls.push(`update:${attrs[ATTR_STATUS]}`);
         },
         reorderTask: async (blockId, parentId, afterId) => {
             calls.push(`reorder:${blockId}:${parentId}:${afterId}`);
@@ -299,4 +475,67 @@ test("看板移动先更新状态再重排并向上抛出失败", async () => {
         /write failed/,
     );
     assert.equal(calls.includes("unexpected reorder"), false);
+});
+
+test("看板按优先级和重要性移动写入对应属性，阶段分组不改父级", async () => {
+    const writes: Array<[string, Record<string, string>]> = [];
+    const reorders: string[] = [];
+    const moveHandlers = {
+        updateTask: async (task: TaskCacheEntry, attrs: Record<string, string>) => {
+            writes.push([task.blockId, attrs]);
+        },
+        reorderTask: async (blockId: string, parentId: string) => {
+            reorders.push(`${blockId}:${parentId}`);
+        },
+    };
+    await executeProjectBoardMove(
+        { task: projects[1], status: "", groupBy: "priority", value: "critical" },
+        "p1",
+        moveHandlers,
+    );
+    await executeProjectBoardMove(
+        { task: projects[1], status: "", groupBy: "importance", value: 7 },
+        "p1",
+        moveHandlers,
+    );
+    await executeProjectBoardMove(
+        {
+            task: projects[1],
+            status: "",
+            groupBy: "stage",
+            value: "stage-a",
+            afterId: "other",
+            afterParentId: "stage-a",
+        },
+        "p1",
+        moveHandlers,
+    );
+    assert.deepEqual(writes, [
+        ["a", { [ATTR_PRIORITY]: "critical" }],
+        ["a", { [ATTR_IMPORTANCE]: "7" }],
+    ]);
+    assert.deepEqual(reorders, ["a:p1", "a:p1"]);
+});
+
+test("非手动看板排序不会产生顺序插入意图", async () => {
+    const calls: string[] = [];
+    const item = task("20260816123456-abcdefg", { parentId: "20260816123457-project", status: "todo" });
+    await executeProjectBoardMove(
+        {
+            task: item,
+            status: "doing",
+            groupBy: "status",
+            value: "doing",
+            sortBy: "due",
+            afterId: "20260816123458-after",
+        },
+        "20260816123457-project",
+        {
+            updateTask: async () => undefined,
+            reorderTask: async () => {
+                calls.push("reordered");
+            },
+        },
+    );
+    assert.deepEqual(calls, []);
 });

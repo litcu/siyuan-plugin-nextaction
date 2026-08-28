@@ -13,7 +13,11 @@
 
 <section class="na-action-move-undo" role="status" aria-live="polite" aria-atomic="true">
     <header>
-        <strong>{i18n.moveActionUndoTitle || "Action moved"}</strong>
+        <strong
+            >{feedback.kind === "projectBoard"
+                ? i18n.projectBoardMoveSuccess || "Task moved"
+                : i18n.moveActionUndoTitle || "Action moved"}</strong
+        >
         <NaIconButton symbol="iconCloseRound" label={i18n.close || "Close"} size={14} compact on:click={onDismiss} />
     </header>
     <p>{feedback.status === "success" ? feedback.resultSummary : feedback.undo.summary}</p>

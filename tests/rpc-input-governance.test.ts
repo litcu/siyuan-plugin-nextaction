@@ -253,3 +253,45 @@ test("Action 移动失败状态通过 RPC 保留可区分错误码", () => {
         });
     }
 });
+
+test("Project 看板移动 RPC 校验枚举和当前可见快照", () => {
+    assert.deepEqual(
+        RPC_CONTRACT.moveProjectBoardTask.parseParams({
+            taskId: ID,
+            projectId: PROJECT_ID,
+            groupBy: "status",
+            value: "doing",
+            visibleTaskIds: [ID],
+        }),
+        {
+            taskId: ID,
+            projectId: PROJECT_ID,
+            groupBy: "status",
+            value: "doing",
+            afterId: undefined,
+            afterParentId: undefined,
+            visibleTaskIds: [ID],
+        },
+    );
+    assert.throws(
+        () =>
+            RPC_CONTRACT.moveProjectBoardTask.parseParams({
+                taskId: ID,
+                projectId: PROJECT_ID,
+                groupBy: "status",
+                value: "bogus",
+                visibleTaskIds: [ID],
+            }),
+        /valid status/,
+    );
+    assert.throws(
+        () =>
+            RPC_CONTRACT.moveProjectBoardTask.parseParams({
+                taskId: ID,
+                projectId: PROJECT_ID,
+                groupBy: "status",
+                value: "doing",
+            }),
+        /non-empty array/,
+    );
+});

@@ -1,3 +1,5 @@
+import { PROJECT_BOARD_STATUSES } from "../shared/project-board";
+
 export const PRIORITY_COLORS: Record<string, string> = {
     critical: "var(--na-priority-critical)",
     high: "var(--na-priority-high)",
@@ -35,5 +37,5 @@ export type ViewType =
     | typeof VIEW_REVIEW
     | typeof VIEW_REMINDER;
 
-export const STATUS_LIST = ["inbox", "todo", "doing", "waiting", "someday", "done"] as const;
+export const STATUS_LIST = PROJECT_BOARD_STATUSES;
 export const PRIORITY_LIST = ["critical", "high", "medium", "low", "veryLow"] as const;

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
     import { DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
@@ -34,6 +35,14 @@
     import type { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
     import {
+        createDefaultProjectBoardPreferences,
+        getProjectBoardPreference,
+        normalizeProjectBoardPreferences,
+        withProjectBoardPreference,
+        type ProjectBoardPreference,
+        type ProjectBoardPreferences,
+    } from "../../shared/project-board-preferences";
+    import {
         buildProjectViewModel,
         buildProjectViewControl,
         confirmProjectCompletion,
@@ -45,6 +54,7 @@
         type ProjectRiskFilter,
         type ProjectViewMode,
     } from "../utils/project-view-state";
+    import type { ProjectBoardMoveResult } from "../../shared/project-board-move";
 
     export let onEdit: (task: TaskCacheEntry) => void;
     export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -59,12 +69,24 @@
     export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
     export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
         undefined;
+    export let onProjectBoardMove:
+        ((intent: ProjectBoardMoveIntent, projectId: string) => Promise<ProjectBoardMoveResult>) | undefined =
+        undefined;
     export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
     export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
     export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
+    export let bridge:
+        | {
+              getProjectBoardPreferences: () => Promise<ProjectBoardPreferences>;
+              updateProjectBoardPreference: (
+                  projectId: string,
+                  preference: ProjectBoardPreference,
+              ) => Promise<ProjectBoardPreferences>;
+          }
+        | undefined = undefined;
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
@@ -82,6 +104,24 @@
     let actionFilter: ProjectActionFilter = "all";
     let ganttSortMode: ProjectTreeSortMode = "timeline";
     let riskItems: RiskItem[] = [];
+    let boardPreferences: ProjectBoardPreferences = createDefaultProjectBoardPreferences();
+    let boardPreferenceSaveQueue: Promise<unknown> = Promise.resolve();
+    const dirtyBoardPreferenceProjects = new Set<string>();
+
+    onMount(() => {
+        if (!bridge) return;
+        void bridge
+            .getProjectBoardPreferences()
+            .then((value) => {
+                const loaded = normalizeProjectBoardPreferences(value);
+                for (const projectId of dirtyBoardPreferenceProjects) {
+                    const local = boardPreferences.projects[projectId];
+                    if (local) loaded.projects[projectId] = local;
+                }
+                boardPreferences = loaded;
+            })
+            .catch((error) => console.warn("[NextAction] board preferences load failed:", error));
+    });
 
     $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
         activeProjectId = requestedProjectId;
@@ -179,7 +219,35 @@
         await executeProjectBoardMove(intent, selectedSummary.project.blockId, {
             updateTask: onTaskUpdate,
             reorderTask: onTaskReorder,
+            moveProjectBoardTask: onProjectBoardMove
+                ? (moveInput) =>
+                      onProjectBoardMove!(
+                          {
+                              ...intent,
+                              status: String(moveInput.value),
+                              groupBy: moveInput.groupBy,
+                              value: moveInput.value,
+                              afterId: moveInput.afterId || undefined,
+                              afterParentId: moveInput.afterParentId || undefined,
+                              visibleTaskIds: moveInput.visibleTaskIds,
+                          },
+                          selectedSummary.project.blockId,
+                      )
+                : undefined,
         });
+    }
+
+    function handleBoardPreferenceChange(preference: ProjectBoardPreference) {
+        const projectId = resolvedActiveProjectId;
+        if (!projectId) return;
+        dirtyBoardPreferenceProjects.add(projectId);
+        boardPreferences = withProjectBoardPreference(boardPreferences, projectId, preference);
+        if (!bridge) return;
+        // Keep persistence off the interaction path while preserving write order.
+        boardPreferenceSaveQueue = boardPreferenceSaveQueue
+            .catch(() => undefined)
+            .then(() => bridge!.updateProjectBoardPreference(projectId, preference))
+            .catch((error) => console.warn("[NextAction] board preference save failed:", error));
     }
 </script>
 
@@ -420,6 +488,7 @@
                 {:else if mode === "board"}
                     <ProjectBoardMode
                         tasks={boardTasks}
+                        projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
                         {selectedTaskId}
                         {i18n}
                         {onSelectTask}
@@ -427,6 +496,9 @@
                         {onStatusClick}
                         {onContextMenu}
                         onMoveTask={handleBoardMove}
+                        customFields={$taskStore.settings.customFields}
+                        preference={getProjectBoardPreference(boardPreferences, resolvedActiveProjectId)}
+                        onPreferenceChange={handleBoardPreferenceChange}
                     />
                 {:else if mode === "plan"}
                     <ProjectPlanMode

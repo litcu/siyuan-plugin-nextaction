@@ -25,6 +25,12 @@ import { RPC_METHOD_NAMES, RpcContractError, parseRpcParams } from "../shared/rp
 import type { CreateTaskInput, CreateTaskResult } from "../shared/task-creation";
 import type { PluginSettings } from "../shared/settings";
 import type { ProjectSupportData, ReviewData, TaskSnapshotV2 } from "../shared/types";
+import type { ProjectBoardPreference, ProjectBoardPreferences } from "../shared/project-board-preferences";
+import type {
+    ProjectBoardMoveInput,
+    ProjectBoardMoveResult,
+    ProjectBoardUndoResult,
+} from "../shared/project-board-move";
 import { errorToRpcError, getSiyuan } from "./utils";
 
 export interface RpcServerHooks {
@@ -46,8 +52,15 @@ export interface RpcServerHooks {
     previewActionMove?: (input: ActionMoveInput) => Promise<ActionMovePreview>;
     moveActionToProject?: (input: ActionMoveInput) => Promise<ActionMoveResult>;
     undoActionMove?: (input: ActionMoveUndoInput) => Promise<ActionMoveUndoResult>;
+    moveProjectBoardTask?: (input: ProjectBoardMoveInput) => Promise<ProjectBoardMoveResult>;
+    undoProjectBoardMove?: (input: { credential: string }) => Promise<ProjectBoardUndoResult>;
     extractAction?: (input: ExtractActionInput) => Promise<ExtractActionResult>;
     broadcastTaskReset?: () => void;
+    getProjectBoardPreferences?: () => Promise<ProjectBoardPreferences>;
+    updateProjectBoardPreference?: (
+        projectId: string,
+        preference: ProjectBoardPreference,
+    ) => Promise<ProjectBoardPreferences>;
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -113,6 +126,10 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
             hooks.previewActionMove ? hooks.previewActionMove(input) : unavailable("Action move preview"),
         moveActionToProject: (input) =>
             hooks.moveActionToProject ? hooks.moveActionToProject(input) : unavailable("Action move"),
+        moveProjectBoardTask: (input) =>
+            hooks.moveProjectBoardTask ? hooks.moveProjectBoardTask(input) : unavailable("Project board move"),
+        undoProjectBoardMove: ({ credential }) =>
+            hooks.undoProjectBoardMove ? hooks.undoProjectBoardMove({ credential }) : unavailable("Project board undo"),
         undoActionMove: (input) =>
             hooks.undoActionMove ? hooks.undoActionMove(input) : unavailable("Action move undo"),
         extractAction: (input) => (hooks.extractAction ? hooks.extractAction(input) : unavailable("Action extraction")),
@@ -140,6 +157,14 @@ export function registerRpcMethods(taskService: TaskService, hooks: RpcServerHoo
                 ? hooks.updateSettings(settings)
                 : Promise.resolve(taskService.updateSettings(settings)),
         getSettings: () => taskService.getSettings(),
+        getProjectBoardPreferences: () =>
+            hooks.getProjectBoardPreferences
+                ? hooks.getProjectBoardPreferences()
+                : unavailable("Project board preferences"),
+        updateProjectBoardPreference: ({ projectId, preference }) =>
+            hooks.updateProjectBoardPreference
+                ? hooks.updateProjectBoardPreference(projectId, preference)
+                : unavailable("Project board preferences"),
         validateAiProposal: ({ proposal, context }) =>
             hooks.aiProposalService
                 ? hooks.aiProposalService.validate(proposal, context)
