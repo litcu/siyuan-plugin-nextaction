@@ -96,6 +96,22 @@ test("看板移动只接受当前可见同父级目标，并插入目标卡片�
     assert.ok((result.task.sort || 0) < (target.sort || 0));
 });
 
+// Regression: 服务层不得在缺少可见快照时接受 afterId
+test("缺少可见快照时拒绝 afterId", async () => {
+    const { service, project, moving, target } = fixture();
+    await assert.rejects(
+        service.move({
+            taskId: moving.blockId,
+            projectId: project.blockId,
+            groupBy: "status",
+            value: "doing",
+            afterId: target.blockId,
+            afterParentId: project.blockId,
+        }),
+        (error: unknown) => (error as { code?: number }).code === -32016,
+    );
+});
+
 // Regression: 筛选隐藏任务不得成为隐式落点
 test("筛选隐藏任务不得成为隐式落点", async () => {
     const { service, project, moving, first } = fixture();

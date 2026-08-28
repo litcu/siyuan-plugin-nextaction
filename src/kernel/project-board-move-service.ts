@@ -134,7 +134,7 @@ export class ProjectBoardMoveService {
         }
         if (input.afterId) {
             const afterId = assertBlockId(input.afterId, "afterId");
-            if (afterId === taskId || (input.visibleTaskIds && !input.visibleTaskIds.includes(afterId))) {
+            if (afterId === taskId || !input.visibleTaskIds || !input.visibleTaskIds.includes(afterId)) {
                 throw moveError(
                     RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
                     "The selected board target is not visible",
