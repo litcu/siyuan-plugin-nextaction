@@ -261,22 +261,17 @@
     vertical-align: middle;
 
     > svg {
-        visibility: hidden;
-        width: 0;
-        height: 0;
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
     }
 
-    // SiYuan uses ::after for its hover circle. It must not compete with
-    // the StatusCheckbox state marker mounted on this same action.
-    // Some themes (for example Asri) force the native checkbox pseudo-element
-    // with `content: ... !important`; keep it disabled so it cannot overlap
-    // the NextAction status marker.
-    &::before {
-        content: none !important;
-    }
-
+    // SiYuan and third-party themes may draw native task indicators with
+    // either pseudo-element. Disable both before applying our state marker.
+    &::before,
     &::after {
-        content: none;
+        content: none !important;
     }
 
     &:focus-visible {
@@ -291,7 +286,7 @@
         [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
     )
     > .protyle-action--task.na-status-checkbox.na-status-checkbox--inbox::after {
-    content: "";
+    content: "" !important;
     position: absolute;
     top: 50%;
     left: 50%;
@@ -312,7 +307,7 @@
         [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
     )
     > .protyle-action--task.na-status-checkbox.na-status-checkbox--someday::after {
-    content: "···";
+    content: "···" !important;
     position: absolute;
     top: 50%;
     left: 50%;
@@ -332,7 +327,7 @@
         [data-type="NodeList"][data-subtype="t"] > [data-type="NodeListItem"]
     )
     > .protyle-action--task.na-status-checkbox.na-status-checkbox--done::after {
-    content: "✓";
+    content: "✓" !important;
     position: absolute;
     top: 50%;
     left: 50%;
