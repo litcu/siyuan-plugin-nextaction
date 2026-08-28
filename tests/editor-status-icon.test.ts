@@ -35,9 +35,9 @@ test("原生任务 checkbox 使用六态样式并在 capture 阶段阻止 SiYuan
     assert.match(source, /position:\s*absolute/);
     assert.match(source, /left:\s*8px/);
     assert.match(source, /top:\s*calc\(\(1\.625em \+ 8px - 18px\) \/ 2\)/);
-    assert.match(source, /> svg \{[\s\S]*visibility:\s*hidden/);
+    assert.match(source, /> svg \{[\s\S]*display:\s*none\s*!important[\s\S]*visibility:\s*hidden\s*!important/);
     assert.match(source, /na-status-checkbox--inbox::after/);
-    assert.match(source, /content:\s*none/);
+    assert.match(source, /&::before,[\s\S]*&::after\s*\{\s*content:\s*none\s*!important/);
     assert.match(source, /\.protyle-action--task\.na-status-checkbox/);
     assert.match(integration, /na-status-checkbox/);
     assert.match(integration, /classList\.add\("na-status-checkbox", `\$\{statusClassPrefix\}\$\{status\}`\)/);
