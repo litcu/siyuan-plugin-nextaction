@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
 import { ATTR_STATUS } from "../src/shared/constants.ts";
+import { buildProjectBoardColumns, isProjectBoardTask } from "../src/shared/project-board.ts";
 import {
     buildProjectViewControl,
     buildProjectViewModel as buildProjectViewModelFromControl,
@@ -148,6 +149,69 @@ test("选中任务自动定位项目且 override 立即进入视图模型", () =
     assert.equal(model.activeProjectId, "p1");
     assert.equal(model.detailTasks[0].title, "edited before broadcast");
     assert.equal(model.boardTasks[0].status, "doing");
+});
+
+test("看板只展示普通 Action 和叶子 Stage，并始终保留六个状态列", () => {
+    const project = task("project", { taskType: "2", childIds: ["action", "parent-stage", "leaf-stage"] });
+    const action = task("action", { parentId: project.blockId, status: "todo", childIds: ["nested-action"] });
+    const parentStage = task("parent-stage", {
+        parentId: project.blockId,
+        status: "doing",
+        actionKind: "stage",
+        childIds: ["nested-action"],
+    });
+    const leafStage = task("leaf-stage", { parentId: project.blockId, status: "waiting", actionKind: "stage" });
+    const nestedAction = task("nested-action", { parentId: parentStage.blockId, status: "done" });
+    const descendants = [action, parentStage, leafStage, nestedAction];
+
+    assert.equal(isProjectBoardTask(project, descendants), false);
+    assert.equal(isProjectBoardTask(parentStage, descendants), false);
+    assert.equal(isProjectBoardTask(action, descendants), true);
+    assert.equal(isProjectBoardTask(leafStage, descendants), true);
+
+    const columns = buildProjectBoardColumns(descendants.filter((item) => isProjectBoardTask(item, descendants)));
+    assert.deepEqual(
+        columns.map((column) => column.status),
+        ["inbox", "todo", "doing", "waiting", "someday", "done"],
+    );
+    assert.deepEqual(
+        columns.find((column) => column.status === "todo")?.tasks.map((item) => item.blockId),
+        ["action"],
+    );
+    assert.deepEqual(
+        columns.find((column) => column.status === "waiting")?.tasks.map((item) => item.blockId),
+        ["leaf-stage"],
+    );
+    assert.deepEqual(columns.find((column) => column.status === "inbox")?.tasks, []);
+});
+
+test("看板复用任务筛选但不受完成项开关隐藏 done 列", () => {
+    // Regression: showCompleted=false made the board's done column empty even when a completed Action existed.
+    const boardProject = [
+        task("board-project", { taskType: "2", childIds: ["open-action", "finished-action"] }),
+        task("open-action", { parentId: "board-project", title: "Open work", status: "todo" }),
+        task("finished-action", { parentId: "board-project", title: "Release notes", status: "done" }),
+    ];
+
+    const unfiltered = buildProjectViewModel(boardProject, [], state({ mode: "board", showCompleted: false }));
+    assert.deepEqual(
+        unfiltered.boardTasks.map((item) => item.blockId),
+        ["finished-action", "open-action"],
+    );
+
+    const filtered = buildProjectViewModel(
+        boardProject,
+        [],
+        state({
+            mode: "board",
+            showCompleted: false,
+            filterState: { ...DEFAULT_FILTER_STATE, searchText: "release" },
+        }),
+    );
+    assert.deepEqual(
+        filtered.boardTasks.map((item) => item.blockId),
+        ["finished-action"],
+    );
 });
 
 test("显式切换 Project 不会把旧任务选择带入新项目", () => {

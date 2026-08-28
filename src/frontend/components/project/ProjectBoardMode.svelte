@@ -1,9 +1,11 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
+    import { buildProjectBoardColumns, type ProjectBoardStatus } from "../../../shared/project-board";
     import type { ProjectBoardMoveIntent } from "../../utils/project-view-state";
     import { statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
 
     export let tasks: TaskCacheEntry[];
     export let selectedTaskId = "";
@@ -14,10 +16,16 @@
     export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
     export let onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
 
-    const statuses = ["inbox", "todo", "doing", "waiting", "someday", "done"];
     let draggingTask: TaskCacheEntry | null = null;
-    let dropStatus = "";
+    let dropStatus: ProjectBoardStatus | "" = "";
     let busy = false;
+    let viewportWidth = 1024;
+    let narrowColumnIndex = 0;
+
+    $: columns = buildProjectBoardColumns(tasks);
+    $: narrow = viewportWidth <= 780;
+    $: narrowColumnIndex = Math.max(0, Math.min(narrowColumnIndex, columns.length - 1));
+    $: visibleColumns = narrow ? [columns[narrowColumnIndex]] : columns;
 
     function statusLabel(status: string): string {
         return translateKey(i18n, statusI18nKey(status), status);
@@ -34,7 +42,7 @@
         dropStatus = "";
     }
 
-    async function handleDrop(status: string, afterId = "") {
+    async function handleDrop(status: ProjectBoardStatus, afterId = "") {
         if (!draggingTask || busy) return;
         busy = true;
         try {
@@ -48,58 +56,83 @@
     }
 </script>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 <div class="na-project-board" aria-busy={busy}>
-    {#each statuses as status}
-        {@const statusTasks = tasks.filter((task) => task.status === status).sort((a, b) => a.sort - b.sort)}
-        <section
-            class="na-project-board__column"
-            role="list"
-            class:drop-active={dropStatus === status}
-            on:dragover|preventDefault={() => (dropStatus = status)}
-            on:dragleave={() => (dropStatus = "")}
-            on:drop|preventDefault={() => handleDrop(status)}
-        >
-            <header><span>{statusLabel(status)}</span><span>{statusTasks.length}</span></header>
-            <div class="na-project-board__cards">
-                {#each statusTasks as task (task.blockId)}
-                    <div
-                        class="na-project-board__card"
-                        role="listitem"
-                        draggable={!busy}
-                        on:dragstart={(event) => handleDragStart(task, event)}
-                        on:dragend={resetDrag}
-                        on:dragover|preventDefault={() => (dropStatus = status)}
-                        on:drop|preventDefault|stopPropagation={() => handleDrop(status, task.blockId)}
-                    >
-                        <TaskCard
-                            {task}
-                            selected={task.blockId === selectedTaskId}
-                            onSelect={onSelectTask}
-                            {onEdit}
-                            {onStatusClick}
-                            {onContextMenu}
-                            {i18n}
-                            isRoot={false}
-                        />
-                    </div>
-                {/each}
-                {#if statusTasks.length === 0}<p class="na-project-board__empty">
-                        {i18n?.projectDropHere || "Drop tasks here"}
-                    </p>{/if}
-            </div>
-        </section>
-    {/each}
+    {#if narrow}
+        <div class="na-project-board__pager">
+            <NaIconButton
+                symbol="iconLeft"
+                label={i18n?.previousPage || "Previous"}
+                disabled={narrowColumnIndex === 0}
+                on:click={() => (narrowColumnIndex -= 1)}
+            />
+            <span aria-live="polite">{statusLabel(columns[narrowColumnIndex].status)}</span>
+            <NaIconButton
+                symbol="iconRight"
+                label={i18n?.nextPage || "Next"}
+                disabled={narrowColumnIndex === columns.length - 1}
+                on:click={() => (narrowColumnIndex += 1)}
+            />
+        </div>
+    {/if}
+    <div class="na-project-board__columns" class:na-project-board__columns--narrow={narrow}>
+        {#each visibleColumns as column (column.status)}
+            <section
+                class="na-project-board__column"
+                role="list"
+                class:drop-active={dropStatus === column.status}
+                on:dragover|preventDefault={() => (dropStatus = column.status)}
+                on:dragleave={() => (dropStatus = "")}
+                on:drop|preventDefault={() => handleDrop(column.status)}
+            >
+                <header><span>{statusLabel(column.status)}</span><span>{column.tasks.length}</span></header>
+                <div class="na-project-board__cards">
+                    {#each column.tasks as task (task.blockId)}
+                        <div
+                            class="na-project-board__card"
+                            role="listitem"
+                            draggable={!busy}
+                            on:dragstart={(event) => handleDragStart(task, event)}
+                            on:dragend={resetDrag}
+                            on:dragover|preventDefault={() => (dropStatus = column.status)}
+                            on:drop|preventDefault|stopPropagation={() => handleDrop(column.status, task.blockId)}
+                        >
+                            <TaskCard
+                                {task}
+                                selected={task.blockId === selectedTaskId}
+                                onSelect={onSelectTask}
+                                {onEdit}
+                                {onStatusClick}
+                                {onContextMenu}
+                                {i18n}
+                                isRoot={false}
+                            />
+                        </div>
+                    {/each}
+                    {#if column.tasks.length === 0}<p class="na-project-board__empty">
+                            {i18n?.projectDropHere || "Drop tasks here"}
+                        </p>{/if}
+                </div>
+            </section>
+        {/each}
+    </div>
 </div>
 
 <style lang="scss">
     .na-project-board {
-        display: grid;
         flex: 1 1 auto;
+        min-height: 0;
+        min-width: 900px;
+    }
+    .na-project-board__columns {
+        display: grid;
         grid-template-columns: repeat(6, minmax(150px, 1fr));
         gap: 8px;
-        min-width: 900px;
-        min-height: 0;
         align-items: stretch;
+    }
+    .na-project-board__pager {
+        display: none;
     }
     .na-project-board__column {
         min-height: 260px;
@@ -145,7 +178,27 @@
     }
     @container nextaction-app (max-width: 780px) {
         .na-project-board {
-            min-width: 760px;
+            min-width: 0;
+        }
+        .na-project-board__columns,
+        .na-project-board__columns--narrow {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .na-project-board__pager {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr) 30px;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: var(--na-text-secondary);
+            font-size: var(--na-font-size-sm);
+            font-weight: 600;
+            text-align: center;
+        }
+        .na-project-board__pager > span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     }
 </style>

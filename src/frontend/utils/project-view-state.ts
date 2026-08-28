@@ -8,6 +8,7 @@ import type {
     TaskCacheEntry,
 } from "../../shared/types";
 import { ATTR_STATUS } from "../../shared/constants";
+import { isProjectBoardTask } from "../../shared/project-board";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
 import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
 import { buildProjectControlState } from "../../shared/project-control";
@@ -127,8 +128,9 @@ export function buildProjectViewModel(
     const sourceTasks = control.tasks;
     const summaries = control.projects.map((project) => project.summary);
     const taskFiltersActive = hasActiveTaskFilters(state.filterState);
+    const includeCompletedTasks = state.showCompleted || state.mode === "board";
     const filterCandidates = sourceTasks.filter(
-        (task) => state.showCompleted || task.status !== "done" || isProjectTask(task),
+        (task) => includeCompletedTasks || task.status !== "done" || isProjectTask(task),
     );
     const matchedTasks = taskFiltersActive
         ? applyFilters(filterCandidates, state.filterState, customFields)
@@ -194,6 +196,12 @@ export function buildProjectViewModel(
         state.filterState.sortAsc,
         customFields,
     );
+    const boardTasks = sortTasksBy(
+        (selectedSummary?.descendants || []).filter((task) => !taskFiltersActive || matchedTaskIds.has(task.blockId)),
+        state.filterState.sortBy,
+        state.filterState.sortAsc,
+        customFields,
+    ).filter((task, _index, tasks) => isProjectBoardTask(task, selectedSummary?.descendants || tasks));
     const planGroups = DATE_BUCKETS.map((bucket) => ({
         bucket,
         tasks: sortedDetailTasks.filter((task) => !isProjectTask(task) && getProjectDateBucket(task) === bucket),
@@ -215,7 +223,7 @@ export function buildProjectViewModel(
         taskFiltersActive,
         projectTreeModel,
         detailTasks: sortedDetailTasks,
-        boardTasks: sortedDetailTasks,
+        boardTasks,
         planGroups,
         riskItems,
         metrics: {
