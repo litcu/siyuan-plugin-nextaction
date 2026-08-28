@@ -28,6 +28,7 @@
     "priorityVeryLow": "极低",
     "priorityNone": "未设置",
     "importance": "重要性",
+    "importanceLevel": "重要性 {value}",
     "effort": "工作量",
     "dueDate": "截止日期",
     "startDate": "开始日期",

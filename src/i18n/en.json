@@ -28,6 +28,7 @@
     "priorityVeryLow": "Very Low",
     "priorityNone": "None",
     "importance": "Importance",
+    "importanceLevel": "Importance {value}",
     "effort": "Effort",
     "dueDate": "Due Date",
     "startDate": "Start Date",

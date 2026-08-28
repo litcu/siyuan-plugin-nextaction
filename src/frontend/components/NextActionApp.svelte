@@ -151,7 +151,12 @@
             onEdit: (task: TaskCacheEntry) => void;
             onMyDayToggle?: (blockId: string, isInMyDay: boolean) => Promise<void>;
             onReminderEdit?: (blockId: string) => void;
-            onProjectBoardMove?: (task: TaskCacheEntry, status: string, position?: "top" | "bottom") => Promise<void>;
+            onProjectBoardMove?: (
+                task: TaskCacheEntry,
+                groupBy: "status" | "priority" | "importance",
+                value: string | number,
+                position?: "top" | "bottom",
+            ) => Promise<void>;
         } = {
             onUpdated: (updated: TaskCacheEntry) => {
                 taskStore.applyUpdate(updated);
@@ -192,7 +197,7 @@
             });
         };
         if (activeView === VIEW_BY_PROJECT)
-            callbacks.onProjectBoardMove = async (entry: TaskCacheEntry, status: string, position = "bottom") => {
+            callbacks.onProjectBoardMove = async (entry, groupBy, value, position = "bottom") => {
                 const allTasks = get(taskStore).allTasks;
                 const byId = new Map(allTasks.map((item) => [item.blockId, item]));
                 let current: TaskCacheEntry | undefined = entry;
@@ -211,8 +216,8 @@
                     const result = await bridge.moveProjectBoardTask({
                         taskId: entry.blockId,
                         projectId,
-                        groupBy: "status",
-                        value: status,
+                        groupBy,
+                        value,
                         afterId:
                             position === "top"
                                 ? allTasks
@@ -304,6 +309,7 @@
                 projectId,
                 groupBy: intent.groupBy || "status",
                 value: intent.value ?? intent.status,
+                sortBy: intent.sortBy,
                 afterId: intent.afterId,
                 afterParentId: intent.afterParentId,
                 visibleTaskIds: intent.visibleTaskIds,

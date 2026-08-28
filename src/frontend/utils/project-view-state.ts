@@ -55,12 +55,13 @@ export async function executeProjectBoardMove(
     } else if (groupBy === "importance" && intent.task.importance !== targetValue) {
         attrs[ATTR_IMPORTANCE] = String(targetValue);
     }
-    if (handlers.moveProjectBoardTask && manualOrder) {
+    if (handlers.moveProjectBoardTask) {
         await handlers.moveProjectBoardTask({
             taskId: intent.task.blockId,
             projectId,
             groupBy,
             value: targetValue,
+            sortBy: intent.sortBy,
             afterId: intent.afterId,
             afterParentId: intent.afterParentId,
             visibleTaskIds: intent.visibleTaskIds,

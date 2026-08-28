@@ -229,11 +229,23 @@ function projectBoardMoveParams(value: unknown): ProjectBoardMoveInput {
         throw new RpcContractError("visibleTaskIds must be a non-empty array");
     }
     const visibleTaskIds = input.visibleTaskIds?.map((id, index) => requiredBlockId(id, `visibleTaskIds[${index}]`));
+    const sortBy = optionalString(input.sortBy, "sortBy");
+    if (
+        sortBy !== undefined &&
+        sortBy !== "order" &&
+        sortBy !== "due" &&
+        sortBy !== "importance" &&
+        sortBy !== "priority" &&
+        !sortBy.startsWith("custom:")
+    ) {
+        throw new RpcContractError("sortBy is not a valid Project board sort");
+    }
     return {
         taskId: requiredBlockId(input.taskId, "taskId"),
         projectId: requiredBlockId(input.projectId, "projectId"),
         groupBy,
         value: input.value,
+        ...(sortBy ? { sortBy: sortBy as ProjectBoardMoveInput["sortBy"] } : {}),
         afterId: optionalBlockId(input.afterId, "afterId"),
         afterParentId: optionalBlockId(input.afterParentId, "afterParentId"),
         ...(visibleTaskIds ? { visibleTaskIds } : {}),
