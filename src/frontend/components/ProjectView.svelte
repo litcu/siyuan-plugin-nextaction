@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
-    import { DEFAULT_FILTER_STATE } from "../utils/filter";
+    import { DEFAULT_FILTER_STATE, hasActiveTaskFilters } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import GanttView from "./GanttView.svelte";
     import ProjectOverviewMode from "./project/ProjectOverviewMode.svelte";
@@ -77,6 +77,7 @@
     export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
     export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
     export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+    export let onCreate: () => void;
     export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
     export let bridge:
         | {
@@ -191,6 +192,19 @@
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
     }
 
+    function clearEmptyFilters() {
+        riskFilter = "all";
+        dateFilter = "all";
+        actionFilter = "all";
+        taskStore.setFilterState(VIEW_BY_PROJECT, DEFAULT_FILTER_STATE);
+    }
+
+    $: hasEmptyFilters =
+        hasActiveTaskFilters(filterState) || riskFilter !== "all" || dateFilter !== "all" || actionFilter !== "all";
+    $: emptyAction = hasEmptyFilters
+        ? { label: i18n?.clearFilter || "Clear filters", onClick: clearEmptyFilters }
+        : { label: i18n?.createTask || "Create task", onClick: onCreate };
+
     function handleModeChange(event: CustomEvent<string>) {
         mode = event.detail as ProjectViewMode;
     }
@@ -253,8 +267,12 @@
 
 <NaViewShell
     loading={$taskStore.loading && summaries.length === 0}
+    loadingText={i18n?.loading || "Loading..."}
+    error={$taskStore.error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: () => taskStore.loadTasks() }}
     empty={visibleSummaries.length === 0}
-    emptyText={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"}
+    emptyText={i18n?.noResults || i18n?.noProjects || "No projects yet"}
+    {emptyAction}
     hint={i18n?.viewHintProject}
 >
     <svelte:fragment slot="toolbar">

@@ -102,7 +102,10 @@
 
 <div class="na-view na-view--myday">
     <NaViewShell
-        loading={viewMode === "list" && $taskStore.loading}
+        loading={$taskStore.myDayLoading}
+        loadingText={i18n?.loading || "Loading..."}
+        error={$taskStore.myDayError}
+        retryAction={{ label: i18n?.retry || "Retry", onClick: () => taskStore.loadMyDay() }}
         empty={viewMode === "list" && filteredTasks.length === 0}
         emptyText={i18n?.noMyDayTasks || "No tasks planned for today."}
         emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}

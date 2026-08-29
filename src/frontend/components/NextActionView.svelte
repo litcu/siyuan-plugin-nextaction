@@ -1,7 +1,7 @@
 <script lang="ts">
     import { taskStore } from "../stores/task-store";
     import { VIEW_NEXT_ACTION } from "../constants";
-    import { applyFilters, DEFAULT_FILTER_STATE, isNextActionCandidate } from "../utils/filter";
+    import { applyFilters, DEFAULT_FILTER_STATE, hasActiveTaskFilters, isNextActionCandidate } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
     import NaAccordion from "../ui/NaAccordion.svelte";
@@ -16,12 +16,19 @@
     export let i18n: any;
     export let selectedTaskId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onCreate: () => void;
 
     $: filterState = $taskStore.filterByView[VIEW_NEXT_ACTION] || DEFAULT_FILTER_STATE;
     $: nextActionTasks = $taskStore.allTasks.filter((t) =>
         isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays),
     );
     $: filteredTasks = applyFilters(nextActionTasks, filterState, $taskStore.settings.customFields);
+    $: emptyAction = hasActiveTaskFilters(filterState)
+        ? {
+              label: i18n?.clearFilter || "Clear filters",
+              onClick: () => taskStore.setFilterState(VIEW_NEXT_ACTION, DEFAULT_FILTER_STATE),
+          }
+        : { label: i18n?.createTask || "Create task", onClick: onCreate };
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_NEXT_ACTION, state);
@@ -30,8 +37,12 @@
 
 <NaViewShell
     loading={$taskStore.loading}
+    error={$taskStore.error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: () => taskStore.loadTasks() }}
+    loadingText={i18n?.loading || "Loading..."}
     empty={filteredTasks.length === 0 && (!$taskStore.projectReminders || $taskStore.projectReminders.length === 0)}
-    emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"}
+    emptyText={i18n?.noResults || i18n?.noTasks || "No tasks yet"}
+    {emptyAction}
     hint={i18n?.viewHintNextAction}
 >
     <svelte:fragment slot="toolbar"

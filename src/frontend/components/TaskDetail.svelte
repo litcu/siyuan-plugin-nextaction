@@ -48,6 +48,7 @@
     export let onTaskChange: ((task: TaskCacheEntry) => void) | undefined = undefined;
     export let showJumpToBlock = true;
     export let dialogMode = false;
+    export let titleId = "na-drawer-title";
 
     let status = "todo";
     let priority = "none";
@@ -576,6 +577,7 @@
     closeLabel={i18n?.close || "Close"}
     status={statusLabel}
     {statusTone}
+    {titleId}
     showFooter={false}
     on:close={requestClose}
 >

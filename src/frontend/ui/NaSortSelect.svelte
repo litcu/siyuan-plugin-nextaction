@@ -1,5 +1,9 @@
+<script context="module" lang="ts">
+    let nextPanelId = 0;
+</script>
+
 <script lang="ts">
-    import { onDestroy } from "svelte";
+    import { tick } from "svelte";
 
     export let options: { value: string; label: string }[] = [];
     export let selected: string = "order";
@@ -9,12 +13,33 @@
 
     let open = false;
     let containerEl: HTMLElement;
+    let triggerEl: HTMLButtonElement;
+    const panelId = `na-sort-panel-${++nextPanelId}`;
 
     $: currentLabel = options.find((o) => o.value === selected)?.label || "";
     $: canToggleDirection = selected !== "order";
 
     function toggle() {
         open = !open;
+        if (!open) triggerEl?.focus();
+        else void focusFirstOption();
+    }
+
+    async function focusFirstOption() {
+        await tick();
+        setTimeout(() => {
+            if (!open) return;
+            containerEl?.querySelector<HTMLElement>(".na-sort-select__option")?.focus({ preventScroll: true });
+        }, 0);
+    }
+
+    function handleKeydown(event: KeyboardEvent) {
+        if (event.key !== "Escape" || !open) return;
+        {
+            event.preventDefault();
+            open = false;
+            triggerEl?.focus();
+        }
     }
 
     function closeOnOutsideClick(e: MouseEvent) {
@@ -27,6 +52,7 @@
         const newAsc = value === "due" ? true : false;
         onChange(value, newAsc);
         open = false;
+        void tick().then(() => triggerEl?.focus());
     }
 
     function toggleDirection() {
@@ -34,10 +60,18 @@
     }
 </script>
 
-<svelte:window on:click={closeOnOutsideClick} />
+<svelte:window on:click={closeOnOutsideClick} on:keydown={handleKeydown} />
 
 <div class="na-sort-select" bind:this={containerEl}>
-    <button class="na-sort-select__trigger" on:click={toggle}>
+    <button
+        class="na-sort-select__trigger"
+        bind:this={triggerEl}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-haspopup="true"
+        on:click={toggle}
+        on:keydown={handleKeydown}
+    >
         <svg
             viewBox="0 0 12 12"
             width="10"
@@ -90,7 +124,13 @@
         </button>
     {/if}
     {#if open}
-        <div class="na-sort-select__panel">
+        <div
+            class="na-sort-select__panel"
+            id={panelId}
+            role="group"
+            aria-label={i18n?.sortBy || "Sort by"}
+            tabindex="-1"
+        >
             {#each options as opt (opt.value)}
                 <button
                     type="button"
@@ -145,6 +185,12 @@
         transition:
             border-color 0.15s,
             background 0.15s;
+
+        &:focus-visible,
+        &:focus-visible + .na-sort-select__dir-btn {
+            outline: 2px solid var(--b3-theme-primary);
+            outline-offset: 2px;
+        }
 
         &:hover {
             border-color: var(--na-filter-active-border);
@@ -208,6 +254,11 @@
         margin: 0 4px;
         transition: background 0.1s;
 
+        &:focus-visible {
+            outline: 2px solid var(--b3-theme-primary);
+            outline-offset: -2px;
+        }
+
         &:hover {
             background: var(--na-color-hover-bg);
         }
@@ -230,5 +281,27 @@
 
     .na-sort-select__option-label {
         line-height: 1.2;
+    }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-sort-select__trigger,
+        .na-sort-select__dir-btn {
+            min-height: 44px;
+            height: 44px;
+        }
+
+        .na-sort-select__trigger {
+            padding-inline: 12px;
+            font-size: 12px;
+        }
+
+        .na-sort-select__dir-btn {
+            width: 44px;
+        }
+
+        .na-sort-select__option {
+            min-height: 44px;
+            padding-block: 10px;
+        }
     }
 </style>

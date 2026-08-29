@@ -229,6 +229,31 @@
             flex-wrap: nowrap;
             overflow-x: auto;
             padding-bottom: 1px;
+            scrollbar-width: none;
+        }
+
+        .na-task-filter-bar__filters::-webkit-scrollbar {
+            display: none;
+        }
+
+        .na-task-filter-bar__filters > * {
+            flex: 0 0 auto;
+        }
+    }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-task-filter-bar {
+            padding-block: 8px;
+        }
+
+        .na-task-filter-bar__custom {
+            min-height: 44px;
+        }
+
+        .na-task-filter-bar__custom .na-select,
+        .na-task-filter-bar__custom .na-input {
+            height: 44px;
+            min-height: 44px;
         }
     }
 </style>

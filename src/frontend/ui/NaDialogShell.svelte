@@ -11,6 +11,7 @@
     export let variant: "drawer" | "dialog" = "drawer";
     export let showFooter = true;
     export let element: HTMLDivElement | undefined = undefined;
+    export let titleId = "na-drawer-title";
 
     const dispatch = createEventDispatcher<{ close: void }>();
 </script>
@@ -19,8 +20,9 @@
     bind:this={element}
     class="na-dialog-shell na-dialog-shell--{variant}"
     class:na-dialog-shell--with-footer={showFooter}
+    aria-labelledby={titleId}
 >
-    <NaDialogHeader {title} {subtitle} {closeLabel} {status} {statusTone} on:close={() => dispatch("close")}>
+    <NaDialogHeader {title} {subtitle} {closeLabel} {status} {statusTone} {titleId} on:close={() => dispatch("close")}>
         <div slot="actions"><slot name="headerActions" /></div>
     </NaDialogHeader>
     <div class="na-dialog-shell__notice" aria-live="polite"><slot name="notice" /></div>

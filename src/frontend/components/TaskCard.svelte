@@ -64,6 +64,9 @@
     $: priorityTextColor = PRIORITY_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
     $: statusLabel = i18n?.[toI18nKey("status", task.status)] || task.status;
+    $: statusActionLabel = (i18n?.changeTaskStatus || "Change status for {task}. Current status: {status}")
+        .replace("{task}", taskTitle)
+        .replace("{status}", statusLabel);
     $: repeatState = parseRepeatState(task.repeatState);
     $: repeatStatus = repeatState?.status || (task.repeat ? "active" : "");
     $: repeatTooltip =
@@ -131,11 +134,7 @@
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
     <div class="na-task-card__content">
-        <StatusCheckbox
-            status={task.status}
-            ariaLabel={`${i18n?.status || "Status"}: ${taskTitle} — ${statusLabel}`}
-            onclick={(e) => onStatusClick(task, e)}
-        />
+        <StatusCheckbox status={task.status} ariaLabel={statusActionLabel} onclick={(e) => onStatusClick(task, e)} />
         <svelte:element
             this={managedFocus ? "div" : "button"}
             type={managedFocus ? undefined : "button"}

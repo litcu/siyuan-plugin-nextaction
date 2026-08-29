@@ -103,4 +103,12 @@
         background: var(--b3-theme-primary-lightest);
         border-color: transparent;
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-button,
+        .na-button--sm {
+            min-height: 44px;
+            height: 44px;
+        }
+    }
 </style>

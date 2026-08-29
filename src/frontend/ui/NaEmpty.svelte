@@ -5,9 +5,15 @@
     export let text: string | undefined = undefined;
     export let loading: boolean = false;
     export let action: { label: string; onClick: () => void } | undefined = undefined;
+    export let error = false;
 </script>
 
-<div class="na-empty">
+<div
+    class="na-empty"
+    class:na-empty--error={error}
+    role={error ? "alert" : loading ? "status" : undefined}
+    aria-busy={loading || undefined}
+>
     {#if loading}
         <NaSpinner size="lg" />
     {:else}
@@ -57,6 +63,9 @@
     .na-empty__illustration {
         line-height: 1;
         color: var(--b3-theme-on-surface-light);
+    }
+    .na-empty--error {
+        color: var(--na-color-error);
     }
 
     .na-empty__text {

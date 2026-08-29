@@ -12,6 +12,7 @@
     export let compact = false;
     export let draggable = false;
     export let tabIndex: number | undefined = undefined;
+    export let ariaKeyshortcuts = "";
     export let tooltipPosition: "top" | "bottom" | "left" | "right" = "bottom";
 </script>
 
@@ -23,6 +24,7 @@
         class:na-icon-button--active={active}
         class:na-icon-button--danger={tone === "danger"}
         aria-label={label}
+        aria-keyshortcuts={ariaKeyshortcuts || undefined}
         aria-pressed={active || undefined}
         {disabled}
         {draggable}
@@ -79,5 +81,14 @@
     .na-icon-button--danger:hover:not(:disabled) {
         color: var(--b3-card-error-color);
         background: var(--na-color-error-bg);
+    }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-icon-button,
+        .na-icon-button--compact {
+            width: 44px;
+            height: 44px;
+            flex-basis: 44px;
+        }
     }
 </style>

@@ -14,6 +14,8 @@
     isolation: isolate;
     container-name: nextaction-app;
     container-type: inline-size;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .na-app__center {
@@ -22,6 +24,7 @@
     flex-direction: column;
     min-width: 0;
     overflow: hidden;
+    min-height: 0;
 }
 
 .na-app__list {
@@ -37,6 +40,10 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
+}
+
+.na-app--touch-layout {
+    flex-direction: column;
 }
 
 // NavRail
@@ -232,6 +239,108 @@
     scrollbar-width: thin;
 }
 
+.na-app--touch-layout {
+    .na-nav-rail,
+    .na-nav-rail--compact {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: auto !important;
+        max-height: 76px;
+        min-height: 60px;
+        box-sizing: border-box;
+        flex-direction: row !important;
+        align-items: stretch !important;
+        gap: 4px !important;
+        padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom)) !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--na-color-divider);
+        scrollbar-width: none;
+    }
+
+    .na-nav-rail::-webkit-scrollbar {
+        display: none;
+    }
+
+    .na-nav-rail__group,
+    .na-nav-rail--compact .na-nav-rail__group {
+        width: auto !important;
+        flex: 0 0 auto;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .na-nav-rail__group + .na-nav-rail__group,
+    .na-nav-rail--compact .na-nav-rail__group + .na-nav-rail__group {
+        margin-top: 0;
+        padding-top: 0;
+        padding-left: 4px;
+        border-top: 0;
+        border-left: 1px solid var(--na-color-divider);
+    }
+
+    .na-nav-rail__group-label,
+    .na-nav-rail--compact .na-nav-rail__group-label {
+        display: none;
+    }
+
+    .na-nav-rail .na-nav-item,
+    .na-nav-rail--compact .na-nav-item {
+        flex: 0 0 auto !important;
+        justify-content: flex-start !important;
+        width: auto !important;
+        min-width: max-content;
+        min-height: 44px !important;
+        padding: 8px 10px !important;
+        gap: 7px;
+    }
+
+    .na-nav-rail .na-nav-item__label,
+    .na-nav-rail--compact .na-nav-item__label {
+        display: inline !important;
+        overflow: visible;
+        font-size: 12px;
+        text-overflow: clip;
+    }
+
+    .na-nav-rail--compact .na-nav-item__icon {
+        flex-basis: 18px;
+    }
+
+    .na-nav-rail__spacer,
+    .na-nav-rail--compact .na-nav-rail__spacer {
+        display: none !important;
+    }
+
+    .na-nav-rail__footer,
+    .na-nav-rail--compact .na-nav-rail__footer {
+        flex: 0 0 auto;
+        padding: 0 0 0 4px;
+        justify-content: center;
+    }
+
+    .na-nav-rail__action-btn,
+    .na-nav-rail--compact .na-nav-rail__action-btn {
+        width: auto;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+        padding: 0 10px;
+    }
+
+    .na-nav-rail__action-label,
+    .na-nav-rail--compact .na-nav-rail__action-label {
+        display: inline !important;
+        margin-left: 5px;
+    }
+
+    .na-app__list {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
 @container nextaction-app (max-width: 520px) {
     .na-task-card {
         height: 48px;
@@ -253,5 +362,45 @@
     }
     .na-task-card__title {
         font-size: 12px;
+    }
+}
+
+@media (pointer: coarse) {
+    .na-task-card {
+        height: 56px;
+        min-height: 56px;
+        max-height: none;
+        flex-basis: 56px;
+    }
+}
+
+@container nextaction-app (max-width: 520px) {
+    .na-button,
+    .na-button--sm,
+    .na-icon-button,
+    .na-icon-button--compact,
+    .na-search-input,
+    .na-search-input--compact,
+    .na-filter-dropdown__trigger,
+    .na-sort-select__trigger,
+    .na-sort-select__dir-btn,
+    .na-select,
+    .na-select--sm,
+    .na-input {
+        min-height: 44px;
+        height: 44px;
+    }
+
+    .na-segment-control__option,
+    .na-filter-dropdown__action,
+    .na-filter-dropdown__option,
+    .na-sort-select__option,
+    .na-task-card__activate-btn {
+        min-height: 44px;
+    }
+
+    .na-status-checkbox {
+        width: 44px;
+        height: 44px;
     }
 }

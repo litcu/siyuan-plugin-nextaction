@@ -7,6 +7,7 @@
     export let closeLabel: string;
     export let status = "";
     export let statusTone: "default" | "warning" | "error" = "default";
+    export let titleId = "na-drawer-title";
 
     const dispatch = createEventDispatcher<{ close: void }>();
 </script>
@@ -14,7 +15,7 @@
 <header class="na-dialog-header">
     <div class="na-dialog-header__copy">
         <div class="na-dialog-header__title-row">
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {#if status}<span class="na-dialog-header__status na-dialog-header__status--{statusTone}">{status}</span
                 >{/if}
         </div>
