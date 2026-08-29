@@ -6,11 +6,10 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { createServer } from "node:net";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable } from "./helpers/browser.ts";
+import { findBrowserExecutable, stopBrowserProcess } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
@@ -324,8 +323,8 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                 cdp.close();
             }
         } finally {
-            browserProcess.kill();
-            if (browserProcess.exitCode === null) await Promise.race([once(browserProcess, "exit"), delay(2_000)]);
+            // Regression: wait for Chromium to release its profile before removing the fixture directory on Linux CI.
+            await stopBrowserProcess(browserProcess);
         }
     } finally {
         rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
