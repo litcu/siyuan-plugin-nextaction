@@ -18,5 +18,6 @@
     }}
     on:pointerdown|stopPropagation
     aria-label={ariaLabel || status}
+    aria-haspopup="menu"
     tabindex={focusable ? 0 : -1}
 ></button>

@@ -72,6 +72,8 @@
     --na-task-card-child-bg: color-mix(in srgb, var(--b3-theme-on-surface) 2%, var(--b3-theme-surface));
     --na-task-card-meta-bg: color-mix(in srgb, var(--b3-theme-on-surface) 4%, var(--b3-theme-surface));
     --na-task-card-meta-border: var(--b3-border-color);
+    --na-task-card-primary-text: var(--b3-theme-on-background);
+    --na-task-card-secondary-text: var(--b3-theme-on-surface);
 
     // ===== 筛选 =====
     --na-filter-context: color-mix(in srgb, var(--na-priority-medium) 78%, var(--b3-theme-background));
