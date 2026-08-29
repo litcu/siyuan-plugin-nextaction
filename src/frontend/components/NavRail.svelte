@@ -75,14 +75,19 @@
 
         const updateLayout = () => {
             const width = root.getBoundingClientRect().width;
+            const coarsePointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
             compact = width < 720;
             veryNarrow = width < 360;
+            root.classList.toggle("na-app--touch-layout", coarsePointer && width <= 720);
         };
 
         updateLayout();
         const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateLayout) : null;
         observer?.observe(root);
-        return () => observer?.disconnect();
+        return () => {
+            observer?.disconnect();
+            root.classList.remove("na-app--touch-layout");
+        };
     });
 
     function handleRefresh() {

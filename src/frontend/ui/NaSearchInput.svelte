@@ -95,4 +95,13 @@
             transition: none;
         }
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-search-input,
+        .na-search-input--compact {
+            height: 44px;
+            min-height: 44px;
+            padding-inline: 12px;
+        }
+    }
 </style>

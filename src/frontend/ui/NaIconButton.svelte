@@ -80,4 +80,13 @@
         color: var(--b3-card-error-color);
         background: var(--na-color-error-bg);
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-icon-button,
+        .na-icon-button--compact {
+            width: 44px;
+            height: 44px;
+            flex-basis: 44px;
+        }
+    }
 </style>

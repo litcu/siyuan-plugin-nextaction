@@ -100,4 +100,11 @@
             transition: none;
         }
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-segment-control__option {
+            min-height: 44px;
+            padding-block: 8px;
+        }
+    }
 </style>

@@ -580,6 +580,53 @@
     }
 }
 
+@media (pointer: coarse) {
+    .na-task-card__activate-btn {
+        min-width: 44px;
+        min-height: 44px;
+        height: 44px;
+        padding-inline: 10px;
+    }
+}
+
+@media (pointer: coarse) {
+    .na-status-checkbox {
+        width: 44px;
+        height: 44px;
+        border: 0;
+        background: transparent;
+    }
+
+    .na-status-checkbox::before {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--na-text-secondary);
+        border-radius: 50%;
+        content: "";
+        box-sizing: border-box;
+    }
+
+    .na-status-checkbox--inbox::before {
+        border-color: var(--na-color-inbox);
+    }
+    .na-status-checkbox--doing::before {
+        border-color: var(--na-color-doing);
+        background: linear-gradient(135deg, var(--na-color-doing) 50%, transparent 50%);
+    }
+    .na-status-checkbox--waiting::before {
+        border-color: var(--na-color-waiting);
+        border-style: dashed;
+    }
+    .na-status-checkbox--someday::before {
+        border-color: var(--na-color-someday);
+    }
+    .na-status-checkbox--done::before {
+        border-color: var(--na-color-done);
+        background: var(--na-color-done);
+    }
+}
+
 // All tasks view - tree indent
 .na-all-tasks__item {
     position: relative;

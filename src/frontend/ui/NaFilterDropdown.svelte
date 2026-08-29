@@ -320,4 +320,24 @@
     .na-filter-dropdown__option-label {
         line-height: 1.2;
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-filter-dropdown__trigger {
+            min-height: 44px;
+            height: 44px;
+            padding-inline: 12px;
+            font-size: 12px;
+        }
+
+        .na-filter-dropdown__panel {
+            max-height: min(60vh, 360px);
+        }
+
+        .na-filter-dropdown__action,
+        .na-filter-dropdown__option {
+            min-height: 44px;
+            box-sizing: border-box;
+            padding-block: 10px;
+        }
+    }
 </style>

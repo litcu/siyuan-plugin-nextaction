@@ -282,4 +282,26 @@
     .na-sort-select__option-label {
         line-height: 1.2;
     }
+
+    @media (pointer: coarse), (max-width: 520px) {
+        .na-sort-select__trigger,
+        .na-sort-select__dir-btn {
+            min-height: 44px;
+            height: 44px;
+        }
+
+        .na-sort-select__trigger {
+            padding-inline: 12px;
+            font-size: 12px;
+        }
+
+        .na-sort-select__dir-btn {
+            width: 44px;
+        }
+
+        .na-sort-select__option {
+            min-height: 44px;
+            padding-block: 10px;
+        }
+    }
 </style>
