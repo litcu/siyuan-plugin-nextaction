@@ -61,7 +61,7 @@ test("#39 和 #40 的模态、状态与筛选控件支持完整键盘和辅助�
         writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
         writeFileSync(
             join(fixtureRoot, "index.html"),
-            '<!doctype html><html><head><style>:root{--b3-theme-primary:#2563eb}</style></head><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
+            '<!doctype html><html><head><style>:root{--b3-theme-primary:#2563eb}#drawer-layout{position:relative;width:320px;height:240px;overflow:hidden}</style></head><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
         );
         writeFileSync(
             join(fixtureRoot, "Harness.svelte"),
@@ -79,16 +79,18 @@ let selected = ["work"];
 let sort = "order";
 const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" };
 </script>
-<div id="background">
-    <button id="opener" on:click={() => (drawerOpen = true)}>Open task</button>
-    <button id="outside">Outside</button>
+<div id="drawer-layout">
+    <div id="background">
+        <button id="opener" on:click={() => (drawerOpen = true)}>Open task</button>
+        <button id="outside">Outside</button>
+    </div>
+    <NaDrawerHost open={drawerOpen} label="Close task" titleId="task-title"
+        on:requestClose={() => { closeCount += 1; drawerOpen = false; }}>
+        <h2 id="task-title">Plan launch</h2>
+        <button id="drawer-first">First</button>
+        <button id="drawer-last">Last</button>
+    </NaDrawerHost>
 </div>
-<NaDrawerHost open={drawerOpen} label="Close task" titleId="task-title"
-    on:requestClose={() => { closeCount += 1; drawerOpen = false; }}>
-    <h2 id="task-title">Plan launch</h2>
-    <button id="drawer-first">First</button>
-    <button id="drawer-last">Last</button>
-</NaDrawerHost>
 <section id="states" data-retries={retryCount} data-empty-actions={emptyActionCount}>
     <button id="show-error" on:click={() => (mode = "error")}>Error</button>
     <button id="show-empty" on:click={() => (mode = "empty")}>Empty</button>
@@ -208,8 +210,21 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                 assert.equal(await evaluate('Boolean(document.querySelector("#opener"))'), true, "测试组件未挂载");
                 await evaluate('document.querySelector("#opener").focus()');
                 assert.equal(await evaluate("document.activeElement.id"), "opener");
-                await evaluate('document.querySelector("#opener").click()');
-                await delay(250);
+                // Regression: 抽屉在移入视口前聚焦内容，曾把隐藏溢出的应用容器横向滚动一个抽屉宽度。
+                assert.equal(
+                    await evaluate(`(async () => {
+                        const layout = document.querySelector("#drawer-layout");
+                        document.querySelector("#opener").click();
+                        const samples = [];
+                        const start = performance.now();
+                        while (performance.now() - start < 240) {
+                            await new Promise(requestAnimationFrame);
+                            samples.push(layout.scrollLeft);
+                        }
+                        return Math.max(...samples);
+                    })()`),
+                    0,
+                );
                 assert.deepEqual(
                     await evaluate(`(() => {
                         const dialog = document.querySelector('[role="dialog"]');

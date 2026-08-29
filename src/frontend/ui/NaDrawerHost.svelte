@@ -41,7 +41,7 @@
             previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             setBackgroundInert(true);
             await tick();
-            (focusableElements()[0] || drawerElement)?.focus();
+            (focusableElements()[0] || drawerElement)?.focus({ preventScroll: true });
         } else if (!open && wasOpen) {
             wasOpen = false;
             setBackgroundInert(false);
