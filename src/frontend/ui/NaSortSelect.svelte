@@ -44,6 +44,7 @@
         const newAsc = value === "due" ? true : false;
         onChange(value, newAsc);
         open = false;
+        void tick().then(() => triggerEl?.focus());
     }
 
     function toggleDirection() {

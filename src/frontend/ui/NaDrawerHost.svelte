@@ -61,6 +61,8 @@
 
     function handleKeydown(event: KeyboardEvent) {
         if (!open || event.defaultPrevented) return;
+        const dialogs = (window as any).siyuan?.dialogs;
+        if (Array.isArray(dialogs) && dialogs.length > 0) return;
         if (event.key === "Tab") {
             const elements = focusableElements();
             if (!elements.length) return;
@@ -73,8 +75,6 @@
             return;
         }
         if (event.key !== "Escape") return;
-        const dialogs = (window as any).siyuan?.dialogs;
-        if (Array.isArray(dialogs) && dialogs.length > 0) return;
         event.preventDefault();
         dispatch("requestClose", "escape");
     }

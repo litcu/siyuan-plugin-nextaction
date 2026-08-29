@@ -470,6 +470,7 @@
                     onMoveAction={openActionMove}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
                     onExtractAction={openExtractAction}
+                    onCreate={() => openCreate()}
                     {projectDefinitionControllerRegistry}
                     {i18n}
                 />

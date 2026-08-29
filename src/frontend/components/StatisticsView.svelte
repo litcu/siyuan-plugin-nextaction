@@ -84,7 +84,13 @@
     });
 </script>
 
-<NaViewShell loading={loading && !stats} empty={Boolean(error)} emptyText={error} hint={i18n?.viewHintStatistics}>
+<NaViewShell
+    loading={loading && !stats}
+    loadingText={i18n?.loading || "Loading..."}
+    {error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: () => loadStats() }}
+    hint={i18n?.viewHintStatistics}
+>
     <svelte:fragment slot="toolbar">
         <NaToolbar compact>
             <span class="na-statistics__period-label">{periodLabelText}</span>

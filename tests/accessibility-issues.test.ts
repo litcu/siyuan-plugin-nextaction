@@ -189,6 +189,7 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                         code,
                         windowsVirtualKeyCode,
                         modifiers,
+                        ...(key === "Enter" ? { text: "\r", unmodifiedText: "\r" } : {}),
                     });
                     await cdp.call("Input.dispatchKeyEvent", {
                         type: "keyUp",
@@ -222,6 +223,14 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                 assert.equal(await evaluate("document.activeElement.id"), "drawer-first");
                 await press("Tab", "Tab", 9, 8);
                 assert.equal(await evaluate("document.activeElement.id"), "drawer-last");
+                assert.equal(
+                    await evaluate(`(() => {
+                        window.siyuan = { dialogs: [{}] };
+                        return window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", cancelable: true }));
+                    })()`),
+                    true,
+                );
+                await evaluate("window.siyuan.dialogs = []");
                 await press("Escape", "Escape", 27);
                 await delay(250);
                 assert.deepEqual(
@@ -280,6 +289,13 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                 );
                 await press("Escape", "Escape", 27);
                 assert.match(await evaluate("document.activeElement.className"), /^na-sort-select__trigger(?: |$)/);
+                await evaluate('document.querySelector("#sort .na-sort-select__trigger").click()');
+                await press("Enter", "Enter", 13);
+                assert.deepEqual(
+                    await evaluate(`({ expanded: document.querySelector("#sort .na-sort-select__trigger").getAttribute("aria-expanded"),
+                        focused: document.activeElement.classList.contains("na-sort-select__trigger") })`),
+                    { expanded: "false", focused: true },
+                );
             } finally {
                 cdp.close();
             }
