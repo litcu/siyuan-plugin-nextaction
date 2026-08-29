@@ -150,7 +150,9 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
         ]);
         try {
             let pageSocketUrl = "";
-            for (let attempt = 0; attempt < 50 && !pageSocketUrl; attempt += 1) {
+            // Regression: GitHub Actions may need more than five seconds to expose CDP while browser tests build in parallel.
+            for (let attempt = 0; attempt < 150 && !pageSocketUrl; attempt += 1) {
+                assert.equal(browserProcess.exitCode, null, "无障碍测试浏览器在连接前退出");
                 try {
                     const targets = (await fetch(`http://127.0.0.1:${debuggingPort}/json/list`).then((response) =>
                         response.json(),
