@@ -1,7 +1,7 @@
 <script lang="ts">
     import { taskStore } from "../stores/task-store";
     import { STATUS_LIST, VIEW_ALL_TASKS } from "../constants";
-    import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
+    import { applyFilters, DEFAULT_FILTER_STATE, hasActiveTaskFilters } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
     import NaAccordion from "../ui/NaAccordion.svelte";
@@ -21,6 +21,7 @@
     export let i18n: any;
     export let selectedTaskId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onCreate: () => void;
 
     const ALL_TASK_STATUS_FILTERS = STATUS_LIST.filter((status) => status !== "done");
 
@@ -57,6 +58,12 @@
         ? { ...filterState, statuses: filterState.statuses.filter((status) => status !== "done") }
         : filterState;
     $: filteredTasks = applyFilters(activeTasks, allTaskFilterState, $taskStore.settings.customFields);
+    $: emptyAction = hasActiveTaskFilters(filterState)
+        ? {
+              label: i18n?.clearFilter || "Clear filters",
+              onClick: () => taskStore.setFilterState(VIEW_ALL_TASKS, DEFAULT_FILTER_STATE),
+          }
+        : { label: i18n?.createTask || "Create task", onClick: onCreate };
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_ALL_TASKS, state);
@@ -102,8 +109,12 @@
 
 <NaViewShell
     loading={$taskStore.loading && filteredTasks.length === 0}
+    error={$taskStore.error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: () => taskStore.loadTasks() }}
+    loadingText={i18n?.loading || "Loading..."}
     empty={filteredTasks.length === 0 && doneCount === 0}
-    emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"}
+    emptyText={i18n?.noResults || i18n?.noTasks || "No tasks yet"}
+    {emptyAction}
     hint={i18n?.viewHintAllTasks}
 >
     <svelte:fragment slot="toolbar"

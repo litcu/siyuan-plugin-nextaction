@@ -1,5 +1,9 @@
+<script context="module" lang="ts">
+    let nextPanelId = 0;
+</script>
+
 <script lang="ts">
-    import { onDestroy } from "svelte";
+    import { tick } from "svelte";
 
     export let label: string;
     export let options: { value: string; label: string; color?: string }[] = [];
@@ -9,12 +13,25 @@
 
     let open = false;
     let containerEl: HTMLElement;
+    let triggerEl: HTMLButtonElement;
+    const panelId = `na-filter-panel-${++nextPanelId}`;
 
     $: hasSelection = selected.length > 0;
     $: isAllSelected = options.length > 0 && selected.length === options.length;
 
     function toggle() {
         open = !open;
+        if (!open) triggerEl?.focus();
+        else void tick().then(() => containerEl?.querySelector<HTMLElement>("input, button")?.focus());
+    }
+
+    function handleKeydown(event: KeyboardEvent) {
+        if (event.key !== "Escape" || !open) return;
+        {
+            event.preventDefault();
+            open = false;
+            triggerEl?.focus();
+        }
     }
 
     function closeOnOutsideClick(e: MouseEvent) {
@@ -38,17 +55,20 @@
     function clearAll() {
         onChange([]);
     }
-
-    onDestroy(() => {});
 </script>
 
-<svelte:window on:click={closeOnOutsideClick} />
+<svelte:window on:click={closeOnOutsideClick} on:keydown={handleKeydown} />
 
 <div class="na-filter-dropdown" bind:this={containerEl}>
     <button
         class="na-filter-dropdown__trigger"
         class:na-filter-dropdown__trigger--active={hasSelection}
+        bind:this={triggerEl}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-haspopup="true"
         on:click={toggle}
+        on:keydown={handleKeydown}
     >
         <span class="na-filter-dropdown__label">{label}</span>
         {#if hasSelection}
@@ -68,7 +88,7 @@
         </svg>
     </button>
     {#if open}
-        <div class="na-filter-dropdown__panel">
+        <div class="na-filter-dropdown__panel" id={panelId} role="group" aria-label={label} tabindex="-1">
             <div class="na-filter-dropdown__actions">
                 <button class="na-filter-dropdown__action" on:click={selectAll} disabled={isAllSelected}>
                     {i18n?.selectAll || "Select all"}
@@ -229,6 +249,10 @@
         clip: rect(0, 0, 0, 0);
         white-space: nowrap;
         border: 0;
+    }
+    .na-filter-dropdown__option:has(.na-filter-dropdown__sr-only:focus) .na-filter-dropdown__checkbox {
+        outline: 2px solid var(--b3-theme-primary);
+        outline-offset: 2px;
     }
 
     .na-filter-dropdown__option {

@@ -6,6 +6,9 @@
     export let empty = false;
     export let emptyText = "";
     export let emptyAction: { label: string; onClick: () => void } | undefined = undefined;
+    export let error: string | null = "";
+    export let retryAction: { label: string; onClick: () => void } | undefined = undefined;
+    export let loadingText = "Loading...";
     export let hint = "";
     export let scrollMode: "content" | "none" = "content";
 </script>
@@ -14,7 +17,9 @@
     {#if $$slots.toolbar}<slot name="toolbar" />{/if}
     <div class="na-view-shell__body">
         {#if loading}
-            <NaEmpty loading={true} />
+            <NaEmpty loading={true} text={loadingText} />
+        {:else if error}
+            <NaEmpty error={true} text={error} action={retryAction} />
         {:else if empty}
             <NaEmpty text={emptyText} action={emptyAction} />
         {:else}

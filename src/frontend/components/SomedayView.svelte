@@ -1,7 +1,7 @@
 <script lang="ts">
     import { taskStore } from "../stores/task-store";
     import { VIEW_SOMEDAY } from "../constants";
-    import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
+    import { applyFilters, DEFAULT_FILTER_STATE, hasActiveTaskFilters } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
     import NaTaskFilterBar from "../ui/NaTaskFilterBar.svelte";
@@ -17,10 +17,17 @@
     export let i18n: any;
     export let selectedTaskId: string = "";
     export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    export let onCreate: () => void;
 
     $: filterState = $taskStore.filterByView[VIEW_SOMEDAY] || DEFAULT_FILTER_STATE;
     $: somedayTasks = $taskStore.allTasks.filter((t) => t.status === "someday");
     $: filteredTasks = applyFilters(somedayTasks, filterState, $taskStore.settings.customFields);
+    $: emptyAction = hasActiveTaskFilters(filterState)
+        ? {
+              label: i18n?.clearFilter || "Clear filters",
+              onClick: () => taskStore.setFilterState(VIEW_SOMEDAY, DEFAULT_FILTER_STATE),
+          }
+        : { label: i18n?.createTask || "Create task", onClick: onCreate };
 
     const somedaySortOptions = [
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
@@ -43,8 +50,12 @@
 
 <NaViewShell
     loading={$taskStore.loading}
+    error={$taskStore.error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: () => taskStore.loadTasks() }}
+    loadingText={i18n?.loading || "Loading..."}
     empty={filteredTasks.length === 0}
-    emptyText={$taskStore.error || i18n?.noSomedayTasks || "No Someday/Maybe tasks"}
+    emptyText={i18n?.noSomedayTasks || "No Someday/Maybe tasks"}
+    {emptyAction}
     hint={i18n?.viewHintSomeday}
 >
     <svelte:fragment slot="toolbar"

@@ -417,6 +417,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onCreate={() => openCreate()}
                     {i18n}
                 />
             {:else if activeView === VIEW_NEXT_ACTION}
@@ -426,6 +427,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onCreate={() => openCreate()}
                     {i18n}
                 />
             {:else if activeView === VIEW_MY_DAY}
@@ -446,6 +448,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onCreate={() => openCreate()}
                     {i18n}
                 />
             {:else if activeView === VIEW_BY_PROJECT}
@@ -478,6 +481,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onCreate={() => openCreate()}
                     {i18n}
                 />
             {:else if activeView === VIEW_WAITING}
@@ -487,6 +491,7 @@
                     onEdit={handleEdit}
                     onStatusClick={handleStatusClick}
                     onContextMenu={handleContextMenu}
+                    onCreate={() => openCreate()}
                     {i18n}
                 />
             {:else if activeView === VIEW_STATISTICS}
@@ -512,7 +517,12 @@
         </div>
     </div>
 
-    <NaDrawerHost open={selectedTask !== null} label={i18n?.close || "Close"} on:requestClose={requestDetailClose}>
+    <NaDrawerHost
+        open={selectedTask !== null}
+        label={i18n?.close || "Close"}
+        titleId="na-task-detail-title"
+        on:requestClose={requestDetailClose}
+    >
         {#if selectedTask}
             <div class="na-app__detail-inner">
                 <TaskDetail
@@ -520,6 +530,7 @@
                     task={selectedTask}
                     {bridge}
                     {i18n}
+                    titleId="na-task-detail-title"
                     onCreateChild={(task) => openCreate(task)}
                     onTaskChange={handleDetailTaskChange}
                     onClose={closeDetailNow}
