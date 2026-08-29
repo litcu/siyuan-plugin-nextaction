@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-nextaction",
   "author": "litcu",
   "url": "https://github.com/litcu/siyuan-plugin-nextaction",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "minAppVersion": "3.8.0",
   "kernels": ["windows", "linux", "darwin", "docker"],
   "backends": ["windows", "linux", "darwin", "docker"],

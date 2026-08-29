@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
+import type { ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+
+const delay = (milliseconds: number) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+
+function browserIsRunning(browserProcess: ChildProcess): boolean {
+    return browserProcess.exitCode === null && browserProcess.signalCode === null;
+}
+
+async function waitForBrowserExit(browserProcess: ChildProcess, timeout: number): Promise<boolean> {
+    if (!browserIsRunning(browserProcess)) return true;
+    return Promise.race([once(browserProcess, "exit").then(() => true), delay(timeout).then(() => false)]);
+}
 
 export function findBrowserExecutable(): string {
     const playwrightCache = join(process.env.XDG_CACHE_HOME || join(process.env.HOME || "", ".cache"), "ms-playwright");
@@ -27,4 +40,13 @@ export function findBrowserExecutable(): string {
     const executable = candidates.find((candidate) => existsSync(candidate));
     assert.ok(executable, "未找到浏览器；可通过 NA_LAYOUT_BROWSER 指定 Chrome/Edge 路径");
     return executable;
+}
+
+export async function stopBrowserProcess(browserProcess: ChildProcess): Promise<void> {
+    if (!browserIsRunning(browserProcess)) return;
+    browserProcess.kill();
+    if (await waitForBrowserExit(browserProcess, 5_000)) return;
+
+    browserProcess.kill("SIGKILL");
+    assert.equal(await waitForBrowserExit(browserProcess, 5_000), true, "浏览器进程未能退出");
 }
