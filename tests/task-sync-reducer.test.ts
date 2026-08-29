@@ -25,6 +25,28 @@ function tick(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+// Regression: My Day 加载失败不能伪装成普通空状态，且重试成功后必须清除错误。
+test("My Day 加载暴露可重试错误并在成功后恢复", async () => {
+    let shouldFail = true;
+    const bridge = {
+        getMyDay: async () => {
+            if (shouldFail) throw new Error("My Day unavailable");
+            return { dateKey: "2026-08-29", tasks: [] };
+        },
+    } as unknown as KernelBridge;
+    const store = createTaskStore();
+    store.setBridge(bridge);
+
+    await store.loadMyDay();
+    assert.equal(get(store).myDayLoading, false);
+    assert.equal(get(store).myDayError, "My Day unavailable");
+
+    shouldFail = false;
+    await store.loadMyDay();
+    assert.equal(get(store).myDayError, null);
+    assert.deepEqual(get(store).myDayState?.tasks, []);
+});
+
 test("纯 reducer 每批统一更新任务及全部聚合值", () => {
     const current = buildTaskCollection([
         taskFactory(PROJECT, { taskType: "2" }),

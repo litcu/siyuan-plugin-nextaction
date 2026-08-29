@@ -29,6 +29,7 @@
 
     let reviewData: ReviewData | null = null;
     let loading = false;
+    let error = "";
     let completing = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let reviewScrollElement: HTMLDivElement | null = null;
@@ -53,6 +54,7 @@
 
     async function loadReviewData() {
         loading = true;
+        error = "";
         try {
             reviewData = await bridge.getReviewData();
             await tick();
@@ -60,6 +62,7 @@
         } catch (e: any) {
             console.error("[NextAction] loadReviewData failed:", e);
             reviewData = null;
+            error = e instanceof Error ? e.message : String(e);
         } finally {
             loading = false;
         }
@@ -128,8 +131,12 @@
 
 <NaViewShell
     loading={loading && !reviewData}
+    loadingText={i18n?.loading || "Loading..."}
+    {error}
+    retryAction={{ label: i18n?.retry || "Retry", onClick: loadReviewData }}
     empty={!reviewData && !loading}
     emptyText={i18n?.noData || "No data"}
+    emptyAction={{ label: i18n?.aiReview || "智能回顾", onClick: runAiReview }}
     hint={i18n?.viewHintReview}
     scrollMode="none"
 >

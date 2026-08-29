@@ -44,6 +44,8 @@ interface TaskState {
     completedError: string | null;
     showCompleted: boolean;
     myDayState: MyDayState | null;
+    myDayLoading: boolean;
+    myDayError: string | null;
     settings: PluginSettings;
     reviewDueCount: number;
 }
@@ -82,6 +84,8 @@ export function createTaskStore() {
         completedError: null,
         showCompleted: false,
         myDayState: null,
+        myDayLoading: false,
+        myDayError: null,
         settings: { ...DEFAULT_SETTINGS },
         reviewDueCount: 0,
     });
@@ -291,11 +295,17 @@ export function createTaskStore() {
 
         async loadMyDay() {
             if (!bridge) return;
+            update((s) => ({ ...s, myDayLoading: true, myDayError: null }));
             try {
                 const myDayState = await bridge.getMyDay();
-                update((s) => ({ ...s, myDayState }));
+                update((s) => ({ ...s, myDayState, myDayLoading: false }));
             } catch (e: any) {
                 console.error("[NextAction] loadMyDay failed:", e);
+                update((s) => ({
+                    ...s,
+                    myDayLoading: false,
+                    myDayError: e instanceof Error ? e.message : String(e),
+                }));
             }
         },
 

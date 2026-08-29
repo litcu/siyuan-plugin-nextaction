@@ -22,7 +22,18 @@
     function toggle() {
         open = !open;
         if (!open) triggerEl?.focus();
-        else void tick().then(() => containerEl?.querySelector<HTMLElement>("input, button")?.focus());
+        else void focusFirstControl();
+    }
+
+    async function focusFirstControl() {
+        await tick();
+        setTimeout(() => {
+            if (!open) return;
+            containerEl
+                ?.querySelector<HTMLElement>(".na-filter-dropdown__panel")
+                ?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])")
+                ?.focus({ preventScroll: true });
+        }, 0);
     }
 
     function handleKeydown(event: KeyboardEvent) {

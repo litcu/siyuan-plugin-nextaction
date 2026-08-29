@@ -75,7 +75,7 @@ let closeCount = 0;
 let mode = "loading";
 let retryCount = 0;
 let emptyActionCount = 0;
-let selected = [];
+let selected = ["work"];
 let sort = "order";
 const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" };
 </script>
@@ -265,6 +265,13 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
                         'document.querySelector("#filter .na-filter-dropdown__trigger").getAttribute("aria-expanded")',
                     ),
                     "true",
+                );
+                await delay(100);
+                assert.equal(
+                    await evaluate(
+                        'document.querySelector("#filter .na-filter-dropdown__panel").contains(document.activeElement)',
+                    ),
+                    true,
                 );
                 await evaluate('document.querySelector("#filter input").focus()');
                 assert.equal(

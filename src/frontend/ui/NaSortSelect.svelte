@@ -22,7 +22,15 @@
     function toggle() {
         open = !open;
         if (!open) triggerEl?.focus();
-        else void tick().then(() => containerEl?.querySelector<HTMLElement>(".na-sort-select__option")?.focus());
+        else void focusFirstOption();
+    }
+
+    async function focusFirstOption() {
+        await tick();
+        setTimeout(() => {
+            if (!open) return;
+            containerEl?.querySelector<HTMLElement>(".na-sort-select__option")?.focus({ preventScroll: true });
+        }, 0);
     }
 
     function handleKeydown(event: KeyboardEvent) {
