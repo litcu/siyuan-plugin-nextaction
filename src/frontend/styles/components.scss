@@ -179,8 +179,15 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    flex: 1;
     min-width: 0;
+    flex: 1;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    background: transparent;
+    cursor: pointer;
     overflow: hidden;
 }
 
