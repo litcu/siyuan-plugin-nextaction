@@ -63,6 +63,7 @@
     $: cardAccentColor = selected ? "var(--b3-theme-primary)" : priorityBorderColor || "transparent";
     $: priorityTextColor = PRIORITY_COLORS[displayPriority] || "currentColor";
     $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
+    $: statusLabel = i18n?.[toI18nKey("status", task.status)] || task.status;
     $: repeatState = parseRepeatState(task.repeatState);
     $: repeatStatus = repeatState?.status || (task.repeat ? "active" : "");
     $: repeatTooltip =
@@ -102,6 +103,9 @@
     }
 </script>
 
+<!-- svelte-ignore a11y-no-interactive-element-to-noninteractive-role -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <div
     class="na-task-card"
     class:na-task-card--root={isRoot}
@@ -114,27 +118,32 @@
     class:na-task-card--someday={isSomeday}
     class:selected
     style="--na-task-card-accent: {cardAccentColor}"
-    role="button"
-    tabindex={managedFocus ? -1 : 0}
+    role="group"
     on:click={() => {
         if (onSelect) onSelect(task);
     }}
     on:keydown={(event) => {
-        if (event.key === "Enter" || event.key === " ") onSelect?.(task);
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            onSelect?.(task);
+        }
     }}
     on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
 >
     <div class="na-task-card__content">
-        <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} focusable={!managedFocus} />
-        <div
+        <StatusCheckbox
+            status={task.status}
+            ariaLabel={`${i18n?.status || "Status"}: ${taskTitle} — ${statusLabel}`}
+            onclick={(e) => onStatusClick(task, e)}
+        />
+        <svelte:element
+            this={managedFocus ? "div" : "button"}
+            type={managedFocus ? undefined : "button"}
             class="na-task-card__body"
             class:na-task-card__body--metadata-empty={!hasCardMetadata}
-            role="button"
-            tabindex={managedFocus ? -1 : 0}
+            tabindex={managedFocus ? undefined : 0}
+            aria-label={managedFocus ? undefined : compositeTitle}
             on:click|stopPropagation={() => onEdit(task)}
-            on:keydown|stopPropagation={(event) => {
-                if (event.key === "Enter" || event.key === " ") onEdit(task);
-            }}
         >
             <div class="na-task-card__title-row">
                 {#if isProject}
@@ -291,12 +300,12 @@
                     </NaTooltip>
                 </span>
             </div>
-        </div>
+        </svelte:element>
         <div class="na-task-card__actions" on:pointerdown|stopPropagation>
             {#if isInbox && onActivate}
                 <button
+                    type="button"
                     class="na-task-card__activate-btn"
-                    tabindex={managedFocus ? -1 : 0}
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
@@ -306,8 +315,8 @@
             {/if}
             {#if isSomeday && onActivate}
                 <button
+                    type="button"
                     class="na-task-card__activate-btn"
-                    tabindex={managedFocus ? -1 : 0}
                     on:click|stopPropagation={() => {
                         if (onActivate) onActivate(task);
                     }}
@@ -339,17 +348,15 @@
             {#if hasChildren}
                 <NaIconButton
                     compact
-                    tabIndex={managedFocus ? -1 : undefined}
                     symbol={isCollapsed ? "iconExpand" : "iconContract"}
-                    label={isCollapsed ? i18n?.expandChildren || "Expand" : i18n?.collapseChildren || "Collapse"}
+                    label={`${isCollapsed ? i18n?.expandChildren || "Expand" : i18n?.collapseChildren || "Collapse"}: ${taskTitle}`}
                     on:click={handleToggleCollapse}
                 />
             {/if}
             <NaIconButton
                 compact
-                tabIndex={managedFocus ? -1 : undefined}
                 symbol="iconOpenWindow"
-                label={i18n?.jumpToBlock || "Jump to Block"}
+                label={`${i18n?.jumpToBlock || "Jump to Block"}: ${taskTitle}`}
                 on:click={handleJump}
             />
         </div>

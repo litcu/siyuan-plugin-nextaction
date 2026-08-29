@@ -89,13 +89,13 @@
     });
 </script>
 
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <span
     class="na-tooltip"
     class:na-tooltip--fill={fill}
     class:na-tooltip--block={block}
     bind:this={triggerEl}
-    role="button"
-    tabindex="0"
+    role="presentation"
     on:mouseenter={handleMouseEnter}
     on:mousemove={handleMouseMove}
     on:mouseleave={handleMouseLeave}

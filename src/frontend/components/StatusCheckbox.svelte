@@ -1,5 +1,6 @@
 <script lang="ts">
     export let status: string = "todo";
+    export let ariaLabel = "";
     export let onclick: ((e: MouseEvent) => void) | undefined = undefined;
     export let focusable = true;
 </script>
@@ -16,6 +17,6 @@
         if (onclick) onclick(e);
     }}
     on:pointerdown|stopPropagation
-    aria-label={status}
+    aria-label={ariaLabel || status}
     tabindex={focusable ? 0 : -1}
 ></button>

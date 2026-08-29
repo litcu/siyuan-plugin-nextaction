@@ -78,7 +78,7 @@
             else if (row.visibleParentId) void focusTask(row.visibleParentId);
         } else if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            onSelectTask?.(row.task);
+            onEdit(row.task);
         } else if (event.key === "F2" && onTaskRename) {
             event.preventDefault();
             void startRename(row.task);
@@ -252,6 +252,7 @@
             aria-setsize={row.setSize}
             aria-expanded={row.hasChildren ? !row.isCollapsed : undefined}
             aria-selected={row.task.blockId === selectedTaskId}
+            aria-label={row.task.title || i18n?.untitled || "(untitled)"}
             on:focus={() => (focusedTaskId = row.task.blockId)}
             on:keydown={(event) => handleTreeKeydown(row, event)}
             on:dragover={(event) => handleDragOver(row.task, event)}
