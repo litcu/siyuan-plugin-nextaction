@@ -617,9 +617,6 @@
     position: relative;
     flex: 0 0 auto;
     padding-left: calc(var(--indent, 0) * 20px);
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
 
     .na-task-card {
         flex: 1;

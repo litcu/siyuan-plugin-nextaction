@@ -133,7 +133,7 @@ export function applyFilters(
         );
     }
 
-    // 6. Sort
+    // 6. Sort (including the hierarchy's persisted manual order)
     result = sortTasksBy(result, filters.sortBy, filters.sortAsc, customFields);
 
     return result;
@@ -167,6 +167,9 @@ export function sortTasksBy(
                 const bIdx = PRIORITY_LIST.indexOf(normalizePriority(b.priority) as any);
                 return dir * ((pw[aIdx] || 0) - (pw[bIdx] || 0));
             });
+            break;
+        case "manual":
+            arr.sort((a, b) => dir * (a.sort - b.sort || a.blockId.localeCompare(b.blockId)));
             break;
         default:
             if (sortBy.startsWith("custom:")) {

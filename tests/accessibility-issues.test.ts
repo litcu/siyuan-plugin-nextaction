@@ -311,6 +311,6 @@ const i18n = { selectAll: "Select all", clearFilter: "Clear", sortBy: "Sort by" 
             if (browserProcess.exitCode === null) await Promise.race([once(browserProcess, "exit"), delay(2_000)]);
         }
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     }
 });

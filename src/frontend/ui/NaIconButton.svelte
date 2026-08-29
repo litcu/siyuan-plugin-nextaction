@@ -12,6 +12,7 @@
     export let compact = false;
     export let draggable = false;
     export let tabIndex: number | undefined = undefined;
+    export let ariaKeyshortcuts = "";
     export let tooltipPosition: "top" | "bottom" | "left" | "right" = "bottom";
 </script>
 
@@ -23,6 +24,7 @@
         class:na-icon-button--active={active}
         class:na-icon-button--danger={tone === "danger"}
         aria-label={label}
+        aria-keyshortcuts={ariaKeyshortcuts || undefined}
         aria-pressed={active || undefined}
         {disabled}
         {draggable}

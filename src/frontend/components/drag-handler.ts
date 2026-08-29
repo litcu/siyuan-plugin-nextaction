@@ -28,15 +28,18 @@ export function createDragHandler(config: DragConfig) {
     }
 
     function onPointerDown(e: PointerEvent, blockId: string) {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || dragBlockId) return;
         e.preventDefault();
         startX = e.clientX;
         startY = e.clientY;
         dragBlockId = blockId;
         pointerId = e.pointerId;
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        try {
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        } catch {}
         document.addEventListener("pointermove", onPointerMove);
         document.addEventListener("pointerup", onPointerUp);
+        document.addEventListener("pointercancel", onPointerCancel);
     }
 
     function onPointerMove(e: PointerEvent) {
@@ -88,6 +91,7 @@ export function createDragHandler(config: DragConfig) {
     function onPointerUp(e: PointerEvent) {
         document.removeEventListener("pointermove", onPointerMove);
         document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerCancel);
         try {
             (e.target as HTMLElement).releasePointerCapture?.(pointerId);
         } catch {}
@@ -97,6 +101,13 @@ export function createDragHandler(config: DragConfig) {
         }
         const target = getDropTarget(e);
         if (target) void config.onReorder(dragBlockId!, target.parentId, target.afterId);
+        endDrag();
+    }
+
+    function onPointerCancel() {
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerCancel);
         endDrag();
     }
 
@@ -111,6 +122,14 @@ export function createDragHandler(config: DragConfig) {
         if (source) source.classList.remove("na-drag-source");
         clearIndicators();
         document.removeEventListener("keydown", onKeyDown);
+    }
+
+    function destroy() {
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerCancel);
+        document.removeEventListener("click", suppressClick, true);
+        endDrag();
     }
 
     function getIndentLevel(task: TaskCacheEntry, tasks: TaskCacheEntry[]): number {
@@ -393,5 +412,5 @@ export function createDragHandler(config: DragConfig) {
             });
     }
 
-    return { onPointerDown };
+    return { onPointerDown, destroy };
 }
