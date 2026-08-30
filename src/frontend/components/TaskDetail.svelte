@@ -1,11 +1,11 @@
 <script lang="ts">
     import { confirm } from "siyuan";
     import { onDestroy } from "svelte";
-    import type { TaskCacheEntry } from "../../shared/types";
+    import type { TaskActionKind, TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
-    import { isProjectTask } from "../../shared/project-domain";
+    import { hasProjectAncestor, isProjectTask, normalizeActionKindForProjectScope } from "../../shared/project-domain";
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
@@ -58,7 +58,7 @@
     let note = "";
     let outcome = "";
     let dod = "";
-    let actionKind = "action";
+    let actionKind: TaskActionKind = "action";
     let contexts: string[] = [];
     let taskTags: string[] = [];
     let parentId = "";
@@ -146,6 +146,7 @@
         { value: "stage", label: i18n?.actionKindStage || "Stage" },
     ];
     $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
+    $: hasProjectScope = !isProject && hasProjectAncestor(parentId, taskMap);
     $: aiDecomposeLabel = isProject
         ? i18n?.aiDecomposeProject || "Break down project with AI"
         : i18n?.aiDecomposeTask || "Break down with AI";
@@ -178,7 +179,7 @@
             note,
             outcome,
             dod,
-            actionKind: taskType === "2" ? "" : actionKind || "action",
+            actionKind: isProject ? "" : normalizeActionKindForProjectScope(actionKind, hasProjectScope),
             contexts,
             taskTags,
             parentId,
@@ -213,7 +214,7 @@
             note = draft.note;
             outcome = draft.outcome;
             dod = draft.dod;
-            actionKind = draft.actionKind || "action";
+            actionKind = draft.actionKind === "stage" ? "stage" : "action";
             contexts = [...draft.contexts];
             taskTags = [...draft.taskTags];
             parentId = draft.parentId;
@@ -287,7 +288,13 @@
     }
 
     function handleActionKindChange(event: CustomEvent<string>) {
-        actionKind = event.detail;
+        actionKind = event.detail === "stage" ? "stage" : "action";
+        handleChange();
+    }
+
+    function handleParentChange(event: CustomEvent<{ selected: string | string[] }>) {
+        parentId = typeof event.detail.selected === "string" ? event.detail.selected : "";
+        actionKind = normalizeActionKindForProjectScope(actionKind, hasProjectAncestor(parentId, taskMap));
         handleChange();
     }
 
@@ -660,7 +667,7 @@
                     >{/each}
             </select>
         </NaPropertyRow>
-        {#if !isProject}
+        {#if hasProjectScope}
             <NaPropertyRow
                 label={i18n?.actionKind || "Action kind"}
                 helpText={i18n?.actionKindHint || "Stages use the same status, dates, and execution rules as Actions"}
@@ -808,7 +815,7 @@
                     clearLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
                     removeLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
                     fixedDropdown={true}
-                    on:change={handleChange}
+                    on:change={handleParentChange}
                 />
             </NaPropertyRow>
         {/if}

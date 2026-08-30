@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildProjectSummaries, isNextActionCandidate, isProjectTask } from "../src/shared/project-domain.ts";
+import {
+    buildProjectSummaries,
+    hasProjectAncestor,
+    isNextActionCandidate,
+    isProjectTask,
+    normalizeActionKindForProjectScope,
+} from "../src/shared/project-domain.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -55,6 +61,33 @@ test("只有带项目标记的文档任务才具有 Project 身份", () => {
         ["document-project"],
     );
     assert.equal(isNextActionCandidate(nativeTaskWithStaleMarker), true);
+});
+
+test("行动类型仅适用于项目祖先链内的普通任务", () => {
+    // Regression: standalone tasks and ordinary parent-child trees must not expose Project Action/Stage semantics.
+    const project = task("project", { taskType: "2", parentId: "" });
+    const stage = task("stage", { parentId: project.blockId, actionKind: "stage" });
+    const nestedAction = task("nested-action", { parentId: stage.blockId });
+    const ordinaryParent = task("ordinary-parent");
+    const ordinaryChild = task("ordinary-child", { parentId: ordinaryParent.blockId });
+    const cycleA = task("cycle-a", { parentId: "cycle-b" });
+    const cycleB = task("cycle-b", { parentId: "cycle-a" });
+    const lookup = new Map(
+        [project, stage, nestedAction, ordinaryParent, ordinaryChild, cycleA, cycleB].map((entry) => [
+            entry.blockId,
+            entry,
+        ]),
+    );
+
+    assert.equal(hasProjectAncestor(project.blockId, lookup), true);
+    assert.equal(hasProjectAncestor(stage.blockId, lookup), true);
+    assert.equal(hasProjectAncestor(ordinaryParent.blockId, lookup), false);
+    assert.equal(hasProjectAncestor(ordinaryChild.parentId, lookup), false);
+    assert.equal(hasProjectAncestor(cycleA.blockId, lookup), false);
+    assert.equal(hasProjectAncestor("", lookup), false);
+    assert.equal(normalizeActionKindForProjectScope("stage", true), "stage");
+    assert.equal(normalizeActionKindForProjectScope("stage", false), "action");
+    assert.equal(normalizeActionKindForProjectScope("", true), "action");
 });
 
 test("项目进度只统计叶子 Action，并提供每个父 Action 的子树进度", () => {

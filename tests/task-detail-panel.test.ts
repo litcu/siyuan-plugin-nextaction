@@ -107,6 +107,19 @@ test("任务类型与标签保持同行，极窄视口再由公共属性行换�
     assert.match(propertyRow, /@media \(max-width: 520px\)[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 
+test("行动类型仅在项目祖先链内显示，离开项目时恢复为普通 Action", () => {
+    assert.match(detail, /\$: hasProjectScope = !isProject && hasProjectAncestor\(parentId, taskMap\)/);
+    assert.match(detail, /\{#if hasProjectScope\}[\s\S]*?label=\{i18n\?\.actionKind[\s\S]*?<NaSegmentControl/);
+    assert.match(
+        detail,
+        /function handleParentChange[\s\S]*?normalizeActionKindForProjectScope\(actionKind, hasProjectAncestor\(parentId, taskMap\)\)[\s\S]*?handleChange\(\)/,
+    );
+    assert.match(
+        detail,
+        /actionKind: isProject \? "" : normalizeActionKindForProjectScope\(actionKind, hasProjectScope\)/,
+    );
+});
+
 test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /childTasks = allTasks[\s\S]*entry\.parentId === task\.blockId/);
     assert.match(detail, /<NaTaskLinkList\s+items=\{childTasks\}/);
