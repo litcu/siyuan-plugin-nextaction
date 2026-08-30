@@ -47,7 +47,7 @@
 
         label,
         .na-property-row__label-text {
-            color: var(--b3-theme-on-surface);
+            color: var(--na-panel-text-primary, var(--b3-theme-on-background));
             font-size: var(--na-font-size-md);
             font-weight: 500;
             line-height: 18px;
@@ -55,7 +55,7 @@
 
         small {
             margin-top: 1px;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-panel-text-secondary, var(--b3-theme-on-background));
             font-size: var(--na-font-size-xs);
             line-height: 15px;
         }
