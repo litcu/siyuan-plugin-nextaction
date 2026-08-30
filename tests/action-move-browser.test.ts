@@ -1,14 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable } from "./helpers/browser.ts";
+import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
@@ -158,7 +157,7 @@ setTimeout(() => {
             build: { outDir: "dist" },
         });
 
-        const rendered = spawnSync(
+        const rendered = await runBrowser(
             findBrowserExecutable(),
             [
                 "--headless=new",
@@ -192,7 +191,7 @@ setTimeout(() => {
             closed: "false",
         });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
 
@@ -273,7 +272,7 @@ document.body.appendChild(result);
             build: { outDir: "dist" },
         });
 
-        const rendered = spawnSync(
+        const rendered = await runBrowser(
             findBrowserExecutable(),
             [
                 "--headless=new",
@@ -295,6 +294,6 @@ document.body.appendChild(result);
         assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
         assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { previews: 0, dialogs: 0 });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });

@@ -1,14 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable } from "./helpers/browser.ts";
+import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
@@ -48,7 +47,7 @@ async function renderBrowserResult(fixtureRoot: string, aliases: BrowserAlias[] 
         build: { outDir: "dist" },
     });
 
-    const rendered = spawnSync(
+    const rendered = await runBrowser(
         findBrowserExecutable(),
         [
             "--headless=new",
@@ -289,7 +288,7 @@ finish({
             savedVisible: true,
         });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
 
@@ -378,6 +377,6 @@ finish({
             { draft: "Draft across modes" },
         );
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
