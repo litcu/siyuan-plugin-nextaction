@@ -1,9 +1,11 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte";
+    import NaHelpTooltip from "./NaHelpTooltip.svelte";
     import NaIcon from "./NaIcon.svelte";
 
     export let title: string;
     export let description = "";
+    export let helpText = "";
     export let collapsible = false;
     export let open = true;
     export let summary = "";
@@ -19,17 +21,40 @@
 
 <section class="na-property-section" class:na-property-section--danger={tone === "danger"}>
     {#if collapsible}
-        <button type="button" class="na-property-section__trigger" aria-expanded={open} on:click={toggle}>
-            <span class="na-property-section__chevron"><NaIcon symbol="iconRight" size={13} /></span>
-            <span class="na-property-section__heading"
-                ><strong>{title}</strong>{#if description}<small>{description}</small>{/if}</span
-            >
-            {#if summary}<span class="na-property-section__summary">{summary}</span>{/if}
-        </button>
+        {#if helpText.trim()}
+            <header class="na-property-section__header na-property-section__header--collapsible">
+                <button
+                    type="button"
+                    class="na-property-section__trigger na-property-section__trigger--compact"
+                    aria-expanded={open}
+                    on:click={toggle}
+                >
+                    <span class="na-property-section__chevron"><NaIcon symbol="iconRight" size={13} /></span>
+                    <span class="na-property-section__heading"
+                        ><strong>{title}</strong>{#if description}<small>{description}</small>{/if}</span
+                    >
+                    {#if summary}<span class="na-property-section__summary">{summary}</span>{/if}
+                </button>
+                <NaHelpTooltip label={title} text={helpText} />
+            </header>
+        {:else}
+            <button type="button" class="na-property-section__trigger" aria-expanded={open} on:click={toggle}>
+                <span class="na-property-section__chevron"><NaIcon symbol="iconRight" size={13} /></span>
+                <span class="na-property-section__heading"
+                    ><strong>{title}</strong>{#if description}<small>{description}</small>{/if}</span
+                >
+                {#if summary}<span class="na-property-section__summary">{summary}</span>{/if}
+            </button>
+        {/if}
     {:else}
         <header class="na-property-section__header">
             <span class="na-property-section__heading"
-                ><strong>{title}</strong>{#if description}<small>{description}</small>{/if}</span
+                ><span class="na-property-section__heading-line"
+                    ><strong>{title}</strong>{#if helpText.trim()}<NaHelpTooltip
+                            label={title}
+                            text={helpText}
+                        />{/if}</span
+                >{#if description}<small>{description}</small>{/if}</span
             >
             <slot name="action" />
         </header>
@@ -68,6 +93,19 @@
     .na-property-section__trigger {
         cursor: pointer;
     }
+
+    .na-property-section__header--collapsible {
+        padding: 0 16px 0 0;
+    }
+
+    .na-property-section__trigger--compact {
+        width: auto;
+        min-height: 36px;
+        padding: 9px 0 6px 16px;
+        flex: 1;
+        background: transparent;
+    }
+
     .na-property-section__trigger:hover {
         background: var(--b3-list-hover);
     }
@@ -88,6 +126,13 @@
             font-size: 10px;
             line-height: 15px;
         }
+    }
+
+    .na-property-section__heading-line {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-xxs);
+        min-width: 0;
     }
 
     .na-property-section__chevron {

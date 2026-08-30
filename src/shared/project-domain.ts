@@ -1,4 +1,11 @@
-import type { ProjectRisk, ProjectRiskKind, ProjectSummary, TaskBlockedReason, TaskCacheEntry } from "./types";
+import type {
+    ProjectRisk,
+    ProjectRiskKind,
+    ProjectSummary,
+    TaskActionKind,
+    TaskBlockedReason,
+    TaskCacheEntry,
+} from "./types";
 
 const PROJECT_TYPE = "2";
 
@@ -20,6 +27,29 @@ function lookupTask(tasks: ProjectDomainOptions["taskLookup"], blockId: string):
         return (tasks as ReadonlyMap<string, TaskCacheEntry>).get(blockId);
     }
     return (tasks as Readonly<Record<string, TaskCacheEntry>>)[blockId];
+}
+
+export function hasProjectAncestor(
+    parentId: string,
+    taskLookup: NonNullable<ProjectDomainOptions["taskLookup"]>,
+): boolean {
+    const visited = new Set<string>();
+    let currentId = parentId;
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        const current = lookupTask(taskLookup, currentId);
+        if (!current) return false;
+        if (isProjectTask(current)) return true;
+        currentId = current.parentId;
+    }
+    return false;
+}
+
+export function normalizeActionKindForProjectScope(
+    actionKind: TaskActionKind,
+    hasProjectScope: boolean,
+): Exclude<TaskActionKind, ""> {
+    return hasProjectScope && actionKind === "stage" ? "stage" : "action";
 }
 
 export function getTaskBlockedReason(

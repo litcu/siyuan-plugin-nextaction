@@ -57,7 +57,7 @@ test("任务详情区分逻辑加入项目、物理移动和取消项目身份",
 
     assert.match(
         detail,
-        /\{#if !isProject\}[\s\S]*?<NaPropertyRow[\s\S]*?label=\{i18n\?\.projectAssignment[\s\S]*?description=\{i18n\?\.projectAssignmentHint[\s\S]*?<NaSearchSelect/,
+        /\{#if !isProject\}[\s\S]*?<NaPropertyRow[\s\S]*?label=\{i18n\?\.projectAssignment[\s\S]*?helpText=\{i18n\?\.projectAssignmentHint[\s\S]*?<NaSearchSelect/,
     );
     assert.match(detail, /clearLabel=\{i18n\?\.clearProjectAssignment/);
     assert.match(detail, /i18n\?\.removeProject/);
