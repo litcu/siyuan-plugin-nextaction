@@ -195,8 +195,12 @@
 >
     <div class="na-project-stage-plan">
         <div class="na-project-stage-plan__toolbar">
-            <NaButton size="sm" variant="primary" icon="iconAdd" disabled={!onCreateStage} on:click={onCreateStage}
-                >{i18n?.createStage || "Create Stage"}</NaButton
+            <NaButton
+                size="sm"
+                variant="primary"
+                icon="iconAdd"
+                disabled={!onCreateStage}
+                on:click={() => onCreateStage?.()}>{i18n?.createStage || "Create Stage"}</NaButton
             >
         </div>
 

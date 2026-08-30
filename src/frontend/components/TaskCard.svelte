@@ -292,7 +292,7 @@
                 </span>
             </div>
         </div>
-        <div class="na-task-card__actions" on:pointerdown|stopPropagation>
+        <div class="na-task-card__actions" role="presentation" on:pointerdown|stopPropagation>
             {#if isInbox && onActivate}
                 <button
                     class="na-task-card__activate-btn"

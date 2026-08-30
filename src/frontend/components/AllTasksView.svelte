@@ -125,6 +125,7 @@
                 data-task-block-id={row.task.blockId}
                 class:na-all-tasks__item--root={row.indent === 0}
                 style="--indent: {row.indent}"
+                role="listitem"
                 on:pointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}
             >
                 <TaskCard

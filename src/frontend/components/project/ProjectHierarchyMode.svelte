@@ -273,7 +273,7 @@
                     isRoot={row.depth === 0}
                     managedFocus
                 />
-                <div class="na-project-tree__controls" on:pointerdown|stopPropagation>
+                <div class="na-project-tree__controls" role="presentation" on:pointerdown|stopPropagation>
                     {#if row.task.taskType !== "2"}<NaIconButton
                             compact
                             symbol="iconList"

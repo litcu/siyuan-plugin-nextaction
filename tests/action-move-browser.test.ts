@@ -142,18 +142,26 @@ setTimeout(() => {
                 alias: [
                     { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
                     {
+                        find: /^svelte\/internal\/flags\/legacy$/,
+                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
+                    },
+                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
+                    {
                         find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/runtime/internal/disclose-version/index.js"),
+                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
                     },
                     {
                         find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/runtime/internal/index.js"),
+                        replacement: join(svelteRoot, "src/internal/index.js"),
                     },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/runtime/store/index.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/runtime/index.js") },
+                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
+                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
+                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
                 ],
             },
-            plugins: [svelte({ preprocess: vitePreprocess() })],
+            plugins: [
+                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
+            ],
             build: { outDir: "dist" },
         });
 
@@ -257,18 +265,26 @@ document.body.appendChild(result);
                 alias: [
                     { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
                     {
+                        find: /^svelte\/internal\/flags\/legacy$/,
+                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
+                    },
+                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
+                    {
                         find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/runtime/internal/disclose-version/index.js"),
+                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
                     },
                     {
                         find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/runtime/internal/index.js"),
+                        replacement: join(svelteRoot, "src/internal/index.js"),
                     },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/runtime/store/index.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/runtime/index.js") },
+                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
+                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
+                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
                 ],
             },
-            plugins: [svelte({ preprocess: vitePreprocess() })],
+            plugins: [
+                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
+            ],
             build: { outDir: "dist" },
         });
 

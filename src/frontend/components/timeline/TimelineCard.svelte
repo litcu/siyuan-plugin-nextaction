@@ -190,6 +190,7 @@
 >
     <div
         class="na-timeline-card__handle na-timeline-card__handle--top"
+        role="separator"
         on:pointerdown|stopPropagation={(e) => handlePointerDown(e, "resize-start")}
     ></div>
 
@@ -226,6 +227,7 @@
 
     <div
         class="na-timeline-card__handle na-timeline-card__handle--bottom"
+        role="separator"
         on:pointerdown|stopPropagation={(e) => handlePointerDown(e, "resize-end")}
     ></div>
 </div>

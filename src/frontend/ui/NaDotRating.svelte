@@ -24,6 +24,7 @@
             on:click={() => handleClick(i)}
             role="radio"
             aria-checked={i < value}
+            aria-label={String(i + 1)}
         ></button>
     {/each}
 </div>
