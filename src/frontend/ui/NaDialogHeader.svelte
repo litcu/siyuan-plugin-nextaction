@@ -50,7 +50,7 @@
     h2 {
         overflow: hidden;
         margin: 0;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-panel-text-primary, var(--b3-theme-on-background));
         font-size: 14px;
         font-weight: 600;
         line-height: 20px;
@@ -59,7 +59,7 @@
     }
     p {
         margin: 2px 0 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-panel-text-secondary, var(--b3-theme-on-background));
         font-size: 10px;
         line-height: 15px;
     }
@@ -73,17 +73,15 @@
         flex: none;
         padding: 1px 6px;
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-primary);
+        color: var(--na-panel-text-primary, var(--b3-theme-on-background));
         background: var(--b3-theme-primary-lightest);
         font-size: 10px;
         font-weight: 600;
     }
     .na-dialog-header__status--warning {
-        color: var(--b3-card-warning-color);
         background: var(--na-color-warning-bg);
     }
     .na-dialog-header__status--error {
-        color: var(--b3-card-error-color);
         background: var(--na-color-error-bg);
     }
 </style>

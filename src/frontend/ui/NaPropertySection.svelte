@@ -84,7 +84,7 @@
         min-height: 36px;
         padding: 9px 16px 6px;
         box-sizing: border-box;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-panel-text-primary, var(--b3-theme-on-background));
         background: var(--b3-theme-surface);
         border: 0;
         text-align: left;
@@ -122,7 +122,7 @@
             line-height: 18px;
         }
         small {
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-panel-text-secondary, var(--b3-theme-on-background));
             font-size: 10px;
             line-height: 15px;
         }
@@ -148,7 +148,7 @@
     .na-property-section__summary {
         overflow: hidden;
         max-width: 45%;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-panel-text-secondary, var(--b3-theme-on-background));
         font-size: 10px;
         text-overflow: ellipsis;
         white-space: nowrap;

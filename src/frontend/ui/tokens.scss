@@ -54,6 +54,8 @@
     --na-card-text-secondary: var(--b3-theme-on-surface-light);
     --na-text-primary: var(--b3-theme-on-surface);
     --na-text-secondary: var(--b3-theme-on-surface-light);
+    --na-panel-text-primary: var(--b3-theme-on-background);
+    --na-panel-text-secondary: color-mix(in srgb, var(--b3-theme-on-background) 78%, var(--b3-theme-surface));
     --na-text-inverse: var(--b3-theme-on-primary);
     --na-color-project: var(--b3-card-info-color);
     --na-color-project-bg: color-mix(in srgb, var(--b3-card-info-color) 7%, var(--b3-theme-surface));
