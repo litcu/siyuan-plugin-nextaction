@@ -103,7 +103,7 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 10px;
         letter-spacing: 0.14em;
         font-weight: 750;
@@ -171,7 +171,7 @@
         border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 35%, var(--na-ai-line));
         border-radius: 999px;
         background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 11px;
         font-variant-numeric: tabular-nums;
     }
@@ -193,7 +193,7 @@
         border-radius: 6px;
         padding: 4px 8px;
         background: color-mix(in srgb, var(--b3-theme-primary) 8%, var(--b3-theme-surface));
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         cursor: pointer;
         font-size: 11px;
         line-height: 1.2;
@@ -257,7 +257,7 @@
         height: 22px;
         border-radius: 6px;
         background: color-mix(in srgb, var(--b3-theme-primary) 13%, transparent);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 14px;
     }
     .na-ai-review__action-copy {
@@ -279,7 +279,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 10px;
     }
     .na-ai-review__footer {

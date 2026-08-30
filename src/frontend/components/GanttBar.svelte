@@ -223,7 +223,7 @@
         margin-right: 6px;
         padding-left: 7px;
         border-left: 1px solid color-mix(in srgb, var(--na-gantt-bar-color) 28%, transparent);
-        color: color-mix(in srgb, var(--na-text-primary) 76%, var(--na-gantt-bar-color));
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-xs);
         font-weight: 700;
         font-variant-numeric: tabular-nums;
@@ -271,7 +271,7 @@
     }
 
     .na-gantt-bar-anchor--done {
-        opacity: 0.55;
+        filter: saturate(0.72);
     }
 
     .na-gantt-bar-anchor--done .na-gantt-bar__label {
@@ -389,7 +389,7 @@
         top: -5px;
         z-index: 3;
         width: 34px;
-        color: var(--na-accent);
+        color: var(--na-text-interactive);
         font-size: var(--na-font-size-xs);
         font-weight: 700;
         font-variant-numeric: tabular-nums;

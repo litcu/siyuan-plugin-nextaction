@@ -68,7 +68,7 @@
 }
 .na-nav-rail__group-label {
     padding: 0 12px 3px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     font-size: 10px;
     font-weight: 600;
     line-height: 16px;
@@ -112,7 +112,7 @@
     position: relative;
 
     &:hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         border-color: var(--b3-theme-primary);
     }
 

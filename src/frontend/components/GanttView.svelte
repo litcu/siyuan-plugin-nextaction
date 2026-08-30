@@ -417,7 +417,7 @@
         min-width: 28px;
         padding: 2px 8px;
         border-radius: var(--na-radius-pill);
-        color: var(--na-accent);
+        color: var(--na-text-interactive);
         background: color-mix(in srgb, var(--na-accent) 10%, var(--b3-theme-surface));
         font-size: var(--na-font-size-xs);
         font-weight: 700;

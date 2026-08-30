@@ -41,7 +41,7 @@
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-md);
         overflow: hidden;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: var(--b3-theme-background);
         transition:
             border-color 120ms ease,
@@ -80,7 +80,7 @@
     }
 
     input::placeholder {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
     .na-search-input .na-search-input__control:focus-visible {
         outline: none;

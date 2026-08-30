@@ -12,7 +12,7 @@
     --na-font-size-xs: 10px;
     --na-font-size-sm: 11px;
     --na-font-size-md: 12px;
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     font-family: var(--b3-font-family);
 }
 
@@ -36,7 +36,7 @@
     padding: 0 18px;
     overflow: hidden;
     border-bottom: 1px solid var(--b3-border-color);
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     background: color-mix(in srgb, var(--b3-theme-surface) 94%, var(--b3-theme-background));
     font-size: 14px;
     font-weight: 650;
@@ -73,7 +73,7 @@
     border: 1px solid var(--b3-border-color);
     border-radius: 6px;
     outline: 0;
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     background: var(--b3-theme-background);
     font: 400 12px/1.4 var(--b3-font-family);
     transition:
@@ -116,17 +116,17 @@
     min-width: 72px;
     min-height: 26px;
     padding: 0 12px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     font: 550 11px/1 var(--b3-font-family);
 }
 
 .na-create-task-dialog .na-segment-control__option:not(.na-segment-control__option--active):hover {
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     background: var(--b3-list-hover);
 }
 
 .na-create-task-dialog .na-segment-control__option--active {
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
     background: var(--b3-theme-primary-lightest);
     box-shadow: inset 0 -2px 0 var(--b3-theme-primary);
 }
@@ -156,7 +156,7 @@
 
 .na-create-task-dialog .na-accordion__trigger:hover {
     background: transparent;
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
 }
 
 .na-create-task-dialog .na-accordion__copy strong {
@@ -208,7 +208,7 @@
 
 .na-create-task-dialog .na-document-picker small {
     margin-top: 2px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     font-size: 10px;
 }
 
@@ -218,7 +218,7 @@
     width: 26px;
     height: 26px;
     border-radius: 5px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     background: var(--b3-theme-surface);
 }
 
@@ -231,7 +231,7 @@
     box-sizing: border-box;
     border: 1px solid var(--b3-border-color);
     border-radius: 7px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     background: var(--b3-theme-background);
 }
 
@@ -247,7 +247,7 @@
     padding: 0;
     border: 0;
     outline: 0;
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     background: transparent;
     font: 400 12px/1 var(--b3-font-family);
 }
@@ -289,7 +289,7 @@
     place-items: center;
     min-height: 52px;
     padding: 8px 10px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     font-size: 11px;
     text-align: center;
 }

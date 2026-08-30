@@ -155,7 +155,7 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-md);
     }
 </style>

@@ -428,7 +428,7 @@
         min-height: 30px;
         border: 1px solid var(--b3-border-color);
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: var(--b3-theme-background);
         cursor: pointer;
         font-family: var(--b3-font-family);
@@ -437,12 +437,12 @@
     .na-repeat-rule-editor__presets button:hover,
     .na-repeat-rule-editor__weekdays button:hover {
         border-color: var(--b3-theme-primary-light);
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
     }
     .na-repeat-rule-editor__presets button.active,
     .na-repeat-rule-editor__weekdays button.active {
         border-color: var(--b3-theme-primary);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
     .na-repeat-rule-editor__weekdays {
@@ -475,24 +475,24 @@
     }
     .na-repeat-rule-editor__preview li > span {
         grid-row: 1 / 3;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 10px;
         font-weight: 600;
     }
     .na-repeat-rule-editor__preview strong {
         overflow: hidden;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 11px;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
     .na-repeat-rule-editor__preview small {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
     }
     .na-repeat-rule-editor__empty {
         padding: 18px 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-md);
         text-align: center;
     }

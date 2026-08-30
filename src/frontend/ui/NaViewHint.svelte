@@ -12,8 +12,7 @@
         padding: var(--na-space-sm, 8px) var(--na-space-lg, 12px);
         font-size: var(--na-font-size-xs, 11px);
         line-height: 1.5;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         text-align: center;
-        opacity: 0.7;
     }
 </style>

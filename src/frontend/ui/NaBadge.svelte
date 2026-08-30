@@ -25,10 +25,10 @@
     }
 
     .na-badge:hover {
-        opacity: 0.85;
+        background: var(--na-color-hover-bg);
     }
     .na-badge--primary {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
     .na-badge--info {

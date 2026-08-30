@@ -38,18 +38,18 @@
         padding: 2px var(--na-space-md);
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-pill);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: var(--b3-theme-surface-light);
         font-size: var(--na-font-size-xs);
         white-space: nowrap;
     }
     .na-metric strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
         font-variant-numeric: tabular-nums;
     }
     .na-metric--primary strong {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
     .na-metric--info strong {
         color: var(--na-color-info);

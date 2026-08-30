@@ -180,7 +180,7 @@
         min-width: 0;
     }
     .na-project-risk:hover {
-        color: var(--na-accent);
+        color: var(--na-text-interactive);
     }
     .na-project-risk > span:last-child {
         display: flex;

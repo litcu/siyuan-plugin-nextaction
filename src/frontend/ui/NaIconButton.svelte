@@ -45,12 +45,12 @@
         padding: 0;
         border: 0;
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: transparent;
         cursor: pointer;
 
         &:hover:not(:disabled) {
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             background: var(--b3-list-hover);
         }
 
@@ -66,7 +66,7 @@
     }
 
     .na-icon-button--active {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
 

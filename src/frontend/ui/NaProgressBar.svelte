@@ -21,7 +21,7 @@
         align-items: center;
         gap: var(--na-space-sm);
         font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
 
     .na-progress__label {

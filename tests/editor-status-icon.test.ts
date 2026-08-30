@@ -25,7 +25,10 @@ test("editor task status markers match the panel circular checkbox", () => {
     assert.match(editorIconStyles, /border-style:\s*dashed/);
     assert.match(editorIconStyles, /top:\s*calc\(0\.5lh - 8px\)/);
     assert.match(editorIconStyles, /top:\s*0\.5lh/);
-    assert.match(tokens, /:root\s*\{[\s\S]*--na-text-secondary:\s*var\(--b3-theme-on-surface-light\)/);
+    assert.match(
+        tokens,
+        /:root\s*\{[\s\S]*--na-text-secondary:\s*color-mix\(in srgb, var\(--b3-theme-on-background\) 78%, var\(--b3-theme-surface\)\)/,
+    );
 });
 
 test("原生任务 checkbox 使用六态样式并在 capture 阶段阻止 SiYuan 二态切换", () => {

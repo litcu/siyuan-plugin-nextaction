@@ -8,7 +8,7 @@
     border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 34%, var(--na-color-divider));
     border-radius: 6px;
     background: color-mix(in srgb, var(--b3-theme-primary) 9%, var(--b3-theme-surface));
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
     font-size: 11px;
     font-weight: 600;
     line-height: 1;
@@ -18,7 +18,7 @@
 .nextaction .na-ai-trigger:hover {
     border-color: color-mix(in srgb, var(--b3-theme-primary) 65%, var(--na-color-divider));
     background: color-mix(in srgb, var(--b3-theme-primary) 16%, var(--b3-theme-surface));
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
 }
 
 .nextaction .na-ai-trigger:active {
@@ -72,7 +72,7 @@
 
 .nextaction .na-ai-raw-response__hint {
     margin-bottom: 8px;
-    color: var(--b3-theme-error);
+    color: var(--na-text-danger);
     font-size: 11px;
     line-height: 1.4;
 }
@@ -144,8 +144,6 @@
     }
 
     &--done {
-        opacity: 0.55;
-
         .na-task-card__title {
             text-decoration: line-through;
         }
@@ -153,7 +151,7 @@
 
     &--waiting {
         .na-task-card__title {
-            opacity: 0.65;
+            color: var(--na-text-secondary);
         }
     }
 
@@ -227,12 +225,12 @@
     color: var(--b3-theme-on-background);
 
     &:hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
 
     &.untitled {
         font-style: italic;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
     }
 }
 
@@ -355,13 +353,13 @@
 }
 
 .na-task-card__due.overdue {
-    color: var(--b3-theme-error);
+    color: var(--na-text-danger);
     background: var(--na-color-error-bg);
     border-color: var(--na-color-error-border);
 }
 
 .na-task-card__due.due-soon {
-    color: var(--b3-theme-error);
+    color: var(--na-text-danger);
     background: var(--na-color-error-bg);
     border-color: var(--na-color-error-border);
 }
@@ -371,7 +369,7 @@
 }
 
 .na-task-card__tags {
-    color: var(--na-accent);
+    color: var(--na-text-interactive);
 }
 
 .na-task-card__custom-field {
@@ -379,7 +377,7 @@
 }
 
 .na-task-card__custom-field--more {
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
     font-weight: 600;
 }
 
@@ -444,7 +442,7 @@
     }
 
     &:hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-surface-light);
     }
 
@@ -460,7 +458,7 @@
     height: 20px;
     border: none;
     background: none;
-    color: var(--na-color-someday);
+    color: var(--na-text-secondary);
     cursor: pointer;
     border-radius: 6px;
     padding: 0 6px;
@@ -546,7 +544,7 @@
 
         &::after {
             content: "···";
-            color: var(--na-color-someday);
+            color: var(--na-text-secondary);
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 0;
@@ -554,14 +552,14 @@
         }
     }
 
-    // Done: solid green fill + white checkmark character (same as old version)
+    // Done: soft green surface + high-contrast checkmark character
     &--done {
-        background: var(--na-color-done);
+        background: var(--na-color-success-bg);
         border-color: var(--na-color-done);
 
         &::after {
             content: "✓";
-            color: var(--b3-theme-on-primary);
+            color: var(--na-color-success);
             font-size: 10px;
             font-weight: 700;
             line-height: 1;
@@ -612,7 +610,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     opacity: 0.85;
 
     svg {
@@ -622,7 +620,7 @@
 }
 
 .na-task-card--blocked {
-    opacity: 0.86;
+    border-style: dashed;
 }
 
 // Meta 行图标（统一 12×12 SVG）
@@ -635,7 +633,7 @@
     border-radius: var(--na-radius-pill);
     background: var(--na-task-card-meta-bg);
     border: 1px solid var(--na-task-card-meta-border);
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
 
     svg {
         width: 12px;
@@ -651,12 +649,10 @@
     }
 
     &--repeat-paused {
-        opacity: 0.55;
         color: var(--na-text-secondary);
     }
 
     &--repeat-ended {
-        opacity: 0.65;
         color: var(--na-color-success);
     }
 }
@@ -667,7 +663,7 @@
     justify-content: center;
     width: 12px;
     height: 12px;
-    color: var(--b3-theme-on-surface-light);
+    color: var(--na-text-secondary);
     opacity: 0.7;
     cursor: default;
 
@@ -715,12 +711,10 @@
 
     &--importance {
         color: var(--na-color-importance);
-        opacity: 0.72;
     }
 
     &--effort {
         color: var(--na-color-effort);
-        opacity: 0.72;
     }
 }
 
@@ -759,7 +753,7 @@
     padding: var(--na-space-sm) var(--na-space-md);
     font-size: var(--na-font-size-md);
     font-family: inherit;
-    color: var(--b3-theme-on-surface);
+    color: var(--na-text-primary);
     background: var(--b3-theme-surface-light);
     border: 1px solid var(--na-color-divider);
     border-radius: var(--na-radius-md);
@@ -775,7 +769,7 @@
     }
 
     &::placeholder {
-        color: var(--b3-theme-on-surface-light);
-        opacity: 0.5;
+        color: var(--na-text-secondary);
+        opacity: 1;
     }
 }

@@ -193,7 +193,7 @@
     }
     .na-extract-action__source small {
         grid-column: 1 / -1;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         line-height: 1.45;
     }
     :global(.na-extract-action .na-property-section) {

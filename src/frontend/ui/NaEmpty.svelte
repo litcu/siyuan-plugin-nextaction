@@ -50,13 +50,13 @@
         min-height: 200px;
         padding: var(--na-space-xxl) var(--na-space-xl);
         gap: var(--na-space-lg);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         text-align: center;
     }
 
     .na-empty__illustration {
         line-height: 1;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
 
     .na-empty__text {

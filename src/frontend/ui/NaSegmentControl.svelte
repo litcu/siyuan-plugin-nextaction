@@ -65,7 +65,7 @@
         font-weight: 500;
         cursor: pointer;
         background: transparent;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         transition:
             color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
             background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -82,12 +82,13 @@
     }
 
     .na-segment-control__option:not(.na-segment-control__option--active):hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
 
     .na-segment-control__option--active {
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
+        background: var(--na-accent-surface);
+        box-shadow: inset 0 -2px 0 var(--b3-theme-primary);
     }
 
     .na-segment-control__option:disabled {

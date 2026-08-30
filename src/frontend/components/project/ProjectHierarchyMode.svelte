@@ -383,7 +383,7 @@
     }
     .na-project-tree__row--selected {
         background: var(--na-color-selected-bg);
-        border-left-color: var(--b3-theme-primary);
+        border-left-color: var(--na-text-interactive);
     }
     .na-project-tree__row--dragging {
         opacity: 0.55;

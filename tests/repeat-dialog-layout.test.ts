@@ -61,7 +61,8 @@ test("重复规则的短控件从控制列起始对齐，避免全部贴在窗�
 });
 
 test("分段控件的选中背景跟随实际选项，不使用等宽滑块定位", () => {
-    assert.match(segmentSource, /na-segment-control__option--active[\s\S]*background: var\(--b3-theme-primary\)/);
+    assert.match(segmentSource, /na-segment-control__option--active[\s\S]*background: var\(--na-accent-surface\)/);
+    assert.match(segmentSource, /box-shadow: inset 0 -2px 0 var\(--b3-theme-primary\)/);
     assert.doesNotMatch(segmentSource, /na-segment-control__slider/);
 });
 

@@ -232,7 +232,7 @@
     .na-completed-tasks__loading,
     .na-completed-tasks__error {
         padding: var(--na-space-md);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
     }
 

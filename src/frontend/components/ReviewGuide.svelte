@@ -97,6 +97,6 @@
         gap: var(--na-space-xs);
     }
     :global(.na-review-guide .na-accordion__icon) {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
 </style>

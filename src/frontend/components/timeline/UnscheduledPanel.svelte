@@ -184,7 +184,7 @@
         padding: 8px 10px;
         font-size: 12px;
         font-weight: 700;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         border-bottom: 1px solid var(--na-myday-panel-border, var(--b3-border-color));
     }
 
@@ -282,7 +282,6 @@
     }
 
     .na-unscheduled-card--done {
-        opacity: 0.56;
         background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
 
         .na-unscheduled-card__name {
@@ -290,7 +289,7 @@
         }
 
         .na-unscheduled-card__meta {
-            opacity: 0.72;
+            color: var(--na-text-secondary);
         }
     }
 
@@ -334,7 +333,7 @@
     }
 
     .na-unscheduled-card__context {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
     }
 
     .na-unscheduled-card__due {

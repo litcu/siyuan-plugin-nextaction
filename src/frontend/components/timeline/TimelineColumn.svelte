@@ -222,7 +222,7 @@
 
     .na-timeline-preview__time {
         font-size: 11px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-weight: 650;
         padding: 2px 8px;
         border-radius: var(--na-radius-pill);

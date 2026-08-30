@@ -207,14 +207,14 @@
     .na-filter-dropdown__action {
         font-size: 10px;
         font-weight: 500;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: none;
         border: none;
         cursor: pointer;
         padding: 0;
 
         &:disabled {
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             cursor: default;
         }
     }

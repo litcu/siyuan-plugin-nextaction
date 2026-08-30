@@ -341,7 +341,7 @@
         display: flex;
         align-items: center;
         gap: 7px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 12px;
     }
 
@@ -360,12 +360,12 @@
             position: relative;
             padding: 4px 10px;
             border-radius: calc(var(--b3-border-radius) - 2px);
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             cursor: pointer;
             font-size: 12px;
 
             &.active {
-                color: var(--b3-theme-primary);
+                color: var(--na-text-interactive);
                 background: var(--b3-theme-primary-lightest);
             }
         }
@@ -395,12 +395,12 @@
         padding: 3px 5px 3px 9px;
         border: 1px solid var(--b3-border-color);
         border-radius: 999px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: var(--b3-theme-background);
         font-size: 11px;
 
         strong {
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             font-weight: 600;
         }
 
@@ -412,12 +412,12 @@
             padding: 0;
             border: 0;
             border-radius: 50%;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             background: transparent;
             cursor: pointer;
 
             &:hover:not(:disabled) {
-                color: var(--b3-theme-error);
+                color: var(--na-text-danger);
                 background: var(--b3-theme-error-lightest);
             }
         }
@@ -432,7 +432,7 @@
     }
 
     .na-settings-general__empty {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
         font-style: italic;
     }

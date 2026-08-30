@@ -79,7 +79,7 @@
         background: transparent;
         border-radius: 50%;
         cursor: pointer;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         transition:
             color 0.15s,
             background 0.15s,

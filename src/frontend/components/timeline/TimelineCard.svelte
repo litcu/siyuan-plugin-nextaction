@@ -297,7 +297,6 @@
     }
 
     .na-timeline-card--done {
-        opacity: 0.56;
         background-color: var(--na-myday-panel-soft-bg, var(--b3-theme-surface-light));
 
         .na-timeline-card__name {
@@ -308,7 +307,7 @@
         .na-timeline-card__time,
         .na-timeline-card__parent,
         .na-timeline-card__sep {
-            opacity: 0.72;
+            color: var(--na-text-secondary);
         }
     }
 

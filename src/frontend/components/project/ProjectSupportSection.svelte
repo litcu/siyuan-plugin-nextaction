@@ -156,7 +156,7 @@
         cursor: pointer;
     }
     .na-project-support__title:hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
     .na-project-support__meta {
         display: flex;

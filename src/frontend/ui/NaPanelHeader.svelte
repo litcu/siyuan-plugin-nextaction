@@ -61,7 +61,7 @@
         height: 28px;
         flex: 0 0 28px;
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
 
@@ -72,7 +72,7 @@
     .na-panel-header__eyebrow {
         display: block;
         margin-bottom: 2px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 9px;
         font-weight: 700;
         letter-spacing: 0;
@@ -83,7 +83,7 @@
     h1 {
         margin: 0;
         overflow: hidden;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 14px;
         font-weight: 600;
         line-height: 20px;
@@ -94,7 +94,7 @@
     p {
         margin: 2px 0 0;
         overflow: hidden;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
         line-height: 16px;
         text-overflow: ellipsis;

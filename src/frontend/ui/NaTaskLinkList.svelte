@@ -77,7 +77,7 @@
         overflow: hidden;
         min-width: 0;
         flex: 1;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -92,14 +92,14 @@
     }
     .na-task-link-list__title-button:hover,
     .na-task-link-list__title-button:focus-visible {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         outline: 2px solid var(--b3-theme-primary);
         outline-offset: 2px;
     }
     .na-task-link-list__empty {
         width: 100%;
         padding: 8px 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
         text-align: center;
     }

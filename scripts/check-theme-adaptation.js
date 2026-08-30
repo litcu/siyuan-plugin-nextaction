@@ -45,10 +45,25 @@ function listStyleSources(root) {
 
 const checks = [
     {
-        name: "theme tokens expose accent and danger colors",
+        name: "theme tokens expose accessible text roles and accent surfaces",
         run() {
             const tokens = read("src/frontend/ui/tokens.scss");
-            return tokens.includes("--na-accent:") && tokens.includes("--na-danger:");
+            return [
+                "--na-text-primary:",
+                "--na-text-secondary:",
+                "--na-text-interactive:",
+                "--na-text-danger:",
+                "--na-accent-surface:",
+                "--na-accent-surface-hover:",
+            ].every((needle) => tokens.includes(needle));
+        },
+    },
+    {
+        name: "visible text does not bypass accessible semantic tokens",
+        run() {
+            const unsafeTextColor =
+                /^\s*color\s*:\s*var\(--(?:b3-theme-on-surface(?:-light)?|b3-theme-primary|b3-theme-error|b3-theme-on-primary|na-accent|na-color-someday)\)/m;
+            return listStyleSources("src/frontend").every((path) => !unsafeTextColor.test(read(path)));
         },
     },
     {
