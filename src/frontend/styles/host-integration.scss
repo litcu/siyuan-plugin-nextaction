@@ -216,7 +216,7 @@
     &[custom-na-status="someday"]::before {
         content: "···";
         border-color: var(--na-color-someday);
-        color: var(--na-color-someday);
+        color: var(--na-text-secondary);
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0;
@@ -227,12 +227,11 @@
     }
 
     &[custom-na-status="done"]::before {
-        background: var(--na-color-done);
+        background: var(--na-color-success-bg);
         border-color: var(--na-color-done);
     }
 
     &[custom-na-status="done"] {
-        opacity: 0.55;
         text-decoration: line-through;
     }
 }
@@ -314,7 +313,7 @@
     width: auto;
     height: auto;
     margin: 0;
-    color: var(--na-color-someday);
+    color: var(--na-text-secondary);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -334,7 +333,7 @@
     width: auto;
     height: auto;
     margin: 0;
-    color: var(--b3-theme-on-primary);
+    color: var(--na-color-success);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -363,7 +362,7 @@
         text-align: center;
         font-size: 12px;
         font-weight: 500;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--b3-theme-surface);
         border: 1px solid var(--b3-border-color);
         border-radius: 8px;
@@ -376,7 +375,7 @@
         width: 100%;
         padding: 4px 8px;
         font-size: 11px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-surface-light);
         border: 1px solid var(--b3-border-color);
         border-radius: 8px;
@@ -434,7 +433,7 @@
         }
 
         &--summary {
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
             background: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
         }
     }
@@ -448,7 +447,7 @@
         padding: 0;
         border: none;
         background: transparent;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         cursor: pointer;
         border-radius: 6px;
         transition:
@@ -458,20 +457,20 @@
 
         &:hover {
             background: var(--b3-theme-surface-light);
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
         }
     }
 
     &__title {
         font-size: 12px;
         font-weight: 500;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         cursor: pointer;
         line-height: 1.4;
         word-break: break-word;
 
         &:hover {
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
         }
     }
 
@@ -507,7 +506,7 @@
         }
 
         &--next-action {
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
             background: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
         }
 
@@ -519,7 +518,7 @@
 
     &__message {
         font-size: 11px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         line-height: 1.4;
     }
 }

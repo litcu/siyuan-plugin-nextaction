@@ -193,20 +193,20 @@
 
         strong {
             display: block;
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             font-size: 13px;
         }
 
         p {
             margin: 3px 0 0;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 11px;
             line-height: 17px;
         }
     }
 
     .na-settings-ai__intro-icon {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
 
     .na-settings-ai__variables {
@@ -220,7 +220,7 @@
             align-items: center;
             gap: 7px;
             padding: 11px 0;
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             cursor: pointer;
             font-size: 12px;
             font-weight: 600;
@@ -228,7 +228,7 @@
 
         > p {
             margin: 0 0 10px;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 11px;
         }
     }
@@ -241,7 +241,7 @@
         border-top: 1px solid var(--b3-border-color);
 
         strong {
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 10px;
         }
 
@@ -254,7 +254,7 @@
         code {
             padding: 2px 5px;
             border-radius: 4px;
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
             background: var(--b3-theme-primary-lightest);
             font: 10px/15px var(--b3-font-family-code);
         }
@@ -263,7 +263,7 @@
     .na-settings-ai__label {
         display: block;
         margin: 13px 0 6px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
         font-weight: 600;
     }
@@ -282,7 +282,7 @@
         align-items: center;
         gap: 10px;
         margin-top: 6px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
 
         > span {
@@ -300,7 +300,7 @@
         border-top: 1px solid var(--b3-border-color);
 
         summary {
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
             cursor: pointer;
             font-size: 11px;
             font-weight: 600;
@@ -308,7 +308,7 @@
 
         > p {
             margin: 7px 0;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 10px;
         }
 
@@ -319,7 +319,7 @@
         span {
             display: block;
             margin-bottom: 4px;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 10px;
             font-weight: 600;
         }
@@ -331,7 +331,7 @@
             padding: 9px 10px;
             border: 1px solid var(--b3-border-color);
             border-radius: var(--b3-border-radius);
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             background: var(--b3-theme-background);
             font: 10px/1.5 var(--b3-font-family-code);
             white-space: pre-wrap;

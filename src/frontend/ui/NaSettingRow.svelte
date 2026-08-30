@@ -50,7 +50,7 @@
 
         label,
         .na-setting-row__title {
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             font-size: 13px;
             font-weight: 500;
             line-height: 19px;
@@ -59,7 +59,7 @@
 
     .na-setting-row__description {
         margin-top: 2px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
         line-height: 17px;
     }

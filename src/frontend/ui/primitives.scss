@@ -110,7 +110,7 @@
         transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
     &::placeholder {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
 
     &:hover {
@@ -158,31 +158,31 @@
     }
 
     &--primary {
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary);
-        border-color: transparent;
+        color: var(--na-text-interactive);
+        background: var(--na-accent-surface);
+        border-color: var(--b3-theme-primary);
         box-shadow: none;
 
         &:hover {
-            background: var(--b3-theme-primary-light);
-            border-color: transparent;
+            background: var(--na-accent-surface-hover);
+            border-color: var(--b3-theme-primary);
         }
 
         &:active {
-            background: var(--b3-theme-primary);
+            background: var(--na-accent-surface);
             transform: scale(0.97);
         }
     }
 
     &--danger {
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
         border-color: var(--na-color-divider);
         background: transparent;
 
         &:hover {
-            background: var(--b3-theme-error);
-            color: var(--b3-theme-on-primary);
-            border-color: var(--b3-theme-error);
+            background: var(--na-color-error-bg);
+            color: var(--na-text-danger);
+            border-color: var(--na-color-error);
         }
 
         &:active {
@@ -198,7 +198,7 @@
         border: none;
         border-radius: var(--na-radius-md);
         background: transparent;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         box-shadow: none;
 
         &:hover {
@@ -222,14 +222,14 @@
 
 // ===== 链接 =====
 .na-link {
-    color: var(--b3-theme-primary);
+    color: var(--na-text-interactive);
     text-decoration: none;
     cursor: pointer;
     font-weight: 500;
     transition: opacity 0.15s;
 
     &:hover {
-        opacity: 0.8;
+        text-decoration: underline;
     }
 }
 
@@ -273,7 +273,7 @@
     }
 
     &--action {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-weight: 500;
 
         &:hover {

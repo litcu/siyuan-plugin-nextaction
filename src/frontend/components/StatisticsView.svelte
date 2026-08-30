@@ -198,13 +198,13 @@
     }
     .na-statistics__completion strong {
         grid-row: 1 / 3;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 28px;
         line-height: 1;
         font-variant-numeric: tabular-nums;
     }
     .na-statistics__completion span {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-lg);
         font-weight: 600;
     }
@@ -221,7 +221,7 @@
     }
     .na-statistics__section h3 {
         margin: 0;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
         font-weight: 600;
     }

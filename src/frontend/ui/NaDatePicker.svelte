@@ -644,7 +644,7 @@
         font-size: var(--na-font-size-md);
     }
     .na-date-picker__input::placeholder {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
     .na-date-picker__control .na-date-picker__input:focus-visible,
     .na-date-picker__control .na-date-picker__calendar-button:focus-visible {
@@ -657,19 +657,19 @@
         flex: 0 0 calc(var(--na-control-height) - 2px);
         padding: 0;
         border: 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         background: transparent;
         cursor: pointer;
     }
     .na-date-picker__calendar-button:hover {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
     .na-date-picker__calendar-button:disabled {
         cursor: not-allowed;
     }
     .na-date-picker__error {
         margin-top: 4px;
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
         font-size: var(--na-font-size-xs);
         line-height: 1.4;
     }
@@ -722,7 +722,7 @@
         padding: 0;
         border: none;
         background: none;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         cursor: pointer;
         border-radius: var(--na-radius-sm);
         transition:
@@ -752,7 +752,7 @@
     .na-date-picker__weekday {
         text-align: center;
         font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         padding: 2px 0;
         font-weight: 500;
     }
@@ -786,8 +786,7 @@
         background: var(--b3-theme-surface-light);
     }
     .na-date-picker__day--outside {
-        color: var(--b3-theme-on-surface-light);
-        opacity: 0.45;
+        color: var(--na-text-secondary);
     }
     .na-date-picker__day--today {
         font-weight: 600;
@@ -804,20 +803,21 @@
         background: var(--b3-theme-primary);
     }
     .na-date-picker__day--selected {
-        background: var(--b3-theme-primary);
-        color: var(--b3-theme-on-primary);
-        font-weight: 500;
+        background: var(--na-accent-surface);
+        color: var(--na-text-interactive);
+        font-weight: 600;
+        box-shadow: inset 0 0 0 1px var(--b3-theme-primary);
     }
     .na-date-picker__day--selected.na-date-picker__day--today::after {
-        background: var(--b3-theme-on-primary);
+        background: var(--na-text-interactive);
     }
     .na-date-picker__day--selected:hover {
-        background: var(--b3-theme-primary-light);
-        color: var(--b3-theme-on-primary);
+        background: var(--na-accent-surface-hover);
+        color: var(--na-text-interactive);
     }
     .na-date-picker__day--outside.na-date-picker__day--selected {
         opacity: 1;
-        color: var(--b3-theme-on-primary);
+        color: var(--na-text-interactive);
     }
 
     /* ── Time section: below calendar, same width, Ant Design style ── */
@@ -843,7 +843,7 @@
 
     .na-date-picker__time-label {
         font-size: 10px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-weight: 500;
         margin-bottom: 2px;
     }
@@ -878,7 +878,7 @@
         padding: 0;
         border: none;
         background: none;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
         font-variant-numeric: tabular-nums;
         cursor: pointer;
@@ -890,7 +890,7 @@
     }
 
     .na-date-picker__time-item--active {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-weight: 600;
         background: var(--b3-theme-primary-lightest);
     }
@@ -924,7 +924,7 @@
         padding: 3px 6px;
         border: none;
         background: none;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: var(--na-font-size-xs);
         cursor: pointer;
         border-radius: var(--na-radius-sm);
@@ -945,7 +945,7 @@
         padding: 3px 8px;
         border: none;
         background: none;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: var(--na-font-size-sm);
         font-weight: 500;
         cursor: pointer;
@@ -957,18 +957,19 @@
     }
 
     .na-date-picker__action--primary {
-        background: var(--b3-theme-primary);
-        color: var(--b3-theme-on-primary);
+        background: var(--na-accent-surface);
+        color: var(--na-text-interactive);
+        border: 1px solid var(--b3-theme-primary);
         border-radius: var(--na-radius-md);
         padding: 3px 10px;
     }
     .na-date-picker__action--primary:hover {
-        background: var(--b3-theme-primary-light);
-        color: var(--b3-theme-on-primary);
+        background: var(--na-accent-surface-hover);
+        color: var(--na-text-interactive);
     }
 
     .na-date-picker__action--danger {
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
     }
     .na-date-picker__action--danger:hover {
         background: color-mix(in srgb, var(--b3-theme-error) 8%, var(--b3-theme-surface));

@@ -115,7 +115,7 @@
         font: inherit;
 
         &::placeholder {
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
         }
     }
 
@@ -132,7 +132,7 @@
         height: 100%;
         padding: 0;
         flex: 0 0 34px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: transparent;
         border: none;
         border-left: 1px solid var(--na-color-divider);
@@ -142,12 +142,12 @@
             background 0.15s;
 
         &:hover:not(:disabled) {
-            color: var(--b3-theme-on-primary);
-            background: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
+            background: var(--na-accent-surface-hover);
         }
 
         &:disabled {
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             cursor: default;
             opacity: 0.45;
         }

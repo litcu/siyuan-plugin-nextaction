@@ -7,7 +7,13 @@
     --na-color-waiting: var(--b3-card-warning-color);
     --na-color-done: var(--b3-card-success-color);
     --na-color-someday: var(--b3-theme-on-surface-light);
-    --na-text-secondary: var(--b3-theme-on-surface-light);
+    --na-text-primary: var(--b3-theme-on-background);
+    --na-text-secondary: color-mix(in srgb, var(--b3-theme-on-background) 78%, var(--b3-theme-surface));
+    --na-text-interactive: color-mix(in srgb, var(--b3-theme-primary) 24%, var(--b3-theme-on-background));
+    --na-text-danger: color-mix(in srgb, var(--b3-card-error-color) 28%, var(--b3-theme-on-background));
+    --na-text-on-accent: var(--b3-theme-on-background);
+    --na-accent-surface: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
+    --na-accent-surface-hover: color-mix(in srgb, var(--b3-theme-primary) 18%, var(--b3-theme-surface));
     --na-color-blocked: var(--b3-card-error-color);
     --na-accent: var(--b3-theme-primary);
     --na-danger: var(--b3-card-error-color);
@@ -50,13 +56,18 @@
     --na-priority-bg-none: var(--b3-theme-surface);
 
     // ===== 表面与文字 =====
-    --na-card-text-primary: var(--b3-theme-on-surface);
-    --na-card-text-secondary: var(--b3-theme-on-surface-light);
-    --na-text-primary: var(--b3-theme-on-surface);
-    --na-text-secondary: var(--b3-theme-on-surface-light);
-    --na-panel-text-primary: var(--b3-theme-on-background);
-    --na-panel-text-secondary: color-mix(in srgb, var(--b3-theme-on-background) 78%, var(--b3-theme-surface));
-    --na-text-inverse: var(--b3-theme-on-primary);
+    --na-text-primary: var(--b3-theme-on-background);
+    --na-text-secondary: color-mix(in srgb, var(--b3-theme-on-background) 78%, var(--b3-theme-surface));
+    --na-text-interactive: color-mix(in srgb, var(--b3-theme-primary) 24%, var(--b3-theme-on-background));
+    --na-text-danger: color-mix(in srgb, var(--b3-card-error-color) 28%, var(--b3-theme-on-background));
+    --na-text-on-accent: var(--b3-theme-on-background);
+    --na-card-text-primary: var(--na-text-primary);
+    --na-card-text-secondary: var(--na-text-secondary);
+    --na-panel-text-primary: var(--na-text-primary);
+    --na-panel-text-secondary: var(--na-text-secondary);
+    --na-text-inverse: var(--na-text-on-accent);
+    --na-accent-surface: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-surface));
+    --na-accent-surface-hover: color-mix(in srgb, var(--b3-theme-primary) 18%, var(--b3-theme-surface));
     --na-color-project: var(--b3-card-info-color);
     --na-color-project-bg: color-mix(in srgb, var(--b3-card-info-color) 7%, var(--b3-theme-surface));
     --na-color-project-bg-hover: color-mix(in srgb, var(--b3-card-info-color) 13%, var(--b3-theme-surface));
@@ -81,7 +92,7 @@
     --na-filter-status: color-mix(in srgb, var(--na-color-done) 74%, var(--b3-theme-background));
     --na-filter-tag: color-mix(in srgb, var(--na-accent) 78%, var(--b3-theme-background));
     --na-filter-sort: color-mix(in srgb, var(--b3-theme-primary) 78%, var(--b3-theme-background));
-    --na-filter-active-fg: var(--na-filter-active-color, var(--b3-theme-primary));
+    --na-filter-active-fg: var(--na-text-interactive);
     --na-filter-active-bg: color-mix(
         in srgb,
         var(--na-filter-active-color, var(--b3-theme-primary)) 13%,

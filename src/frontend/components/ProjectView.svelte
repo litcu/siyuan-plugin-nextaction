@@ -640,7 +640,7 @@
     }
     .na-project-index__count,
     .na-project-risk-rail__header > span:last-child {
-        color: var(--na-accent);
+        color: var(--na-text-interactive);
         font-variant-numeric: tabular-nums;
     }
     .na-project-index__scroll,
@@ -730,7 +730,7 @@
         min-width: 0;
     }
     .na-project-canvas__kicker {
-        color: var(--na-accent);
+        color: var(--na-text-interactive);
         font-size: var(--na-font-size-xs);
         font-weight: 700;
         letter-spacing: 0.05em;

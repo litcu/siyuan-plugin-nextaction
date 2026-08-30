@@ -138,7 +138,7 @@
     .na-property-section__chevron {
         display: grid;
         place-items: center;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         transition: transform 150ms ease;
     }
     .na-property-section__trigger[aria-expanded="true"] .na-property-section__chevron {

@@ -69,7 +69,7 @@
 
         h2 {
             margin: 0;
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
             font-family: var(--b3-font-family);
             font-size: 14px;
             font-weight: 600;
@@ -78,7 +78,7 @@
 
         p {
             margin: 2px 0 0;
-            color: var(--b3-theme-on-surface-light);
+            color: var(--na-text-secondary);
             font-size: 12px;
             line-height: 18px;
         }
@@ -91,7 +91,7 @@
         height: 28px;
         margin-top: -3px;
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
 
@@ -101,7 +101,7 @@
         gap: 5px;
         flex: 0 0 auto;
         padding: 4px 7px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
 

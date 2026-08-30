@@ -75,29 +75,29 @@
         border-radius: var(--na-radius-sm);
     }
     .na-button--primary {
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
+        background: var(--na-accent-surface);
         border-color: var(--b3-theme-primary);
     }
     .na-button--primary:hover:not(:disabled) {
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary-light);
-        border-color: var(--b3-theme-primary-light);
+        color: var(--na-text-interactive);
+        background: var(--na-accent-surface-hover);
+        border-color: var(--b3-theme-primary);
     }
     .na-button--danger {
-        color: var(--na-color-error);
+        color: var(--na-text-danger);
         background: transparent;
         border-color: var(--na-color-error-border);
     }
     .na-button--danger:hover:not(:disabled) {
-        color: var(--b3-theme-on-primary);
-        background: var(--na-color-error);
+        color: var(--na-text-danger);
+        background: var(--na-color-error-bg);
         border-color: var(--na-color-error);
     }
     .na-button--text {
         border-color: transparent;
         background: transparent;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
     }
     .na-button--text:hover:not(:disabled) {
         background: var(--b3-theme-primary-lightest);

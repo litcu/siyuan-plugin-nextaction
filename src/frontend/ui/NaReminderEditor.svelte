@@ -204,7 +204,7 @@
     }
     .na-reminder-editor__empty {
         padding: 18px 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-md);
         text-align: center;
     }
@@ -218,7 +218,7 @@
         gap: 8px;
         min-height: 36px;
         border-bottom: 1px solid var(--b3-border-color);
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
     }
     .na-reminder-editor__item:last-child {
@@ -229,7 +229,7 @@
         flex: 1;
     }
     .na-reminder-editor__item :global(.na-icon) {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
     .na-reminder-editor__absolute,
     .na-reminder-editor__offset {
@@ -261,7 +261,7 @@
         align-items: center;
         gap: 8px;
         min-height: 30px;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
     }
     @media (max-width: 360px) {

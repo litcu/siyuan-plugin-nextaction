@@ -214,7 +214,7 @@
     }
 
     .na-review__last-review-label {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
         font-weight: 600;
     }
@@ -244,7 +244,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         margin: 0 0 var(--na-space-sm, 8px);
     }
 </style>

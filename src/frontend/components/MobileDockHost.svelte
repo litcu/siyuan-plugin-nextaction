@@ -62,7 +62,7 @@
         padding: 4px 8px;
         box-sizing: border-box;
         border-bottom: 1px solid var(--b3-border-color);
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--na-color-panel-header);
     }
 
@@ -100,7 +100,7 @@
         width: 26px;
         height: 26px;
         border-radius: var(--b3-border-radius);
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
 

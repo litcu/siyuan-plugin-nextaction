@@ -351,7 +351,7 @@
         max-height: min(78vh, 720px);
         overflow-x: hidden;
         overflow-y: auto;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--b3-theme-surface);
     }
     .na-create-task__composer {
@@ -382,7 +382,7 @@
         height: 26px;
         border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 36%, var(--na-color-divider));
         border-radius: 6px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
     .na-create-task__kind-mark--project {
@@ -397,13 +397,13 @@
         box-sizing: border-box;
         border: 0;
         outline: 0;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: transparent;
         font: 650 17px/1.2 var(--b3-font-family);
         letter-spacing: 0;
     }
     .na-create-task__title::placeholder {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-weight: 450;
     }
     .na-create-task__kind-row {
@@ -416,7 +416,7 @@
         border-top: 1px solid color-mix(in srgb, var(--na-color-divider) 68%, transparent);
     }
     .na-create-task__kind-row > span {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
     }
     .na-create-task__section {
@@ -432,7 +432,7 @@
     }
     .na-create-task__section-header h3 {
         margin: 0;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
         font-weight: 650;
         letter-spacing: 0;
@@ -440,7 +440,7 @@
     .na-create-task__section-icon {
         display: grid;
         place-items: center;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
     }
     .na-create-task__grid,
     .na-create-task__save-grid,
@@ -457,7 +457,7 @@
         margin: 0;
     }
     .na-create-task__field > span:first-child {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
         font-weight: 500;
         line-height: 1.2;
@@ -483,7 +483,7 @@
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-sm);
         outline: 0;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--b3-theme-background);
         font: inherit;
     }
@@ -498,7 +498,7 @@
         padding: 9px 10px;
         border: 1px solid var(--na-color-divider);
         border-radius: var(--na-radius-sm);
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--b3-theme-background);
         font-size: var(--na-font-size-md);
     }

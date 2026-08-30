@@ -194,7 +194,7 @@
         gap: 10px;
     }
     .na-settings-advanced__weights > div > span {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-advanced__track {
@@ -226,7 +226,7 @@
         justify-content: space-between;
         padding: 11px 0 2px;
         border-top: 1px solid var(--b3-border-color);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-advanced__sum strong {
@@ -237,13 +237,13 @@
         font-size: 12px;
     }
     .na-settings-advanced__sum.error strong {
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
     }
     .na-settings-advanced__input {
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-advanced__input :global(.b3-text-field),
@@ -269,12 +269,12 @@
         display: block;
     }
     .na-settings-advanced__maintenance strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 12px;
     }
     .na-settings-advanced__maintenance span {
         margin-top: 2px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
     }
     @media (max-width: 560px) {

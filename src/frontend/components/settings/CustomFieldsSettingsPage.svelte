@@ -449,16 +449,16 @@
         gap: 7px 10px;
     }
     .na-settings-custom-fields__toolbar strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 14px;
     }
     .na-settings-custom-fields__toolbar > div > span:last-child {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-custom-fields__eyebrow {
         flex-basis: 100%;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 9px;
         font-weight: 700;
         letter-spacing: 0.14em;
@@ -473,12 +473,12 @@
     }
     .na-settings-custom-fields__builder-header h2 {
         margin: 4px 0 2px;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 15px;
     }
     .na-settings-custom-fields__builder-header p {
         margin: 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-custom-fields__form {
@@ -493,7 +493,7 @@
         flex-direction: column;
         gap: 5px;
         min-width: 0;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
         font-weight: 600;
     }
@@ -511,14 +511,14 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 11px;
     }
     .na-settings-custom-fields__builder-footer > button {
         margin-left: auto;
     }
     .na-settings-custom-fields__error {
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
         font-size: 11px;
     }
     .na-settings-custom-fields__list {
@@ -533,7 +533,6 @@
         background: var(--b3-theme-surface);
     }
     .na-settings-custom-field--archived {
-        opacity: 0.62;
         border-style: dashed;
     }
     .na-settings-custom-field__header {
@@ -557,7 +556,7 @@
         overflow: hidden;
         padding: 3px 7px;
         border-radius: 4px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
         font: 10px var(--b3-font-family-code);
         text-align: center;
@@ -571,7 +570,7 @@
     }
     .na-settings-custom-field__identity span,
     .na-settings-custom-field__identity em {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
         font-style: normal;
     }
@@ -590,7 +589,7 @@
     }
     .na-settings-custom-field__show-card {
         gap: 6px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
         white-space: nowrap;
     }
@@ -600,7 +599,7 @@
         font-size: 10px;
     }
     .na-settings-custom-field__danger {
-        color: var(--b3-theme-error) !important;
+        color: var(--na-text-danger) !important;
     }
     .na-settings-custom-field__details {
         display: grid;
@@ -617,11 +616,11 @@
         padding: 35px 16px;
         border: 1px dashed var(--b3-border-color);
         border-radius: var(--b3-border-radius-b, 8px);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         text-align: center;
     }
     .na-settings-custom-fields__empty strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 13px;
     }
     .na-settings-custom-fields__empty span {

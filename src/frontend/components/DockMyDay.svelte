@@ -279,7 +279,7 @@
         justify-content: space-between;
         gap: 8px;
         margin-bottom: 7px;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 11px;
         font-weight: 700;
     }
@@ -331,7 +331,6 @@
     }
 
     .na-dock-myday__unscheduled-item--done {
-        opacity: 0.56;
         background: var(--na-dock-myday-panel-soft-bg);
 
         .na-dock-myday__unscheduled-name {

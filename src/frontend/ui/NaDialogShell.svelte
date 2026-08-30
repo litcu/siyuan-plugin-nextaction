@@ -45,7 +45,7 @@
         position: relative;
         box-sizing: border-box;
         overflow: hidden;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: var(--b3-theme-surface);
     }
     .na-dialog-shell__notice:empty {

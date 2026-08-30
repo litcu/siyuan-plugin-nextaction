@@ -137,16 +137,16 @@
         display: block;
     }
     .na-settings-mcp__status strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 13px;
     }
     .na-settings-mcp__status > div > span {
         margin-top: 2px;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-size: 10px;
     }
     .na-settings-mcp__status > code {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font: 10px var(--b3-font-family-code);
     }
     .na-settings-mcp__orb {
@@ -192,7 +192,7 @@
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font: 11px var(--b3-font-family-code);
     }
     .na-settings-mcp__tools {
@@ -206,7 +206,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 12px 15px;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         cursor: pointer;
         font-size: 12px;
         font-weight: 600;
@@ -215,7 +215,7 @@
         min-width: 24px;
         padding: 2px 7px;
         border-radius: 999px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
         font-size: 10px;
         text-align: center;
@@ -229,7 +229,7 @@
         border-top: 1px solid var(--b3-border-color);
     }
     .na-settings-mcp__tool-row > span {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 9px;
         font-weight: 700;
         letter-spacing: 0.08em;
@@ -245,13 +245,13 @@
         white-space: nowrap;
     }
     .na-settings-mcp__tool-row strong {
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: 11px;
         font-weight: 500;
     }
     .na-settings-mcp__tool-row code,
     .na-settings-mcp__tool-row small {
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font: 10px var(--b3-font-family-code);
     }
     @media (max-width: 620px) {

@@ -196,7 +196,7 @@
         background: none;
         border: none;
         cursor: pointer;
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         font-size: var(--na-font-size-md);
         font-weight: 500;
         padding: 0;
@@ -206,7 +206,7 @@
         white-space: nowrap;
 
         &:hover {
-            color: var(--b3-theme-primary);
+            color: var(--na-text-interactive);
         }
     }
 
@@ -219,7 +219,7 @@
     .na-reminder__time {
         flex-shrink: 0;
         font-size: var(--na-font-size-xs);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         font-variant-numeric: tabular-nums;
     }
 
@@ -233,7 +233,7 @@
         background: none;
         border: none;
         cursor: pointer;
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         border-radius: var(--na-radius-sm, 4px);
         padding: 0;
         transition:
@@ -242,7 +242,7 @@
 
         &:hover {
             background: var(--b3-theme-surface-lighter);
-            color: var(--b3-theme-on-surface);
+            color: var(--na-text-primary);
         }
     }
 </style>

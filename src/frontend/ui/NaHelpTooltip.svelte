@@ -28,13 +28,13 @@
         width: 20px;
         height: 20px;
         border-radius: var(--na-radius-sm);
-        color: var(--b3-theme-on-surface-light);
+        color: var(--na-text-secondary);
         cursor: help;
     }
 
     .na-help-tooltip :global(.na-tooltip:hover),
     .na-help-tooltip :global(.na-tooltip:focus-visible) {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
 

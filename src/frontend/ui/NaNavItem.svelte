@@ -39,7 +39,7 @@
         padding: 7px 12px;
         border: 0;
         border-radius: var(--na-radius-sm);
-        color: var(--b3-theme-on-surface);
+        color: var(--na-text-primary);
         background: transparent;
         cursor: pointer;
         font: inherit;
@@ -50,7 +50,7 @@
     }
 
     .na-nav-item:hover:not(:disabled) {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-surface-light);
     }
     .na-nav-item:focus-visible {
@@ -63,7 +63,7 @@
     }
 
     .na-nav-item--active {
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         background: var(--b3-theme-primary-lightest);
     }
     .na-nav-item--active::before {
@@ -99,8 +99,9 @@
         margin-left: auto;
         padding: 0 4px;
         border-radius: var(--na-radius-pill);
-        color: var(--b3-theme-on-primary);
-        background: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
+        background: var(--na-accent-surface);
+        border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 45%, var(--na-color-divider));
         font-size: 9px;
         font-weight: 700;
         line-height: 1;

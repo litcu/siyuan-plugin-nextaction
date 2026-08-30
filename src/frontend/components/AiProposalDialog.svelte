@@ -310,7 +310,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        color: var(--b3-theme-primary);
+        color: var(--na-text-interactive);
         font-size: 10px;
         letter-spacing: 0.12em;
         font-weight: 700;
@@ -343,7 +343,7 @@
         margin-top: 8px;
         padding: 6px 8px;
         border-left: 2px solid var(--b3-theme-error);
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
         background: color-mix(in srgb, var(--b3-theme-error) 8%, transparent);
         font-size: 11px;
         line-height: 1.4;
@@ -396,7 +396,7 @@
         height: 15px;
         margin: 0;
         flex: 0 0 15px;
-        accent-color: var(--b3-theme-primary);
+        accent-color: var(--na-text-interactive);
     }
     .na-ai-proposal__selector {
         width: 28px;
@@ -431,7 +431,7 @@
         border-color: var(--b3-theme-primary);
     }
     .na-ai-proposal__field-error {
-        color: var(--b3-theme-error);
+        color: var(--na-text-danger);
     }
     .na-ai-proposal__row-copy strong {
         overflow: hidden;
