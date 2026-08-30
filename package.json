@@ -55,7 +55,7 @@
     "prettier-plugin-svelte": "^3.5.2",
     "sass": "^1",
     "siyuan": "1.2.4",
-    "svelte": "^4",
+    "svelte": "^5",
     "svelte-check": "4.7.6",
     "tslib": "^2",
     "tsx": "^4.23.12",
