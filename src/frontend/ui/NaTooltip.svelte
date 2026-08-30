@@ -10,6 +10,9 @@
     export let fill = false;
     export let block = false;
     export let followCursor = true;
+    export let multiline = false;
+    export let openOnClick = false;
+    export let ariaLabel = "";
 
     let visible = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -18,6 +21,7 @@
     let popupStyle = "";
     let resolvedPosition: TooltipPosition = position;
     let cursor: { x: number; y: number } | null = null;
+    let globalListenersAttached = false;
 
     function updatePosition() {
         if (!triggerEl || !popupEl || typeof window === "undefined") return;
@@ -39,8 +43,19 @@
     async function showTooltip() {
         if (!text) return;
         visible = true;
+        attachGlobalListeners();
         await tick();
         updatePosition();
+    }
+
+    function hideTooltip() {
+        if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+        }
+        visible = false;
+        cursor = null;
+        detachGlobalListeners();
     }
 
     function handleMouseEnter(event: MouseEvent) {
@@ -58,12 +73,7 @@
     }
 
     function handleMouseLeave() {
-        if (timer !== null) {
-            clearTimeout(timer);
-            timer = null;
-        }
-        visible = false;
-        cursor = null;
+        hideTooltip();
     }
 
     function handleClick() {
@@ -71,8 +81,12 @@
             clearTimeout(timer);
             timer = null;
         }
-        visible = false;
         cursor = null;
+        if (openOnClick && !visible) {
+            void showTooltip();
+            return;
+        }
+        hideTooltip();
     }
 
     function handleFocusIn() {
@@ -84,8 +98,54 @@
         }, delay);
     }
 
+    function handleKeydown(event: KeyboardEvent) {
+        if (event.key === "Escape") {
+            hideTooltip();
+            return;
+        }
+        if (openOnClick && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            handleClick();
+        }
+    }
+
+    function handleWindowPointerDown(event: PointerEvent) {
+        if (!openOnClick || !visible || !triggerEl) return;
+        if (event.target instanceof Node && triggerEl.contains(event.target)) return;
+        hideTooltip();
+    }
+
+    function handleWindowKeydown(event: KeyboardEvent) {
+        if (event.key === "Escape") hideTooltip();
+    }
+
+    function handleViewportChange() {
+        hideTooltip();
+    }
+
+    function attachGlobalListeners() {
+        if (!openOnClick || globalListenersAttached || typeof window === "undefined") return;
+        window.addEventListener("pointerdown", handleWindowPointerDown);
+        window.addEventListener("keydown", handleWindowKeydown, true);
+        window.addEventListener("resize", handleViewportChange);
+        window.addEventListener("scroll", handleViewportChange);
+        document.addEventListener("scroll", handleViewportChange, true);
+        globalListenersAttached = true;
+    }
+
+    function detachGlobalListeners() {
+        if (!globalListenersAttached || typeof window === "undefined") return;
+        window.removeEventListener("pointerdown", handleWindowPointerDown);
+        window.removeEventListener("keydown", handleWindowKeydown, true);
+        window.removeEventListener("resize", handleViewportChange);
+        window.removeEventListener("scroll", handleViewportChange);
+        document.removeEventListener("scroll", handleViewportChange, true);
+        globalListenersAttached = false;
+    }
+
     onDestroy(() => {
         if (timer !== null) clearTimeout(timer);
+        detachGlobalListeners();
     });
 </script>
 
@@ -93,16 +153,17 @@
     class="na-tooltip"
     class:na-tooltip--fill={fill}
     class:na-tooltip--block={block}
+    class:na-tooltip--multiline={multiline}
     bind:this={triggerEl}
     role="button"
     tabindex="0"
+    aria-label={ariaLabel || undefined}
+    aria-expanded={openOnClick ? visible : undefined}
     on:mouseenter={handleMouseEnter}
     on:mousemove={handleMouseMove}
     on:mouseleave={handleMouseLeave}
     on:click={handleClick}
-    on:keydown={(event) => {
-        if (event.key === "Escape") handleClick();
-    }}
+    on:keydown={handleKeydown}
     on:focusin={handleFocusIn}
     on:focusout={handleMouseLeave}
 >
@@ -112,6 +173,7 @@
             use:portal
             bind:this={popupEl}
             class="na-tooltip__popup"
+            class:na-tooltip__popup--multiline={multiline}
             data-position={resolvedPosition}
             style={popupStyle}
             role="tooltip"
@@ -149,6 +211,15 @@
         font-size: var(--na-font-size-xs);
         box-shadow: var(--na-shadow-sm);
         animation: na-tooltip-fade 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .na-tooltip__popup--multiline {
+        max-width: min(280px, calc(100vw - 16px));
+        padding: 6px 8px;
+        font-size: var(--na-font-size-sm);
+        line-height: 16px;
+        overflow-wrap: anywhere;
+        white-space: normal;
     }
 
     @keyframes na-tooltip-fade {

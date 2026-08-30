@@ -252,16 +252,26 @@
                 label={i18n?.repeatFrequency || "Frequency"}
             />
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.repeatInterval || "Interval"}>
+        <NaPropertyRow
+            label={i18n?.repeatInterval || "Interval"}
+            helpText={i18n?.repeatIntervalHint || "Repeat after this many selected time units"}
+        >
             <input class="b3-text-field" type="number" min="1" max="999" bind:value={interval} />
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.repeatBasis || "Basis"}>
+        <NaPropertyRow
+            label={i18n?.repeatBasis || "Basis"}
+            helpText={i18n?.repeatBasisHint || "Advance from the original schedule, or recalculate from completion"}
+        >
             <select class="b3-select" bind:value={basis}>
                 <option value="schedule">{i18n?.repeatBasisSchedule || "Scheduled date"}</option>
                 <option value="completion">{i18n?.repeatBasisCompletion || "Completion date"}</option>
             </select>
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.repeatMissedPolicy || "Missed occurrences"}>
+        <NaPropertyRow
+            label={i18n?.repeatMissedPolicy || "Missed occurrences"}
+            helpText={i18n?.repeatMissedPolicyHint ||
+                "After missed dates, jump to the next future date or catch up one by one"}
+        >
             <select class="b3-select" bind:value={missedPolicy}>
                 <option value="nextFuture">{i18n?.repeatMissedFuture || "Next future occurrence"}</option>
                 <option value="catchUp">{i18n?.repeatMissedCatchUp || "Catch up"}</option>
@@ -297,7 +307,11 @@
                 <NaPropertyRow label={i18n?.repeatMonthDay || "Day"}
                     ><input class="b3-text-field" type="number" min="1" max="31" bind:value={monthDay} /></NaPropertyRow
                 >
-                <NaPropertyRow label={i18n?.repeatOverflow || "Missing day"}>
+                <NaPropertyRow
+                    label={i18n?.repeatOverflow || "Missing day"}
+                    helpText={i18n?.repeatOverflowHint ||
+                        "If the target date is absent, use month-end or skip that month"}
+                >
                     <select class="b3-select" bind:value={overflow}
                         ><option value="lastDay">{i18n?.repeatOverflowLastDay || "Use last day"}</option><option
                             value="skip">{i18n?.repeatOverflowSkip || "Skip month"}</option

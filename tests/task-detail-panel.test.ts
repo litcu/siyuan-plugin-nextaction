@@ -102,8 +102,8 @@ test("全部既有任务属性进入统一保存载荷", () => {
 });
 
 test("任务类型与标签保持同行，极窄视口再由公共属性行换行", () => {
-    assert.match(detail, /<NaPropertyRow label=\{i18n\?\.taskType[\s\S]*?<NaSegmentControl/);
-    assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.taskType[^>]*stacked=\{true\}/);
+    assert.match(detail, /<NaPropertyRow[\s\S]*?label=\{i18n\?\.taskType[\s\S]*?<NaSegmentControl/);
+    assert.doesNotMatch(detail, /<NaPropertyRow(?=[^>]*label=\{i18n\?\.taskType)[^>]*stacked=\{true\}/);
     assert.match(propertyRow, /@media \(max-width: 520px\)[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 

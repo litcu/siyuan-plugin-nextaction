@@ -615,12 +615,12 @@
     {#if isProject}
         <NaPropertySection
             title={i18n?.detailGroupProjectDefinition || "Project definition"}
-            description={i18n?.projectDefinitionSourceHint ||
+            helpText={i18n?.projectDefinitionSourceHint ||
                 "These properties control the project; document content remains free-form notes."}
         >
             <NaPropertyRow
                 label={i18n?.outcome || "Outcome"}
-                description={i18n?.outcomeHint || "The result this project is meant to create"}
+                helpText={i18n?.outcomeHint || "The result this project is meant to create"}
                 forId="na-project-outcome"
                 stacked={true}
             >
@@ -636,7 +636,7 @@
             </NaPropertyRow>
             <NaPropertyRow
                 label={i18n?.definitionOfDone || "Definition of Done"}
-                description={i18n?.dodHint || "Conditions to check before confirming completion"}
+                helpText={i18n?.dodHint || "Conditions to check before confirming completion"}
                 forId="na-project-dod"
                 stacked={true}
             >
@@ -663,8 +663,7 @@
         {#if !isProject}
             <NaPropertyRow
                 label={i18n?.actionKind || "Action kind"}
-                description={i18n?.actionKindHint ||
-                    "Stages use the same status, dates, and execution rules as Actions"}
+                helpText={i18n?.actionKindHint || "Stages use the same status, dates, and execution rules as Actions"}
             >
                 <NaSegmentControl
                     options={actionKindOptions}
@@ -674,7 +673,10 @@
                 />
             </NaPropertyRow>
         {/if}
-        <NaPropertyRow label={i18n?.taskType || "Item type"}>
+        <NaPropertyRow
+            label={i18n?.taskType || "Item type"}
+            helpText={i18n?.taskTypeHint || "Choose a task or project; projects add outcome and completion criteria"}
+        >
             <NaSegmentControl
                 options={taskTypeOptions}
                 bind:value={taskType}
@@ -682,17 +684,24 @@
                 on:change={handleChange}
             />
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.priority || "Priority"}>
+        <NaPropertyRow
+            label={i18n?.priority || "Priority"}
+            helpText={i18n?.priorityHint || "Urgency that combines with importance in automatic ranking"}
+        >
             <select class="b3-select fn__block" bind:value={priority} on:change={handleChange}>
                 {#each PRIORITY_LIST as item}<option value={item}
                         >{translateKey(i18n, priorityI18nKey(item), item)}</option
                     >{/each}
             </select>
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.importance || "Importance"}
+        <NaPropertyRow
+            label={i18n?.importance || "Importance"}
+            helpText={i18n?.importanceHint || "Task value; higher values raise automatic ranking"}
             ><NaDotRating count={7} bind:value={importance} on:change={handleChange} /></NaPropertyRow
         >
-        <NaPropertyRow label={i18n?.effort || "Effort"}
+        <NaPropertyRow
+            label={i18n?.effort || "Effort"}
+            helpText={i18n?.effortHint || "Expected work; higher values reduce automatic ranking"}
             ><NaDotRating count={7} bind:value={effort} on:change={handleChange} /></NaPropertyRow
         >
         <NaPropertyRow label={i18n?.note || "Note"} stacked={true}
@@ -720,7 +729,9 @@
                 on:change={handleDateChange}
             /></NaPropertyRow
         >
-        <NaPropertyRow label={i18n?.myDay || "My Day"}
+        <NaPropertyRow
+            label={i18n?.myDay || "My Day"}
+            helpText={i18n?.myDayHint || "Adds the task to today's plan without changing status or dates"}
             ><NaToggle
                 checked={isInMyDay}
                 disabled={operationBusy}
@@ -728,7 +739,10 @@
                 on:change={toggleMyDay}
             /></NaPropertyRow
         >
-        <NaPropertyRow label={i18n?.reminder || "Reminders"}>
+        <NaPropertyRow
+            label={i18n?.reminder || "Reminders"}
+            helpText={i18n?.reminderHint || "Schedule notifications at a fixed time or before the due date"}
+        >
             <button
                 type="button"
                 class="b3-button b3-button--text na-task-detail__setting-action"
@@ -737,7 +751,10 @@
                 {hasReminders ? i18n?.reminderConfigured || "Configured" : i18n?.notConfigured || "Not configured"}
             </button>
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.repeat || "Repeat"}>
+        <NaPropertyRow
+            label={i18n?.repeat || "Repeat"}
+            helpText={i18n?.repeatHint || "On completion, advance this task without creating a new SiYuan block"}
+        >
             <div class="na-task-detail__repeat-control">
                 <NaToggle
                     checked={repeatEnabled}
@@ -776,8 +793,8 @@
         {#if !isProject}
             <NaPropertyRow
                 label={i18n?.projectAssignment || i18n?.parentItem || "Join project or set parent task"}
-                description={i18n?.projectAssignmentHint ||
-                    "Changes logical assignment only. The SiYuan block stays where it is; moving it into the project document is not available yet."}
+                helpText={i18n?.projectAssignmentHint ||
+                    "Changes logical assignment only; the SiYuan block stays in place"}
             >
                 <NaSearchSelect
                     multi={false}
@@ -795,7 +812,10 @@
                 />
             </NaPropertyRow>
         {/if}
-        <NaPropertyRow label={i18n?.context || "Context"}>
+        <NaPropertyRow
+            label={i18n?.context || "Context"}
+            helpText={i18n?.contextHint || "The place, tool, or situation needed to do the task"}
+        >
             <NaSearchSelect
                 multi={true}
                 allowCreate={true}
@@ -862,14 +882,19 @@
                 on:change={handleChange}
             />
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.depMode || "Dependency mode"}>
+        <NaPropertyRow
+            label={i18n?.depMode || "Dependency mode"}
+            helpText={i18n?.depModeHint || "Unblock after all dependencies finish, or after any one finishes"}
+        >
             <select class="b3-select fn__block" bind:value={depMode} on:change={handleChange}
                 ><option value="all">{i18n?.depModeAll || "All must complete"}</option><option value="any"
                     >{i18n?.depModeAny || "Any can complete"}</option
                 ></select
             >
         </NaPropertyRow>
-        <NaPropertyRow label={i18n?.sequential || "Sequential"}
+        <NaPropertyRow
+            label={i18n?.sequential || "Sequential"}
+            helpText={i18n?.sequentialHint || "Run child tasks in order; earlier unfinished items block later ones"}
             ><NaToggle
                 bind:checked={sequentialEnabled}
                 label={i18n?.sequential || "Sequential"}
@@ -884,7 +909,10 @@
         open={false}
         summary={reviewSummary}
     >
-        <NaPropertyRow label={i18n?.reviewInterval || "Review interval"}>
+        <NaPropertyRow
+            label={i18n?.reviewInterval || "Review interval"}
+            helpText={i18n?.reviewIntervalHint || "Schedule the next review this many days after each review"}
+        >
             <div class="na-task-detail__review-control">
                 <select class="b3-select" bind:value={reviewIntervalMode} on:change={handleReviewIntervalChange}>
                     <option value="0">{i18n?.reviewIntervalNone || "None"}</option>
@@ -919,7 +947,7 @@
     {#if customFieldDefs.length > 0}
         <NaPropertySection title={i18n?.customFields || "Custom fields"}>
             {#each customFieldDefs as def (def.key)}
-                <NaPropertyRow label={def.label}>
+                <NaPropertyRow label={def.label} helpText={def.description}>
                     <NaCustomFieldInput
                         {def}
                         value={customFieldValues[def.key] || ""}

@@ -1,6 +1,9 @@
 <script lang="ts">
+    import NaHelpTooltip from "./NaHelpTooltip.svelte";
+
     export let label: string;
     export let description = "";
+    export let helpText = "";
     export let forId = "";
     export let disabled = false;
     export let stacked = false;
@@ -9,7 +12,11 @@
 
 <div class="na-property-row" class:na-property-row--disabled={disabled} class:na-property-row--stacked={stacked}>
     <div class="na-property-row__label">
-        {#if forId}<label for={forId}>{label}</label>{:else}<span>{label}</span>{/if}
+        <div class="na-property-row__label-line">
+            {#if forId}<label for={forId}>{label}</label>{:else}<span class="na-property-row__label-text">{label}</span
+                >{/if}
+            {#if helpText.trim()}<NaHelpTooltip {label} text={helpText} />{/if}
+        </div>
         {#if description}<small>{description}</small>{/if}
     </div>
     <div class="na-property-row__control" role="group" aria-label={label}><slot /></div>
@@ -39,7 +46,7 @@
         flex-direction: column;
 
         label,
-        > span {
+        .na-property-row__label-text {
             color: var(--b3-theme-on-surface);
             font-size: var(--na-font-size-md);
             font-weight: 500;
@@ -52,6 +59,13 @@
             font-size: var(--na-font-size-xs);
             line-height: 15px;
         }
+    }
+
+    .na-property-row__label-line {
+        display: flex;
+        align-items: center;
+        gap: var(--na-space-xxs);
+        min-width: 0;
     }
 
     .na-property-row__control {

@@ -105,7 +105,11 @@
     </NaPropertySection>
 
     <NaPropertySection title={i18n?.reminderAbsolute || "Absolute reminder"}>
-        <NaPropertyRow label={i18n?.reminderAddAbsolute || "Add"} stacked={showAbsolute}>
+        <NaPropertyRow
+            label={i18n?.reminderAddAbsolute || "Add"}
+            helpText={i18n?.reminderAbsoluteHint || "Remind at a specific date and time, independent of the due date"}
+            stacked={showAbsolute}
+        >
             {#if showAbsolute}
                 <div class="na-reminder-editor__absolute">
                     <NaDatePicker
@@ -152,7 +156,10 @@
                     </label>
                 {/each}
             </div>
-            <NaPropertyRow label={i18n?.reminderCustomOffset || i18n?.reminderAddOffset || "Custom offset"}>
+            <NaPropertyRow
+                label={i18n?.reminderCustomOffset || i18n?.reminderAddOffset || "Custom offset"}
+                helpText={i18n?.reminderCustomOffsetHint || "Remind 1 minute to 14 days before the due date"}
+            >
                 <div class="na-reminder-editor__offset">
                     <input
                         class="b3-text-field"
