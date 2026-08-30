@@ -1,14 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable } from "./helpers/browser.ts";
+import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
 
 const require = createRequire(import.meta.url);
 const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
@@ -141,7 +140,7 @@ setTimeout(() => {
         });
 
         const browser = findBrowserExecutable();
-        const rendered = spawnSync(
+        const rendered = await runBrowser(
             browser,
             [
                 "--headless=new",
@@ -177,7 +176,7 @@ setTimeout(() => {
             stageAfter: true,
         });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
 
@@ -298,7 +297,7 @@ setTimeout(() => {
         });
 
         const browser = findBrowserExecutable();
-        const rendered = spawnSync(
+        const rendered = await runBrowser(
             browser,
             [
                 "--headless=new",
@@ -326,7 +325,7 @@ setTimeout(() => {
         assert.ok(match, `浏览器未输出滚动恢复结果：${rendered.stdout.slice(0, 2_000)}`);
         assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { scrollTop: 48 });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
 
@@ -447,7 +446,7 @@ setTimeout(() => {
         });
 
         const browser = findBrowserExecutable();
-        const rendered = spawnSync(
+        const rendered = await runBrowser(
             browser,
             [
                 "--headless=new",
@@ -485,6 +484,6 @@ setTimeout(() => {
             extracted: "20260825120001-support",
         });
     } finally {
-        rmSync(fixtureRoot, { recursive: true, force: true });
+        removeBrowserFixture(fixtureRoot);
     }
 });
