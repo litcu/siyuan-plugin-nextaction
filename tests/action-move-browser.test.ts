@@ -160,7 +160,11 @@ setTimeout(() => {
                 ],
             },
             plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
+                svelte({
+                    configFile: false,
+                    preprocess: vitePreprocess(),
+                    compilerOptions: { compatibility: { componentApi: 4 } },
+                }),
             ],
             build: { outDir: "dist" },
         });
@@ -245,14 +249,18 @@ const bridge = {
     moveActionToProject: async () => ({}),
 };
 const i18n = new Proxy({ moveActionPreviewFailed: "Cannot preview move: {error}" }, { get: (target, key) => target[key] || String(key) });
-const opening = openActionMoveDialog({ bridge, i18n, task, project });
-latestDialog.destroy();
-await opening;
-await new Promise((resolve) => setTimeout(resolve, 20));
 const result = document.createElement("pre");
 result.id = "browser-result";
-result.textContent = JSON.stringify({ previews, dialogs: document.querySelectorAll(".na-action-move-dialog").length });
 document.body.appendChild(result);
+try {
+    const opening = openActionMoveDialog({ bridge, i18n, task, project });
+    latestDialog.destroy();
+    await opening;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    result.textContent = JSON.stringify({ previews, dialogs: document.querySelectorAll(".na-action-move-dialog").length });
+} catch (error) {
+    result.textContent = JSON.stringify({ error: String(error?.message || error) });
+}
 })();`,
         );
 
@@ -283,9 +291,16 @@ document.body.appendChild(result);
                 ],
             },
             plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
+                svelte({
+                    configFile: false,
+                    preprocess: vitePreprocess(),
+                    compilerOptions: { compatibility: { componentApi: 4 } },
+                }),
             ],
-            build: { outDir: "dist" },
+            build: {
+                outDir: "dist",
+                rollupOptions: { output: { inlineDynamicImports: true } },
+            },
         });
 
         const rendered = await runBrowser(
@@ -307,7 +322,10 @@ document.body.appendChild(result);
         );
         assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
         const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
+        assert.ok(
+            match,
+            `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}${rendered.stderr ? `\n浏览器错误：${rendered.stderr}` : ""}`,
+        );
         assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { previews: 0, dialogs: 0 });
     } finally {
         removeBrowserFixture(fixtureRoot);

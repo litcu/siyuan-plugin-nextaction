@@ -238,7 +238,7 @@
     }
 
     function handleBoardPreferenceChange(preference: ProjectBoardPreference) {
-        const projectId = resolvedActiveProjectId;
+        const projectId = selectedSummary?.project.blockId || resolvedActiveProjectId;
         if (!projectId) return;
         dirtyBoardPreferenceProjects.add(projectId);
         boardPreferences = withProjectBoardPreference(boardPreferences, projectId, preference);
