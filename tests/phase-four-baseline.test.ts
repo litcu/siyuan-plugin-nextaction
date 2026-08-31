@@ -43,8 +43,28 @@ test("缓存加载保留缺失排序值且不再迁移为隐式顺序", async ()
         return (
             queryCalls === 1
                 ? [
-                      { id: CHILD_A_ID, parent_id: PROJECT_ID, content: "A", updated: "20260816090001" },
-                      { id: CHILD_B_ID, parent_id: PROJECT_ID, content: "B", updated: "20260816090002" },
+                      {
+                          id: CHILD_A_ID,
+                          parent_id: PROJECT_ID,
+                          content_block_id: "",
+                          title_content: "A",
+                          markdown: "",
+                          structural_parent_id: "",
+                          source: "document",
+                          sort: 0,
+                          updated: "20260816090001",
+                      },
+                      {
+                          id: CHILD_B_ID,
+                          parent_id: PROJECT_ID,
+                          content_block_id: "",
+                          title_content: "B",
+                          markdown: "",
+                          structural_parent_id: "",
+                          source: "document",
+                          sort: 1,
+                          updated: "20260816090002",
+                      },
                   ]
                 : []
         ) as T[];

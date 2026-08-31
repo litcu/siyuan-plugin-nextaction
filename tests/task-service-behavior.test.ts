@@ -922,6 +922,7 @@ test("Repository 严格按写入、权威回读顺序确认状态", async () => 
     const api = new FakeSiyuanApi();
     api.addBlock(ID);
     const cache = new CacheManager(api);
+    cache.set(taskFactory(ID));
     const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
     const entry = await repository.withConfirmedChanges((changes) =>
         changes.upsertAttrs({ blockId: ID, attrs: { [ATTR_PRIORITY]: "high" } }),
@@ -934,10 +935,9 @@ test("Repository 严格按写入、权威回读顺序确认状态", async () => 
     );
 });
 
-test("Repository 批量写失败时只返回逐块确认成功项", async () => {
+test("Repository 在属性写入前拒绝缺少身份依据的物化请求", async () => {
     const api = new FakeSiyuanApi();
     api.addBlock(ID);
-    const missingId = "20260816123457-abcdefg";
     const repository = new TaskRepository(
         api,
         new CacheManager(api),
@@ -945,6 +945,27 @@ test("Repository 批量写失败时只返回逐块确认成功项", async () => 
         new FakeTaskChangePublisher(),
         DEFAULT_SETTINGS,
     );
+
+    await assert.rejects(
+        repository.withConfirmedChanges((changes) =>
+            changes.upsertAttrs({ blockId: ID, attrs: { [ATTR_PRIORITY]: "high" } }),
+        ),
+        /requires identity evidence/,
+    );
+    assert.equal(
+        api.requests.some((request) => request.path === "/api/attr/setBlockAttrs"),
+        false,
+    );
+});
+
+test("Repository 批量写失败时只返回逐块确认成功项", async () => {
+    const api = new FakeSiyuanApi();
+    api.addBlock(ID);
+    const missingId = "20260816123457-abcdefg";
+    const cache = new CacheManager(api);
+    cache.set(taskFactory(ID));
+    cache.set(taskFactory(missingId));
+    const repository = new TaskRepository(api, cache, new Mutex(), new FakeTaskChangePublisher(), DEFAULT_SETTINGS);
     const result = await repository.withConfirmedChanges((changes) =>
         changes.upsertAttrsBatch([
             { blockId: ID, attrs: { [ATTR_PRIORITY]: "high" } },

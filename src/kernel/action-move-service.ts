@@ -292,15 +292,13 @@ export class ActionMoveService {
             blockId: prepared.plan.actionId,
             attrs: resolved.attrs,
             existing: this.cache.get(prepared.plan.actionId),
-            titleOverride: resolved.identity.title,
-            identity: {
-                identificationSource: resolved.identity.identificationSource,
-                attrHostId: resolved.identity.attrHostId,
-                contentBlockId: resolved.identity.contentBlockId,
-                parentId: confirmedEffectiveParentId ?? resolved.identity.effectiveParentId,
-                taskType: resolved.identity.taskType,
-                status: resolved.identity.defaultStatus,
-            },
+            freshIdentity: resolved.identity,
+            observations: [
+                { kind: "renamed", title: resolved.identity.title },
+                ...(confirmedEffectiveParentId !== undefined
+                    ? [{ kind: "effective-parent-confirmed" as const, parentId: confirmedEffectiveParentId }]
+                    : []),
+            ],
         });
     }
 
