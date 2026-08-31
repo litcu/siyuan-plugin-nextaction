@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
     buildProjectSummaries,
-    hasProjectAncestor,
     isNextActionCandidate,
     isProjectTask,
     normalizeActionKindForProjectScope,
 } from "../src/shared/project-domain.ts";
+import { createProjectMembershipGraph } from "../src/shared/project-membership-graph.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -72,19 +72,23 @@ test("行动类型仅适用于项目祖先链内的普通任务", () => {
     const ordinaryChild = task("ordinary-child", { parentId: ordinaryParent.blockId });
     const cycleA = task("cycle-a", { parentId: "cycle-b" });
     const cycleB = task("cycle-b", { parentId: "cycle-a" });
-    const lookup = new Map(
-        [project, stage, nestedAction, ordinaryParent, ordinaryChild, cycleA, cycleB].map((entry) => [
-            entry.blockId,
-            entry,
-        ]),
-    );
+    const membership = createProjectMembershipGraph([
+        project,
+        stage,
+        nestedAction,
+        ordinaryParent,
+        ordinaryChild,
+        cycleA,
+        cycleB,
+    ]);
 
-    assert.equal(hasProjectAncestor(project.blockId, lookup), true);
-    assert.equal(hasProjectAncestor(stage.blockId, lookup), true);
-    assert.equal(hasProjectAncestor(ordinaryParent.blockId, lookup), false);
-    assert.equal(hasProjectAncestor(ordinaryChild.parentId, lookup), false);
-    assert.equal(hasProjectAncestor(cycleA.blockId, lookup), false);
-    assert.equal(hasProjectAncestor("", lookup), false);
+    assert.equal(membership.node(project.blockId)?.projectId, project.blockId);
+    assert.equal(membership.node(stage.blockId)?.projectId, project.blockId);
+    assert.equal(membership.node(nestedAction.blockId)?.projectId, project.blockId);
+    assert.equal(membership.node(ordinaryParent.blockId)?.projectId, "");
+    assert.equal(membership.node(ordinaryChild.blockId)?.projectId, "");
+    assert.equal(membership.node(cycleA.blockId)?.projectId, "");
+    assert.equal(membership.node("")?.projectId, undefined);
     assert.equal(normalizeActionKindForProjectScope("stage", true), "stage");
     assert.equal(normalizeActionKindForProjectScope("stage", false), "action");
     assert.equal(normalizeActionKindForProjectScope("", true), "action");

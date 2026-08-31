@@ -5,11 +5,11 @@
     import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
     import { encodeCustomFieldValue, isCustomFieldApplicable } from "../../shared/custom-fields";
-    import { hasProjectAncestor, isProjectTask, normalizeActionKindForProjectScope } from "../../shared/project-domain";
+    import { isProjectTask, normalizeActionKindForProjectScope } from "../../shared/project-domain";
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
-    import { createTaskDetailTaskSource, taskStore } from "../stores/task-store";
+    import { createTaskDetailTaskSource, projectMembershipGraph, taskStore } from "../stores/task-store";
     import { formatRpcError, notifyError, notifyInfo } from "../notify";
     import { jumpToBlock as jump, taskWriteWarningMessage } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
@@ -101,7 +101,7 @@
             status: entry.status,
         }));
     $: customFieldDefs = (($taskStore.settings.customFields || []) as CustomFieldDef[]).filter((field) =>
-        isCustomFieldApplicable(field, task, taskMap),
+        isCustomFieldApplicable(field, task, $projectMembershipGraph),
     );
     $: isInMyDay = !!$taskStore.myDayState?.tasks.some((entry) => entry.blockId === task.blockId);
     $: hasReminders = parseReminderItems(task.reminder).length > 0;
@@ -146,7 +146,7 @@
         { value: "stage", label: i18n?.actionKindStage || "Stage" },
     ];
     $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
-    $: hasProjectScope = !isProject && hasProjectAncestor(parentId, taskMap);
+    $: hasProjectScope = !isProject && Boolean($projectMembershipGraph.node(parentId)?.projectId);
     $: aiDecomposeLabel = isProject
         ? i18n?.aiDecomposeProject || "Break down project with AI"
         : i18n?.aiDecomposeTask || "Break down with AI";
@@ -294,7 +294,10 @@
 
     function handleParentChange(event: CustomEvent<{ selected: string | string[] }>) {
         parentId = typeof event.detail.selected === "string" ? event.detail.selected : "";
-        actionKind = normalizeActionKindForProjectScope(actionKind, hasProjectAncestor(parentId, taskMap));
+        actionKind = normalizeActionKindForProjectScope(
+            actionKind,
+            Boolean($projectMembershipGraph.node(parentId)?.projectId),
+        );
         handleChange();
     }
 

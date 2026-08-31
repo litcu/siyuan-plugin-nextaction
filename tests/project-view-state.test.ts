@@ -10,6 +10,7 @@ import {
     PROJECT_BOARD_STATUSES,
     PROJECT_BOARD_UNASSIGNED_STAGE,
 } from "../src/shared/project-board.ts";
+import { createProjectMembershipGraph } from "../src/shared/project-membership-graph.ts";
 import {
     buildProjectViewControl,
     buildProjectViewModel as buildProjectViewModelFromControl,
@@ -169,13 +170,14 @@ test("看板只展示普通 Action 和叶子 Stage，并始终保留六个状态
     const leafStage = task("leaf-stage", { parentId: project.blockId, status: "waiting", actionKind: "stage" });
     const nestedAction = task("nested-action", { parentId: parentStage.blockId, status: "done" });
     const descendants = [action, parentStage, leafStage, nestedAction];
+    const membership = createProjectMembershipGraph(descendants);
 
-    assert.equal(isProjectBoardTask(project, descendants), false);
-    assert.equal(isProjectBoardTask(parentStage, descendants), false);
-    assert.equal(isProjectBoardTask(action, descendants), true);
-    assert.equal(isProjectBoardTask(leafStage, descendants), true);
+    assert.equal(isProjectBoardTask(project, membership), false);
+    assert.equal(isProjectBoardTask(parentStage, membership), false);
+    assert.equal(isProjectBoardTask(action, membership), true);
+    assert.equal(isProjectBoardTask(leafStage, membership), true);
 
-    const columns = buildProjectBoardColumns(descendants.filter((item) => isProjectBoardTask(item, descendants)));
+    const columns = buildProjectBoardColumns(descendants.filter((item) => isProjectBoardTask(item, membership)));
     assert.deepEqual(
         columns.map((column) => column.status),
         ["inbox", "todo", "doing", "waiting", "someday", "done"],

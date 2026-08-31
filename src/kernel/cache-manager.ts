@@ -1,5 +1,6 @@
 import { type PluginSettings, DEFAULT_SETTINGS } from "../shared/settings";
 import { type TaskCacheEntry } from "../shared/types";
+import { createProjectMembershipGraph, type ProjectMembershipGraph } from "../shared/project-membership-graph";
 import type { SiyuanApiPort } from "./siyuan-api";
 import { materializeTask, type MaterializedTaskFacts } from "./task-materializer";
 import { TaskIdentityResolver, type BatchTaskAttributeReader } from "./task-identity-resolver";
@@ -13,6 +14,7 @@ export class CacheManager {
     private pendingAffectedIds: Set<string>;
     private pendingRelationshipChangedIds: Set<string>;
     private materializationDefaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">;
+    private projectMembershipGraph: ProjectMembershipGraph | null;
 
     constructor(
         private readonly api: SiyuanApiPort,
@@ -24,6 +26,7 @@ export class CacheManager {
         this.pendingAffectedIds = new Set();
         this.pendingRelationshipChangedIds = new Set();
         this.materializationDefaults = DEFAULT_SETTINGS;
+        this.projectMembershipGraph = null;
     }
 
     updateMaterializationDefaults(defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">): void {
@@ -84,7 +87,15 @@ export class CacheManager {
         return result;
     }
 
+    getProjectMembershipGraph(): ProjectMembershipGraph {
+        if (!this.projectMembershipGraph) {
+            this.projectMembershipGraph = createProjectMembershipGraph(this.getAll());
+        }
+        return this.projectMembershipGraph;
+    }
+
     set(entry: TaskCacheEntry): void {
+        this.projectMembershipGraph = null;
         const existing = this.cache[entry.blockId];
         const oldParentId = existing?.parentId || "";
         this.markRelationshipImpact(entry.blockId, existing?.parentId, entry.parentId);
@@ -120,6 +131,7 @@ export class CacheManager {
         const entry = this.cache[blockId];
         if (!entry) return;
 
+        this.projectMembershipGraph = null;
         this.markRelationshipImpact(blockId, entry.parentId);
         this.removeFromRelationshipIndexes(entry);
         delete this.cache[blockId];
@@ -191,6 +203,7 @@ export class CacheManager {
     }
 
     private replaceCache(nextCache: Record<string, TaskCacheEntry>): void {
+        this.projectMembershipGraph = null;
         this.cache = nextCache;
         this.childrenByParent = new Map();
         this.dependentsByDependency = new Map();

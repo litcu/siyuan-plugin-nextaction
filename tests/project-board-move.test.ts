@@ -4,6 +4,7 @@ import { CacheManager } from "../src/kernel/cache-manager.ts";
 import { ProjectBoardMoveService } from "../src/kernel/project-board-move-service.ts";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../src/shared/constants.ts";
+import { createProjectMembershipGraph } from "../src/shared/project-membership-graph.ts";
 
 const id = (n: number) => `2026082800000${n}-abcdefg`;
 function task(blockId: string, overrides: Partial<TaskCacheEntry> = {}): TaskCacheEntry {
@@ -158,7 +159,11 @@ test("跨父级 afterId 必须拒绝且不写入属性", async () => {
 test("属性已成功但重排失败时返回部分成功", async () => {
     const { service, project, moving } = fixture();
     const failing = new ProjectBoardMoveService(
-        { get: (blockId: string) => (blockId === project.blockId ? project : moving), getByParent: () => [] } as never,
+        {
+            get: (blockId: string) => (blockId === project.blockId ? project : moving),
+            getByParent: () => [],
+            getProjectMembershipGraph: () => createProjectMembershipGraph([project, moving]),
+        } as never,
         {
             updateTask: async () => ({ ...moving, status: "doing" }),
             reorderTask: async () => {

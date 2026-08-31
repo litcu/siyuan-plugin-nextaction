@@ -8,6 +8,7 @@ import {
     PRIORITY_VERY_LOW,
 } from "./constants";
 import { isProjectTask } from "./project-domain";
+import { createProjectMembershipGraph, type ProjectMembershipGraph } from "./project-membership-graph";
 import type { TaskCacheEntry } from "./types";
 
 export const PROJECT_BOARD_STATUSES = ALL_STATUSES;
@@ -46,92 +47,22 @@ function boardImportance(value: number): ProjectBoardImportance {
     return 4;
 }
 
-function buildEffectiveParentMap(tasks: readonly TaskCacheEntry[]): Map<string, string> {
-    const taskById = new Map(tasks.map((task) => [task.blockId, task]));
-    const parentByChild = new Map<string, string>();
-
-    for (const task of tasks) {
-        if (task.parentId && task.parentId !== task.blockId && taskById.has(task.parentId)) {
-            parentByChild.set(task.blockId, task.parentId);
-        }
-    }
-    for (const parent of tasks) {
-        for (const childId of parent.childIds || []) {
-            const child = taskById.get(childId);
-            if (child && child.blockId !== parent.blockId && !parentByChild.has(child.blockId)) {
-                parentByChild.set(child.blockId, parent.blockId);
-            }
-        }
-    }
-    return parentByChild;
-}
-
-function orderedStageTasks(
-    tasks: readonly TaskCacheEntry[],
-    parentByChild: ReadonlyMap<string, string>,
-): TaskCacheEntry[] {
-    const taskById = new Map(tasks.map((task) => [task.blockId, task]));
-    const childrenByParent = new Map<string, TaskCacheEntry[]>();
-    for (const [childId, parentId] of parentByChild) {
-        const child = taskById.get(childId);
-        if (!child) continue;
-        const children = childrenByParent.get(parentId) || [];
-        children.push(child);
-        childrenByParent.set(parentId, children);
-    }
+function orderedStageTasks(tasks: readonly TaskCacheEntry[], membership: ProjectMembershipGraph): TaskCacheEntry[] {
     const compare = (left: TaskCacheEntry, right: TaskCacheEntry) =>
         left.sort - right.sort || left.blockId.localeCompare(right.blockId);
-    for (const children of childrenByParent.values()) children.sort(compare);
 
-    const roots = [...tasks].filter((task) => !parentByChild.has(task.blockId)).sort(compare);
+    const roots = [...tasks].filter((task) => !membership.node(task.blockId)?.effectiveParent).sort(compare);
     const ordered: TaskCacheEntry[] = [];
     const visited = new Set<string>();
-    const visit = (task: TaskCacheEntry, path = new Set<string>()) => {
-        if (visited.has(task.blockId) || path.has(task.blockId)) return;
+    const visit = (task: TaskCacheEntry) => {
+        if (visited.has(task.blockId)) return;
         visited.add(task.blockId);
-        const nextPath = new Set(path).add(task.blockId);
         ordered.push(task);
-        for (const child of childrenByParent.get(task.blockId) || []) visit(child, nextPath);
+        for (const child of membership.node(task.blockId)?.children || []) visit(child);
     };
     for (const root of roots) visit(root);
     for (const task of [...tasks].sort(compare)) visit(task);
-    return ordered.filter(
-        (task) =>
-            !isProjectTask(task) &&
-            task.actionKind === "stage" &&
-            (parentChain(task, taskById, parentByChild)?.some((parent) => isProjectTask(parent)) ?? false),
-    );
-}
-
-function parentChain(
-    task: TaskCacheEntry,
-    taskById: ReadonlyMap<string, TaskCacheEntry>,
-    parentByChild: ReadonlyMap<string, string>,
-): TaskCacheEntry[] | null {
-    const chain: TaskCacheEntry[] = [];
-    const visited = new Set<string>();
-    let currentId = task.blockId;
-    while (true) {
-        if (visited.has(currentId)) return null;
-        visited.add(currentId);
-        const parentId = parentByChild.get(currentId);
-        if (!parentId) return chain;
-        const parent = taskById.get(parentId);
-        if (!parent) return null;
-        chain.push(parent);
-        if (isProjectTask(parent)) return chain;
-        currentId = parent.blockId;
-    }
-}
-
-function nearestStageAncestor(
-    task: TaskCacheEntry,
-    taskById: ReadonlyMap<string, TaskCacheEntry>,
-    parentByChild: ReadonlyMap<string, string>,
-): string {
-    const chain = parentChain(task, taskById, parentByChild);
-    if (!chain) return PROJECT_BOARD_UNASSIGNED_STAGE;
-    return chain.find((parent) => parent.actionKind === "stage")?.blockId || PROJECT_BOARD_UNASSIGNED_STAGE;
+    return ordered.filter((task) => membership.node(task.blockId)?.role === "stage");
 }
 
 function stageColumnKey(stageId: string): string {
@@ -142,25 +73,20 @@ function columnTasks(
     tasks: readonly TaskCacheEntry[],
     groupBy: ProjectBoardGroupBy,
     value: string | number,
-    taskById: ReadonlyMap<string, TaskCacheEntry>,
-    parentByChild: ReadonlyMap<string, string>,
+    membership: ProjectMembershipGraph,
 ): TaskCacheEntry[] {
     return tasks.filter((task) => {
         if (groupBy === "status") return task.status === value;
         if (groupBy === "priority") return (isBoardPriority(task.priority) ? task.priority : PRIORITY_NONE) === value;
         if (groupBy === "importance") return boardImportance(task.importance) === value;
-        const stageId = nearestStageAncestor(task, taskById, parentByChild);
+        const stageId = membership.node(task.blockId)?.nearestStage?.blockId || PROJECT_BOARD_UNASSIGNED_STAGE;
         return stageId === value;
     });
 }
 
-export function isProjectBoardTask(task: TaskCacheEntry, projectActions: readonly TaskCacheEntry[]): boolean {
+export function isProjectBoardTask(task: TaskCacheEntry, membership: ProjectMembershipGraph): boolean {
     if (isProjectTask(task) || task.actionKind !== "stage") return !isProjectTask(task);
-    return !projectActions.some(
-        (candidate) =>
-            !isProjectTask(candidate) &&
-            (candidate.parentId === task.blockId || task.childIds.includes(candidate.blockId)),
-    );
+    return !(membership.node(task.blockId)?.children || []).some((candidate) => !isProjectTask(candidate));
 }
 
 export function buildProjectBoardColumns(
@@ -168,8 +94,7 @@ export function buildProjectBoardColumns(
     groupBy: ProjectBoardGroupBy = "status",
     projectTasks: readonly TaskCacheEntry[] = tasks,
 ): ProjectBoardColumn[] {
-    const taskById = new Map(projectTasks.map((task) => [task.blockId, task]));
-    const parentByChild = buildEffectiveParentMap(projectTasks);
+    const membership = createProjectMembershipGraph(projectTasks);
 
     if (groupBy === "status") {
         return PROJECT_BOARD_STATUSES.map((status) => ({
@@ -178,7 +103,7 @@ export function buildProjectBoardColumns(
             label: status,
             groupBy,
             status,
-            tasks: columnTasks(tasks, groupBy, status, taskById, parentByChild),
+            tasks: columnTasks(tasks, groupBy, status, membership),
         }));
     }
     if (groupBy === "priority") {
@@ -187,7 +112,7 @@ export function buildProjectBoardColumns(
             value: priority,
             label: priority,
             groupBy,
-            tasks: columnTasks(tasks, groupBy, priority, taskById, parentByChild),
+            tasks: columnTasks(tasks, groupBy, priority, membership),
         }));
     }
     if (groupBy === "importance") {
@@ -196,17 +121,17 @@ export function buildProjectBoardColumns(
             value: importance,
             label: String(importance),
             groupBy,
-            tasks: columnTasks(tasks, groupBy, importance, taskById, parentByChild),
+            tasks: columnTasks(tasks, groupBy, importance, membership),
         }));
     }
 
-    const stageColumns = orderedStageTasks(projectTasks, parentByChild).map((stage) => ({
+    const stageColumns = orderedStageTasks(projectTasks, membership).map((stage) => ({
         key: stageColumnKey(stage.blockId),
         value: stage.blockId,
         label: stage.title,
         groupBy,
         stageId: stage.blockId,
-        tasks: columnTasks(tasks, groupBy, stage.blockId, taskById, parentByChild),
+        tasks: columnTasks(tasks, groupBy, stage.blockId, membership),
     }));
     return [
         ...stageColumns,
@@ -215,7 +140,7 @@ export function buildProjectBoardColumns(
             value: PROJECT_BOARD_UNASSIGNED_STAGE,
             label: PROJECT_BOARD_UNASSIGNED_STAGE,
             groupBy,
-            tasks: columnTasks(tasks, groupBy, PROJECT_BOARD_UNASSIGNED_STAGE, taskById, parentByChild),
+            tasks: columnTasks(tasks, groupBy, PROJECT_BOARD_UNASSIGNED_STAGE, membership),
         },
     ];
 }

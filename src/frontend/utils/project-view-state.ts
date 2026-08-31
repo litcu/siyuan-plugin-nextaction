@@ -9,6 +9,7 @@ import type {
 } from "../../shared/types";
 import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../../shared/constants";
 import { isProjectBoardTask, type ProjectBoardGroupBy } from "../../shared/project-board";
+import { createProjectMembershipGraph } from "../../shared/project-membership-graph";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
 import { sortProjectBoardTasks } from "./project-board-sort";
 import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
@@ -232,10 +233,12 @@ export function buildProjectViewModel(
     );
     // The board owns its ordering.  Do not reuse the project overview filter's
     // sort state: changing the global view sort must not reshuffle a board.
+    const projectActions = selectedSummary?.descendants || [];
+    const projectMembership = createProjectMembershipGraph(projectActions);
     const boardTasks = sortProjectBoardTasks(
-        (selectedSummary?.descendants || [])
+        projectActions
             .filter((task) => !taskFiltersActive || matchedTaskIds.has(task.blockId))
-            .filter((task, _index, tasks) => isProjectBoardTask(task, selectedSummary?.descendants || tasks)),
+            .filter((task) => isProjectBoardTask(task, projectMembership)),
         "order",
         false,
         customFields,

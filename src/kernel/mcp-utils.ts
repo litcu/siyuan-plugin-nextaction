@@ -32,6 +32,7 @@ import {
     type CustomFieldInput,
 } from "../shared/custom-fields";
 import { normalizeRepeatRule, parseRepeatRule, parseRepeatState, type RepeatRuleV2 } from "../shared/repeat";
+import { createProjectMembershipGraph, type ProjectMembershipGraph } from "../shared/project-membership-graph";
 import type { ReminderItem, TaskCacheEntry } from "../shared/types";
 import { BLOCK_ID_SOURCE, extractBlockId, isBlockId } from "../shared/block-id";
 import { isProjectTask } from "../shared/project-domain";
@@ -377,23 +378,12 @@ export function taskToMcpDto(entry: TaskCacheEntry, fields: CustomFieldDef[], is
     };
 }
 
-function belongsToProject(entry: TaskCacheEntry, projectId: string, map: Map<string, TaskCacheEntry>): boolean {
-    let current: TaskCacheEntry | undefined = entry;
-    const visited = new Set<string>();
-    while (current && !visited.has(current.blockId)) {
-        if (current.blockId === projectId) return true;
-        visited.add(current.blockId);
-        current = current.parentId ? map.get(current.parentId) : undefined;
-    }
-    return false;
-}
-
 function priorityRank(priority: string): number {
     return ({ critical: 5, high: 4, medium: 3, low: 2, veryLow: 1, none: 1 } as Record<string, number>)[priority] || 0;
 }
 
 export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTasksInput = {}) {
-    const map = new Map(entries.map((entry) => [entry.blockId, entry]));
+    const membership = createProjectMembershipGraph(entries);
     let filtered = entries.slice();
     if (input.kind && input.kind !== "all") {
         filtered = filtered.filter((entry) =>
@@ -413,7 +403,8 @@ export function searchTasksForMcp(entries: TaskCacheEntry[], input: McpSearchTas
     if (input.tags?.length)
         filtered = filtered.filter((entry) => splitPipe(entry.tags).some((value) => input.tags!.includes(value)));
     if (input.parentId !== undefined) filtered = filtered.filter((entry) => entry.parentId === input.parentId);
-    if (input.projectId) filtered = filtered.filter((entry) => belongsToProject(entry, input.projectId!, map));
+    if (input.projectId)
+        filtered = filtered.filter((entry) => membership.node(entry.blockId)?.projectId === input.projectId);
     if (input.startFrom) filtered = filtered.filter((entry) => !!entry.start && entry.start >= input.startFrom!);
     if (input.startTo) filtered = filtered.filter((entry) => !!entry.start && entry.start <= input.startTo!);
     if (input.dueFrom) filtered = filtered.filter((entry) => !!entry.due && entry.due >= input.dueFrom!);
@@ -461,7 +452,7 @@ export function buildTaskAttrsFromMcpPatch(
     patch: McpTaskPatch,
     fields: CustomFieldDef[],
     task: TaskCacheEntry,
-    taskMap = new Map<string, TaskCacheEntry>([[task.blockId, task]]),
+    membership: ProjectMembershipGraph = createProjectMembershipGraph([task]),
 ): Record<string, string> {
     validateMcpTaskPatch(patch);
     const attrs: Record<string, string> = {};
@@ -566,7 +557,7 @@ export function buildTaskAttrsFromMcpPatch(
         for (const [key, value] of Object.entries(patch.customFields)) {
             const field = fields.find((item) => item.key === key && item.status === "active");
             if (!field) throw new Error(`Unknown or archived custom field: ${key}`);
-            if (!isCustomFieldApplicable(field, task, taskMap))
+            if (!isCustomFieldApplicable(field, task, membership))
                 throw new Error(`Custom field is not applicable: ${key}`);
             attrs[ATTR_EXT_PREFIX + key] =
                 value == null ? "" : encodeCustomFieldValue(field, value as CustomFieldInput);

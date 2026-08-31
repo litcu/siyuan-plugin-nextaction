@@ -16,6 +16,7 @@ import type { FilterState } from "../utils/filter";
 import { DEFAULT_SETTINGS } from "../../shared/settings";
 import { DEFAULT_COMPLETED_PAGE_SIZE } from "../../shared/task-pagination";
 import type { TaskDetailTaskSource } from "../controllers/task-detail-controller";
+import { createProjectMembershipGraph } from "../../shared/project-membership-graph";
 import {
     buildTaskCollection,
     isTaskChangeSetV2,
@@ -453,6 +454,9 @@ export const taskById = derived(taskStore, ($state) => {
     for (const task of $state.allTasks) index.set(task.blockId, task);
     return index;
 });
+
+/** Shared immutable Project membership snapshot for frontend relationship queries. */
+export const projectMembershipGraph = derived(taskStore, ($state) => createProjectMembershipGraph($state.allTasks));
 
 /** Derived: tasks that have a due or reviewDate — used by reminder scanner to avoid full traversal */
 export const tasksWithDueOrReview = derived(taskStore, ($state) => {

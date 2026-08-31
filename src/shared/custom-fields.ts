@@ -1,5 +1,6 @@
 import type { TaskCacheEntry } from "./types";
 import { isProjectTask } from "./project-domain";
+import type { ProjectMembershipGraph } from "./project-membership-graph";
 
 export const CUSTOM_FIELD_TYPES = [
     "text",
@@ -231,21 +232,12 @@ export function formatCustomFieldValue(field: CustomFieldDef, raw: string | unde
 export function isCustomFieldApplicable(
     field: CustomFieldDef,
     task: TaskCacheEntry,
-    taskMap?: Map<string, TaskCacheEntry>,
+    membership?: ProjectMembershipGraph,
 ): boolean {
     if (field.status !== "active") return false;
     if (field.scope.mode === "all") return true;
     if (field.scope.mode === "task") return !isProjectTask(task);
     if (field.scope.mode === "project") return isProjectTask(task);
-    if (!taskMap) return false;
-    const projectIds = new Set(field.scope.projectIds);
-    let current: TaskCacheEntry | undefined = task;
-    const visited = new Set<string>();
-    for (let depth = 0; current && depth < 100; depth++) {
-        if (projectIds.has(current.blockId)) return true;
-        if (!current.parentId || visited.has(current.blockId)) break;
-        visited.add(current.blockId);
-        current = taskMap.get(current.parentId);
-    }
-    return false;
+    const projectId = membership?.node(task.blockId)?.projectId || "";
+    return Boolean(projectId && field.scope.projectIds.includes(projectId));
 }

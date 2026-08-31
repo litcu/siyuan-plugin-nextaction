@@ -4,7 +4,7 @@
     import { normalizePriority, PRIORITY_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
     import NaTooltip from "../ui/NaTooltip.svelte";
-    import { taskById, taskStore } from "../stores/task-store";
+    import { projectMembershipGraph, taskById, taskStore } from "../stores/task-store";
     import DueDateLabel from "./DueDateLabel.svelte";
     import { getDuePresentation } from "../utils/time-boundary";
     import { parseRepeatState } from "../../shared/repeat";
@@ -72,7 +72,10 @@
               ? i18n?.repeatEnded || "Repeat ended"
               : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`;
     $: applicableCardCustomFields = ($taskStore.settings.customFields || []).filter(
-        (def) => def.showOnCard && isCustomFieldApplicable(def, task, $taskById) && !!task.customFields?.[def.key],
+        (def) =>
+            def.showOnCard &&
+            isCustomFieldApplicable(def, task, $projectMembershipGraph) &&
+            !!task.customFields?.[def.key],
     );
     $: cardCustomFields = applicableCardCustomFields.slice(0, 3);
     $: hiddenCustomFieldCount = Math.max(0, applicableCardCustomFields.length - cardCustomFields.length);

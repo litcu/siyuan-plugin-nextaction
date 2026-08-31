@@ -5,6 +5,7 @@ import type { MyDayState, TaskCacheEntry } from "../shared/types";
 import { CREATE_TASK_DESTINATION_TYPES, CREATE_TASK_FORMATS, type CreateTaskInput } from "../shared/task-creation";
 import { type TaskService } from "./task-service";
 import { buildProjectSummaries } from "../shared/project-domain";
+import { createProjectMembershipGraph } from "../shared/project-membership-graph";
 import type { SiyuanApiPort } from "./siyuan-api";
 import { McpToolError, normalizeMcpToolError } from "./mcp-tool-error";
 import { TaskCreationService, type TaskCreationOutcome } from "./task-creation-service";
@@ -206,12 +207,7 @@ export class McpToolExecutor {
     private attrsFromPatch(patch: McpTaskPatch, task: TaskCacheEntry): Record<string, string> {
         try {
             const all = this.allTasks();
-            return buildTaskAttrsFromMcpPatch(
-                patch,
-                this.fields(),
-                task,
-                new Map(all.map((item) => [item.blockId, item])),
-            );
+            return buildTaskAttrsFromMcpPatch(patch, this.fields(), task, createProjectMembershipGraph(all));
         } catch (error) {
             throw new McpToolError("INVALID_INPUT", error instanceof Error ? error.message : String(error));
         }

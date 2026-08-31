@@ -40,13 +40,17 @@ export class TaskRelationshipService {
         nextTaskType = entry.taskType,
     ): Promise<void> {
         if (!parentId) return;
-        if (parentId === entry.blockId) {
+        const assessment = this.cacheManager.getProjectMembershipGraph().assessParentChange({
+            task: { ...entry, taskType: nextTaskType },
+            parentId,
+        });
+        if (assessment.kind === "rejected") {
+            if (assessment.reason === "project-cannot-have-parent") {
+                throw codedError("Project cannot be child of another task", RPC_ERROR_INVALID_PARAMS);
+            }
             throw codedError("Circular reference", RPC_ERROR_CIRCULAR_REF);
         }
-
-        if (isProjectTask({ identificationSource: entry.identificationSource, taskType: nextTaskType })) {
-            throw codedError("Project cannot be child of another task", RPC_ERROR_INVALID_PARAMS);
-        }
+        if (assessment.kind === "allowed") return;
 
         const visited = new Set<string>([entry.blockId]);
         let currentId = parentId;
@@ -168,19 +172,20 @@ export class TaskRelationshipService {
         // Case 3: self-reference
         if (pid === entry.blockId) return true;
 
+        // Project is always a relationship root.
+        if (isProjectTask(entry)) return true;
+
         // Case 2: parent task doesn't exist in cache
         if (!cacheIds.has(pid)) return true;
 
         // Case 4: cycle detection
-        const visited = new Set<string>([entry.blockId]);
-        let current = pid;
-        while (current) {
-            if (visited.has(current)) return true; // cycle found
-            visited.add(current);
-            const parent = this.cacheManager.get(current);
-            if (!parent || !parent.parentId) break;
-            current = parent.parentId;
-        }
+        if (
+            this.cacheManager
+                .getProjectMembershipGraph()
+                .node(entry.blockId)
+                ?.diagnostics.some((diagnostic) => diagnostic.code === "effective-parent-cycle")
+        )
+            return true;
 
         // Case 5: sibling paragraph — same list item parent
         // Query both blocks' parent_id from the blocks table; if they share

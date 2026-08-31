@@ -6,12 +6,9 @@ import type {
     TaskBlockedReason,
     TaskCacheEntry,
 } from "./types";
+import { createProjectMembershipGraph, isProjectTask } from "./project-membership-graph";
 
-const PROJECT_TYPE = "2";
-
-export function isProjectTask(task: Pick<TaskCacheEntry, "identificationSource" | "taskType">): boolean {
-    return task.identificationSource === "document" && task.taskType === PROJECT_TYPE;
-}
+export { isProjectTask } from "./project-membership-graph";
 
 export type ProjectDateBucket = "overdue" | "today" | "thisWeek" | "later" | "unscheduled";
 
@@ -27,22 +24,6 @@ function lookupTask(tasks: ProjectDomainOptions["taskLookup"], blockId: string):
         return (tasks as ReadonlyMap<string, TaskCacheEntry>).get(blockId);
     }
     return (tasks as Readonly<Record<string, TaskCacheEntry>>)[blockId];
-}
-
-export function hasProjectAncestor(
-    parentId: string,
-    taskLookup: NonNullable<ProjectDomainOptions["taskLookup"]>,
-): boolean {
-    const visited = new Set<string>();
-    let currentId = parentId;
-    while (currentId && !visited.has(currentId)) {
-        visited.add(currentId);
-        const current = lookupTask(taskLookup, currentId);
-        if (!current) return false;
-        if (isProjectTask(current)) return true;
-        currentId = current.parentId;
-    }
-    return false;
 }
 
 export function normalizeActionKindForProjectScope(
@@ -170,57 +151,13 @@ export function getProjectDateBucket(task: TaskCacheEntry, today = localDateStri
     return "later";
 }
 
-function buildChildrenMap(tasks: TaskCacheEntry[]): Map<string, TaskCacheEntry[]> {
-    const childrenByParent = new Map<string, TaskCacheEntry[]>();
-    const taskById = new Map(tasks.map((task) => [task.blockId, task]));
-    const assignedChildren = new Set<string>();
-    const add = (parentId: string, child: TaskCacheEntry) => {
-        if (parentId === child.blockId) return;
-        const children = childrenByParent.get(parentId) || [];
-        if (!children.some((entry) => entry.blockId === child.blockId)) children.push(child);
-        childrenByParent.set(parentId, children);
-        assignedChildren.add(child.blockId);
-    };
-
-    for (const task of tasks) {
-        if (task.parentId && taskById.has(task.parentId)) add(task.parentId, task);
-    }
-    // childIds is only a fallback while a parent relationship update is being broadcast.
-    for (const parent of tasks) {
-        for (const childId of parent.childIds || []) {
-            const child = taskById.get(childId);
-            if (child && !assignedChildren.has(child.blockId)) add(parent.blockId, child);
-        }
-    }
-    return childrenByParent;
-}
-
-function collectProjectActions(
-    project: TaskCacheEntry,
-    childrenByParent: Map<string, TaskCacheEntry[]>,
-): TaskCacheEntry[] {
-    const actions: TaskCacheEntry[] = [];
-    const visited = new Set<string>([project.blockId]);
-    const visit = (parentId: string) => {
-        for (const child of childrenByParent.get(parentId) || []) {
-            if (visited.has(child.blockId)) continue;
-            visited.add(child.blockId);
-            if (isProjectTask(child)) continue;
-            actions.push(child);
-            visit(child.blockId);
-        }
-    };
-    visit(project.blockId);
-    return actions;
-}
-
 function buildSubtreeProgress(
     actions: TaskCacheEntry[],
-    childrenByParent: Map<string, TaskCacheEntry[]>,
+    membership: ReturnType<typeof createProjectMembershipGraph>,
 ): { leafActions: TaskCacheEntry[]; subtreeProgress: ProjectSummary["subtreeProgress"] } {
     const actionIds = new Set(actions.map((task) => task.blockId));
     const leafActions = actions.filter(
-        (task) => !(childrenByParent.get(task.blockId) || []).some((child) => actionIds.has(child.blockId)),
+        (task) => !(membership.node(task.blockId)?.children || []).some((child) => actionIds.has(child.blockId)),
     );
     const leafIds = new Set(leafActions.map((task) => task.blockId));
     const subtreeProgress: ProjectSummary["subtreeProgress"] = {};
@@ -230,7 +167,7 @@ function buildSubtreeProgress(
         if (leafIds.has(taskId)) return new Set([taskId]);
         const nextVisiting = new Set(visiting).add(taskId);
         const result = new Set<string>();
-        for (const child of childrenByParent.get(taskId) || []) {
+        for (const child of membership.node(taskId)?.children || []) {
             if (!actionIds.has(child.blockId)) continue;
             for (const leafId of collectLeaves(child.blockId, nextVisiting)) result.add(leafId);
         }
@@ -254,13 +191,13 @@ function buildSubtreeProgress(
 
 export function buildProjectSummaries(tasks: TaskCacheEntry[], options: ProjectDomainOptions = {}): ProjectSummary[] {
     const today = options.today || localDateString();
-    const childrenByParent = buildChildrenMap(tasks);
+    const membership = createProjectMembershipGraph(tasks);
     const taskById = new Map(tasks.map((task) => [task.blockId, task]));
     const projects = tasks.filter(isProjectTask);
 
     return projects.map((project) => {
-        const descendants = collectProjectActions(project, childrenByParent);
-        const { leafActions, subtreeProgress } = buildSubtreeProgress(descendants, childrenByParent);
+        const descendants = [...(membership.node(project.blockId)?.actions || [])];
+        const { leafActions, subtreeProgress } = buildSubtreeProgress(descendants, membership);
         const actionable = descendants.filter((task) => task.status !== "done");
         const doneLeaves = leafActions.filter((task) => task.status === "done");
         const overdueTasks = actionable.filter((task) => getProjectDateBucket(task, today) === "overdue");
