@@ -88,6 +88,12 @@ test("看板通过父组件回调进入统一任务写入链路", () => {
     assert.match(board, /onMoveTask\(\{/);
     assert.match(board, /groupBy,/);
     assert.match(board, /afterParentId/);
+    assert.match(board, /function handleGroupByChange\(event: Event\)[\s\S]*currentTarget/);
+    assert.match(board, /function handleSortChange\(event: Event\)[\s\S]*currentTarget/);
+    // Regression: Svelte 5 could run bind:value after the change callback, causing RPC payloads to contain old values.
+    assert.doesNotMatch(board, /id="na-project-board-group-by"[\s\S]*bind:value/);
+    assert.doesNotMatch(board, /id="na-project-board-sort"[\s\S]*bind:value/);
+    assert.match(view, /selectedSummary\?\.project\.blockId \|\| resolvedActiveProjectId/);
     assert.match(app, /handleProjectTaskUpdate/);
     assert.match(app, /handleProjectTaskReorder/);
     assert.match(app, /onTaskUpdate=\{handleProjectTaskUpdate\}/);

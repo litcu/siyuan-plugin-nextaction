@@ -65,12 +65,14 @@
         onPreferenceChange?.({ groupBy, sortBy, sortAsc, narrowColumnIndex });
     }
 
-    function handleGroupByChange() {
+    function handleGroupByChange(event: Event) {
+        groupBy = (event.currentTarget as HTMLSelectElement).value as ProjectBoardGroupBy;
         narrowColumnIndex = 0;
         persistPreference();
     }
 
-    function handleSortChange() {
+    function handleSortChange(event: Event) {
+        sortBy = (event.currentTarget as HTMLSelectElement).value as ProjectBoardSortBy;
         persistPreference();
     }
 
@@ -153,8 +155,8 @@
         <select
             id="na-project-board-group-by"
             class="na-select na-select--sm"
-            bind:value={groupBy}
             on:change={handleGroupByChange}
+            value={groupBy}
         >
             <option value="status">{groupLabel("status")}</option>
             <option value="stage">{groupLabel("stage")}</option>
@@ -162,12 +164,7 @@
             <option value="importance">{groupLabel("importance")}</option>
         </select>
         <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
-        <select
-            id="na-project-board-sort"
-            class="na-select na-select--sm"
-            bind:value={sortBy}
-            on:change={handleSortChange}
-        >
+        <select id="na-project-board-sort" class="na-select na-select--sm" on:change={handleSortChange} value={sortBy}>
             <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
             <option value="due">{i18n?.sortByDue || "Due date"}</option>
             <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
