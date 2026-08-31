@@ -1,34 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 test("移动成功反馈持续显示并支持键盘撤销、恢复选择和主动关闭", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-action-move-undo-"));
-    try {
-        const hostPath = resolve("src/frontend/components/NotificationHost.svelte").replace(/\\/g, "/");
-        const storePath = resolve("src/frontend/stores/action-move-undo-store.ts").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export function openTab() {}\nexport function showMessage() {}\nexport class Menu { addItem() {} open() {} }\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "action-move-undo",
+        virtualTimeBudget: 1_800,
+        prepareFixture(fixtureRoot) {
+            const hostPath = resolve("src/frontend/components/NotificationHost.svelte").replace(/\\/g, "/");
+            const storePath = resolve("src/frontend/stores/action-move-undo-store.ts").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export function openTab() {}\nexport function showMessage() {}\nexport class Menu { addItem() {} open() {} }\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import NotificationHost from ${JSON.stringify(hostPath)};
 import { showActionMoveUndo } from ${JSON.stringify(storePath)};
 let undoCalls = 0;
@@ -64,10 +53,10 @@ function start() {
 <button id="start" on:click={start}>Start</button>
 <div id="state" data-calls={undoCalls} data-selected={selectedTaskId}></div>
 <NotificationHost {bridge} {i18n} />`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre"); result.id = "browser-result";
@@ -94,68 +83,16 @@ setTimeout(() => {
         }), 30);
     }, 60);
 }, 1100);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/transition$/, replacement: join(svelteRoot, "src/transition/index.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1800",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
-        assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), {
-            persistentSummary: true,
-            shortcutVisible: true,
-            reminderDismissAllVisible: false,
-            successVisible: true,
-            undoCalls: "1",
-            selectedTaskId: "20260825130000-actionx",
-            closed: true,
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        persistentSummary: true,
+        shortcutVisible: true,
+        reminderDismissAllVisible: false,
+        successVisible: true,
+        undoCalls: "1",
+        selectedTaskId: "20260825130000-actionx",
+        closed: true,
+    });
 });

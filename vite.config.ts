@@ -2,6 +2,7 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import { frontendInlineDynamicImports, frontendViteAliases } from "./vite.shared.ts";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -10,10 +11,7 @@ export default defineConfig({
     // resolver does not expand those entries reliably on Windows, so keep the
     // source-level locale imports while pointing them at the exact ESM entries.
     resolve: {
-        alias: {
-            "chrono-node/en": resolve(__dirname, "node_modules/chrono-node/dist/esm/locales/en/index.js"),
-            "chrono-node/zh/hans": resolve(__dirname, "node_modules/chrono-node/dist/esm/locales/zh/hans/index.js"),
-        },
+        alias: frontendViteAliases,
     },
     css: {
         preprocessorOptions: {
@@ -78,7 +76,7 @@ export default defineConfig({
                     return assetInfo.name as string;
                 },
                 manualChunks: undefined,
-                inlineDynamicImports: true,
+                inlineDynamicImports: frontendInlineDynamicImports,
             },
         },
     },

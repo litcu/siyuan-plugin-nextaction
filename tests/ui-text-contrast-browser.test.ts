@@ -1,34 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-const chronoRoot = resolve(require.resolve("chrono-node"), "../../..");
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 type ContrastResult = Record<string, Record<string, number>>;
 
 // Regression: 插件界面曾直接使用宿主的半透明、强调色和反色文字，导致多处小字号文字低于 4.5:1。
 test("插件信息文字在默认与低对比明暗主题下保持可读", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-ui-text-contrast-"));
-    try {
-        const source = (path: string) => JSON.stringify(resolve(path).replace(/\\/g, "/"));
+    const result = await runSvelteBrowserTest<ContrastResult>({
+        fixtureName: "ui-text-contrast",
+        prepareFixture(fixtureRoot) {
+            const source = (path: string) => JSON.stringify(resolve(path).replace(/\\/g, "/"));
 
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import NaButton from ${source("src/frontend/ui/NaButton.svelte")};
 import NaBadge from ${source("src/frontend/ui/NaBadge.svelte")};
 import NaDatePicker from ${source("src/frontend/ui/NaDatePicker.svelte")};
@@ -163,10 +150,10 @@ const segments = [{ value: "all", label: "All" }, { value: "open", label: "Open"
         --b3-card-success-color: #b7dfb9;
     }
 </style>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import ${source("src/frontend/ui/tokens.scss")};
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import ${source("src/frontend/ui/tokens.scss")};
 import ${source("src/frontend/styles/components.scss")};
 import ${source("src/frontend/styles/host-integration.scss")};
 import Harness from "./Harness.svelte";
@@ -257,74 +244,13 @@ const output = document.createElement("pre");
 output.id = "browser-result";
 output.textContent = JSON.stringify(result);
 document.body.appendChild(output);`,
-        );
+            );
+        },
+    });
 
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    {
-                        find: /^chrono-node\/en$/,
-                        replacement: join(chronoRoot, "dist/esm/locales/en/index.js"),
-                    },
-                    {
-                        find: /^chrono-node\/zh\/hans$/,
-                        replacement: join(chronoRoot, "dist/esm/locales/zh/hans/index.js"),
-                    },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr);
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `${rendered.stdout}\n${rendered.stderr}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"')) as ContrastResult;
-
-        for (const [theme, ratios] of Object.entries(result)) {
-            for (const [element, ratio] of Object.entries(ratios)) {
-                assert.ok(ratio >= 4.5, `${theme}.${element} 对比度 ${ratio.toFixed(2)}:1 低于 4.5:1`);
-            }
+    for (const [theme, ratios] of Object.entries(result)) {
+        for (const [element, ratio] of Object.entries(ratios)) {
+            assert.ok(ratio >= 4.5, `${theme}.${element} 对比度 ${ratio.toFixed(2)}:1 低于 4.5:1`);
         }
-    } finally {
-        removeBrowserFixture(fixtureRoot);
     }
 });

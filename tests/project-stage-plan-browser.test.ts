@@ -1,33 +1,46 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+type StageCreateBrowserResult = {
+    kind: string;
+    submitted: { kind: string; properties: { actionKind: string; parentId: string } };
+    created: string;
+    destroyed: string;
+};
+
+type StageEditBrowserResult = {
+    calls: string[];
+    failed: boolean;
+    selectedAfterFailure: string;
+    selectedTaskId: string;
+    errorAfterRetry: boolean;
+    focusedRename: boolean;
+    focusedAfterSave: string;
+    focusedAfterMove: boolean;
+    focusedAfterFailure: boolean;
+    focusedAfterRetry: boolean;
+    moveDownLabel: string;
+    physicalMoveLabel: string;
+    errorBeforeProjectSwitch: boolean;
+    errorAfterProjectSwitch: boolean;
+    retryAfterProjectSwitch: boolean;
+};
 
 test("从当前 Project 创建 Stage 会提交普通 Action 的 Stage 标记和逻辑父级", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-stage-create-"));
-    try {
-        const componentPath = resolve("src/frontend/components/CreateTaskDialog.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Menu {}\nexport function showMessage() {}\nexport function openTab() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest<StageCreateBrowserResult>({
+        fixtureName: "project-stage-create",
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/CreateTaskDialog.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport function showMessage() {}\nexport function openTab() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import CreateTaskDialog from ${JSON.stringify(componentPath)};
 
 const projectId = "20260825170000-project";
@@ -67,10 +80,10 @@ const i18n = new Proxy({
 <div id="harness" data-submitted={JSON.stringify(submitted)} data-created={created?.blockId || ""} data-destroyed={destroyed}>
     <CreateTaskDialog {bridge} {i18n} {dialog} {parentTask} initialActionKind="stage" onCreated={(task) => (created = task)} />
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
@@ -90,94 +103,30 @@ setTimeout(() => {
             created: harness?.dataset.created, destroyed: harness?.dataset.destroyed });
     }, 80);
 }, 50);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: "chrono-node/en",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/en/index.js"),
-                    },
-                    {
-                        find: "chrono-node/zh/hans",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/zh/hans/index.js"),
-                    },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const browser = findBrowserExecutable();
-        const rendered = await runBrowser(
-            browser,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.equal(result.kind, "stage");
-        assert.equal(result.submitted.kind, "task");
-        assert.equal(result.submitted.properties.actionKind, "stage");
-        assert.equal(result.submitted.properties.parentId, "20260825170000-project");
-        assert.equal(result.created, "20260825170001-stagexx");
-        assert.equal(result.destroyed, "true");
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.equal(result.kind, "stage");
+    assert.equal(result.submitted.kind, "task");
+    assert.equal(result.submitted.properties.actionKind, "stage");
+    assert.equal(result.submitted.properties.parentId, "20260825170000-project");
+    assert.equal(result.created, "20260825170001-stagexx");
+    assert.equal(result.destroyed, "true");
 });
 
 test("项目计划提供重命名、转换、父级和排序操作，失败后保留选择并可重试", async () => {
     // Regression: plan writes used to lose keyboard focus, and stale errors survived switching Projects.
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-stage-edit-"));
-    try {
-        const componentPath = resolve("src/frontend/components/project/ProjectStagePlan.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest<StageEditBrowserResult>({
+        fixtureName: "project-stage-edit",
+        virtualTimeBudget: 1_500,
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/project/ProjectStagePlan.svelte").replace(
+                /\\/g,
+                "/",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ProjectStagePlan from ${JSON.stringify(componentPath)};
 
 const base = {
@@ -264,10 +213,10 @@ function moveAction(task, targetProject) {
         onRenameTask={renameTask} onTaskUpdate={updateTask} onTaskReorder={reorderTask} onMoveAction={moveAction}
     />
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const row = () => document.querySelector('[data-task-id="stage"]');
 const button = (label) => [...row().querySelectorAll("button")].find((item) => item.textContent.trim() === label);
@@ -342,83 +291,29 @@ setTimeout(() => {
         }, 50);
     }, 50);
 }, 50);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1500",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.deepEqual(result.calls, [
-            "rename:stage:Delivery",
-            "kind:stage:action",
-            "reorder:stage:project:sibling",
-            "reorder:stage:sibling:first",
-            "kind:stage:stage",
-            "physical:stage:project",
-        ]);
-        assert.equal(result.failed, true);
-        assert.equal(result.selectedAfterFailure, "true");
-        assert.equal(result.selectedTaskId, "stage");
-        assert.equal(result.errorAfterRetry, false);
-        assert.equal(result.focusedRename, true);
-        assert.match(result.focusedAfterSave, /Delivery/);
-        assert.equal(result.focusedAfterMove, true);
-        assert.equal(result.focusedAfterFailure, true);
-        assert.equal(result.focusedAfterRetry, true);
-        assert.equal(result.moveDownLabel, "Move down: Delivery");
-        assert.equal(result.physicalMoveLabel, "Move to project document: Delivery");
-        assert.equal(result.errorBeforeProjectSwitch, true);
-        assert.equal(result.errorAfterProjectSwitch, false);
-        assert.equal(result.retryAfterProjectSwitch, false);
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result.calls, [
+        "rename:stage:Delivery",
+        "kind:stage:action",
+        "reorder:stage:project:sibling",
+        "reorder:stage:sibling:first",
+        "kind:stage:stage",
+        "physical:stage:project",
+    ]);
+    assert.equal(result.failed, true);
+    assert.equal(result.selectedAfterFailure, "true");
+    assert.equal(result.selectedTaskId, "stage");
+    assert.equal(result.errorAfterRetry, false);
+    assert.equal(result.focusedRename, true);
+    assert.match(result.focusedAfterSave, /Delivery/);
+    assert.equal(result.focusedAfterMove, true);
+    assert.equal(result.focusedAfterFailure, true);
+    assert.equal(result.focusedAfterRetry, true);
+    assert.equal(result.moveDownLabel, "Move down: Delivery");
+    assert.equal(result.physicalMoveLabel, "Move to project document: Delivery");
+    assert.equal(result.errorBeforeProjectSwitch, true);
+    assert.equal(result.errorAfterProjectSwitch, false);
+    assert.equal(result.retryAfterProjectSwitch, false);
 });

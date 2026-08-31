@@ -1,36 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 type ContrastResult = Record<string, Record<string, number>>;
 
 // Regression: 部分主题的半透明前景色曾使任务属性面板文字低于 4.5:1。
 test("任务属性面板文字在明暗低对比主题下保持可读", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-task-property-contrast-"));
-    try {
-        const headerPath = resolve("src/frontend/ui/NaDialogHeader.svelte").replace(/\\/g, "/");
-        const rowPath = resolve("src/frontend/ui/NaPropertyRow.svelte").replace(/\\/g, "/");
-        const sectionPath = resolve("src/frontend/ui/NaPropertySection.svelte").replace(/\\/g, "/");
-        const tokensPath = resolve("src/frontend/ui/tokens.scss").replace(/\\/g, "/");
+    const result = await runSvelteBrowserTest<ContrastResult>({
+        fixtureName: "task-property-contrast",
+        prepareFixture(fixtureRoot) {
+            const headerPath = resolve("src/frontend/ui/NaDialogHeader.svelte").replace(/\\/g, "/");
+            const rowPath = resolve("src/frontend/ui/NaPropertyRow.svelte").replace(/\\/g, "/");
+            const sectionPath = resolve("src/frontend/ui/NaPropertySection.svelte").replace(/\\/g, "/");
+            const tokensPath = resolve("src/frontend/ui/tokens.scss").replace(/\\/g, "/");
 
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import NaDialogHeader from ${JSON.stringify(headerPath)};
 import NaPropertyRow from ${JSON.stringify(rowPath)};
 import NaPropertySection from ${JSON.stringify(sectionPath)};
@@ -74,10 +62,10 @@ import NaPropertySection from ${JSON.stringify(sectionPath)};
         --b3-theme-primary-lightest: rgb(126 176 255 / 20%);
     }
 </style>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import ${JSON.stringify(tokensPath)};
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import ${JSON.stringify(tokensPath)};
 import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 
@@ -147,66 +135,13 @@ const output = document.createElement("pre");
 output.id = "browser-result";
 output.textContent = JSON.stringify(result);
 document.body.appendChild(output);`,
-        );
+            );
+        },
+    });
 
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr);
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `${rendered.stdout}\n${rendered.stderr}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"')) as ContrastResult;
-
-        for (const [theme, ratios] of Object.entries(result)) {
-            for (const [element, ratio] of Object.entries(ratios)) {
-                assert.ok(ratio >= 4.5, `${theme}.${element} 对比度 ${ratio.toFixed(2)}:1 低于 4.5:1`);
-            }
+    for (const [theme, ratios] of Object.entries(result)) {
+        for (const [element, ratio] of Object.entries(ratios)) {
+            assert.ok(ratio >= 4.5, `${theme}.${element} 对比度 ${ratio.toFixed(2)}:1 低于 4.5:1`);
         }
-    } finally {
-        removeBrowserFixture(fixtureRoot);
     }
 });

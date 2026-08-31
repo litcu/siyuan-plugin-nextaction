@@ -1,33 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 test("Action 提取确认保留真实来源、默认当前 Project，并阻止重复提交", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-action-extraction-"));
-    try {
-        const componentPath = resolve("src/frontend/components/ExtractActionDialog.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "action-extraction",
+        aliases: (fixtureRoot) => [{ find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") }],
+        virtualTimeBudget: 1_000,
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/ExtractActionDialog.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ExtractActionDialog from ${JSON.stringify(componentPath)};
 
 const sourceBlockId = "20260825180000-source1";
@@ -70,10 +60,10 @@ const bridge = {
         defaultProjectId={projectId} onCreated={(task) => (created = task.blockId)} onClose={() => (closed += 1)}
     />
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
@@ -106,89 +96,23 @@ setTimeout(() => {
         });
     }, 120);
 }, 50);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: "chrono-node/en",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/en/index.js"),
-                    },
-                    {
-                        find: "chrono-node/zh/hans",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/zh/hans/index.js"),
-                    },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        calls: [
+            {
+                sourceBlockId: "20260825180000-source1",
+                title: "Prepare launch checklist",
+                status: "inbox",
+                actionKind: "stage",
+                projectId: "20260825180002-project",
             },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-component-update",
-                "--disable-sync",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "Action 提取浏览器测试失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(
-            match,
-            `浏览器未输出 Action 提取结果（status=${rendered.status}, signal=${rendered.signal}）：${rendered.stderr.slice(0, 1_000)}\n${rendered.stdout.slice(0, 2_000)}`,
-        );
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.deepEqual(result, {
-            calls: [
-                {
-                    sourceBlockId: "20260825180000-source1",
-                    title: "Prepare launch checklist",
-                    status: "inbox",
-                    actionKind: "stage",
-                    projectId: "20260825180002-project",
-                },
-            ],
-            created: "20260825180005-created",
-            sourceNotice: true,
-            inPlaceHint: true,
-            misleadingNoProject: false,
-            projectLocked: true,
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+        ],
+        created: "20260825180005-created",
+        sourceNotice: true,
+        inPlaceHint: true,
+        misleadingNoProject: false,
+        projectLocked: true,
+    });
 });

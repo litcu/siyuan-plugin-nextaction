@@ -4,6 +4,7 @@ import { findTemplateLiterals } from "./text-scanner.js";
 
 const root = process.cwd();
 const sourceRoot = join(root, "src");
+const testsRoot = join(root, "tests");
 
 function sourceFiles(directory) {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -16,6 +17,26 @@ function sourceFiles(directory) {
 const files = sourceFiles(sourceRoot);
 const failures = [];
 const textByFile = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
+
+const duplicatedSvelteBrowserSetup = readdirSync(testsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.ts"))
+    .map((entry) => join(testsRoot, entry.name))
+    .filter((path) => {
+        const source = readFileSync(path, "utf8");
+        const isBrowserHelperTest = path.endsWith(`${join("tests", "browser-helper.test.ts")}`);
+        return (
+            source.includes('from "vite"') ||
+            source.includes('from "@sveltejs/vite-plugin-svelte"') ||
+            (!isBrowserHelperTest && source.includes('from "./helpers/browser.ts"')) ||
+            source.includes("svelte/internal")
+        );
+    })
+    .map((path) => relative(root, path).replace(/\\/g, "/"));
+if (duplicatedSvelteBrowserSetup.length !== 0) {
+    failures.push(
+        `Svelte browser tests must use tests/helpers/svelte-browser.ts, found duplicate setup: ${duplicatedSvelteBrowserSetup.join(", ")}`,
+    );
+}
 
 function projectPath(path) {
     return relative(root, path).replace(/\\/g, "/");
