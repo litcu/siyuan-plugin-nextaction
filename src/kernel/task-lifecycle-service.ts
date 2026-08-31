@@ -395,15 +395,8 @@ export class TaskLifecycleService {
                     blockId,
                     attrs: missingDefaults,
                     existing: this.cacheManager.get(blockId),
-                    titleOverride: title,
-                    identity: {
-                        identificationSource: isNative ? "native" : "document",
-                        attrHostId: blockId,
-                        contentBlockId: isNative ? contentBlockId || undefined : undefined,
-                        status: defaultStatus,
-                        parentId: identity.structuralParentId,
-                        taskType: isNative ? "1" : taskType,
-                    },
+                    freshIdentity: identity,
+                    observations: [{ kind: "renamed", title }],
                 });
                 const projectReopened = await this.reopenCompletedDirectProject(currentEntry, changes);
                 return projectReopened ? { ...currentEntry, _warning: TASK_WARNING_PROJECT_REOPENED } : currentEntry;
@@ -513,12 +506,7 @@ export class TaskLifecycleService {
                     blockId: entry.attrHostId,
                     attrs: { [ATTR_TASK]: "" },
                     existing: entry,
-                    identity: {
-                        identificationSource: "document",
-                        attrHostId: entry.attrHostId,
-                        parentId: "",
-                        taskType: "1",
-                    },
+                    observations: [{ kind: "task-type-confirmed", taskType: "1" }],
                 });
                 try {
                     await this.myDayManager.removeTask(blockId);
@@ -768,16 +756,10 @@ export class TaskLifecycleService {
                 attrs[ATTR_TASK] !== undefined &&
                 attrs[ATTR_TASK] !== "2";
             const authoritativeOldAttrs = await this.repository.getBlockAttrs(blockId);
-            let structuralParentFallback = "";
             if (previousIdentificationSource === "native") {
                 const defaults = this.buildDefaultAttrs(previousTitle, previousStatus);
                 const requestedAttrs = { ...attrs };
                 Object.assign(attrs, this.fillMissingDefaults(authoritativeOldAttrs, defaults), requestedAttrs);
-                if (!authoritativeOldAttrs[ATTR_PARENT] && attrs[ATTR_PARENT] === undefined) {
-                    structuralParentFallback = previousParentId;
-                } else if (attrs[ATTR_PARENT] === "") {
-                    structuralParentFallback = resolvedExisting?.identity.structuralParentId || "";
-                }
                 if (!authoritativeOldAttrs[ATTR_SORT] && previousSort >= 0 && attrs[ATTR_SORT] === undefined) {
                     attrs[ATTR_SORT] = String(previousSort);
                 }
@@ -807,14 +789,15 @@ export class TaskLifecycleService {
                 blockId,
                 attrs,
                 existing: previousEntry,
-                identity:
-                    previousIdentificationSource === "native"
-                        ? {
-                              identificationSource: "native",
-                              attrHostId: previousEntry?.attrHostId ?? uncachedIdentity?.attrHostId ?? blockId,
-                              contentBlockId: previousEntry?.contentBlockId ?? uncachedIdentity?.contentBlockId,
-                              parentId: structuralParentFallback,
-                          }
+                freshIdentity: resolvedExisting?.identity ?? uncachedIdentity,
+                observations:
+                    attrs[ATTR_TASK] !== undefined
+                        ? [
+                              {
+                                  kind: "task-type-confirmed",
+                                  taskType: attrs[ATTR_TASK] === "2" ? "2" : "1",
+                              },
+                          ]
                         : undefined,
             });
 

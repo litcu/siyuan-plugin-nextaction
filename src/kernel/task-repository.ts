@@ -1,35 +1,16 @@
 import {
-    ATTR_COMPLETED,
-    ATTR_CONTEXT,
     ATTR_CREATED,
-    ATTR_DEPENDS,
-    ATTR_DEP_MODE,
-    ATTR_DUE,
     ATTR_EFFORT,
-    ATTR_EXT_PREFIX,
     ATTR_IMPORTANCE,
-    ATTR_NOTE,
-    ATTR_PARENT,
     ATTR_PRIORITY,
-    ATTR_REMINDER,
-    ATTR_REPEAT,
-    ATTR_REPEAT_STATE,
-    ATTR_REVIEW_DATE,
-    ATTR_REVIEW_INTERVAL,
-    ATTR_SEQUENTIAL,
     ATTR_SORT,
-    ATTR_START,
     ATTR_STATUS,
-    ATTR_TAGS,
     ATTR_TASK,
-    ATTR_OUTCOME,
-    ATTR_DOD,
-    ATTR_KIND,
-    ACTION_KIND_STAGE,
     RPC_ERROR_TIMEOUT,
     WRITE_LOCK_TIMEOUT_MS,
 } from "../shared/constants";
 import type { PluginSettings } from "../shared/settings";
+import type { TaskHostIdentity } from "../shared/task-identity";
 import type { TaskCacheEntry } from "../shared/types";
 import { sql } from "../shared/sql";
 import type { CacheManager } from "./cache-manager";
@@ -37,17 +18,15 @@ import type { Mutex } from "./mutex";
 import type { SiyuanApiPort } from "./siyuan-api";
 import type { TaskChangePublisher } from "./sync-engine";
 import { TaskDerivedStateService } from "./task-derived-state-service";
-import { attrToNumber, numberToAttr } from "./utils";
-
-type TaskEntryIdentity = Pick<TaskCacheEntry, "identificationSource" | "attrHostId"> &
-    Partial<Pick<TaskCacheEntry, "contentBlockId" | "status" | "parentId" | "taskType">>;
+import { materializeTask, type TaskMaterializationObservation } from "./task-materializer";
+import { numberToAttr } from "./utils";
 
 export interface TaskAttrUpsert {
     blockId: string;
     attrs: Record<string, string>;
     existing?: TaskCacheEntry;
-    titleOverride?: string;
-    identity?: TaskEntryIdentity;
+    freshIdentity?: TaskHostIdentity;
+    observations?: readonly TaskMaterializationObservation[];
 }
 
 export interface ConfirmedTaskBatchResult {
@@ -64,66 +43,6 @@ export interface ConfirmedTaskChanges {
     deleteEntry(blockId: string): void;
 }
 
-function extractCustomFields(attrs: Record<string, string>): Record<string, string> {
-    const result = Object.create(null) as Record<string, string>;
-    for (const key of Object.keys(attrs)) {
-        if (!key.startsWith(ATTR_EXT_PREFIX)) continue;
-        const fieldKey = key.slice(ATTR_EXT_PREFIX.length);
-        if (fieldKey && attrs[key]) result[fieldKey] = attrs[key];
-    }
-    return result;
-}
-
-function buildTaskEntryFromAttrs(
-    blockId: string,
-    attrs: Record<string, string>,
-    defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">,
-    existing?: TaskCacheEntry,
-    titleOverride?: string,
-    identity?: TaskEntryIdentity,
-): TaskCacheEntry {
-    const taskType = identity?.taskType || attrs[ATTR_TASK] || existing?.taskType || "1";
-    const entry: TaskCacheEntry = {
-        blockId,
-        identificationSource: identity?.identificationSource || existing?.identificationSource || "document",
-        contentBlockId: identity?.contentBlockId ?? existing?.contentBlockId,
-        attrHostId: identity?.attrHostId || existing?.attrHostId || blockId,
-        parentId:
-            attrs[ATTR_PARENT] || (identity?.parentId !== undefined ? identity.parentId : existing?.parentId || ""),
-        status: attrs[ATTR_STATUS] || identity?.status || "todo",
-        priority: attrs[ATTR_PRIORITY] || "medium",
-        importance: attrToNumber(attrs[ATTR_IMPORTANCE], defaults.defaultImportance),
-        effort: attrToNumber(attrs[ATTR_EFFORT], defaults.defaultEffort),
-        due: attrs[ATTR_DUE] || "",
-        start: attrs[ATTR_START] || "",
-        context: attrs[ATTR_CONTEXT] || "",
-        depends: attrs[ATTR_DEPENDS] || "",
-        depMode: attrs[ATTR_DEP_MODE] || "all",
-        sequential: attrs[ATTR_SEQUENTIAL] === "1",
-        repeat: attrs[ATTR_REPEAT] || "",
-        repeatState: attrs[ATTR_REPEAT_STATE] || "",
-        sort: attrToNumber(attrs[ATTR_SORT], -1),
-        completed: attrs[ATTR_COMPLETED] || "",
-        note: attrs[ATTR_NOTE] || "",
-        outcome: attrs[ATTR_OUTCOME] || "",
-        dod: attrs[ATTR_DOD] || "",
-        actionKind: taskType === "2" ? "" : attrs[ATTR_KIND] === ACTION_KIND_STAGE ? "stage" : "action",
-        created: attrs[ATTR_CREATED] || "",
-        tags: attrs[ATTR_TAGS] || "",
-        reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
-        reviewDate: attrs[ATTR_REVIEW_DATE] || "",
-        reminder: attrs[ATTR_REMINDER] || "",
-        customFields: extractCustomFields(attrs),
-        blocked: false,
-        blockedReason: "",
-        taskType,
-        order: 0,
-        childIds: existing ? existing.childIds : [],
-        title: titleOverride ?? (existing ? existing.title : ""),
-    };
-    return entry;
-}
-
 export class TaskRepository {
     private settings: Pick<PluginSettings, "defaultImportance" | "defaultEffort">;
     private readonly derivedState: TaskDerivedStateService;
@@ -137,30 +56,33 @@ export class TaskRepository {
         private readonly writeLockTimeoutMs: number = WRITE_LOCK_TIMEOUT_MS,
     ) {
         this.settings = settings;
+        this.cacheManager.updateMaterializationDefaults(settings);
         this.derivedState = new TaskDerivedStateService(cacheManager);
     }
 
     updateSettings(settings: Pick<PluginSettings, "defaultImportance" | "defaultEffort">): void {
         this.settings = settings;
+        this.cacheManager.updateMaterializationDefaults(settings);
     }
 
     async withConfirmedChanges<T>(work: (changes: ConfirmedTaskChanges) => Promise<T>): Promise<T> {
         const lock = await this.acquireWithTimeout();
         const changedIds = new Set<string>();
         const changes: ConfirmedTaskChanges = {
-            upsertAttrs: (request) => this.upsertAttrs(request, changedIds),
-            upsertAttrsBatch: (requests) => this.upsertAttrsBatch(requests, changedIds),
-            upsertAttrsWithConfirmedRollback: (requests) => this.upsertAttrsWithConfirmedRollback(requests, changedIds),
+            upsertAttrs: (request) => {
+                this.assertMaterializable(request);
+                return this.upsertAttrs(request, changedIds);
+            },
+            upsertAttrsBatch: (requests) => {
+                requests.forEach((request) => this.assertMaterializable(request));
+                return this.upsertAttrsBatch(requests, changedIds);
+            },
+            upsertAttrsWithConfirmedRollback: (requests) => {
+                requests.forEach((request) => this.assertMaterializable(request));
+                return this.upsertAttrsWithConfirmedRollback(requests, changedIds);
+            },
             refreshEntry: (request) => {
-                const entry = buildTaskEntryFromAttrs(
-                    request.blockId,
-                    request.attrs,
-                    this.settings,
-                    request.existing ?? this.cacheManager.get(request.blockId),
-                    request.titleOverride,
-                    request.identity,
-                );
-                this.cacheManager.set(entry);
+                const entry = this.materializeConfirmed(request, request.attrs);
                 changedIds.add(entry.blockId);
                 return entry;
             },
@@ -225,6 +147,29 @@ export class TaskRepository {
         return this.api.batchGetBlockAttrs(blockIds);
     }
 
+    private materializeConfirmed(request: TaskAttrUpsert, confirmedAttrs: Record<string, string>): TaskCacheEntry {
+        const facts = materializeTask({
+            blockId: request.blockId,
+            confirmedAttrs,
+            defaults: this.settings,
+            existingTask: request.existing ?? this.cacheManager.get(request.blockId),
+            freshIdentity: request.freshIdentity,
+            observations: request.observations,
+        });
+        return this.cacheManager.setMaterialized(facts);
+    }
+
+    private assertMaterializable(request: TaskAttrUpsert): void {
+        materializeTask({
+            blockId: request.blockId,
+            confirmedAttrs: request.attrs,
+            defaults: this.settings,
+            existingTask: request.existing ?? this.cacheManager.get(request.blockId),
+            freshIdentity: request.freshIdentity,
+            observations: request.observations,
+        });
+    }
+
     private async upsertAttrs(request: TaskAttrUpsert, changedIds: Set<string>): Promise<TaskCacheEntry> {
         const { blockId, attrs } = request;
         const entry = request.existing ?? this.cacheManager.get(blockId);
@@ -249,7 +194,7 @@ export class TaskRepository {
             if (attrs[ATTR_TASK] !== "") delete persistedAttrs[ATTR_TASK];
         }
 
-        const identificationSource = request.identity?.identificationSource ?? entry?.identificationSource;
+        const identificationSource = request.freshIdentity?.identificationSource ?? entry?.identificationSource;
         let oldMarker = " ";
         let markerChanged = false;
         if (identificationSource === "native" && attrs[ATTR_STATUS] !== undefined) {
@@ -272,15 +217,7 @@ export class TaskRepository {
                     throw new Error(`Task attribute confirmation failed for ${blockId}: ${key}`);
                 }
             }
-            const confirmedEntry = buildTaskEntryFromAttrs(
-                blockId,
-                confirmedAttrs,
-                this.settings,
-                entry,
-                request.titleOverride,
-                request.identity,
-            );
-            this.cacheManager.set(confirmedEntry);
+            const confirmedEntry = this.materializeConfirmed({ ...request, existing: entry }, confirmedAttrs);
             changedIds.add(blockId);
             return confirmedEntry;
         } catch (error: unknown) {
@@ -337,15 +274,7 @@ export class TaskRepository {
                     failedBlockIds.push(request.blockId);
                     continue;
                 }
-                const entry = buildTaskEntryFromAttrs(
-                    request.blockId,
-                    attrs,
-                    this.settings,
-                    request.existing ?? this.cacheManager.get(request.blockId),
-                    request.titleOverride,
-                    request.identity,
-                );
-                this.cacheManager.set(entry);
+                const entry = this.materializeConfirmed(request, attrs);
                 changedIds.add(entry.blockId);
                 entries.push(entry);
             }
@@ -418,15 +347,7 @@ export class TaskRepository {
         }
 
         const entries = requests.map((request) => {
-            const entry = buildTaskEntryFromAttrs(
-                request.blockId,
-                confirmedAttrsByBlockId[request.blockId],
-                this.settings,
-                request.existing ?? this.cacheManager.get(request.blockId),
-                request.titleOverride,
-                request.identity,
-            );
-            this.cacheManager.set(entry);
+            const entry = this.materializeConfirmed(request, confirmedAttrsByBlockId[request.blockId]);
             changedIds.add(entry.blockId);
             return entry;
         });

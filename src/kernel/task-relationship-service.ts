@@ -97,13 +97,7 @@ export class TaskRelationshipService {
                 blockId: child.blockId,
                 attrs: { [ATTR_PARENT]: "" },
                 existing: child,
-                identity: {
-                    identificationSource: resolved.identity.identificationSource,
-                    attrHostId: resolved.identity.attrHostId,
-                    contentBlockId: resolved.identity.contentBlockId,
-                    parentId: resolved.identity.structuralParentId,
-                    taskType: resolved.identity.taskType,
-                },
+                freshIdentity: resolved.identity,
             });
         }
     }

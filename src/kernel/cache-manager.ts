@@ -1,33 +1,7 @@
+import { type PluginSettings, DEFAULT_SETTINGS } from "../shared/settings";
 import { type TaskCacheEntry } from "../shared/types";
-import {
-    ATTR_PRIORITY,
-    ATTR_DUE,
-    ATTR_START,
-    ATTR_CONTEXT,
-    ATTR_EFFORT,
-    ATTR_IMPORTANCE,
-    ATTR_DEPENDS,
-    ATTR_DEP_MODE,
-    ATTR_SEQUENTIAL,
-    ATTR_REPEAT,
-    ATTR_REPEAT_STATE,
-    ATTR_SORT,
-    ATTR_COMPLETED,
-    ATTR_NOTE,
-    ATTR_CREATED,
-    ATTR_TAGS,
-    ATTR_REVIEW_INTERVAL,
-    ATTR_REVIEW_DATE,
-    ATTR_REMINDER,
-    ATTR_EXT_PREFIX,
-    ATTR_OUTCOME,
-    ATTR_DOD,
-    ATTR_KIND,
-    ACTION_KIND_STAGE,
-} from "../shared/constants";
-import { DEFAULT_SETTINGS } from "../shared/settings";
-import { attrToNumber } from "./utils";
 import type { SiyuanApiPort } from "./siyuan-api";
+import { materializeTask, type MaterializedTaskFacts } from "./task-materializer";
 import { TaskIdentityResolver, type BatchTaskAttributeReader } from "./task-identity-resolver";
 
 export type { BatchTaskAttributeReader } from "./task-identity-resolver";
@@ -38,6 +12,7 @@ export class CacheManager {
     private dependentsByDependency: Map<string, Set<string>>;
     private pendingAffectedIds: Set<string>;
     private pendingRelationshipChangedIds: Set<string>;
+    private materializationDefaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">;
 
     constructor(
         private readonly api: SiyuanApiPort,
@@ -48,6 +23,11 @@ export class CacheManager {
         this.dependentsByDependency = new Map();
         this.pendingAffectedIds = new Set();
         this.pendingRelationshipChangedIds = new Set();
+        this.materializationDefaults = DEFAULT_SETTINGS;
+    }
+
+    updateMaterializationDefaults(defaults: Pick<PluginSettings, "defaultImportance" | "defaultEffort">): void {
+        this.materializationDefaults = defaults;
     }
 
     async loadAll(readTaskAttributes: BatchTaskAttributeReader): Promise<void> {
@@ -57,54 +37,16 @@ export class CacheManager {
             return;
         }
 
-        const newCache: Record<string, TaskCacheEntry> = Object.create(null) as Record<string, TaskCacheEntry>;
-        for (const record of load.records) {
-            const { identity, attrs } = record;
-            const entry: TaskCacheEntry = {
-                blockId: identity.blockId,
-                identificationSource: identity.identificationSource,
-                contentBlockId: identity.contentBlockId,
-                attrHostId: identity.attrHostId,
-                parentId: identity.effectiveParentId,
-                status: identity.defaultStatus,
-                priority: attrs[ATTR_PRIORITY] || "medium",
-                importance: attrToNumber(attrs[ATTR_IMPORTANCE], DEFAULT_SETTINGS.defaultImportance),
-                effort: attrToNumber(attrs[ATTR_EFFORT], DEFAULT_SETTINGS.defaultEffort),
-                due: attrs[ATTR_DUE] || "",
-                start: attrs[ATTR_START] || "",
-                context: attrs[ATTR_CONTEXT] || "",
-                depends: attrs[ATTR_DEPENDS] || "",
-                depMode: attrs[ATTR_DEP_MODE] || "all",
-                sequential: attrs[ATTR_SEQUENTIAL] === "1",
-                repeat: attrs[ATTR_REPEAT] || "",
-                repeatState: attrs[ATTR_REPEAT_STATE] || "",
-                sort: attrToNumber(attrs[ATTR_SORT], identity.identificationSource === "native" ? identity.sort : -1),
-                completed: attrs[ATTR_COMPLETED] || "",
-                note: attrs[ATTR_NOTE] || "",
-                outcome: attrs[ATTR_OUTCOME] || "",
-                dod: attrs[ATTR_DOD] || "",
-                actionKind:
-                    identity.taskType === "2" ? "" : attrs[ATTR_KIND] === ACTION_KIND_STAGE ? "stage" : "action",
-                created: attrs[ATTR_CREATED] || "",
-                updated: identity.updated,
-                tags: attrs[ATTR_TAGS] || "",
-                reviewInterval: attrToNumber(attrs[ATTR_REVIEW_INTERVAL], 0),
-                reviewDate: attrs[ATTR_REVIEW_DATE] || "",
-                reminder: attrs[ATTR_REMINDER] || "",
-                customFields: this.extractCustomFields(attrs),
-                blocked: false, // 将在 childIds 构建后统一计算
-                blockedReason: "",
-                taskType: identity.taskType,
-                order: 0,
-                childIds: [],
-                title: identity.title,
-            };
-
-            newCache[entry.blockId] = entry;
-        }
-
-        // Step 3: Atomically replace the primary cache and relationship indexes.
-        this.replaceCache(newCache);
+        this.replaceMaterialized(
+            load.records.map(({ identity, attrs }) =>
+                materializeTask({
+                    blockId: identity.blockId,
+                    confirmedAttrs: attrs,
+                    freshIdentity: identity,
+                    defaults: this.materializationDefaults,
+                }),
+            ),
+        );
     }
 
     get(blockId: string): TaskCacheEntry | undefined {
@@ -157,6 +99,21 @@ export class CacheManager {
         this.syncParentEntry(stored.parentId);
         this.syncParentEntry(stored.blockId);
         this.markRelationshipImpact(entry.blockId, oldParentId, stored.parentId);
+    }
+
+    setMaterialized(facts: MaterializedTaskFacts): TaskCacheEntry {
+        const entry = this.completeMaterialized(facts, this.cache[facts.blockId]);
+        this.set(entry);
+        return entry;
+    }
+
+    replaceMaterialized(facts: readonly MaterializedTaskFacts[]): void {
+        const nextCache = Object.create(null) as Record<string, TaskCacheEntry>;
+        for (const item of facts) {
+            if (nextCache[item.blockId]) throw new Error(`Duplicate materialized task: ${item.blockId}`);
+            nextCache[item.blockId] = this.completeMaterialized(item);
+        }
+        this.replaceCache(nextCache);
     }
 
     remove(blockId: string): void {
@@ -221,19 +178,6 @@ export class CacheManager {
         return this.cache;
     }
 
-    private extractCustomFields(attrs: Record<string, string>): Record<string, string> {
-        const result: Record<string, string> = Object.create(null) as Record<string, string>;
-        for (const key of Object.keys(attrs)) {
-            if (key.startsWith(ATTR_EXT_PREFIX)) {
-                const fieldKey = key.slice(ATTR_EXT_PREFIX.length);
-                if (fieldKey && attrs[key]) {
-                    result[fieldKey] = attrs[key];
-                }
-            }
-        }
-        return result;
-    }
-
     consumeAffectedIds(): string[] {
         const affectedIds = [...this.pendingAffectedIds];
         this.pendingAffectedIds.clear();
@@ -259,6 +203,16 @@ export class CacheManager {
         for (const entry of Object.values(this.cache)) {
             entry.childIds = this.childIdsFor(entry.blockId);
         }
+    }
+
+    private completeMaterialized(facts: MaterializedTaskFacts, existing?: TaskCacheEntry): TaskCacheEntry {
+        return {
+            ...facts,
+            blocked: existing?.blocked ?? false,
+            blockedReason: existing?.blockedReason ?? "",
+            order: existing?.order ?? 0,
+            childIds: existing ? [...existing.childIds] : [],
+        };
     }
 
     private addToRelationshipIndexes(entry: TaskCacheEntry): void {
