@@ -1,4 +1,5 @@
 import type { ProjectProgress, ProjectSummary, TaskCacheEntry } from "../../shared/types";
+import { createProjectMembershipGraph } from "../../shared/project-membership-graph";
 
 export interface ProjectTreeRow {
     task: TaskCacheEntry;
@@ -65,25 +66,16 @@ export function buildProjectTreeModel(
     const allTasks = [summary.project, ...summary.descendants];
     const taskById = new Map(allTasks.map((task) => [task.blockId, task]));
     const allowedIds = new Set(summary.descendants.map((task) => task.blockId));
+    const membership = createProjectMembershipGraph(allTasks);
     const childrenByParent = new Map<string, TaskCacheEntry[]>();
     const parentByChild = new Map<string, string>();
 
-    const addEdge = (parentId: string, child: TaskCacheEntry, prefer = false) => {
-        if (!taskById.has(parentId) || !allowedIds.has(child.blockId) || parentId === child.blockId) return;
-        const children = childrenByParent.get(parentId) || [];
-        if (!children.some((entry) => entry.blockId === child.blockId)) children.push(child);
-        childrenByParent.set(parentId, children);
-        if (prefer || !parentByChild.has(child.blockId)) parentByChild.set(child.blockId, parentId);
-    };
-
-    for (const task of summary.descendants) {
-        if (task.parentId) addEdge(task.parentId, task, true);
-    }
     for (const parent of allTasks) {
-        for (const childId of parent.childIds || []) {
-            const child = taskById.get(childId);
-            if (child) addEdge(parent.blockId, child);
-        }
+        const children = (membership.node(parent.blockId)?.children || []).filter((child) =>
+            allowedIds.has(child.blockId),
+        );
+        if (children.length > 0) childrenByParent.set(parent.blockId, [...children]);
+        for (const child of children) parentByChild.set(child.blockId, parent.blockId);
     }
     const compareChildren = options.sortMode === "timeline" ? compareTimelineOrder : compareTreeOrder;
     for (const children of childrenByParent.values()) children.sort(compareChildren);

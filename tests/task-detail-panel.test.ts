@@ -108,11 +108,14 @@ test("任务类型与标签保持同行，极窄视口再由公共属性行换�
 });
 
 test("行动类型仅在项目祖先链内显示，离开项目时恢复为普通 Action", () => {
-    assert.match(detail, /\$: hasProjectScope = !isProject && hasProjectAncestor\(parentId, taskMap\)/);
+    assert.match(
+        detail,
+        /\$: hasProjectScope = !isProject && Boolean\(\$projectMembershipGraph\.node\(parentId\)\?\.projectId\)/,
+    );
     assert.match(detail, /\{#if hasProjectScope\}[\s\S]*?label=\{i18n\?\.actionKind[\s\S]*?<NaSegmentControl/);
     assert.match(
         detail,
-        /function handleParentChange[\s\S]*?normalizeActionKindForProjectScope\(actionKind, hasProjectAncestor\(parentId, taskMap\)\)[\s\S]*?handleChange\(\)/,
+        /function handleParentChange[\s\S]*?normalizeActionKindForProjectScope\([\s\S]*?\$projectMembershipGraph\.node\(parentId\)\?\.projectId[\s\S]*?handleChange\(\)/,
     );
     assert.match(
         detail,

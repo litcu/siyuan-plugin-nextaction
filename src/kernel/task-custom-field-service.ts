@@ -68,7 +68,7 @@ export class TaskCustomFieldService {
         const extensionKeys = Object.keys(attrs).filter((key) => key.startsWith(ATTR_EXT_PREFIX));
         if (extensionKeys.length === 0) return null;
         const entry = this.cacheManager.get(blockId);
-        const taskMap = new Map(this.cacheManager.getAll().map((item) => [item.blockId, item]));
+        const membership = this.cacheManager.getProjectMembershipGraph();
         for (const key of extensionKeys) {
             const fieldKey = key.slice(ATTR_EXT_PREFIX.length);
             const field = this.runtime.getSettings().customFields.find((item) => item.key === fieldKey);
@@ -79,7 +79,7 @@ export class TaskCustomFieldService {
             const definitionError = validateCustomFieldDefinition(field);
             if (definitionError) return definitionError;
             if (field.status !== "active") return `Custom field is archived: ${fieldKey}`;
-            if (entry && !isCustomFieldApplicable(field, entry, taskMap))
+            if (entry && !isCustomFieldApplicable(field, entry, membership))
                 return `Custom field is not applicable to task: ${fieldKey}`;
             try {
                 encodeCustomFieldValue(field, rawValue);

@@ -10,6 +10,7 @@ import {
     validateCustomFieldDefinitions,
     type CustomFieldDef,
 } from "../src/shared/custom-fields.ts";
+import { createProjectMembershipGraph } from "../src/shared/project-membership-graph.ts";
 
 function field(type: CustomFieldDef["type"], extra: Partial<CustomFieldDef> = {}): CustomFieldDef {
     return {
@@ -59,18 +60,17 @@ test("非法值和不安全链接被拒绝", () => {
 });
 
 test("项目树范围覆盖项目本身和全部后代", () => {
-    const project = { blockId: "p", parentId: "", taskType: "2" } as any;
-    const child = { blockId: "c", parentId: "p", taskType: "1" } as any;
-    const grandChild = { blockId: "g", parentId: "c", taskType: "1" } as any;
-    const taskMap = new Map([
-        [project.blockId, project],
-        [child.blockId, child],
-        [grandChild.blockId, grandChild],
-    ]);
+    const project = { blockId: "p", parentId: "", taskType: "2", identificationSource: "document" } as any;
+    const child = { blockId: "c", parentId: "p", taskType: "1", identificationSource: "document" } as any;
+    const grandChild = { blockId: "g", parentId: "c", taskType: "1", identificationSource: "document" } as any;
+    const membership = createProjectMembershipGraph([project, child, grandChild]);
     const scoped = field("text", { scope: { mode: "projectTree", projectIds: ["p"] } });
-    assert.equal(isCustomFieldApplicable(scoped, project, taskMap), true);
-    assert.equal(isCustomFieldApplicable(scoped, grandChild, taskMap), true);
-    assert.equal(isCustomFieldApplicable(scoped, { blockId: "x", parentId: "", taskType: "1" } as any, taskMap), false);
+    assert.equal(isCustomFieldApplicable(scoped, project, membership), true);
+    assert.equal(isCustomFieldApplicable(scoped, grandChild, membership), true);
+    assert.equal(
+        isCustomFieldApplicable(scoped, { blockId: "x", parentId: "", taskType: "1" } as any, membership),
+        false,
+    );
 });
 
 test("字段定义校验拒绝大写、下划线和重复 Key", () => {

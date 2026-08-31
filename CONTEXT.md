@@ -22,6 +22,8 @@
 
 **Stage（阶段）**：带有阶段标记的 Action。Stage 可以有子 Action，也可以自己执行；它仍使用普通 Action 的状态、依赖、日期和 Next Action 语言。
 
+**Project 成员（项目成员）**：有效父任务链首先到达某个 Project 的 Action，包括 Stage。一个 Action 最多归属于一个 Project；Project 本身不是另一个 Project 的成员，异常嵌套 Project 会形成新的归属边界。
+
 **Outcome（预期结果）**：Project 完成后要取得的结果，用一句话描述“完成后会得到什么”。
 
 **Definition of Done（完成判定，DoD）**：用户关闭 Project 前要人工确认的完成条件。DoD 是说明文本；需要逐项追踪的条件应建立为 Action。

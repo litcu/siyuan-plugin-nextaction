@@ -129,10 +129,12 @@ export class ProjectBoardMoveService {
         const projectId = assertBlockId(input.projectId, "projectId");
         const task = this.cache.get(taskId);
         const project = this.cache.get(projectId);
+        const membership = this.cache.getProjectMembershipGraph();
+        const taskNode = membership.node(taskId);
         if (!task) throw moveError(RPC_ERROR_TASK_NOT_FOUND, "Task not found");
         if (!project || !isProjectTask(project))
             throw moveError(RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET, "Move target must be a valid Project");
-        if (isProjectTask(task) || !this.belongsToProject(task, projectId)) {
+        if (isProjectTask(task) || taskNode?.projectId !== projectId) {
             throw moveError(
                 RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
                 "Task does not belong to the selected Project",
@@ -162,17 +164,20 @@ export class ProjectBoardMoveService {
                 );
             }
             const target = this.cache.get(afterId);
-            if (!target || isProjectTask(target) || !this.belongsToProject(target, projectId)) {
+            const targetNode = membership.node(afterId);
+            if (!target || isProjectTask(target) || targetNode?.projectId !== projectId) {
                 throw moveError(RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET, "The selected board target is invalid");
             }
-            const expectedParent = input.afterParentId || target.parentId || projectId;
-            if (expectedParent !== (target.parentId || projectId) || expectedParent !== (task.parentId || projectId)) {
+            const taskParentId = taskNode?.effectiveParentId || projectId;
+            const targetParentId = targetNode?.effectiveParentId || projectId;
+            const expectedParent = input.afterParentId || targetParentId;
+            if (expectedParent !== targetParentId || expectedParent !== taskParentId) {
                 throw moveError(
                     RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
                     "Board move target must share the task's logical parent",
                 );
             }
-        } else if (input.afterParentId && input.afterParentId !== (task.parentId || projectId)) {
+        } else if (input.afterParentId && input.afterParentId !== (taskNode?.effectiveParentId || projectId)) {
             throw moveError(
                 RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
                 "Board move parent does not match the task's logical parent",
@@ -226,17 +231,6 @@ export class ProjectBoardMoveService {
             .getByParent(parentId)
             .filter((entry) => entry.blockId !== excludeId)
             .sort((a, b) => a.sort - b.sort || a.blockId.localeCompare(b.blockId));
-    }
-
-    private belongsToProject(task: TaskCacheEntry, projectId: string): boolean {
-        const seen = new Set<string>();
-        let current: TaskCacheEntry | undefined = task;
-        while (current && !seen.has(current.blockId)) {
-            if (current.blockId === projectId) return true;
-            seen.add(current.blockId);
-            current = current.parentId ? this.cache.get(current.parentId) || undefined : undefined;
-        }
-        return false;
     }
 
     private issueUndo(record: UndoRecord): ProjectBoardMoveUndo {
