@@ -838,7 +838,7 @@ test("当期完成统计不计入缺少完成时间的任务", () => {
     // Regression: done tasks without completion history must not count toward the current period.
     const { cache, service } = setup();
     const now = new Date();
-    const completed = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T12:00:00`;
+    const completed = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
     cache.set(taskFactory("20260816123457-statnow", { status: "done", completed }));
     cache.set(taskFactory("20260816123458-statold", { status: "done", completed: "" }));
 
