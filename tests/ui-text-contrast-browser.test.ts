@@ -157,7 +157,8 @@ const segments = [{ value: "all", label: "All" }, { value: "open", label: "Open"
 import ${source("src/frontend/styles/components.scss")};
 import ${source("src/frontend/styles/host-integration.scss")};
 import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 
 function rgba(value) {
     const canvas = document.createElement("canvas");

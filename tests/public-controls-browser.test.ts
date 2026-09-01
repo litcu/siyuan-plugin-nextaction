@@ -61,10 +61,10 @@ window.__buttonClicks = 0;
     window.__controlValues.search.push(value);
 }} />`,
             "main.js": `import Harness from "./Harness.svelte";
-import { tick } from "svelte";
+import { mount, tick } from "svelte";
 
 void (async () => {
-new Harness({ target: document.querySelector("#app") });
+mount(Harness, { target: document.querySelector("#app") });
 await tick();
 const toggles = document.querySelectorAll(".na-toggle");
 document.querySelectorAll(".na-button")[0].click();
@@ -161,10 +161,10 @@ const bridge = {
 }} />
 <div id="disabled-document"><NaDocumentPicker {bridge} i18n={{}} disabled /></div>`,
             "main.js": `import Harness from "./Harness.svelte";
-import { tick } from "svelte";
+import { mount, tick } from "svelte";
 
 void (async () => {
-new Harness({ target: document.querySelector("#app") });
+mount(Harness, { target: document.querySelector("#app") });
 await tick();
 const searchBox = document.querySelector(".na-search-select__box");
 searchBox.click();
@@ -258,9 +258,9 @@ window.__domainValues = { linkInputs: [], openedLinks: [], customValues: [], fil
 <NaCustomFieldInput def={field} value={custom} onChange={(value) => { custom = value; window.__domainValues.customValues.push(value); }} />
 <NaTaskFilterBar {filterState} i18n={{}} onChange={(next) => window.__domainValues.filterSearches.push(next.searchText)} />`,
             "main.js": `import Harness from "./Harness.svelte";
-import { tick } from "svelte";
+import { mount, tick } from "svelte";
 void (async () => {
-new Harness({ target: document.querySelector("#app") });
+mount(Harness, { target: document.querySelector("#app") });
 await tick();
 const linkInput = document.querySelector(".na-link-input__control");
 linkInput.value = "https://example.com/docs";

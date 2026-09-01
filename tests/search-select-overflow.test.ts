@@ -23,9 +23,10 @@ test("多选搜索框会在固定宽度内容纳过长选项", async () => {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import NaSearchSelect from ${JSON.stringify(componentPath)};
+import { mount } from "svelte";
 const control = document.querySelector("#control");
 control.style.width = "394px";
-new NaSearchSelect({
+mount(NaSearchSelect, {
     target: control,
     props: {
         multi: true,

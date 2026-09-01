@@ -78,18 +78,19 @@ async function remountEditor() {
 }
 </script>
 
-<button id="push-remote" on:click={pushRemoteDod}>Push remote</button>
-<button id="switch-second" on:click={() => (project = secondProject)}>Second project</button>
-<button id="switch-first" on:click={() => (project = firstProject)}>First project</button>
-<button id="remount-editor" on:click={remountEditor}>Remount editor</button>
-<button id="fail-next-save" on:click={() => (failNextSave = true)}>Fail next save</button>
+<button id="push-remote" onclick={pushRemoteDod}>Push remote</button>
+<button id="switch-second" onclick={() => (project = secondProject)}>Second project</button>
+<button id="switch-first" onclick={() => (project = firstProject)}>First project</button>
+<button id="remount-editor" onclick={remountEditor}>Remount editor</button>
+<button id="fail-next-save" onclick={() => (failNextSave = true)}>Fail next save</button>
 <div id="write-count">{writes.length}</div>
 {#if editorMounted}<ProjectDefinitionEditor {project} {i18n} onSave={saveDefinition} {controllerRegistry} />{/if}`,
             );
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clickByText = (text, root = document) => [...root.querySelectorAll("button")].find((button) => button.textContent.trim() === text)?.click();
 const inputValue = (element, value) => {
@@ -274,7 +275,8 @@ const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegis
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clickByText = (text) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === text)?.click();
 const finish = (value) => {

@@ -18,6 +18,27 @@ const files = sourceFiles(sourceRoot);
 const failures = [];
 const textByFile = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
 
+// Svelte 5 compatibility cleanup: production code must use only the public
+// component API. Keep this guard close to the architecture checks so a future
+// migration cannot silently reintroduce the temporary class/runtime aliases.
+const svelteLegacyPatterns = [
+    ["componentApi compatibility option", /\bcomponentApi\s*:/],
+    ["private Svelte runtime import", /\bsvelte\/(?:internal|legacy)\b/],
+    ["class-style component construction", /\bnew\s+[A-Za-z_$][\w$]*\s*\(\s*\{\s*target\b/],
+    ["legacy component destruction", /\$destroy\s*\(/],
+    ["legacy event dispatcher", /\bcreateEventDispatcher\b/],
+    ["legacy event directive", /(?<![\w-])on:[A-Za-z][\w-]*/],
+    ["legacy slot element", /<slot(?:\s|>)/],
+    ["legacy slot introspection", /\$\$slots\b/],
+];
+for (const [path, source] of textByFile) {
+    const name = projectPath(path);
+    if (!name.startsWith("src/")) continue;
+    for (const [description, pattern] of svelteLegacyPatterns) {
+        if (pattern.test(source)) failures.push(`${name}: ${description} is forbidden`);
+    }
+}
+
 const duplicatedSvelteBrowserSetup = readdirSync(testsRoot, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".test.ts"))
     .map((entry) => join(testsRoot, entry.name))

@@ -67,7 +67,8 @@ import NaPropertySection from ${JSON.stringify(sectionPath)};
                 join(fixtureRoot, "main.js"),
                 `import ${JSON.stringify(tokensPath)};
 import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 
 function rgba(value) {
     const canvas = document.createElement("canvas");

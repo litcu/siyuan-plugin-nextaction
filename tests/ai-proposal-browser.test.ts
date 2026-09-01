@@ -86,7 +86,8 @@ const bridge = {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
     result.id = "browser-result";
