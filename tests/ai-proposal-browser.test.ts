@@ -1,33 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+type AiProposalBrowserResult = {
+    beforeConfirm: number;
+    titleInputFound: boolean;
+    disabledWithEmptyTitle: boolean;
+    partialVisible: boolean;
+    destroyedAfterPartial: number;
+    validateCalls: Array<{ context: { sourceBlockIds: string[] } }>;
+    applyCalls: Array<{ proposal: { tasks: unknown[] }; context: unknown }>;
+    destroyed: number;
+};
 
 test("AI Action 预览支持编辑与选择，确认前不写入", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-ai-proposal-"));
-    try {
-        const componentPath = resolve("src/frontend/components/AiProposalDialog.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest<AiProposalBrowserResult>({
+        fixtureName: "ai-proposal",
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/AiProposalDialog.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import AiProposalDialog from ${JSON.stringify(componentPath)};
 
 const firstSourceId = "20260825191000-source1";
@@ -81,10 +80,10 @@ const bridge = {
 <div id="harness" data-validates={JSON.stringify(validateCalls)} data-applies={JSON.stringify(applyCalls)} data-destroyed={destroyed}>
     <AiProposalDialog {proposal} {bridge} {i18n} {dialog} {sourceBlockIds} {defaultProjectId} />
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
@@ -132,91 +131,28 @@ setTimeout(() => {
         }, 100);
     }, 50);
 }, 50);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: "chrono-node/en",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/en/index.js"),
-                    },
-                    {
-                        find: "chrono-node/zh/hans",
-                        replacement: resolve("node_modules/chrono-node/dist/esm/locales/zh/hans/index.js"),
-                    },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-component-update",
-                "--disable-sync",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "AI proposal 浏览器测试失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出 AI proposal 结果：${rendered.stderr.slice(0, 1_000)}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.equal(result.beforeConfirm, 0);
-        assert.equal(result.titleInputFound, true);
-        assert.equal(result.disabledWithEmptyTitle, true);
-        assert.equal(result.partialVisible, true);
-        assert.equal(result.destroyedAfterPartial, 0);
-        assert.equal(result.validateCalls.length, 2);
-        assert.deepEqual(result.validateCalls[0].context.sourceBlockIds, [
-            "20260825191000-source1",
-            "20260825191001-source2",
-        ]);
-        const expectedTask = {
-            title: "Edited Action",
-            sourceBlockId: "20260825191000-source1",
-            actionKind: "action",
-            parentId: "20260825191002-project",
-        };
-        assert.deepEqual(result.applyCalls[0].proposal.tasks, [expectedTask]);
-        assert.deepEqual(result.applyCalls[1].proposal.tasks, [expectedTask]);
-        assert.deepEqual(result.applyCalls[0].context, result.validateCalls[0].context);
-        assert.deepEqual(result.applyCalls[1].context, result.validateCalls[1].context);
-        assert.equal(result.destroyed, 1);
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.equal(result.beforeConfirm, 0);
+    assert.equal(result.titleInputFound, true);
+    assert.equal(result.disabledWithEmptyTitle, true);
+    assert.equal(result.partialVisible, true);
+    assert.equal(result.destroyedAfterPartial, 0);
+    assert.equal(result.validateCalls.length, 2);
+    assert.deepEqual(result.validateCalls[0].context.sourceBlockIds, [
+        "20260825191000-source1",
+        "20260825191001-source2",
+    ]);
+    const expectedTask = {
+        title: "Edited Action",
+        sourceBlockId: "20260825191000-source1",
+        actionKind: "action",
+        parentId: "20260825191002-project",
+    };
+    assert.deepEqual(result.applyCalls[0].proposal.tasks, [expectedTask]);
+    assert.deepEqual(result.applyCalls[1].proposal.tasks, [expectedTask]);
+    assert.deepEqual(result.applyCalls[0].context, result.validateCalls[0].context);
+    assert.deepEqual(result.applyCalls[1].context, result.validateCalls[1].context);
+    assert.equal(result.destroyed, 1);
 });

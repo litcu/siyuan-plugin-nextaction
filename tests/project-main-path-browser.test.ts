@@ -1,33 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 test("Review 打开项目后保留选择和展开状态，并显示 Stage", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-main-path-"));
-    try {
-        const queuePath = resolve("src/frontend/components/ProjectReviewQueue.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "project-main-path",
+        prepareFixture(fixtureRoot) {
+            const queuePath = resolve("src/frontend/components/ProjectReviewQueue.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import { tick } from "svelte";
 import ProjectReviewQueue from ${JSON.stringify(queuePath)};
 
@@ -87,10 +75,10 @@ async function openProject(nextProject) {
         <div id="project-target">{openedProjectId}</div>
     {/if}
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
@@ -113,97 +101,32 @@ setTimeout(() => {
         });
     }, 50);
 }, 50);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const browser = findBrowserExecutable();
-        const rendered = await runBrowser(
-            browser,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(
-            rendered.status,
-            0,
-            rendered.stderr ||
-                rendered.error?.message ||
-                `浏览器主路径测试执行失败（signal: ${rendered.signal || "none"}）`,
-        );
-
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出主路径结果：${rendered.stdout.slice(0, 2_000)}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.deepEqual(result, {
-            openedProjectId: "project",
-            manualProjectIds: "project",
-            expanded: "true",
-            stageBefore: true,
-            stageAfter: true,
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        openedProjectId: "project",
+        manualProjectIds: "project",
+        expanded: "true",
+        stageBefore: true,
+        stageAfter: true,
+    });
 });
 
 test("Review 打开项目并返回后恢复滚动位置", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-review-scroll-"));
-    try {
-        const reviewPath = resolve("src/frontend/components/ReviewView.svelte").replace(/\\\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
+    const result = await runSvelteBrowserTest({
+        fixtureName: "review-scroll",
+        indexHtml:
             '<!doctype html><html><head><style>html,body,#app{height:120px;margin:0}</style></head><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Menu {}\nexport class Dialog {}\nexport function openTab() {}\nexport function showMessage() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+        prepareFixture(fixtureRoot) {
+            const reviewPath = resolve("src/frontend/components/ReviewView.svelte").replace(/\\\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport class Dialog {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import { tick } from "svelte";
 import ReviewView from ${JSON.stringify(reviewPath)};
 
@@ -263,10 +186,10 @@ const noop = () => {};
 {:else}
     <div id="project-target"></div>
 {/if}`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
@@ -281,83 +204,25 @@ setTimeout(() => {
     [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Open project")?.click();
     setTimeout(() => finish({ scrollTop: document.querySelector(".na-review__scroll")?.scrollTop }), 100);
 }, 100);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const browser = findBrowserExecutable();
-        const rendered = await runBrowser(
-            browser,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(
-            rendered.status,
-            0,
-            rendered.stderr ||
-                rendered.error?.message ||
-                `浏览器滚动恢复测试执行失败（signal: ${rendered.signal || "none"}）`,
-        );
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出滚动恢复结果：${rendered.stdout.slice(0, 2_000)}`);
-        assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { scrollTop: 48 });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, { scrollTop: 48 });
 });
 
 test("Project Support 隔离加载错误并支持刷新、重试和打开原文", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-support-"));
-    try {
-        const supportPath = resolve("src/frontend/components/project/ProjectSupportSection.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(join(fixtureRoot, "siyuan.js"), "export class Menu {}\nexport function openTab() {}\n");
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "project-support",
+        virtualTimeBudget: 1_500,
+        prepareFixture(fixtureRoot) {
+            const supportPath = resolve("src/frontend/components/project/ProjectSupportSection.svelte").replace(
+                /\\/g,
+                "/",
+            );
+            writeFileSync(join(fixtureRoot, "siyuan.js"), "export class Menu {}\nexport function openTab() {}\n");
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ProjectSupportSection from ${JSON.stringify(supportPath)};
 
 const projectId = "20260825120000-project";
@@ -397,10 +262,10 @@ async function loadSupport(requestedProjectId) {
         onExtract={(blockId) => (extracted = blockId)}
     />
 </div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const findButton = (label) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === label);
 const finish = (value) => {
@@ -435,79 +300,17 @@ setTimeout(() => {
         }, 60);
     }, 60);
 }, 80);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const browser = findBrowserExecutable();
-        const rendered = await runBrowser(
-            browser,
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1500",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(
-            rendered.status,
-            0,
-            rendered.stderr ||
-                rendered.error?.message ||
-                `Project Support 浏览器测试执行失败（signal: ${rendered.signal || "none"}）`,
-        );
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出 Project Support 结果：${rendered.stdout.slice(0, 2_000)}`);
-        const result = JSON.parse(match[1].replace(/&quot;/g, '"'));
-        assert.deepEqual(result, {
-            emptyVisible: true,
-            errorVisible: true,
-            coreVisibleDuringError: true,
-            attempts: 3,
-            titleVisible: true,
-            directionVisible: true,
-            opened: "20260825120001-support",
-            extracted: "20260825120001-support",
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        emptyVisible: true,
+        errorVisible: true,
+        coreVisibleDuringError: true,
+        attempts: 3,
+        titleVisible: true,
+        directionVisible: true,
+        opened: "20260825120001-support",
+        extracted: "20260825120001-support",
+    });
 });

@@ -109,11 +109,7 @@ export function runBrowser(
 }
 
 export function removeBrowserFixture(fixtureRoot: string): void {
-    try {
-        rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
-    } catch {
-        // A browser child can briefly retain a profile file; do not mask the test assertion with EBUSY.
-    }
+    rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
 }
 
 export function findBrowserExecutable(): string {

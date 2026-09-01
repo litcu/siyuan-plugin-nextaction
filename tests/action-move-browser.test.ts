@@ -1,30 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-
+// Regression: 无显式父级且有效父级不变时，不得误称“显式父级已保留”。
 test("Action 移动对话框展示结构变化，恢复失败可重试且成功后返回权威任务", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-action-move-"));
-    try {
-        const componentPath = resolve("src/frontend/components/project/ActionMoveDialog.svelte").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(join(fixtureRoot, "siyuan.js"), "export function openTab() {}\n");
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "action-move",
+        virtualTimeBudget: 1_200,
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/project/ActionMoveDialog.svelte").replace(
+                /\\/g,
+                "/",
+            );
+            writeFileSync(join(fixtureRoot, "siyuan.js"), "export function openTab() {}\n");
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ActionMoveDialog from ${JSON.stringify(componentPath)};
 
 const actionId = "20260825110000-actionx";
@@ -96,10 +89,10 @@ const i18n = new Proxy({
         onMoved={(moved) => (movedTaskId = moved.task.blockId)} onClose={() => (closed = true)} />
 </div>
 <div id="unchanged-parent"><ActionMoveDialog bridge={unchangedBridge} {i18n} {task} {project} /></div>`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const findButton = (label) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === label);
 const finish = (value) => {
@@ -131,95 +124,33 @@ setTimeout(() => {
         }, 60);
     }, 60);
 }, 60);`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({
-                    configFile: false,
-                    preprocess: vitePreprocess(),
-                    compilerOptions: { compatibility: { componentApi: 4 } },
-                }),
-            ],
-            build: { outDir: "dist" },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=1200",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(match, `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}`);
-        // Regression: 无显式父级且有效父级不变时，不得误称“显式父级已保留”。
-        assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), {
-            sourceVisible: true,
-            targetVisible: true,
-            parentChangeVisible: true,
-            unchangedParentVisible: true,
-            recoveredVisible: true,
-            placementVisible: true,
-            selectedPreviousId: "20260825110003-heading",
-            attempts: "2",
-            moved: "20260825110000-actionx",
-            closed: "false",
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        sourceVisible: true,
+        targetVisible: true,
+        parentChangeVisible: true,
+        unchangedParentVisible: true,
+        recoveredVisible: true,
+        placementVisible: true,
+        selectedPreviousId: "20260825110003-heading",
+        attempts: "2",
+        moved: "20260825110000-actionx",
+        closed: "false",
+    });
 });
 
 test("移动对话框在动态组件加载完成前关闭时不会实例化已脱离 DOM 的组件", async () => {
     // Regression: 动态 import 尚未完成时关闭 Dialog，不能继续挂载组件或发起预览 RPC。
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-action-move-close-"));
-    try {
-        const dialogPath = resolve("src/frontend/dialogs/action-move-dialog.ts").replace(/\\/g, "/");
-        writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-        writeFileSync(
-            join(fixtureRoot, "index.html"),
-            '<!doctype html><html><body><script type="module" src="./main.js"></script></body></html>',
-        );
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            `export let latestDialog;
+    const result = await runSvelteBrowserTest({
+        fixtureName: "action-move-close",
+        virtualTimeBudget: 1,
+        prepareFixture(fixtureRoot) {
+            const dialogPath = resolve("src/frontend/dialogs/action-move-dialog.ts").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                `export let latestDialog;
 export class Dialog {
     constructor(options) {
         this.options = options;
@@ -235,10 +166,10 @@ export class Dialog {
 }
 export function showMessage() {}
 export function openTab() {}`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import { latestDialog } from "siyuan";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import { latestDialog } from "siyuan";
 import { openActionMoveDialog } from ${JSON.stringify(dialogPath)};
 void (async () => {
 let previews = 0;
@@ -249,85 +180,17 @@ const bridge = {
     moveActionToProject: async () => ({}),
 };
 const i18n = new Proxy({ moveActionPreviewFailed: "Cannot preview move: {error}" }, { get: (target, key) => target[key] || String(key) });
-const result = document.createElement("pre");
-result.id = "browser-result";
-document.body.appendChild(result);
 try {
     const opening = openActionMoveDialog({ bridge, i18n, task, project });
     latestDialog.destroy();
     await opening;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    result.textContent = JSON.stringify({ previews, dialogs: document.querySelectorAll(".na-action-move-dialog").length });
+    window.__NA_BROWSER_RESULT__({ previews, dialogs: document.querySelectorAll(".na-action-move-dialog").length });
 } catch (error) {
-    result.textContent = JSON.stringify({ error: String(error?.message || error) });
+    window.__NA_BROWSER_RESULT__({ error: String(error?.message || error) });
 }
 })();`,
-        );
-
-        await build({
-            root: fixtureRoot,
-            base: "./",
-            configFile: false,
-            logLevel: "silent",
-            resolve: {
-                alias: [
-                    { find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") },
-                    {
-                        find: /^svelte\/internal\/flags\/legacy$/,
-                        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                    },
-                    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                    {
-                        find: /^svelte\/internal\/disclose-version$/,
-                        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                    },
-                    {
-                        find: /^svelte\/internal$/,
-                        replacement: join(svelteRoot, "src/internal/index.js"),
-                    },
-                    { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-                ],
-            },
-            plugins: [
-                svelte({
-                    configFile: false,
-                    preprocess: vitePreprocess(),
-                    compilerOptions: { compatibility: { componentApi: 4 } },
-                }),
-            ],
-            build: {
-                outDir: "dist",
-                rollupOptions: { output: { inlineDynamicImports: true } },
-            },
-        });
-
-        const rendered = await runBrowser(
-            findBrowserExecutable(),
-            [
-                "--headless=new",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--allow-file-access-from-files",
-                "--disable-web-security",
-                "--no-first-run",
-                "--no-sandbox",
-                "--virtual-time-budget=5000",
-                `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-                "--dump-dom",
-                pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-            ],
-            { encoding: "utf8", timeout: 20_000 },
-        );
-        assert.equal(rendered.status, 0, rendered.stderr || rendered.error?.message || "浏览器测试启动失败");
-        const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-        assert.ok(
-            match,
-            `浏览器未输出结果：${rendered.stdout.slice(0, 2_000)}${rendered.stderr ? `\n浏览器错误：${rendered.stderr}` : ""}`,
-        );
-        assert.deepEqual(JSON.parse(match[1].replace(/&quot;/g, '"')), { previews: 0, dialogs: 0 });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, { previews: 0, dialogs: 0 });
 });

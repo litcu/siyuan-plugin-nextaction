@@ -1,104 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-import { build } from "vite";
-import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./helpers/browser.ts";
-
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-
-type BrowserAlias = { find: string | RegExp; replacement: string };
-
-function prepareBrowserFixture(fixtureRoot: string): void {
-    writeFileSync(join(fixtureRoot, "package.json"), '{"private":true,"type":"module"}');
-    writeFileSync(
-        join(fixtureRoot, "index.html"),
-        '<!doctype html><html><body><div id="app"></div><script type="module" src="./main.js"></script></body></html>',
-    );
-}
-
-async function renderBrowserResult(fixtureRoot: string, aliases: BrowserAlias[] = []): Promise<unknown> {
-    await build({
-        root: fixtureRoot,
-        base: "./",
-        configFile: false,
-        logLevel: "silent",
-        resolve: {
-            alias: [
-                ...aliases,
-                {
-                    find: /^svelte\/internal\/flags\/legacy$/,
-                    replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-                },
-                { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-                {
-                    find: /^svelte\/internal\/disclose-version$/,
-                    replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-                },
-                {
-                    find: /^svelte\/internal$/,
-                    replacement: join(svelteRoot, "src/internal/index.js"),
-                },
-                { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
-                { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-                { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
-            ],
-        },
-        plugins: [svelte({ preprocess: vitePreprocess(), compilerOptions: { compatibility: { componentApi: 4 } } })],
-        build: { outDir: "dist" },
-    });
-
-    const rendered = await runBrowser(
-        findBrowserExecutable(),
-        [
-            "--headless=new",
-            "--disable-gpu",
-            "--disable-extensions",
-            "--disable-background-networking",
-            "--disable-component-update",
-            "--disable-sync",
-            "--allow-file-access-from-files",
-            "--disable-web-security",
-            "--no-first-run",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--virtual-time-budget=1000",
-            `--user-data-dir=${join(fixtureRoot, "browser-profile")}`,
-            "--dump-dom",
-            pathToFileURL(join(fixtureRoot, "dist", "index.html")).href,
-        ],
-        { encoding: "utf8", timeout: 20_000 },
-    );
-    assert.equal(rendered.status, 0, rendered.stderr);
-    const match = rendered.stdout.match(/<pre id="browser-result">([^<]+)<\/pre>/);
-    assert.ok(match, `${rendered.stdout}\n${rendered.stderr}`);
-    return JSON.parse(match[1].replace(/&quot;/g, '"'));
-}
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 // Regression: 键盘触发保存、取消或冲突处理后，失效/移除的按钮曾导致焦点丢失。
 // Regression: 切换当前项目曾销毁尚未保存的项目定义草稿。
 // Regression: 离开项目主导航卸载编辑器后，重新进入曾静默丢失未保存草稿。
 // Regression: 保存中重挂载后，异步失败曾让新编辑器永久停留在保存中且无法重试。
 test("项目详情可显式保存定义并安全处理外部更新冲突", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-definition-"));
-    try {
-        const componentPath = resolve("src/frontend/components/project/ProjectDefinitionEditor.svelte").replace(
-            /\\/g,
-            "/",
-        );
-        prepareBrowserFixture(fixtureRoot);
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "project-definition",
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/project/ProjectDefinitionEditor.svelte").replace(
+                /\\/g,
+                "/",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ProjectDefinitionEditor from ${JSON.stringify(componentPath)};
 import { ProjectDefinitionControllerRegistry } from ${JSON.stringify(
-                resolve("src/frontend/controllers/project-definition-controller.ts").replace(/\\/g, "/"),
-            )};
+                    resolve("src/frontend/controllers/project-definition-controller.ts").replace(/\\/g, "/"),
+                )};
 import { tick } from "svelte";
 
 const base = {
@@ -161,10 +85,10 @@ async function remountEditor() {
 <button id="fail-next-save" on:click={() => (failNextSave = true)}>Fail next save</button>
 <div id="write-count">{writes.length}</div>
 {#if editorMounted}<ProjectDefinitionEditor {project} {i18n} onSave={saveDefinition} {controllerRegistry} />{/if}`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clickByText = (text, root = document) => [...root.querySelectorAll("button")].find((button) => button.textContent.trim() === text)?.click();
@@ -271,50 +195,47 @@ finish({
     savedVisible,
 });
 })();`,
-        );
-
-        const result = await renderBrowserResult(fixtureRoot);
-        assert.deepEqual(result, {
-            outcomeTag: "INPUT",
-            outcomeType: "text",
-            dodTag: "TEXTAREA",
-            disabledWhileSaving: true,
-            writeCount: 4,
-            outcomeValue: "Recovered after remount",
-            dodValue: "Remote DoD",
-            conflictVisible: true,
-            localDraftPreserved: true,
-            focusRestoredAfterSave: true,
-            focusRestoredAfterKeepDraft: true,
-            focusRestoredAfterReload: true,
-            focusRestoredAfterCancel: true,
-            draftPreservedAcrossProjects: true,
-            draftPreservedAcrossRemount: true,
-            failureVisibleAfterRemount: true,
-            savedVisible: true,
-        });
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, {
+        outcomeTag: "INPUT",
+        outcomeType: "text",
+        dodTag: "TEXTAREA",
+        disabledWhileSaving: true,
+        writeCount: 4,
+        outcomeValue: "Recovered after remount",
+        dodValue: "Remote DoD",
+        conflictVisible: true,
+        localDraftPreserved: true,
+        focusRestoredAfterSave: true,
+        focusRestoredAfterKeepDraft: true,
+        focusRestoredAfterReload: true,
+        focusRestoredAfterCancel: true,
+        draftPreservedAcrossProjects: true,
+        draftPreservedAcrossRemount: true,
+        failureVisibleAfterRemount: true,
+        savedVisible: true,
+    });
 });
 
 // Regression: 切换项目视图模式曾卸载定义编辑器并静默丢弃未保存草稿。
 test("项目定义草稿在切换视图模式后仍然保留", async () => {
-    const fixtureRoot = mkdtempSync(join(tmpdir(), "nextaction-project-definition-mode-"));
-    try {
-        const componentPath = resolve("src/frontend/components/ProjectView.svelte").replace(/\\/g, "/");
-        prepareBrowserFixture(fixtureRoot);
-        writeFileSync(
-            join(fixtureRoot, "siyuan.js"),
-            "export class Dialog {}\nexport class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
-        );
-        writeFileSync(
-            join(fixtureRoot, "Harness.svelte"),
-            `<script>
+    const result = await runSvelteBrowserTest({
+        fixtureName: "project-definition-mode",
+        prepareFixture(fixtureRoot) {
+            const componentPath = resolve("src/frontend/components/ProjectView.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Dialog {}\nexport class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
 import ProjectView from ${JSON.stringify(componentPath)};
 import { ProjectDefinitionControllerRegistry } from ${JSON.stringify(
-                resolve("src/frontend/controllers/project-definition-controller.ts").replace(/\\/g, "/"),
-            )};
+                    resolve("src/frontend/controllers/project-definition-controller.ts").replace(/\\/g, "/"),
+                )};
 import { taskStore } from ${JSON.stringify(resolve("src/frontend/stores/task-store.ts").replace(/\\/g, "/"))};
 
 const project = {
@@ -349,10 +270,10 @@ const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegis
     onExtractAction={noop}
     {projectDefinitionControllerRegistry}
 />`,
-        );
-        writeFileSync(
-            join(fixtureRoot, "main.js"),
-            `import Harness from "./Harness.svelte";
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import Harness from "./Harness.svelte";
 new Harness({ target: document.querySelector("#app") });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clickByText = (text) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === text)?.click();
@@ -376,13 +297,8 @@ finish({
     draft: document.querySelector("#na-project-definition-outcome")?.value,
 });
 })();`,
-        );
-
-        assert.deepEqual(
-            await renderBrowserResult(fixtureRoot, [{ find: "siyuan", replacement: join(fixtureRoot, "siyuan.js") }]),
-            { draft: "Draft across modes" },
-        );
-    } finally {
-        removeBrowserFixture(fixtureRoot);
-    }
+            );
+        },
+    });
+    assert.deepEqual(result, { draft: "Draft across modes" });
 });
