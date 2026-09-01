@@ -23,7 +23,7 @@ test("重复规则编辑器保留频率、月度条件、结束条件和预览",
 test("重复弹窗使用公共壳层并在关闭时检查本地草稿", () => {
     assert.match(editorSource, /<NaDialogShell/);
     assert.match(editorSource, /export function hasUnsavedChanges/);
-    assert.match(controllerSource, /component\?\.hasUnsavedChanges\(\)/);
+    assert.match(controllerSource, /mounted\?\.instance\.hasUnsavedChanges\(\)/);
     assert.match(controllerSource, /unsavedChangesTitle/);
 });
 

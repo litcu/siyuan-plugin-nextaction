@@ -12,16 +12,13 @@ import { renderAiPromptTemplate } from "./ai-prompt-template";
 import { isProjectTask } from "../../shared/project-domain";
 import { buildAiTaskContext } from "../../shared/ai-context";
 import { projectReviewPlanTasks } from "../../shared/review";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount, type SvelteComponentLoader } from "../svelte-mount";
 
 interface AiServiceHost {
     bridge: KernelBridge;
     i18n: I18nStrings;
     getCurrentDocumentId?: () => string;
 }
-
-type AiDialog = Dialog & {
-    _naAiComponent?: { $destroy?: () => void };
-};
 
 let host: AiServiceHost | null = null;
 
@@ -410,14 +407,18 @@ async function requestProposal(
     );
 }
 
-async function openComponent(title: string, loader: () => Promise<any>, props: Record<string, unknown>): Promise<void> {
+async function openComponent(
+    title: string,
+    loader: SvelteComponentLoader,
+    props: Record<string, unknown>,
+): Promise<void> {
+    let mounted: AsyncSvelteComponentMount<object> | null = null;
     const dialog = new Dialog({
         title,
         content: `<div class="nextaction na-ai-dialog-host"></div>`,
         width: "520px",
         destroyCallback: () => {
-            const component = (dialog as AiDialog)._naAiComponent;
-            component?.$destroy?.();
+            void mounted?.dispose();
         },
     });
     dialog.element.classList.add("nextaction", "na-ai-dialog");
@@ -428,10 +429,11 @@ async function openComponent(title: string, loader: () => Promise<any>, props: R
         const i18n = props.i18n as I18nStrings | undefined;
         throw new Error(i18n?.errAiDialogHost || "AI result window cannot be opened. Reload the plugin and try again.");
     }
-    const module = await loader();
-    const Component = module.default;
-    const component = new Component({ target: hostElement, props: { ...props, dialog } });
-    (dialog as AiDialog)._naAiComponent = component;
+    mounted = mountSvelteComponentAsync(loader, {
+        target: hostElement,
+        props: { ...props, dialog },
+    });
+    await mounted.ready;
 }
 
 export async function runAiExtractTasks(blockIds: string[], options: { projectId?: string } = {}): Promise<void> {

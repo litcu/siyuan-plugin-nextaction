@@ -1,15 +1,15 @@
 import { openTab, type Plugin } from "siyuan";
-import type { SvelteComponent } from "svelte";
 import type { KernelBridge } from "../kernel-bridge";
 import type { I18nStrings } from "../../shared/i18n";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export const NEXTACTION_TAB_TYPE = "nextaction_tab";
 export const NEXTACTION_DOCK_TYPE = "nextaction_dock";
 
-type MountedComponent = Pick<SvelteComponent, "$destroy">;
+type PanelMount = AsyncSvelteComponentMount<object>;
 
 export class PanelHostRegistrar {
-    private readonly mounted = new Set<MountedComponent>();
+    private readonly mounted = new Set<PanelMount>();
     private disposed = false;
 
     constructor(
@@ -31,24 +31,26 @@ export class PanelHostRegistrar {
             this.plugin.addTab({
                 type: NEXTACTION_TAB_TYPE,
                 init() {
-                    const container = (this as unknown as { element: HTMLElement }).element;
+                    const host = this as unknown as { element: HTMLElement; _naApp?: PanelMount };
+                    const container = host.element;
                     container.style.width = "100%";
                     container.style.height = "100%";
                     container.classList.add("fn__flex");
-                    void import("../components/NextActionApp.svelte").then(({ default: NextActionApp }) => {
-                        if (registrar.disposed) return;
-                        const component = new NextActionApp({
+                    if (registrar.disposed) return;
+                    const mounted = mountSvelteComponentAsync(
+                        () => import("../components/NextActionApp.svelte"),
+                        () => ({
                             target: container,
                             props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
-                        });
-                        registrar.mounted.add(component);
-                        (this as unknown as { _naApp?: MountedComponent })._naApp = component;
-                    });
+                        }),
+                    );
+                    registrar.mounted.add(mounted);
+                    host._naApp = mounted;
                 },
                 destroy() {
-                    const component = (this as unknown as { _naApp?: MountedComponent })._naApp;
-                    component?.$destroy();
-                    if (component) registrar.mounted.delete(component);
+                    const mounted = (this as unknown as { _naApp?: PanelMount })._naApp;
+                    void mounted?.dispose();
+                    if (mounted) registrar.mounted.delete(mounted);
                 },
             });
         }
@@ -64,29 +66,31 @@ export class PanelHostRegistrar {
             data: {},
             type: NEXTACTION_DOCK_TYPE,
             destroy() {
-                const component = (this as unknown as { _naDock?: MountedComponent })._naDock;
-                component?.$destroy();
-                if (component) registrar.mounted.delete(component);
+                const mounted = (this as unknown as { _naDock?: PanelMount })._naDock;
+                void mounted?.dispose();
+                if (mounted) registrar.mounted.delete(mounted);
             },
             resize() {},
             update() {},
             init() {
-                const container = (this as unknown as { element: HTMLElement }).element;
+                const host = this as unknown as { element: HTMLElement; _naDock?: PanelMount };
+                const container = host.element;
                 container.style.width = "100%";
                 container.style.height = "100%";
                 container.classList.add("nextaction");
-                const componentImport = registrar.isMobile
-                    ? import("../components/MobileDockHost.svelte")
-                    : import("../components/DockSidebar.svelte");
-                void componentImport.then(({ default: DockComponent }) => {
-                    if (registrar.disposed) return;
-                    const component = new DockComponent({
+                if (registrar.disposed) return;
+                const mounted = mountSvelteComponentAsync(
+                    () =>
+                        registrar.isMobile
+                            ? import("../components/MobileDockHost.svelte")
+                            : import("../components/DockSidebar.svelte"),
+                    () => ({
                         target: container,
                         props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
-                    });
-                    registrar.mounted.add(component);
-                    (this as unknown as { _naDock?: MountedComponent })._naDock = component;
-                });
+                    }),
+                );
+                registrar.mounted.add(mounted);
+                host._naDock = mounted;
             },
         });
 
@@ -114,7 +118,7 @@ export class PanelHostRegistrar {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
-        for (const component of this.mounted) component.$destroy();
+        for (const mounted of this.mounted) void mounted.dispose();
         this.mounted.clear();
     }
 }

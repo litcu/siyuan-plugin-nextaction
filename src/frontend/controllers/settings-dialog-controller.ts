@@ -4,6 +4,7 @@ import type { I18nStrings } from "../../shared/i18n";
 import type { KernelBridge } from "../kernel-bridge";
 import { notifyInfo, notifyOperationError } from "../notify";
 import { taskStore } from "../stores/task-store";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export class SettingsDialogController {
     private dialog?: Dialog;
@@ -15,6 +16,7 @@ export class SettingsDialogController {
 
     open(): void {
         if (this.dialog) return;
+        let mounted: AsyncSvelteComponentMount<{ requestClose(): Promise<void> }> | null = null;
         const dialog = new Dialog({
             title: "",
             content: `<div id="naSettingsPanel" class="nextaction"></div>`,
@@ -23,8 +25,7 @@ export class SettingsDialogController {
             disableClose: true,
             hideCloseIcon: true,
             destroyCallback: () => {
-                const component = (dialog as Dialog & { _naSettings?: { $destroy(): void } })._naSettings;
-                component?.$destroy();
+                void mounted?.dispose();
                 if (this.dialog === dialog) this.dialog = undefined;
             },
         });
@@ -45,32 +46,32 @@ export class SettingsDialogController {
         }
         container.style.cssText += "height:100%;min-height:0;overflow:hidden;flex:1;";
 
-        void import("../components/SettingsPanel.svelte")
-            .then(({ default: SettingsPanel }) => {
-                const component = new SettingsPanel({
-                    target: container,
-                    props: {
-                        bridge: this.bridge,
-                        i18n: this.i18n,
-                        onSave: async (settings: PluginSettings) => {
-                            taskStore.applySettingsUpdate(settings);
-                            try {
-                                await this.bridge.recalcAllOrders();
-                                notifyInfo(this.i18n.settingsSaved || "Settings saved");
-                            } finally {
-                                void taskStore.loadTasks();
-                            }
-                        },
-                        onClose: () => dialog.destroy(),
-                    },
-                });
-                (dialog as Dialog & { _naSettings?: typeof component })._naSettings = component;
+        mounted = mountSvelteComponentAsync(() => import("../components/SettingsPanel.svelte"), {
+            target: container,
+            props: {
+                bridge: this.bridge,
+                i18n: this.i18n,
+                onSave: async (settings: PluginSettings) => {
+                    taskStore.applySettingsUpdate(settings);
+                    try {
+                        await this.bridge.recalcAllOrders();
+                        notifyInfo(this.i18n.settingsSaved || "Settings saved");
+                    } finally {
+                        void taskStore.loadTasks();
+                    }
+                },
+                onClose: () => dialog.destroy(),
+            },
+        }) as AsyncSvelteComponentMount<{ requestClose(): Promise<void> }>;
+        void mounted.ready
+            .then((component) => {
+                if (!component) return;
                 dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener(
                     "click",
                     (event) => {
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        component.requestClose();
+                        void component.requestClose();
                     },
                     { capture: true },
                 );

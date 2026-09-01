@@ -5,6 +5,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 import type { KernelBridge } from "../kernel-bridge";
 import { taskStore } from "../stores/task-store";
 import { showActionMoveUndo } from "../stores/action-move-undo-store";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export interface OpenActionMoveDialogOptions {
     bridge: KernelBridge;
@@ -16,8 +17,7 @@ export interface OpenActionMoveDialogOptions {
 }
 
 export async function openActionMoveDialog(options: OpenActionMoveDialogOptions): Promise<void> {
-    let destroyed = false;
-    let component: { $destroy(): void } | null = null;
+    let mounted: AsyncSvelteComponentMount<object> | null = null;
     let removeKeydownListener = () => {};
     const dialog = new Dialog({
         title: "",
@@ -27,10 +27,9 @@ export async function openActionMoveDialog(options: OpenActionMoveDialogOptions)
         disableClose: true,
         hideCloseIcon: true,
         destroyCallback: () => {
-            destroyed = true;
             removeKeydownListener();
-            component?.$destroy();
-            component = null;
+            void mounted?.dispose();
+            mounted = null;
         },
     });
     dialog.element.classList.add("nextaction", "na-action-move-dialog");
@@ -53,9 +52,7 @@ export async function openActionMoveDialog(options: OpenActionMoveDialogOptions)
     window.addEventListener("keydown", handleKeydown);
     removeKeydownListener = () => window.removeEventListener("keydown", handleKeydown);
 
-    const { default: ActionMoveDialog } = await import("../components/project/ActionMoveDialog.svelte");
-    if (destroyed) return;
-    component = new ActionMoveDialog({
+    mounted = mountSvelteComponentAsync(() => import("../components/project/ActionMoveDialog.svelte"), {
         target: host,
         props: {
             bridge: options.bridge,
@@ -71,4 +68,5 @@ export async function openActionMoveDialog(options: OpenActionMoveDialogOptions)
             },
         },
     });
+    await mounted.ready;
 }

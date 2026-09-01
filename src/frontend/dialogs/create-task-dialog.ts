@@ -2,6 +2,7 @@ import { Dialog } from "siyuan";
 import type { KernelBridge } from "../kernel-bridge";
 import type { TaskCacheEntry } from "../../shared/types";
 import createTaskDialogStyles from "./create-task-dialog.scss?inline";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export interface OpenCreateTaskDialogOptions {
     bridge: KernelBridge;
@@ -12,6 +13,7 @@ export interface OpenCreateTaskDialogOptions {
 }
 
 export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions): Promise<void> {
+    let mounted: AsyncSvelteComponentMount<object> | null = null;
     const dialog = new Dialog({
         title:
             options.initialActionKind === "stage"
@@ -22,8 +24,7 @@ export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions)
         content: '<div class="nextaction na-create-task-host"></div>',
         width: "640px",
         destroyCallback: () => {
-            const component = (dialog as any)._naCreateTaskComponent;
-            component?.$destroy?.();
+            void mounted?.dispose();
         },
     });
     dialog.element.classList.add("nextaction", "na-create-task-dialog");
@@ -37,8 +38,7 @@ export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions)
         dialog.destroy();
         throw new Error(options.i18n?.createDialogUnavailable || "Task creation dialog is unavailable");
     }
-    const { default: CreateTaskDialog } = await import("../components/CreateTaskDialog.svelte");
-    const component = new CreateTaskDialog({
+    mounted = mountSvelteComponentAsync(() => import("../components/CreateTaskDialog.svelte"), {
         target: host,
         props: {
             bridge: options.bridge,
@@ -49,5 +49,5 @@ export async function openCreateTaskDialog(options: OpenCreateTaskDialogOptions)
             onCreated: options.onCreated,
         },
     });
-    (dialog as any)._naCreateTaskComponent = component;
+    await mounted.ready;
 }
