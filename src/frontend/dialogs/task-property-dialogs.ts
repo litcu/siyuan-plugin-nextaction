@@ -9,6 +9,7 @@ import { formatRpcError } from "../notify";
 import { parseReminderItems, serializeReminderItems } from "../utils/reminder-utils";
 import NaReminderEditor from "../ui/NaReminderEditor.svelte";
 import NaRepeatRuleEditor from "../ui/NaRepeatRuleEditor.svelte";
+import { mountSvelteComponent, type SvelteComponentMount } from "../svelte-mount";
 
 type DialogCallbacks = {
     onSave?: (updated: TaskCacheEntry) => void;
@@ -63,7 +64,7 @@ export function openReminderSettingsDialog(
     i18n: I18nStrings,
     callbacks: DialogCallbacks = {},
 ): void {
-    let component: NaReminderEditor | null = null;
+    let mounted: SvelteComponentMount<InstanceType<typeof NaReminderEditor>> | null = null;
     let unbindClose = () => {};
     let currentItems = parseReminderItems(task.reminder);
     const dialog = new Dialog({
@@ -75,7 +76,7 @@ export function openReminderSettingsDialog(
         hideCloseIcon: true,
         destroyCallback: () => {
             unbindClose();
-            component?.$destroy();
+            void mounted?.dispose();
         },
     });
     const target = configureDialog(dialog, "na-reminder-dialog-container");
@@ -86,7 +87,7 @@ export function openReminderSettingsDialog(
 
     const close = () => dialog.destroy();
     unbindClose = bindManagedClose(dialog, close);
-    component = new NaReminderEditor({
+    mounted = mountSvelteComponent(NaReminderEditor, {
         target,
         props: {
             items: currentItems,
@@ -94,7 +95,8 @@ export function openReminderSettingsDialog(
             defaultOffsets: get(taskStore).settings.reminderSettings.defaultOffsets,
             i18n,
         },
-    });
+    }) as SvelteComponentMount<InstanceType<typeof NaReminderEditor>>;
+    const component = mounted.instance;
     component.$on("close", close);
     component.$on("change", async (event: CustomEvent<{ items: typeof currentItems }>) => {
         const previousItems = currentItems;
@@ -122,7 +124,7 @@ export function openRepeatRuleDialog(
     i18n: I18nStrings,
     callbacks: DialogCallbacks = {},
 ): void {
-    let component: NaRepeatRuleEditor | null = null;
+    let mounted: SvelteComponentMount<InstanceType<typeof NaRepeatRuleEditor>> | null = null;
     let unbindClose = () => {};
     const dialog = new Dialog({
         title: "",
@@ -133,7 +135,7 @@ export function openRepeatRuleDialog(
         hideCloseIcon: true,
         destroyCallback: () => {
             unbindClose();
-            component?.$destroy();
+            void mounted?.dispose();
         },
     });
     const target = configureDialog(dialog, "na-repeat-dialog-container");
@@ -143,7 +145,7 @@ export function openRepeatRuleDialog(
     }
 
     const requestClose = () => {
-        if (!component?.hasUnsavedChanges()) {
+        if (!mounted?.instance.hasUnsavedChanges()) {
             dialog.destroy();
             return;
         }
@@ -154,7 +156,11 @@ export function openRepeatRuleDialog(
         );
     };
     unbindClose = bindManagedClose(dialog, requestClose);
-    component = new NaRepeatRuleEditor({ target, props: { task, i18n } });
+    mounted = mountSvelteComponent(NaRepeatRuleEditor, {
+        target,
+        props: { task, i18n },
+    }) as SvelteComponentMount<InstanceType<typeof NaRepeatRuleEditor>>;
+    const component = mounted.instance;
     component.$on("requestClose", requestClose);
     component.$on("apply", async (event: CustomEvent<{ rule: RepeatRuleV2 }>) => {
         component?.$set({ saving: true, error: "" });

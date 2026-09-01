@@ -1,34 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
+import { globSync, readFileSync } from "node:fs";
 
-// Regression: the production Svelte 5 config must preserve class-style startup mounts until all callers migrate.
-test("生产 Svelte 配置兼容现有组件挂载与销毁 API", async () => {
-    const result = await runSvelteBrowserTest({
-        fixtureName: "svelte-component-api",
-        prepareFixture(fixtureRoot) {
-            writeFileSync(join(fixtureRoot, "Fixture.svelte"), "<script>export let message;</script><p>{message}</p>");
-            writeFileSync(
-                join(fixtureRoot, "main.js"),
-                `import Fixture from "./Fixture.svelte";
-const finish = (value) => {
-    const result = document.createElement("pre");
-    result.id = "browser-result";
-    result.textContent = JSON.stringify(value);
-    document.body.appendChild(result);
-};
-try {
-    const component = new Fixture({ target: document.querySelector("#app"), props: { message: "ready" } });
-    const text = document.querySelector("#app p")?.textContent;
-    component.$destroy();
-    finish({ text, childCount: document.querySelector("#app")?.childElementCount });
-} catch (error) {
-    finish({ error: String(error?.message || error) });
-}`,
-            );
-        },
-    });
-    assert.deepEqual(result, { text: "ready", childCount: 0 });
+test("生产前端入口只通过统一边界挂载和销毁 Svelte 组件", () => {
+    const violations: string[] = [];
+    for (const file of globSync("src/frontend/**/*.ts")) {
+        const source = readFileSync(file, "utf8");
+        if (
+            !file.endsWith("/svelte-mount.ts") &&
+            /import\s*\{[^}]*\b(?:mount|unmount)\b[^}]*\}\s*from\s*"svelte"/s.test(source)
+        ) {
+            violations.push(`${file}: direct Svelte mount API import`);
+        }
+        if (/\bnew\s+[A-Za-z_$][\w$]*\s*\(\s*\{\s*target\b/m.test(source)) {
+            violations.push(`${file}: direct component construction`);
+        }
+        if (/\$destroy\s*\(/.test(source)) {
+            violations.push(`${file}: direct $destroy call`);
+        }
+    }
+
+    // 静态架构守卫；生命周期行为由 svelte-mount-browser.test.ts 覆盖。
+    assert.deepEqual(violations, []);
 });

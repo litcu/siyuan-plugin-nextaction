@@ -6,6 +6,7 @@ import { isProjectTask } from "../../shared/project-domain";
 import type { KernelBridge } from "../kernel-bridge";
 import { notifyInfo } from "../notify";
 import { taskStore } from "../stores/task-store";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export interface OpenExtractActionDialogOptions {
     bridge: KernelBridge;
@@ -17,7 +18,7 @@ export interface OpenExtractActionDialogOptions {
 }
 
 export async function openExtractActionDialog(options: OpenExtractActionDialogOptions): Promise<void> {
-    let component: { $destroy(): void } | null = null;
+    let mounted: AsyncSvelteComponentMount<object> | null = null;
     let removeKeydownListener = () => {};
     const dialog = new Dialog({
         title: "",
@@ -28,8 +29,8 @@ export async function openExtractActionDialog(options: OpenExtractActionDialogOp
         hideCloseIcon: true,
         destroyCallback: () => {
             removeKeydownListener();
-            component?.$destroy();
-            component = null;
+            void mounted?.dispose();
+            mounted = null;
         },
     });
     dialog.element.classList.add("nextaction", "na-extract-action-dialog");
@@ -52,9 +53,8 @@ export async function openExtractActionDialog(options: OpenExtractActionDialogOp
     window.addEventListener("keydown", handleKeydown);
     removeKeydownListener = () => window.removeEventListener("keydown", handleKeydown);
 
-    const { default: ExtractActionDialog } = await import("../components/ExtractActionDialog.svelte");
     const projects = get(taskStore).allTasks.filter(isProjectTask);
-    component = new ExtractActionDialog({
+    mounted = mountSvelteComponentAsync(() => import("../components/ExtractActionDialog.svelte"), {
         target: host,
         props: {
             bridge: options.bridge,
@@ -72,4 +72,5 @@ export async function openExtractActionDialog(options: OpenExtractActionDialogOp
             },
         },
     });
+    await mounted.ready;
 }

@@ -4,6 +4,7 @@ import type { I18nStrings } from "../../shared/i18n";
 import type { KernelBridge } from "../kernel-bridge";
 import { notifyError, notifyOperationError } from "../notify";
 import { taskStore } from "../stores/task-store";
+import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
 export interface TaskDetailDialogOptions {
     blockId: string;
@@ -35,8 +36,7 @@ export async function openTaskDetailDialog(options: TaskDetailDialogOptions): Pr
     }
     taskStore.applyUpdate(task);
 
-    let destroyed = false;
-    let detail: { $destroy(): void; requestClose(): Promise<boolean> } | null = null;
+    let detail: AsyncSvelteComponentMount<{ requestClose(): Promise<boolean> }> | null = null;
     const dialog = new Dialog({
         title: "",
         content: `<div class="nextaction na-task-dialog-content"></div>`,
@@ -45,8 +45,7 @@ export async function openTaskDetailDialog(options: TaskDetailDialogOptions): Pr
         disableClose: true,
         hideCloseIcon: true,
         destroyCallback: () => {
-            destroyed = true;
-            detail?.$destroy();
+            void detail?.dispose();
             detail = null;
         },
     });
@@ -59,13 +58,11 @@ export async function openTaskDetailDialog(options: TaskDetailDialogOptions): Pr
     dialog.element.querySelector(".b3-dialog__header")?.remove();
     dialog.element.querySelector<HTMLElement>(".b3-dialog__container")?.classList.add("na-task-dialog-container");
     dialog.element.querySelector(".b3-dialog__scrim")?.addEventListener("click", () => {
-        void detail?.requestClose();
+        void detail?.instance?.requestClose();
     });
 
     try {
-        const { default: TaskDetail } = await import("../components/TaskDetail.svelte");
-        if (destroyed) return;
-        const component = new TaskDetail({
+        detail = mountSvelteComponentAsync(() => import("../components/TaskDetail.svelte"), {
             target: container as HTMLElement,
             props: {
                 task,
@@ -83,8 +80,8 @@ export async function openTaskDetailDialog(options: TaskDetailDialogOptions): Pr
                     );
                 },
             },
-        });
-        detail = component as unknown as { $destroy(): void; requestClose(): Promise<boolean> };
+        }) as AsyncSvelteComponentMount<{ requestClose(): Promise<boolean> }>;
+        await detail.ready;
     } catch (error: unknown) {
         dialog.destroy();
         notifyOperationError(error, options.i18n);

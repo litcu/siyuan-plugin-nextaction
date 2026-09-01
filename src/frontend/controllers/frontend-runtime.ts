@@ -7,12 +7,13 @@ import { destroyReminderStore, initReminderStore } from "../stores/reminder-stor
 import { taskStore } from "../stores/task-store";
 import { asI18nStrings } from "../../shared/i18n";
 import type { MyDayState } from "../../shared/types";
+import { mountSvelteComponent, type SvelteComponentMount } from "../svelte-mount";
 
 const TASK_CALIBRATION_INTERVAL_MS = 5 * 60 * 1000;
 
 export class FrontendRuntime {
     private bridge?: KernelBridge;
-    private notificationHost?: NotificationHost;
+    private notificationHost?: SvelteComponentMount<object>;
     private calibrationTimer: ReturnType<typeof setInterval> | null = null;
     private disposed = false;
     private readonly tasksChangedV2Handler = (...params: unknown[]) => {
@@ -47,7 +48,7 @@ export class FrontendRuntime {
             getCurrentDocumentId: this.getCurrentDocumentId,
         });
         void initReminderStore(this.plugin);
-        this.notificationHost = new NotificationHost({
+        this.notificationHost = mountSvelteComponent(NotificationHost, {
             target: document.body,
             props: { i18n: this.plugin.i18n, bridge },
         });
@@ -73,7 +74,7 @@ export class FrontendRuntime {
         taskStore.disposeSync();
         this.plugin.eventBus.off("kernel-plugin-state-change", this.kernelStateHandler);
         destroyReminderStore();
-        this.notificationHost?.$destroy();
+        void this.notificationHost?.dispose();
         this.notificationHost = undefined;
         this.bridge = undefined;
     }

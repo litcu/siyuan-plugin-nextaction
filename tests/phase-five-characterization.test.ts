@@ -15,9 +15,9 @@ test("任务详情的抽屉与独立 Dialog 共享保存和关闭契约", () => 
 
     assert.match(app, /<TaskDetail[\s\S]*bind:this=\{detailComponent\}/);
     assert.match(editor, /openSharedTaskDetailDialog\(\{/);
-    assert.match(dialog, /new TaskDetail\([\s\S]*dialogMode: true/);
+    assert.match(dialog, /mountSvelteComponentAsync\([\s\S]*dialogMode: true/);
     assert.match(app, /detailComponent\.requestClose\(\)/);
-    assert.match(dialog, /detail\?\.requestClose\(\)/);
+    assert.match(dialog, /detail\?\.instance\?\.requestClose\(\)/);
     assert.match(detail, /new TaskDetailSession\(task/);
     assert.match(session, /options\.debounceMs \?\? 500/);
     assert.match(detail, /event\.key\.toLowerCase\(\) === "s"/);
