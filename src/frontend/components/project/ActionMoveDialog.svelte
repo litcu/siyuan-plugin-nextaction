@@ -97,11 +97,13 @@
     title={i18n.moveActionTitle || "Move Action"}
     subtitle={i18n.moveActionDescription || "Move the native Action and its full subtree."}
     closeLabel={i18n.close}
-    on:close={() => onClose?.()}
+    onClose={() => onClose?.()}
 >
-    <div slot="notice">
-        {#if error}<NaInlineNotice message={error} tone="error" />{/if}
-    </div>
+    {#snippet notice()}
+        <div>
+            {#if error}<NaInlineNotice message={error} tone="error" />{/if}
+        </div>
+    {/snippet}
 
     <div class="na-action-move" aria-busy={loading || moving}>
         {#if loading}
@@ -142,17 +144,21 @@
         {/if}
     </div>
 
-    <div slot="footerStart">
-        {#if !loading && !preview}
-            <NaButton size="sm" disabled={moving} on:click={loadPreview}>{i18n.retry}</NaButton>
-        {/if}
-    </div>
-    <div slot="footerEnd">
-        <NaButton disabled={moving} on:click={() => onClose?.()}>{i18n.cancel}</NaButton>
-        <NaButton variant="primary" loading={moving} disabled={!preview || loading} on:click={submit}
-            >{i18n.moveActionConfirm || "Move to project document"}</NaButton
-        >
-    </div>
+    {#snippet footerStart()}
+        <div>
+            {#if !loading && !preview}
+                <NaButton size="sm" disabled={moving} onclick={loadPreview}>{i18n.retry}</NaButton>
+            {/if}
+        </div>
+    {/snippet}
+    {#snippet footerEnd()}
+        <div>
+            <NaButton disabled={moving} onclick={() => onClose?.()}>{i18n.cancel}</NaButton>
+            <NaButton variant="primary" loading={moving} disabled={!preview || loading} onclick={submit}
+                >{i18n.moveActionConfirm || "Move to project document"}</NaButton
+            >
+        </div>
+    {/snippet}
 </NaDialogShell>
 
 <style lang="scss">

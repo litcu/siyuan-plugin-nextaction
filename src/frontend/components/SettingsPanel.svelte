@@ -729,7 +729,7 @@
                 title={modernTabs.find((tab) => tab.id === modernTab)?.label || ""}
                 description={modernTabs.find((tab) => tab.id === modernTab)?.desc || ""}
             >
-                <svelte:fragment slot="actions">
+                {#snippet actions()}
                     <button
                         type="button"
                         class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n"
@@ -738,7 +738,7 @@
                     >
                         <NaIcon symbol="iconCloseRound" size={18} />
                     </button>
-                </svelte:fragment>
+                {/snippet}
             </NaPanelHeader>
         </div>
 

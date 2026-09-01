@@ -120,9 +120,9 @@
                 modified={aiPrompts[feature.id] !== defaultPrompts[feature.id]}
                 modifiedLabel={i18n?.settingUnsavedBadge || "Modified"}
                 {i18n}
-                on:openChange={(event) => setOpen(feature.id, event.detail)}
+                onOpenChange={(open) => setOpen(feature.id, open)}
             >
-                <svelte:fragment slot="default">
+                {#snippet children()}
                     <label class="na-settings-ai__label" for={`setting-ai-prompt-${feature.id}`}
                         >{i18n?.settingAiPromptInstruction || "Feature instruction"}</label
                     >
@@ -169,7 +169,7 @@
                             <pre>{getRuntimePreview(feature.id).example}</pre>
                         </div>
                     </details>
-                </svelte:fragment>
+                {/snippet}
             </NaAccordion>
         {/each}
     </div>

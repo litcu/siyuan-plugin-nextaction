@@ -34,17 +34,15 @@
     emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"}
     hint={i18n?.viewHintNextAction}
 >
-    <svelte:fragment slot="toolbar"
-        ><NaTaskFilterBar
+    {#snippet toolbar()}<NaTaskFilterBar
             contexts={$taskStore.contexts}
             tags={$taskStore.tags}
             customFields={$taskStore.settings.customFields}
             {filterState}
             showStatus={false}
             {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
-        /></svelte:fragment
-    >
+            onChange={handleFilterChange}
+        />{/snippet}
     <NaTaskList>
         {#each filteredTasks as task (task.blockId)}
             <TaskCard

@@ -96,16 +96,14 @@
     emptyText={i18n?.reminderNoPending || "暂无待处理提醒"}
     hint={i18n?.viewHintReminder}
 >
-    <svelte:fragment slot="toolbar"
-        ><NaToolbar compact
+    {#snippet toolbar()}<NaToolbar compact
             ><span class="na-reminder__summary">{pending.length} {i18n?.reminder || "Reminders"}</span
             >{#if pending.length > 0}<div class="na-toolbar__actions-content">
-                    <NaButton size="sm" variant="text" on:click={handleDismissAll}
+                    <NaButton size="sm" variant="text" onclick={handleDismissAll}
                         >{i18n?.reminderDismissAll || "一键已读"}</NaButton
                     >
                 </div>{/if}</NaToolbar
-        ></svelte:fragment
-    >
+        >{/snippet}
     <div class="na-reminder__list">
         {#each pending as entry (buildDedupKey(entry.blockId, entry.baseDateStr, entry.minutesBefore, entry.type))}
             <div class="na-reminder__item na-reminder__item--{entry.type}">
@@ -120,8 +118,7 @@
                                 ? "warning"
                                 : "primary"}
                     />
-                    <NaButton variant="text" size="sm" on:click={() => handleJump(entry.blockId)}
-                        >{entry.title}</NaButton
+                    <NaButton variant="text" size="sm" onclick={() => handleJump(entry.blockId)}>{entry.title}</NaButton
                     >
                     <span class="na-reminder__desc">{getDescription(entry)}</span>
                     <span class="na-reminder__time">{formatTriggerTime(entry.triggerTime)}</span>
@@ -130,7 +127,7 @@
                     symbol="iconClose"
                     label={i18n?.reminderDismiss || "Dismiss"}
                     compact
-                    on:click={() => handleDismiss(entry)}
+                    onclick={() => handleDismiss(entry)}
                 />
             </div>
         {/each}

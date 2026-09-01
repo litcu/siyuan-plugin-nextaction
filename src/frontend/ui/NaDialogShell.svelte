@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import type { Snippet } from "svelte";
     import NaDialogHeader from "./NaDialogHeader.svelte";
     import NaDialogFooter from "./NaDialogFooter.svelte";
 
@@ -11,25 +11,53 @@
     export let variant: "drawer" | "dialog" = "drawer";
     export let showFooter = true;
     export let element: HTMLDivElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{ close: void }>();
+    export let onClose: () => void = () => {};
+    export let headerActions: Snippet | undefined = undefined;
+    export let notice: Snippet | undefined = undefined;
+    export let footerStart: Snippet | undefined = undefined;
+    export let footerEnd: Snippet | undefined = undefined;
+    export let children: Snippet;
 </script>
+
+{#snippet wrappedHeaderActions()}
+    <div>
+        {#if headerActions}{@render headerActions()}{/if}
+    </div>
+{/snippet}
+
+{#snippet wrappedFooterStart()}
+    <div>
+        {#if footerStart}{@render footerStart()}{/if}
+    </div>
+{/snippet}
+
+{#snippet wrappedFooterEnd()}
+    <div>
+        {#if footerEnd}{@render footerEnd()}{/if}
+    </div>
+{/snippet}
 
 <div
     bind:this={element}
     class="na-dialog-shell na-dialog-shell--{variant}"
     class:na-dialog-shell--with-footer={showFooter}
 >
-    <NaDialogHeader {title} {subtitle} {closeLabel} {status} {statusTone} on:close={() => dispatch("close")}>
-        <div slot="actions"><slot name="headerActions" /></div>
-    </NaDialogHeader>
-    <div class="na-dialog-shell__notice" aria-live="polite"><slot name="notice" /></div>
-    <main class="na-dialog-shell__body"><slot /></main>
-    {#if showFooter}
-        <NaDialogFooter>
-            <div slot="start"><slot name="footerStart" /></div>
-            <div slot="end"><slot name="footerEnd" /></div>
-        </NaDialogFooter>
+    <NaDialogHeader
+        {title}
+        {subtitle}
+        {closeLabel}
+        {status}
+        {statusTone}
+        {onClose}
+        actions={headerActions ? wrappedHeaderActions : undefined}
+    />
+    {#if notice}<div class="na-dialog-shell__notice" aria-live="polite">{@render notice()}</div>{/if}
+    <main class="na-dialog-shell__body">{@render children()}</main>
+    {#if showFooter && (footerStart || footerEnd)}
+        <NaDialogFooter
+            start={footerStart ? wrappedFooterStart : undefined}
+            end={footerEnd ? wrappedFooterEnd : undefined}
+        />
     {/if}
 </div>
 

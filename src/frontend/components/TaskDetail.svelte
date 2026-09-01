@@ -287,13 +287,13 @@
         session.edit(buildDraft());
     }
 
-    function handleActionKindChange(event: CustomEvent<string>) {
-        actionKind = event.detail === "stage" ? "stage" : "action";
+    function handleActionKindChange(value: string) {
+        actionKind = value === "stage" ? "stage" : "action";
         handleChange();
     }
 
-    function handleParentChange(event: CustomEvent<{ selected: string | string[] }>) {
-        parentId = typeof event.detail.selected === "string" ? event.detail.selected : "";
+    function handleParentChange(selected: string | string[]) {
+        parentId = typeof selected === "string" ? selected : "";
         actionKind = normalizeActionKindForProjectScope(
             actionKind,
             Boolean($projectMembershipGraph.node(parentId)?.projectId),
@@ -381,8 +381,7 @@
         session.receiveAuthoritativeTask(updated);
     }
 
-    async function handleRepeatToggle(event: CustomEvent<{ checked: boolean }>) {
-        const nextEnabled = event.detail.checked;
+    async function handleRepeatToggle(nextEnabled: boolean) {
         if (nextEnabled && !repeatEnabled) {
             await openRepeatSettings();
             return;
@@ -425,12 +424,12 @@
         }
     }
 
-    async function toggleMyDay() {
+    async function toggleMyDay(checked: boolean) {
         operationBusy = true;
         try {
-            const state = isInMyDay
-                ? await bridge.removeTaskFromMyDay(task.blockId)
-                : await bridge.addTaskToMyDay(task.blockId);
+            const state = checked
+                ? await bridge.addTaskToMyDay(task.blockId)
+                : await bridge.removeTaskFromMyDay(task.blockId);
             taskStore.applyMyDayUpdate(state);
         } catch (error: any) {
             session.reportError(formatRpcError(error, i18n));
@@ -587,36 +586,38 @@
     status={statusLabel}
     {statusTone}
     showFooter={false}
-    on:close={requestClose}
+    onClose={requestClose}
 >
-    <div slot="headerActions" class="na-task-detail__header-actions">
-        <NaIconButton
-            symbol="iconAdd"
-            label={i18n?.createChildTask || "Create child task"}
-            size={14}
-            on:click={() => onCreateChild?.(task)}
-        />
-        {#if showJumpToBlock}<NaIconButton
-                symbol="iconOpenWindow"
-                label={i18n?.jumpToBlock || "Jump to block"}
+    {#snippet headerActions()}
+        <div class="na-task-detail__header-actions">
+            <NaIconButton
+                symbol="iconAdd"
+                label={i18n?.createChildTask || "Create child task"}
                 size={14}
-                on:click={() => handleJumpToBlock(task.contentBlockId || task.blockId)}
-            />{/if}
-        <NaIconButton
-            symbol="iconSparkles"
-            label={aiDecomposeLabel}
-            size={14}
-            on:click={() => runAiDecomposeTask(task)}
-        />
-        <NaIconButton
-            symbol="iconTrashcan"
-            label={removeLabel}
-            size={14}
-            tone="danger"
-            disabled={operationBusy || saveState === "saving"}
-            on:click={handleRemove}
-        />
-    </div>
+                onclick={() => onCreateChild?.(task)}
+            />
+            {#if showJumpToBlock}<NaIconButton
+                    symbol="iconOpenWindow"
+                    label={i18n?.jumpToBlock || "Jump to block"}
+                    size={14}
+                    onclick={() => handleJumpToBlock(task.contentBlockId || task.blockId)}
+                />{/if}
+            <NaIconButton
+                symbol="iconSparkles"
+                label={aiDecomposeLabel}
+                size={14}
+                onclick={() => runAiDecomposeTask(task)}
+            />
+            <NaIconButton
+                symbol="iconTrashcan"
+                label={removeLabel}
+                size={14}
+                tone="danger"
+                disabled={operationBusy || saveState === "saving"}
+                onclick={handleRemove}
+            />
+        </div>
+    {/snippet}
 
     {#if noticeMessage}
         <div class="na-task-detail__notice"><NaInlineNotice message={noticeMessage} tone={noticeTone} /></div>
@@ -679,7 +680,7 @@
                     options={actionKindOptions}
                     value={actionKind || "action"}
                     label={i18n?.actionKind || "Action kind"}
-                    on:change={handleActionKindChange}
+                    onChange={handleActionKindChange}
                 />
             </NaPropertyRow>
         {/if}
@@ -691,7 +692,10 @@
                 options={taskTypeOptions}
                 bind:value={taskType}
                 label={i18n?.taskType || "Task type"}
-                on:change={handleChange}
+                onChange={(value) => {
+                    taskType = value;
+                    handleChange();
+                }}
             />
         </NaPropertyRow>
         <NaPropertyRow
@@ -707,12 +711,26 @@
         <NaPropertyRow
             label={i18n?.importance || "Importance"}
             helpText={i18n?.importanceHint || "Task value; higher values raise automatic ranking"}
-            ><NaDotRating count={7} bind:value={importance} on:change={handleChange} /></NaPropertyRow
+            ><NaDotRating
+                count={7}
+                value={importance}
+                onChange={(value) => {
+                    importance = value;
+                    handleChange();
+                }}
+            /></NaPropertyRow
         >
         <NaPropertyRow
             label={i18n?.effort || "Effort"}
             helpText={i18n?.effortHint || "Expected work; higher values reduce automatic ranking"}
-            ><NaDotRating count={7} bind:value={effort} on:change={handleChange} /></NaPropertyRow
+            ><NaDotRating
+                count={7}
+                value={effort}
+                onChange={(value) => {
+                    effort = value;
+                    handleChange();
+                }}
+            /></NaPropertyRow
         >
         <NaPropertyRow label={i18n?.note || "Note"} stacked={true}
             ><textarea class="b3-text-field fn__block" rows="3" bind:value={note} on:input={handleChange}
@@ -727,7 +745,10 @@
                 defaultTime="00:00"
                 fixedDropdown={true}
                 {i18n}
-                on:change={handleDateChange}
+                onChange={(value) => {
+                    start = value;
+                    handleDateChange();
+                }}
             /></NaPropertyRow
         >
         <NaPropertyRow label={i18n?.dueTime || i18n?.dueDate || "Due"}
@@ -736,7 +757,10 @@
                 defaultTime="23:59"
                 fixedDropdown={true}
                 {i18n}
-                on:change={handleDateChange}
+                onChange={(value) => {
+                    due = value;
+                    handleDateChange();
+                }}
             /></NaPropertyRow
         >
         <NaPropertyRow
@@ -746,7 +770,7 @@
                 checked={isInMyDay}
                 disabled={operationBusy}
                 label={i18n?.myDay || "My Day"}
-                on:change={toggleMyDay}
+                onChange={toggleMyDay}
             /></NaPropertyRow
         >
         <NaPropertyRow
@@ -770,7 +794,7 @@
                     checked={repeatEnabled}
                     disabled={operationBusy}
                     label={i18n?.repeat || "Repeat"}
-                    on:change={handleRepeatToggle}
+                    onChange={handleRepeatToggle}
                 />
                 {#if repeatEnabled}
                     {#if repeatStatus !== "ended"}<button
@@ -818,7 +842,7 @@
                     clearLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
                     removeLabel={i18n?.clearProjectAssignment || "Clear project or parent assignment"}
                     fixedDropdown={true}
-                    on:change={handleParentChange}
+                    onChange={handleParentChange}
                 />
             </NaPropertyRow>
         {/if}
@@ -838,7 +862,10 @@
                 clearLabel={i18n?.clearSelection || "Clear selection"}
                 removeLabel={i18n?.removeSelection || "Remove selection"}
                 fixedDropdown={true}
-                on:change={handleChange}
+                onChange={(selected) => {
+                    contexts = Array.isArray(selected) ? selected : [];
+                    handleChange();
+                }}
             />
         </NaPropertyRow>
         <NaPropertyRow label={i18n?.tag || "Tags"}>
@@ -854,7 +881,10 @@
                 clearLabel={i18n?.clearSelection || "Clear selection"}
                 removeLabel={i18n?.removeSelection || "Remove selection"}
                 fixedDropdown={true}
-                on:change={handleChange}
+                onChange={(selected) => {
+                    taskTags = Array.isArray(selected) ? selected : [];
+                    handleChange();
+                }}
             />
         </NaPropertyRow>
     </NaPropertySection>
@@ -889,7 +919,10 @@
                 clearLabel={i18n?.clearSelection || "Clear selection"}
                 removeLabel={i18n?.removeSelection || "Remove selection"}
                 fixedDropdown={true}
-                on:change={handleChange}
+                onChange={(selected) => {
+                    depends = Array.isArray(selected) ? selected : [];
+                    handleChange();
+                }}
             />
         </NaPropertyRow>
         <NaPropertyRow
@@ -908,7 +941,10 @@
             ><NaToggle
                 bind:checked={sequentialEnabled}
                 label={i18n?.sequential || "Sequential"}
-                on:change={handleChange}
+                onChange={(checked) => {
+                    sequentialEnabled = checked;
+                    handleChange();
+                }}
             /></NaPropertyRow
         >
     </NaPropertySection>
@@ -946,8 +982,8 @@
                     value={reviewDate}
                     fixedDropdown={true}
                     {i18n}
-                    on:change={(event) => {
-                        reviewDate = event.detail?.value || "";
+                    onChange={(value) => {
+                        reviewDate = value;
                         handleChange();
                     }}
                 /></NaPropertyRow
@@ -963,11 +999,11 @@
                         value={customFieldValues[def.key] || ""}
                         {i18n}
                         fixedDropdown={true}
-                        on:change={(event) => {
-                            customFieldValues = { ...customFieldValues, [def.key]: event.detail.value };
+                        onChange={(value) => {
+                            customFieldValues = { ...customFieldValues, [def.key]: value };
                             handleChange();
                         }}
-                        on:open={(event) => openCustomFieldLink(event.detail.value)}
+                        onOpen={openCustomFieldLink}
                     />
                 </NaPropertyRow>
             {/each}

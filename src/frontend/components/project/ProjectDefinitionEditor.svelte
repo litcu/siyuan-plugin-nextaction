@@ -163,14 +163,14 @@
                     variant="primary"
                     loading={fieldSaving}
                     disabled={!onSave || anySaving || !state.dirty || state.conflict !== null}
-                    on:click={(event) => save(field, event)}
+                    onclick={(event) => save(field, event)}
                 >
                     {state.saveState === "error" ? i18n?.projectDefinitionRetry || "Retry" : i18n?.save || "Save"}
                 </NaButton>
                 <NaButton
                     size="sm"
                     disabled={!state.dirty || anySaving}
-                    on:click={(event) => applyDraftAction(field, event, (target) => target.cancel(field))}
+                    onclick={(event) => applyDraftAction(field, event, (target) => target.cancel(field))}
                 >
                     {i18n?.cancel || "Cancel"}
                 </NaButton>
@@ -187,7 +187,7 @@
                         <NaButton
                             size="sm"
                             disabled={anySaving}
-                            on:click={(event) => applyDraftAction(field, event, (target) => target.reloadRemote(field))}
+                            onclick={(event) => applyDraftAction(field, event, (target) => target.reloadRemote(field))}
                         >
                             {i18n?.projectDefinitionReloadRemote || "Reload remote"}
                         </NaButton>
@@ -195,7 +195,7 @@
                             size="sm"
                             variant="primary"
                             disabled={anySaving}
-                            on:click={(event) => applyDraftAction(field, event, (target) => target.keepDraft(field))}
+                            onclick={(event) => applyDraftAction(field, event, (target) => target.keepDraft(field))}
                         >
                             {i18n?.projectDefinitionKeepDraft || "Keep draft"}
                         </NaButton>

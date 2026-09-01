@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import NaIcon from "./NaIcon.svelte";
     import NaSpinner from "./NaSpinner.svelte";
 
@@ -10,6 +11,7 @@
     export let actionLoading = false;
     export let actionDisabled = false;
     export let tone: "default" | "warning" = "default";
+    export let children: Snippet;
 </script>
 
 <section class="na-section" class:na-section--warning={tone === "warning"}>
@@ -29,14 +31,14 @@
                 class="b3-button b3-button--text na-section__action"
                 disabled={actionDisabled || actionLoading}
                 aria-busy={actionLoading || undefined}
-                on:click={onAction}
+                onclick={onAction}
             >
                 {#if actionLoading}<NaSpinner />{:else}<NaIcon symbol="iconRefresh" size={13} />{/if}
                 <span>{actionLabel}</span>
             </button>
         {/if}
     </header>
-    <div class="na-section__body"><slot /></div>
+    <div class="na-section__body">{@render children()}</div>
 </section>
 
 <style lang="scss">

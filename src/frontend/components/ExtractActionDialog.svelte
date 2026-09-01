@@ -53,12 +53,12 @@
             .map((project) => ({ id: project.blockId, label: project.title }));
     }
 
-    function handleActionKindChange(event: CustomEvent<string>): void {
-        actionKind = event.detail as Exclude<TaskActionKind, "">;
+    function handleActionKindChange(value: string): void {
+        actionKind = value as Exclude<TaskActionKind, "">;
     }
 
-    function handleProjectChange(event: CustomEvent<{ selected: string | string[] }>): void {
-        projectId = typeof event.detail.selected === "string" ? event.detail.selected : "";
+    function handleProjectChange(selected: string | string[]): void {
+        projectId = typeof selected === "string" ? selected : "";
     }
 
     async function submit(): Promise<void> {
@@ -95,11 +95,13 @@
     title={i18n.extractActionTitle}
     subtitle={i18n.extractActionDescription}
     closeLabel={i18n.close}
-    on:close={() => onClose?.()}
+    onClose={() => onClose?.()}
 >
-    <div slot="notice">
-        {#if error}<NaInlineNotice message={error} tone="error" />{/if}
-    </div>
+    {#snippet notice()}
+        <div>
+            {#if error}<NaInlineNotice message={error} tone="error" />{/if}
+        </div>
+    {/snippet}
 
     <form class="na-extract-action" on:submit|preventDefault={submit}>
         <div class="na-extract-action__source">
@@ -127,7 +129,7 @@
                     size="sm"
                     label={i18n.actionKind}
                     disabled={busy}
-                    on:change={handleActionKindChange}
+                    onChange={handleActionKindChange}
                 />
             </NaPropertyRow>
             <NaPropertyRow label={i18n.status} forId="na-extract-action-status">
@@ -156,16 +158,18 @@
                     clearLabel={i18n.clearSelection}
                     disabled={busy}
                     fixedDropdown
-                    on:change={handleProjectChange}
+                    onChange={handleProjectChange}
                 />
             </NaPropertyRow>
         </NaPropertySection>
     </form>
 
-    <div slot="footerEnd">
-        <NaButton disabled={busy} on:click={() => onClose?.()}>{i18n.cancel}</NaButton>
-        <NaButton variant="primary" loading={busy} on:click={submit}>{i18n.extractActionSubmit}</NaButton>
-    </div>
+    {#snippet footerEnd()}
+        <div>
+            <NaButton disabled={busy} onclick={() => onClose?.()}>{i18n.cancel}</NaButton>
+            <NaButton variant="primary" loading={busy} onclick={submit}>{i18n.extractActionSubmit}</NaButton>
+        </div>
+    {/snippet}
 </NaDialogShell>
 
 <style lang="scss">

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import NaHelpTooltip from "./NaHelpTooltip.svelte";
 
     export let label: string;
@@ -8,6 +9,7 @@
     export let disabled = false;
     export let stacked = false;
     export let error = "";
+    export let children: Snippet;
 </script>
 
 <div class="na-property-row" class:na-property-row--disabled={disabled} class:na-property-row--stacked={stacked}>
@@ -19,7 +21,7 @@
         </div>
         {#if description}<small>{description}</small>{/if}
     </div>
-    <div class="na-property-row__control" role="group" aria-label={label}><slot /></div>
+    <div class="na-property-row__control" role="group" aria-label={label}>{@render children()}</div>
     {#if error}<div class="na-property-row__error" role="alert">{error}</div>{/if}
 </div>
 

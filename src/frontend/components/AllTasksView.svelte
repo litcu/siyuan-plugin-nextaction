@@ -106,8 +106,7 @@
     emptyText={$taskStore.error || i18n?.noResults || i18n?.noTasks || "No tasks yet"}
     hint={i18n?.viewHintAllTasks}
 >
-    <svelte:fragment slot="toolbar"
-        ><NaTaskFilterBar
+    {#snippet toolbar()}<NaTaskFilterBar
             contexts={$taskStore.contexts}
             tags={$taskStore.tags}
             customFields={$taskStore.settings.customFields}
@@ -115,9 +114,8 @@
             showStatus={true}
             statusValues={ALL_TASK_STATUS_FILTERS}
             {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
-        /></svelte:fragment
-    >
+            onChange={handleFilterChange}
+        />{/snippet}
     <NaTaskList bind:element={listEl}>
         {#each taskRows as row (row.task.blockId)}
             <div
@@ -153,9 +151,9 @@
                     count={doneCount}
                     open={$taskStore.showCompleted}
                     variant="plain"
-                    on:openChange={handleToggleCompleted}
+                    onOpenChange={handleToggleCompleted}
                 >
-                    <svelte:fragment slot="action">
+                    {#snippet action()}
                         <NaSortSelect
                             options={completedSortOptions}
                             selected={$taskStore.completedSortBy}
@@ -163,7 +161,7 @@
                             {i18n}
                             onChange={changeCompletedSort}
                         />
-                    </svelte:fragment>
+                    {/snippet}
                     {#if $taskStore.completedLoading && $taskStore.completedTasks.length === 0}
                         <div class="na-completed-tasks__loading">{i18n?.loading || "Loading…"}</div>
                     {:else if $taskStore.completedError}
@@ -198,7 +196,7 @@
                                 size="sm"
                                 variant="text"
                                 disabled={$taskStore.completedPage <= 1 || $taskStore.completedLoading}
-                                on:click={() => changeCompletedPage($taskStore.completedPage - 1)}
+                                onclick={() => changeCompletedPage($taskStore.completedPage - 1)}
                                 >{i18n?.previousPage || "Previous"}</NaButton
                             >
                             {#each completedPageNumbers as page (page)}
@@ -206,14 +204,14 @@
                                     size="sm"
                                     variant={page === $taskStore.completedPage ? "primary" : "text"}
                                     disabled={$taskStore.completedLoading}
-                                    on:click={() => changeCompletedPage(page)}>{page}</NaButton
+                                    onclick={() => changeCompletedPage(page)}>{page}</NaButton
                                 >
                             {/each}
                             <NaButton
                                 size="sm"
                                 variant="text"
                                 disabled={!$taskStore.completedHasMore || $taskStore.completedLoading}
-                                on:click={() => changeCompletedPage($taskStore.completedPage + 1)}
+                                onclick={() => changeCompletedPage($taskStore.completedPage + 1)}
                                 >{i18n?.nextPage || "Next"}</NaButton
                             >
                         </div>

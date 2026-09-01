@@ -43,16 +43,14 @@
     emptyText={searchText ? i18n?.noResults || "No matching tasks" : i18n?.noInboxTasks || "No inbox tasks"}
     scrollMode="none"
 >
-    <svelte:fragment slot="toolbar"
-        ><NaToolbar compact
+    {#snippet toolbar()}<NaToolbar compact
             ><NaSearchInput
                 bind:value={searchText}
                 compact
                 placeholder={i18n?.searchPlaceholder || "Search tasks..."}
                 ariaLabel={i18n?.searchPlaceholder || "Search tasks..."}
             /></NaToolbar
-        ></svelte:fragment
-    >
+        >{/snippet}
     <NaTaskList density="compact">
         {#each filteredTasks as task (task.blockId)}
             <TaskCard {task} {onEdit} {onStatusClick} {onContextMenu} onActivate={handleClarify} {i18n} />

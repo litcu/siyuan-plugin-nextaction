@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
     import NaIcon from "./NaIcon.svelte";
 
     export let value = "";
@@ -7,12 +6,11 @@
     export let compact = false;
     export let disabled = false;
     export let ariaLabel = "";
-
-    const dispatch = createEventDispatcher<{ input: { value: string } }>();
+    export let onInput: (value: string) => void = () => {};
 
     function handleInput(event: Event) {
         value = (event.currentTarget as HTMLInputElement).value;
-        dispatch("input", { value });
+        onInput(value);
     }
 </script>
 
@@ -25,7 +23,7 @@
         {placeholder}
         {disabled}
         aria-label={ariaLabel || placeholder}
-        on:input={handleInput}
+        oninput={handleInput}
     />
 </label>
 

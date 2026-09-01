@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import {
         normalizeRepeatRule,
@@ -20,10 +19,8 @@
     export let saving = false;
     export let error = "";
 
-    const dispatch = createEventDispatcher<{
-        apply: { rule: RepeatRuleV2 };
-        requestClose: { dirty: boolean };
-    }>();
+    export let onApply: (rule: RepeatRuleV2) => void = () => {};
+    export let onRequestClose: (dirty: boolean) => void = () => {};
 
     const existing = parseRepeatRule(task.repeat);
     const initialRuleKey = JSON.stringify(existing || null);
@@ -145,12 +142,12 @@
     }
 
     function requestClose() {
-        dispatch("requestClose", { dirty });
+        onRequestClose(dirty);
     }
 
     function applyDraft() {
         if (saving || validationError || !dirty || !draftRule) return;
-        dispatch("apply", { rule: draftRule });
+        onApply(draftRule);
     }
 
     function applyPreset(preset: "daily" | "workdays" | "weekly" | "monthly" | "yearly") {
@@ -200,13 +197,13 @@
     closeLabel={i18n?.close || "Close"}
     status={saving ? i18n?.saving || "Saving..." : dirty ? i18n?.unsavedChangesShort || "Modified" : ""}
     statusTone={error ? "error" : dirty ? "warning" : "default"}
-    on:close={requestClose}
+    onClose={requestClose}
 >
-    {#if error}<NaInlineNotice slot="notice" message={error} tone="error" />{:else if validationError}<NaInlineNotice
-            slot="notice"
-            message={validationError}
-            tone="warning"
-        />{/if}
+    {#if error}
+        {#snippet notice()}<NaInlineNotice message={error} tone="error" />{/snippet}
+    {:else if validationError}
+        {#snippet notice()}<NaInlineNotice message={validationError} tone="warning" />{/snippet}
+    {/if}
 
     <NaPropertySection title={i18n?.repeatPresets || "Presets"}>
         <div class="na-repeat-rule-editor__presets">
@@ -214,31 +211,31 @@
                 type="button"
                 class:active={isPresetActive("daily")}
                 aria-pressed={isPresetActive("daily")}
-                on:click={() => applyPreset("daily")}>{i18n?.repeatDaily || "Daily"}</button
+                onclick={() => applyPreset("daily")}>{i18n?.repeatDaily || "Daily"}</button
             >
             <button
                 type="button"
                 class:active={isPresetActive("workdays")}
                 aria-pressed={isPresetActive("workdays")}
-                on:click={() => applyPreset("workdays")}>{i18n?.repeatWorkdays || "Workdays"}</button
+                onclick={() => applyPreset("workdays")}>{i18n?.repeatWorkdays || "Workdays"}</button
             >
             <button
                 type="button"
                 class:active={isPresetActive("weekly")}
                 aria-pressed={isPresetActive("weekly")}
-                on:click={() => applyPreset("weekly")}>{i18n?.repeatWeekly || "Weekly"}</button
+                onclick={() => applyPreset("weekly")}>{i18n?.repeatWeekly || "Weekly"}</button
             >
             <button
                 type="button"
                 class:active={isPresetActive("monthly")}
                 aria-pressed={isPresetActive("monthly")}
-                on:click={() => applyPreset("monthly")}>{i18n?.repeatMonthly || "Monthly"}</button
+                onclick={() => applyPreset("monthly")}>{i18n?.repeatMonthly || "Monthly"}</button
             >
             <button
                 type="button"
                 class:active={isPresetActive("yearly")}
                 aria-pressed={isPresetActive("yearly")}
-                on:click={() => applyPreset("yearly")}>{i18n?.repeatYearly || "Yearly"}</button
+                onclick={() => applyPreset("yearly")}>{i18n?.repeatYearly || "Yearly"}</button
             >
         </div>
     </NaPropertySection>
@@ -287,7 +284,7 @@
                         type="button"
                         class:active={weekdays.includes(weekdayAt(index))}
                         aria-pressed={weekdays.includes(weekdayAt(index))}
-                        on:click={() => toggleWeekday(weekdayAt(index))}>{label.slice(0, 2)}</button
+                        onclick={() => toggleWeekday(weekdayAt(index))}>{label.slice(0, 2)}</button
                     >
                 {/each}
             </div>
@@ -354,7 +351,7 @@
                     value={endDate}
                     fixedDropdown={true}
                     {i18n}
-                    on:change={(event) => (endDate = event.detail?.value || "")}
+                    onChange={(value) => (endDate = value)}
                 /></NaPropertyRow
             >{/if}
     </NaPropertySection>
@@ -374,17 +371,19 @@
         {/if}
     </NaPropertySection>
 
-    <div slot="footerEnd">
-        <button type="button" class="b3-button b3-button--text" disabled={saving} on:click={requestClose}
-            >{i18n?.cancel || "Cancel"}</button
-        >
-        <button
-            type="button"
-            class="b3-button b3-button--primary"
-            disabled={saving || !!validationError || !dirty || !draftRule}
-            on:click={applyDraft}>{saving ? i18n?.saving || "Saving..." : i18n?.save || "Save"}</button
-        >
-    </div>
+    {#snippet footerEnd()}
+        <div>
+            <button type="button" class="b3-button b3-button--text" disabled={saving} onclick={requestClose}
+                >{i18n?.cancel || "Cancel"}</button
+            >
+            <button
+                type="button"
+                class="b3-button b3-button--primary"
+                disabled={saving || !!validationError || !dirty || !draftRule}
+                onclick={applyDraft}>{saving ? i18n?.saving || "Saving..." : i18n?.save || "Save"}</button
+            >
+        </div>
+    {/snippet}
 </NaDialogShell>
 
 <style lang="scss">

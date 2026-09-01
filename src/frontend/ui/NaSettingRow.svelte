@@ -1,9 +1,12 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
+
     export let title: string;
     export let description = "";
     export let forId = "";
     export let disabled = false;
     export let stacked = false;
+    export let children: Snippet;
 </script>
 
 <div class="na-setting-row" class:na-setting-row--disabled={disabled} class:na-setting-row--stacked={stacked}>
@@ -15,7 +18,7 @@
         {/if}
         {#if description}<span class="na-setting-row__description">{description}</span>{/if}
     </div>
-    <div class="na-setting-row__control"><slot /></div>
+    <div class="na-setting-row__control">{@render children()}</div>
 </div>
 
 <style lang="scss">

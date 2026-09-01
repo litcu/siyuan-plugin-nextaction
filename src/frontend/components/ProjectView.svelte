@@ -191,8 +191,8 @@
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
     }
 
-    function handleModeChange(event: CustomEvent<string>) {
-        mode = event.detail as ProjectViewMode;
+    function handleModeChange(value: string) {
+        mode = value as ProjectViewMode;
     }
 
     function selectProject(summary: ProjectSummary) {
@@ -257,7 +257,7 @@
     emptyText={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"}
     hint={i18n?.viewHintProject}
 >
-    <svelte:fragment slot="toolbar">
+    {#snippet toolbar()}
         <NaToolbar compact>
             <NaMetricStrip
                 items={[
@@ -285,14 +285,14 @@
                     size="sm"
                     icon="iconAdd"
                     disabled={!selectedSummary}
-                    on:click={() => selectedSummary && onCreateChild?.(selectedSummary.project)}
+                    onclick={() => selectedSummary && onCreateChild?.(selectedSummary.project)}
                     >{i18n?.createChildTask || "Create child task"}</NaButton
                 >
                 <NaButton
                     size="sm"
                     icon="iconSparkles"
                     disabled={!selectedSummary}
-                    on:click={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}
+                    onclick={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}
                     >{i18n?.aiDecomposeProject || "Break down project with AI"}</NaButton
                 >
             </div>
@@ -309,14 +309,14 @@
                         { value: "plan", label: i18n?.projectViewPlan || "Plan" },
                         { value: "gantt", label: i18n?.projectViewGantt || "Gantt" },
                     ]}
-                    on:change={handleModeChange}
+                    onChange={handleModeChange}
                 />
             </div>
             <div class="na-project-toolbar__completed">
                 <NaToggle
                     checked={showCompleted}
                     label={i18n?.projectShowCompleted || "Show completed"}
-                    on:change={(event) => (showCompleted = event.detail.checked)}
+                    onChange={(checked) => (showCompleted = checked)}
                 />
                 <span>{i18n?.projectShowCompleted || "Show completed"}</span>
             </div>
@@ -359,9 +359,9 @@
             showStatus={true}
             searchPlaceholder={i18n?.searchProjectsAndTasks || "Search projects and tasks..."}
             {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
+            onChange={handleFilterChange}
         />
-    </svelte:fragment>
+    {/snippet}
 
     <div class="na-project-workspace" class:na-project-workspace--focus={mode !== "overview"}>
         <aside class="na-project-index" aria-label={i18n?.projectList || "Project list"}>
@@ -409,7 +409,7 @@
                             text={statusLabel(selectedSummary.project.status)}
                             tone={statusTone(selectedSummary.project.status)}
                         />
-                        <NaButton size="sm" on:click={() => onEdit(selectedSummary.project)}
+                        <NaButton size="sm" onclick={() => onEdit(selectedSummary.project)}
                             >{i18n?.editProject || "Edit project"}</NaButton
                         >
                     </div>

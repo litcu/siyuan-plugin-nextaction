@@ -57,7 +57,7 @@
                             label={i18n.projectCreateNextAction}
                             size={14}
                             compact
-                            on:click={(event) => {
+                            onclick={(event) => {
                                 event.stopPropagation();
                                 onCreateAction?.(summary.project);
                             }}

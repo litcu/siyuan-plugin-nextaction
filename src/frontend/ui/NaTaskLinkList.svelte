@@ -20,7 +20,7 @@
                     <button
                         type="button"
                         class="na-task-link-list__title na-task-link-list__title-button"
-                        on:click={() => onSelect?.(item.blockId)}>{item.title}</button
+                        onclick={() => onSelect?.(item.blockId)}>{item.title}</button
                     >
                 {:else}
                     <span class="na-task-link-list__title">{item.title}</span>
@@ -29,7 +29,7 @@
                     symbol="iconOpenWindow"
                     label={openLabel}
                     size={13}
-                    on:click={() => onOpen(item.blockId)}
+                    onclick={() => onOpen(item.blockId)}
                 />
             </div>
         {/each}

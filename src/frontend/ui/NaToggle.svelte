@@ -1,16 +1,13 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-
     export let checked: boolean = false;
     export let disabled: boolean = false;
     export let label: string = "";
-
-    const dispatch = createEventDispatcher<{ change: { checked: boolean } }>();
+    export let onChange: (checked: boolean) => void = () => {};
 
     function toggle() {
         if (disabled) return;
         checked = !checked;
-        dispatch("change", { checked });
+        onChange(checked);
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -33,8 +30,8 @@
     aria-disabled={disabled}
     aria-label={label || undefined}
     tabindex={disabled ? -1 : 0}
-    on:click={toggle}
-    on:keydown={handleKeydown}
+    onclick={toggle}
+    onkeydown={handleKeydown}
 >
     <div class="na-toggle__track">
         <div class="na-toggle__thumb"></div>

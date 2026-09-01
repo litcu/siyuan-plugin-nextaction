@@ -27,7 +27,7 @@
     {:else}
         <header class="na-mobile-dock-host__toolbar">
             <span class="na-mobile-dock-host__back-button">
-                <NaIconButton symbol="iconRight" label={i18n?.back || "Back"} on:click={backToSidebar} />
+                <NaIconButton symbol="iconRight" label={i18n?.back || "Back"} onclick={backToSidebar} />
             </span>
             <div class="na-mobile-dock-host__title">
                 <span class="na-mobile-dock-host__title-icon"><NaIcon symbol="iconNextAction" size={16} /></span>

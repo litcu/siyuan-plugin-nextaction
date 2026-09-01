@@ -101,8 +101,8 @@
             .map((summary) => ({ id: summary.project.blockId, label: summary.project.title }));
     }
 
-    function handleManualProject(event: CustomEvent<{ selected: string | string[] }>) {
-        const projectId = typeof event.detail.selected === "string" ? event.detail.selected : "";
+    function handleManualProject(selected: string | string[]) {
+        const projectId = typeof selected === "string" ? selected : "";
         if (!projectId) return;
         manualProjectIds = manualProjectIds.includes(projectId) ? manualProjectIds : [...manualProjectIds, projectId];
         expandedProjectId = projectId;
@@ -154,7 +154,7 @@
                 loadingText={i18n.loadingMore}
                 clearLabel={i18n.clearSelection}
                 fixedDropdown={true}
-                on:change={handleManualProject}
+                onChange={handleManualProject}
             />
         </div>
     </div>
@@ -174,17 +174,17 @@
                     count={item.risks.length}
                     tone={health.accordionTone}
                     open={expandedProjectId === project.blockId}
-                    on:openChange={(event) => (expandedProjectId = event.detail ? project.blockId : "")}
+                    onOpenChange={(open) => (expandedProjectId = open ? project.blockId : "")}
                 >
-                    <svelte:fragment slot="action">
+                    {#snippet action()}
                         <div class="na-project-review__actions">
                             <NaButton
                                 size="sm"
                                 variant="text"
                                 icon="iconOpenWindow"
-                                on:click={() => onOpenProject(project)}>{i18n.reviewOpenProject}</NaButton
+                                onclick={() => onOpenProject(project)}>{i18n.reviewOpenProject}</NaButton
                             >
-                            <NaButton size="sm" variant="text" on:click={() => onEdit(project)}
+                            <NaButton size="sm" variant="text" onclick={() => onEdit(project)}
                                 >{i18n.editProject}</NaButton
                             >
                             {#if onConfirmCompletion && shouldShowProjectCompletionPanel(summary)}
@@ -193,7 +193,7 @@
                                     variant="primary"
                                     loading={completingIds.has(project.blockId)}
                                     disabled={completingIds.has(project.blockId)}
-                                    on:click={() => handleCompletion(item)}>{i18n.projectConfirmComplete}</NaButton
+                                    onclick={() => handleCompletion(item)}>{i18n.projectConfirmComplete}</NaButton
                                 >
                             {/if}
                             <NaButton
@@ -201,10 +201,10 @@
                                 variant="primary"
                                 icon="iconSelect"
                                 loading={reviewingIds.has(project.blockId)}
-                                on:click={() => handleReviewed(item)}>{i18n.markReviewed}</NaButton
+                                onclick={() => handleReviewed(item)}>{i18n.markReviewed}</NaButton
                             >
                         </div>
-                    </svelte:fragment>
+                    {/snippet}
 
                     <div class="na-project-review__summary">
                         <div class="na-project-review__meta">
@@ -308,7 +308,7 @@
                         <div class="na-project-review__risks" aria-label={i18n.projectRisks}>
                             {#each item.risks as risk (risk.kind + risk.taskId)}
                                 <div class="na-project-review__risk-item">
-                                    <NaButton size="sm" variant="text" on:click={() => onSelectTask(risk.target)}>
+                                    <NaButton size="sm" variant="text" onclick={() => onSelectTask(risk.target)}>
                                         <NaBadge
                                             text={`${translateKey(i18n, projectRiskI18nKey(risk.kind), risk.kind)} · ${riskSeverityLabel(risk.severity)}`}
                                             tone={risk.severity === "high"
@@ -325,7 +325,7 @@
                                             label={i18n.projectCreateNextAction}
                                             size={14}
                                             compact
-                                            on:click={() => onCreateAction?.(project)}
+                                            onclick={() => onCreateAction?.(project)}
                                         />
                                     {/if}
                                 </div>

@@ -47,8 +47,7 @@
     emptyText={$taskStore.error || i18n?.noInboxTasks || "No inbox tasks"}
     hint={i18n?.viewHintInbox}
 >
-    <svelte:fragment slot="toolbar"
-        ><NaTaskFilterBar
+    {#snippet toolbar()}<NaTaskFilterBar
             contexts={$taskStore.contexts}
             tags={$taskStore.tags}
             customFields={$taskStore.settings.customFields}
@@ -57,9 +56,8 @@
             showPriority={false}
             sortOptions={inboxSortOptions}
             {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
-        /></svelte:fragment
-    >
+            onChange={handleFilterChange}
+        />{/snippet}
     <NaTaskList>
         {#each filteredTasks as task (task.blockId)}
             <TaskCard

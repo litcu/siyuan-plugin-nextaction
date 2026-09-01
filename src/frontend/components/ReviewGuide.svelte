@@ -67,7 +67,7 @@
             tone={item.key === "overdue" && tasks.length > 0 ? "danger" : "default"}
             open={expandedKey === item.key}
             variant="plain"
-            on:openChange={(event) => (expandedKey = event.detail ? item.key : null)}
+            onOpenChange={(open) => (expandedKey = open ? item.key : null)}
         >
             {#if tasks.length === 0}<NaEmpty text={i18n?.noTasks || "No tasks"} />{:else}<div
                     class="na-review-guide__tasks"

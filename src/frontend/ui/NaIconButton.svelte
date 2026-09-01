@@ -13,6 +13,9 @@
     export let draggable = false;
     export let tabIndex: number | undefined = undefined;
     export let tooltipPosition: "top" | "bottom" | "left" | "right" = "bottom";
+    export let onclick: (event: MouseEvent) => void = () => {};
+    export let ondragstart: (event: DragEvent) => void = () => {};
+    export let ondragend: (event: DragEvent) => void = () => {};
 </script>
 
 <NaTooltip text={label} position={tooltipPosition} followCursor={false}>
@@ -27,9 +30,9 @@
         {disabled}
         {draggable}
         tabindex={tabIndex}
-        on:click
-        on:dragstart
-        on:dragend
+        {onclick}
+        {ondragstart}
+        {ondragend}
     >
         <NaIcon {symbol} {size} />
     </button>

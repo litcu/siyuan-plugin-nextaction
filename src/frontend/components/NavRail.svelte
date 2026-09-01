@@ -117,7 +117,7 @@
                         : item.view === VIEW_REMINDER
                           ? $pendingReminderCount
                           : ""}
-                    on:click={() => onSwitchView(item.view)}
+                    onclick={() => onSwitchView(item.view)}
                 />
             {/each}
         </div>

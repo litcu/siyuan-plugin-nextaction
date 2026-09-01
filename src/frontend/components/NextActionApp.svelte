@@ -402,11 +402,9 @@
 
     <div class="na-app__center">
         <NaPanelHeader compact title={activeViewMeta.title} icon={activeViewMeta.icon}>
-            <svelte:fragment slot="actions"
-                ><NaButton size="sm" variant="primary" icon="iconAdd" on:click={() => openCreate()}
+            {#snippet actions()}<NaButton size="sm" variant="primary" icon="iconAdd" onclick={() => openCreate()}
                     >{i18n?.createTask || "Create task"}</NaButton
-                ></svelte:fragment
-            >
+                >{/snippet}
         </NaPanelHeader>
         <div class="na-app__list">
             {#if activeView === VIEW_INBOX}
@@ -512,7 +510,7 @@
         </div>
     </div>
 
-    <NaDrawerHost open={selectedTask !== null} label={i18n?.close || "Close"} on:requestClose={requestDetailClose}>
+    <NaDrawerHost open={selectedTask !== null} label={i18n?.close || "Close"} onRequestClose={requestDetailClose}>
         {#if selectedTask}
             <div class="na-app__detail-inner">
                 <TaskDetail

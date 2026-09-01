@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, tick } from "svelte";
+    import { onDestroy, tick, type Snippet } from "svelte";
     import { getCurrentUiZIndex } from "../utils/layer";
     import { portal } from "../utils/portal";
     import { calculateTooltipPosition, type TooltipPosition } from "../utils/tooltip-position";
@@ -13,6 +13,7 @@
     export let multiline = false;
     export let openOnClick = false;
     export let ariaLabel = "";
+    export let children: Snippet;
 
     let visible = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -159,15 +160,15 @@
     tabindex="0"
     aria-label={ariaLabel || undefined}
     aria-expanded={openOnClick ? visible : undefined}
-    on:mouseenter={handleMouseEnter}
-    on:mousemove={handleMouseMove}
-    on:mouseleave={handleMouseLeave}
-    on:click={handleClick}
-    on:keydown={handleKeydown}
-    on:focusin={handleFocusIn}
-    on:focusout={handleMouseLeave}
+    onmouseenter={handleMouseEnter}
+    onmousemove={handleMouseMove}
+    onmouseleave={handleMouseLeave}
+    onclick={handleClick}
+    onkeydown={handleKeydown}
+    onfocusin={handleFocusIn}
+    onfocusout={handleMouseLeave}
 >
-    <slot />
+    {@render children()}
     {#if visible}
         <span
             use:portal

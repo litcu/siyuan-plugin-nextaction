@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import NaEmpty from "./NaEmpty.svelte";
     import NaViewHint from "./NaViewHint.svelte";
 
@@ -8,17 +9,19 @@
     export let emptyAction: { label: string; onClick: () => void } | undefined = undefined;
     export let hint = "";
     export let scrollMode: "content" | "none" = "content";
+    export let toolbar: Snippet | undefined = undefined;
+    export let children: Snippet;
 </script>
 
 <div class="na-view-shell" class:na-view-shell--content={scrollMode === "content"}>
-    {#if $$slots.toolbar}<slot name="toolbar" />{/if}
+    {#if toolbar}{@render toolbar()}{/if}
     <div class="na-view-shell__body">
         {#if loading}
             <NaEmpty loading={true} />
         {:else if empty}
             <NaEmpty text={emptyText} action={emptyAction} />
         {:else}
-            <slot />
+            {@render children()}
         {/if}
     </div>
     {#if hint}<NaViewHint text={hint} />{/if}

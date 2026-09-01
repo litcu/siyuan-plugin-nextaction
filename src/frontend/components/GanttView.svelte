@@ -107,8 +107,8 @@
         onSelectTask?.(task);
     }
 
-    function handleSortModeChange(event: CustomEvent<string>): void {
-        onSortModeChange(event.detail as ProjectTreeSortMode);
+    function handleSortModeChange(value: string): void {
+        onSortModeChange(value as ProjectTreeSortMode);
     }
 
     onMount(() => {
@@ -149,7 +149,7 @@
                                 { value: "timeline", label: i18n?.ganttSortTimeline || "Time" },
                                 { value: "manual", label: i18n?.ganttSortManual || "Manual" },
                             ]}
-                            on:change={handleSortModeChange}
+                            onChange={handleSortModeChange}
                         />
                     </div>
                 {:else}
@@ -211,7 +211,7 @@
                                     : i18n?.collapseChildren || "Collapse subtasks"}
                                 size={12}
                                 compact
-                                on:click={(event) => handleToggle(row.task.blockId, event)}
+                                onclick={(event) => handleToggle(row.task.blockId, event)}
                             />
                         {:else}
                             <span class="na-gantt__outline-spacer"></span>

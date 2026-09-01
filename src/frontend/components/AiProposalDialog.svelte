@@ -282,10 +282,10 @@
     {/if}
 
     <div class="na-ai-proposal__actions">
-        <NaButton on:click={() => dialog.destroy()} disabled={busy}>{i18n?.cancel || "取消"}</NaButton>
+        <NaButton onclick={() => dialog.destroy()} disabled={busy}>{i18n?.cancel || "取消"}</NaButton>
         <NaButton
             variant="primary"
-            on:click={apply}
+            onclick={apply}
             loading={busy}
             disabled={selectedCount === 0 || hasInvalidSelectedTitle}
         >

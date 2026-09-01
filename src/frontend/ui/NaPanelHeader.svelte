@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import NaIcon from "./NaIcon.svelte";
 
     export let eyebrow = "";
@@ -6,6 +7,7 @@
     export let description = "";
     export let icon = "";
     export let compact = false;
+    export let actions: Snippet | undefined = undefined;
 </script>
 
 <header class="na-panel-header" class:na-panel-header--compact={compact}>
@@ -19,7 +21,7 @@
             {#if description}<p>{description}</p>{/if}
         </div>
     </div>
-    <div class="na-panel-header__actions"><slot name="actions" /></div>
+    {#if actions}<div class="na-panel-header__actions">{@render actions()}</div>{/if}
 </header>
 
 <style lang="scss">

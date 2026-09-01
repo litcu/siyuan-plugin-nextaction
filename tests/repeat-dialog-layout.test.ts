@@ -35,7 +35,7 @@ test("重复规则草稿显式声明全部响应式依赖", () => {
 test("重复规则保存动作明确显示保存并让预设选中态匹配完整规则", () => {
     assert.match(editorSource, /i18n\?\.save \|\| "Save"/);
     assert.match(editorSource, /function applyDraft\(/);
-    assert.match(editorSource, /slot="footerEnd"/);
+    assert.match(editorSource, /\{#snippet footerEnd\(\)\}/);
     assert.match(editorSource, /function isPresetActive\(/);
     assert.match(editorSource, /monthlyType === "dayOfMonth" && monthDay === anchorDay/);
     assert.match(editorSource, /weekdays\[0\] === anchorWeekday/);

@@ -75,8 +75,8 @@
         taskStore.setFilterState(VIEW_MY_DAY, state);
     }
 
-    function handleViewModeChange(event: CustomEvent<string>) {
-        viewMode = event.detail as ViewMode;
+    function handleViewModeChange(value: string) {
+        viewMode = value as ViewMode;
     }
 
     function formatMinutes(minutes: number): string {
@@ -109,11 +109,11 @@
         hint={i18n?.viewHintMyDay}
         scrollMode="none"
     >
-        <svelte:fragment slot="toolbar">
+        {#snippet toolbar()}
             <NaToolbar>
                 <NaMetricStrip items={summaryItems} />
                 <div class="na-toolbar__actions-content">
-                    <NaButton size="sm" icon="iconSparkles" on:click={runAiPlanMyDay}
+                    <NaButton size="sm" icon="iconSparkles" onclick={runAiPlanMyDay}
                         >{i18n?.aiPlanMyDay || "自动规划"}</NaButton
                     >
                     <NaSegmentControl
@@ -124,7 +124,7 @@
                         ]}
                         value={viewMode}
                         label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
-                        on:change={handleViewModeChange}
+                        onChange={handleViewModeChange}
                     />
                 </div>
             </NaToolbar>
@@ -137,9 +137,9 @@
                     showPriority={true}
                     sortOptions={myDaySortOptions}
                     {i18n}
-                    on:change={(event) => handleFilterChange(event.detail)}
+                    onChange={handleFilterChange}
                 />{/if}
-        </svelte:fragment>
+        {/snippet}
         {#if viewMode === "timeline"}
             <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
         {:else}
