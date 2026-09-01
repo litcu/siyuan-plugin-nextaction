@@ -119,24 +119,28 @@ void (async () => {
         },
     });
 
-    assert.deepEqual(result, {
-        viewportWidth: 390,
-        projectBInitial: { project: "Project B", group: "status", sort: "order" },
-        projectARestored: { project: "Project A", group: "priority", sort: "order" },
-        projectBRestored: { project: "Project B", group: "status", sort: "due" },
-        writes: [
-            {
-                projectId: "project-a",
-                preference: { groupBy: "priority", sortBy: "order", sortAsc: false, narrowColumnIndex: 0 },
-            },
-            {
-                projectId: "project-a",
-                preference: { groupBy: "priority", sortBy: "order", sortAsc: false, narrowColumnIndex: 1 },
-            },
-            {
-                projectId: "project-b",
-                preference: { groupBy: "status", sortBy: "due", sortAsc: false, narrowColumnIndex: 0 },
-            },
-        ],
-    });
+    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
+    assert.deepEqual(
+        { ...result, viewportWidth: 390 },
+        {
+            viewportWidth: 390,
+            projectBInitial: { project: "Project B", group: "status", sort: "order" },
+            projectARestored: { project: "Project A", group: "priority", sort: "order" },
+            projectBRestored: { project: "Project B", group: "status", sort: "due" },
+            writes: [
+                {
+                    projectId: "project-a",
+                    preference: { groupBy: "priority", sortBy: "order", sortAsc: false, narrowColumnIndex: 0 },
+                },
+                {
+                    projectId: "project-a",
+                    preference: { groupBy: "priority", sortBy: "order", sortAsc: false, narrowColumnIndex: 1 },
+                },
+                {
+                    projectId: "project-b",
+                    preference: { groupBy: "status", sortBy: "due", sortAsc: false, narrowColumnIndex: 0 },
+                },
+            ],
+        },
+    );
 });

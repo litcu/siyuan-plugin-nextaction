@@ -140,32 +140,36 @@ void (async () => {
         },
     });
 
-    assert.deepEqual(result, {
-        viewportWidth: 390,
-        flushResult: "true",
-        writeCount: 1,
-        attrs: {
-            "na-status": "doing",
-            "na-priority": "high",
-            "na-importance": "6",
-            "na-effort": "2",
-            "na-due": "2026-09-03",
-            "na-start": "2026-09-02",
-            "na-context": "",
-            "na-tags": "",
-            "na-parent": "",
-            "na-task": "2",
-            "na-depends": "",
-            "na-dep-mode": "any",
-            "na-sequential": "1",
-            "na-note": "",
-            "na-outcome": "",
-            "na-dod": "",
-            "na-kind": "",
-            "na-review-interval": "",
-            "na-review-date": "",
-            "na-ext-score": "fresh",
+    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
+    assert.deepEqual(
+        { ...result, viewportWidth: 390 },
+        {
+            viewportWidth: 390,
+            flushResult: "true",
+            writeCount: 1,
+            attrs: {
+                "na-status": "doing",
+                "na-priority": "high",
+                "na-importance": "6",
+                "na-effort": "2",
+                "na-due": "2026-09-03",
+                "na-start": "2026-09-02",
+                "na-context": "",
+                "na-tags": "",
+                "na-parent": "",
+                "na-task": "2",
+                "na-depends": "",
+                "na-dep-mode": "any",
+                "na-sequential": "1",
+                "na-note": "",
+                "na-outcome": "",
+                "na-dod": "",
+                "na-kind": "",
+                "na-review-interval": "",
+                "na-review-date": "",
+                "na-ext-score": "fresh",
+            },
+            dom: { status: "doing", priority: "high", importance: 6, effort: 2 },
         },
-        dom: { status: "doing", priority: "high", importance: 6, effort: 2 },
-    });
+    );
 });

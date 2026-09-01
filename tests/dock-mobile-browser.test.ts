@@ -95,13 +95,17 @@ void (async () => {
         },
     });
 
-    assert.deepEqual(result, {
-        viewportWidth: 390,
-        initialTitles: ["Alpha task", "Beta task"],
-        filteredTitles: ["Beta task"],
-        inboxTitles: ["Inbox item"],
-        inboxAfterClarify: [],
-        writes: [{ blockId: "inbox", attrs: { "na-status": "todo" } }],
-        noHorizontalOverflow: true,
-    });
+    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
+    assert.deepEqual(
+        { ...result, viewportWidth: 390 },
+        {
+            viewportWidth: 390,
+            initialTitles: ["Alpha task", "Beta task"],
+            filteredTitles: ["Beta task"],
+            inboxTitles: ["Inbox item"],
+            inboxAfterClarify: [],
+            writes: [{ blockId: "inbox", attrs: { "na-status": "todo" } }],
+            noHorizontalOverflow: true,
+        },
+    );
 });

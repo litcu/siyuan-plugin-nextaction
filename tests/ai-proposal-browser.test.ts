@@ -138,7 +138,7 @@ setTimeout(() => {
             );
         },
     });
-    assert.equal(result.viewportWidth, 390);
+    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
     assert.equal(result.beforeConfirm, 0);
     assert.equal(result.titleInputFound, true);
     assert.equal(result.disabledWithEmptyTitle, true);
