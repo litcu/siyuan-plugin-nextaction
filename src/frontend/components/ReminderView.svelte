@@ -7,9 +7,15 @@
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
 
-    export let i18n: any;
+    interface Props {
+        i18n: any;
+    }
 
-    $: pending = $notificationQueue.filter((r) => !r.dismissed).sort((a, b) => a.triggerTime - b.triggerTime);
+    let { i18n }: Props = $props();
+
+    let pending = $derived(
+        $notificationQueue.filter((r) => !r.dismissed).sort((a, b) => a.triggerTime - b.triggerTime),
+    );
 
     function getTypeLabel(type: "due" | "review" | "absolute" | "summary"): string {
         if (type === "due") return i18n?.reminderDue || "截止提醒";

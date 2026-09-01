@@ -16,24 +16,36 @@
     import TimelineCard from "./TimelineCard.svelte";
     import TimelineNeedle from "./TimelineNeedle.svelte";
 
-    export let scheduledEntries: MyDayTaskEntry[] = [];
-    export let taskMap: Map<string, TaskCacheEntry>;
-    export let resetHour: number = 5;
-    export let defaultDuration: number = 60;
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        scheduledEntries?: MyDayTaskEntry[];
+        taskMap: Map<string, TaskCacheEntry>;
+        resetHour?: number;
+        defaultDuration?: number;
+        bridge: KernelBridge;
+        i18n: any;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
 
-    let containerEl: HTMLElement | null = null;
-    let containerWidth: number = 300;
+    let {
+        scheduledEntries = [],
+        taskMap,
+        resetHour = 5,
+        defaultDuration = 60,
+        bridge,
+        i18n,
+        onContextMenu,
+    }: Props = $props();
+
+    let containerEl: HTMLElement | null = $state(null);
+    let containerWidth: number = $state(300);
     const LABEL_AREA_WIDTH = 48;
-    let isDragOver: boolean = false;
-    let dragPreviewStart: number | null = null;
-    let dragPreviewEnd: number | null = null;
+    let isDragOver: boolean = $state(false);
+    let dragPreviewStart: number | null = $state(null);
+    let dragPreviewEnd: number | null = $state(null);
 
-    $: totalHeight = DAY_MINUTES * PIXELS_PER_MINUTE;
-    $: laneLayouts = computeLaneLayouts(scheduledEntries);
-    $: slots = generateTimelineSlots(resetHour, TIMELINE_SLOT_MINUTES);
+    let totalHeight = $derived(DAY_MINUTES * PIXELS_PER_MINUTE);
+    let laneLayouts = $derived(computeLaneLayouts(scheduledEntries));
+    let slots = $derived(generateTimelineSlots(resetHour, TIMELINE_SLOT_MINUTES));
 
     function handleDragOver(e: DragEvent) {
         e.preventDefault();
@@ -112,9 +124,9 @@
     bind:this={containerEl}
     role="region"
     aria-label={i18n?.timelineMode || "Timeline"}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
+    ondrop={handleDrop}
 >
     <div class="na-timeline-column__body" style="height: {totalHeight}px; position: relative;">
         {#each slots as slot (slot.minute)}

@@ -17,37 +17,56 @@
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaProgressBar from "../../ui/NaProgressBar.svelte";
 
-    export let project: TaskCacheEntry;
-    export let model: ProjectTreeModel;
-    export let selectedTaskId = "";
-    export let i18n: I18nStrings;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onToggleCollapse: (blockId: string) => void;
-    export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
-    export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
-        undefined;
+    interface Props {
+        project: TaskCacheEntry;
+        model: ProjectTreeModel;
+        selectedTaskId?: string;
+        i18n: I18nStrings;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onToggleCollapse: (blockId: string) => void;
+        onTaskRename?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
+        onTaskReorder?: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined;
+    }
 
-    let focusedTaskId = "";
-    let editingTaskId = "";
-    let renameDraft = "";
-    let renameInput: HTMLInputElement | null = null;
-    let busyTaskId = "";
-    let error = "";
-    let retryOperation: (() => Promise<void>) | null = null;
-    let dragTaskId = "";
-    let dropTargetId = "";
-    let dropPosition: ProjectTreeDropPosition | null = null;
+    let {
+        project,
+        model,
+        selectedTaskId = "",
+        i18n,
+        onSelectTask = undefined,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        onToggleCollapse,
+        onTaskRename = undefined,
+        onTaskReorder = undefined,
+    }: Props = $props();
+
+    let focusedTaskId = $state("");
+    let editingTaskId = $state("");
+    let renameDraft = $state("");
+    let renameInput: HTMLInputElement | null = $state(null);
+    let busyTaskId = $state("");
+    let error = $state("");
+    let retryOperation: (() => Promise<void>) | null = $state(null);
+    let dragTaskId = $state("");
+    let dropTargetId = $state("");
+    let dropPosition: ProjectTreeDropPosition | null = $state(null);
     const rowElements = new Map<string, HTMLElement>();
 
-    $: visibleTaskIds = new Set(model.rows.map((row) => row.task.blockId));
-    $: operationTasks = [...model.taskById.values()].map((task) => ({
-        ...task,
-        parentId: model.parentByChild.get(task.blockId) || (task.blockId === project.blockId ? "" : task.parentId),
-    }));
-    $: if (!focusedTaskId || !visibleTaskIds.has(focusedTaskId)) focusedTaskId = model.rows[0]?.task.blockId || "";
+    let visibleTaskIds = $derived(new Set(model.rows.map((row) => row.task.blockId)));
+    let operationTasks = $derived(
+        [...model.taskById.values()].map((task) => ({
+            ...task,
+            parentId: model.parentByChild.get(task.blockId) || (task.blockId === project.blockId ? "" : task.parentId),
+        })),
+    );
+    $effect(() => {
+        if (!focusedTaskId || !visibleTaskIds.has(focusedTaskId)) focusedTaskId = model.rows[0]?.task.blockId || "";
+    });
     function rowElement(node: HTMLElement, taskId: string) {
         rowElements.set(taskId, node);
         return { destroy: () => rowElements.delete(taskId) };
@@ -136,6 +155,15 @@
                 renameDraft = "";
             },
         );
+    }
+
+    function handleRenameSubmit(task: TaskCacheEntry, event: SubmitEvent): void {
+        event.preventDefault();
+        void submitRename(task);
+    }
+
+    function stopPointerDown(event: PointerEvent): void {
+        event.stopPropagation();
     }
     async function cancelRename(taskId: string) {
         editingTaskId = "";
@@ -252,10 +280,10 @@
             aria-setsize={row.setSize}
             aria-expanded={row.hasChildren ? !row.isCollapsed : undefined}
             aria-selected={row.task.blockId === selectedTaskId}
-            on:focus={() => (focusedTaskId = row.task.blockId)}
-            on:keydown={(event) => handleTreeKeydown(row, event)}
-            on:dragover={(event) => handleDragOver(row.task, event)}
-            on:drop={(event) => handleDrop(row.task, event)}
+            onfocus={() => (focusedTaskId = row.task.blockId)}
+            onkeydown={(event) => handleTreeKeydown(row, event)}
+            ondragover={(event) => handleDragOver(row.task, event)}
+            ondrop={(event) => handleDrop(row.task, event)}
         >
             <div class="na-project-tree__item">
                 <TaskCard
@@ -273,7 +301,7 @@
                     isRoot={row.depth === 0}
                     managedFocus
                 />
-                <div class="na-project-tree__controls" role="presentation" on:pointerdown|stopPropagation>
+                <div class="na-project-tree__controls" role="presentation" onpointerdown={stopPointerDown}>
                     {#if row.task.taskType !== "2"}<NaIconButton
                             compact
                             symbol="iconList"
@@ -304,7 +332,7 @@
                 </div>
                 {#if editingTaskId === row.task.blockId}<form
                         class="na-project-tree__rename"
-                        on:submit|preventDefault={() => submitRename(row.task)}
+                        onsubmit={(event) => handleRenameSubmit(row.task, event)}
                     >
                         <input
                             bind:this={renameInput}
@@ -312,7 +340,7 @@
                             bind:value={renameDraft}
                             maxlength="512"
                             aria-label={`${i18n?.renameStage || "Rename"}: ${row.task.title}`}
-                            on:keydown={(event) => handleRenameKeydown(row.task.blockId, event)}
+                            onkeydown={(event) => handleRenameKeydown(row.task.blockId, event)}
                         /><NaButton size="sm" type="submit" loading={busyTaskId === row.task.blockId}
                             >{i18n?.save || "Save"}</NaButton
                         ><NaButton
@@ -333,7 +361,7 @@
                             value={row.visibleParentId || row.task.parentId}
                             tabindex="-1"
                             disabled={Boolean(busyTaskId) || !onTaskReorder}
-                            on:change={(event) => changeParent(row.task, event)}
+                            onchange={(event) => changeParent(row.task, event)}
                             aria-label={`${i18n?.parentItem || "Parent"}: ${row.task.title}`}
                             >{#each buildProjectTreeParentOptions(row.task, project, operationTasks, visibleTaskIds) as parent}<option
                                     value={parent.blockId}

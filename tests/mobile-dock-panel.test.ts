@@ -10,7 +10,7 @@ test("移动 Dock 在精简侧栏和完整任务面板之间切换", () => {
     const host = source("../src/frontend/components/MobileDockHost.svelte");
     assert.equal(existsSync(new URL("../src/frontend/components/MobileDockHost.svelte", import.meta.url)), true);
     assert.match(host, /type MobileDockMode = "sidebar" \| "full"/);
-    assert.match(host, /let mode: MobileDockMode = "sidebar"/);
+    assert.match(host, /class:na-mobile-dock-host--full=\{mode === "full"\}/);
     assert.match(host, /<DockSidebar[\s\S]*onOpenFullPanel=\{openFullPanel\}/);
     assert.match(host, /<NextActionApp \{bridge\} \{i18n\}/);
     assert.match(host, /onclick=\{backToSidebar\}/);
@@ -47,7 +47,7 @@ test("任务详情错误固定在滚动正文顶部 Notice", () => {
     const detail = source("../src/frontend/components/TaskDetail.svelte");
     assert.match(
         detail,
-        /noticeMessage = dateError \|\| depError \|\| customFieldError \|\| saveError \|\| repeatDateError/,
+        /noticeMessage = \$derived\(dateError \|\| depError \|\| customFieldError \|\| saveError \|\| repeatDateError\)/,
     );
     assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.repeat \|\| "Repeat"\} error=/);
     assert.doesNotMatch(detail, /<NaPropertyRow label=\{i18n\?\.dueTime[\s\S]*?error=\{dateError\}/);

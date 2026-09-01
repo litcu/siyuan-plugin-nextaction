@@ -46,6 +46,10 @@ const defaultIndexHtml = `<!doctype html>
     </body>
 </html>`;
 
+// Browser fixtures are expensive; serialise them so concurrent node:test workers
+// do not starve Chromium and turn healthy tests into timeout failures.
+let browserTestQueue: Promise<void> = Promise.resolve();
+
 export type SvelteBrowserTestOptions = {
     fixtureName: string;
     files?: Record<string, string>;
@@ -100,6 +104,13 @@ function browserArgs(fixtureRoot: string, options: SvelteBrowserTestOptions): st
 export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
     options: SvelteBrowserTestOptions,
 ): Promise<Result> {
+    const previous = browserTestQueue;
+    let release!: () => void;
+    browserTestQueue = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await previous;
+
     const fixtureRoot = mkdtempSync(join(tmpdir(), fixturePrefix(options.fixtureName)));
     try {
         writeFixtureFiles(fixtureRoot, {
@@ -156,5 +167,6 @@ export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
         return JSON.parse(payload.replace(/&quot;/g, '"').replace(/&amp;/g, "&")) as Result;
     } finally {
         removeBrowserFixture(fixtureRoot);
+        release();
     }
 }

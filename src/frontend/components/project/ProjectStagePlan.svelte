@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from "svelte";
+    import { tick, untrack } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { ProjectTreeModel } from "../../utils/project-tree";
@@ -15,38 +15,53 @@
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let project: TaskCacheEntry;
-    export let model: ProjectTreeModel;
-    export let i18n: I18nStrings;
-    export let selectedTaskId = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onCreateStage: (() => void) | undefined = undefined;
-    export let onRenameTask: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
-    export let onTaskUpdate:
-        ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
-    export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
-        undefined;
-    export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        project: TaskCacheEntry;
+        model: ProjectTreeModel;
+        i18n: I18nStrings;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onCreateStage?: (() => void) | undefined;
+        onRenameTask?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
+        onTaskUpdate?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
+        onTaskReorder?: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined;
+        onMoveAction?: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined;
+    }
 
-    let busyTaskId = "";
-    let editingTaskId = "";
-    let renameDraft = "";
-    let error = "";
-    let retryOperation: (() => Promise<void>) | null = null;
-    let renameInput: HTMLInputElement | null = null;
-    let activeProjectId = project.blockId;
+    let {
+        project,
+        model,
+        i18n,
+        selectedTaskId = "",
+        onSelectTask = undefined,
+        onCreateStage = undefined,
+        onRenameTask = undefined,
+        onTaskUpdate = undefined,
+        onTaskReorder = undefined,
+        onMoveAction = undefined,
+    }: Props = $props();
+
+    let busyTaskId = $state("");
+    let editingTaskId = $state("");
+    let renameDraft = $state("");
+    let error = $state("");
+    let retryOperation: (() => Promise<void>) | null = $state(null);
+    let renameInput: HTMLInputElement | null = $state(null);
+    let activeProjectId = $state(untrack(() => project.blockId));
     const taskButtons = new Map<string, HTMLButtonElement>();
 
-    $: rows = buildProjectPlanRows(model, project.blockId);
-    $: projectTasks = [...model.taskById.values()].filter((task) => task.blockId !== project.blockId);
-    $: if (project.blockId !== activeProjectId) {
-        activeProjectId = project.blockId;
-        busyTaskId = "";
-        editingTaskId = "";
-        renameDraft = "";
-        error = "";
-        retryOperation = null;
-    }
+    let rows = $derived(buildProjectPlanRows(model, project.blockId));
+    let projectTasks = $derived([...model.taskById.values()].filter((task) => task.blockId !== project.blockId));
+    $effect(() => {
+        if (project.blockId !== activeProjectId) {
+            activeProjectId = project.blockId;
+            busyTaskId = "";
+            editingTaskId = "";
+            renameDraft = "";
+            error = "";
+            retryOperation = null;
+        }
+    });
 
     function formatPlanError(cause: unknown): string {
         const detail = formatOperationError(cause, i18n);
@@ -128,6 +143,11 @@
             renameInput,
             () => cancelRename(task.blockId),
         );
+    }
+
+    function handleRenameSubmit(task: TaskCacheEntry, event: SubmitEvent): void {
+        event.preventDefault();
+        void submitRename(task);
     }
 
     async function changeKind(task: TaskCacheEntry, event: Event) {
@@ -233,7 +253,7 @@
                     >
                         <div class="na-project-stage-plan__identity">
                             {#if editingTaskId === row.task.blockId}
-                                <form on:submit|preventDefault={() => submitRename(row.task)}>
+                                <form onsubmit={(event) => handleRenameSubmit(row.task, event)}>
                                     <input
                                         bind:this={renameInput}
                                         class="na-input"
@@ -242,7 +262,7 @@
                                         maxlength="512"
                                         disabled={busyTaskId === row.task.blockId}
                                         aria-label={`${i18n?.renameStage || "Rename"}: ${row.task.title}`}
-                                        on:keydown={(event) => handleRenameKeydown(row.task, event)}
+                                        onkeydown={(event) => handleRenameKeydown(row.task, event)}
                                     />
                                     <NaButton
                                         size="sm"
@@ -264,7 +284,7 @@
                                     type="button"
                                     class="na-project-stage-plan__select"
                                     use:rememberTaskButton={row.task.blockId}
-                                    on:click={() => onSelectTask?.(row.task)}
+                                    onclick={() => onSelectTask?.(row.task)}
                                 >
                                     <strong>{row.task.title || i18n?.untitled || "(untitled)"}</strong>
                                     <span
@@ -291,7 +311,7 @@
                                     value={row.task.actionKind === "stage" ? "stage" : "action"}
                                     disabled={Boolean(busyTaskId) || !onTaskUpdate}
                                     aria-label={`${i18n?.actionKind || "Action kind"}: ${row.task.title}`}
-                                    on:change={(event) => changeKind(row.task, event)}
+                                    onchange={(event) => changeKind(row.task, event)}
                                 >
                                     <option value="action">{i18n?.actionKindAction || "Action"}</option>
                                     <option value="stage">{i18n?.actionKindStage || "Stage"}</option>
@@ -305,7 +325,7 @@
                                     value={row.task.parentId}
                                     disabled={Boolean(busyTaskId) || !onTaskReorder}
                                     aria-label={`${i18n?.parentItem || "Parent"}: ${row.task.title}`}
-                                    on:change={(event) => changeParent(row.task, event)}
+                                    onchange={(event) => changeParent(row.task, event)}
                                 >
                                     {#each buildProjectPlanParentOptions(row.task, project, projectTasks) as parent}
                                         <option value={parent.blockId}

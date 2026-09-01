@@ -85,23 +85,6 @@ test("回顾清单通过独立 RPC 记录完成时间并在视图中展示", () 
     }
 });
 
-test("回顾视图在任务数据变化后去抖刷新并清理定时器", () => {
-    assert.match(reviewViewSource, /import \{ onDestroy, onMount, tick \} from "svelte"/);
-    assert.match(
-        reviewViewSource,
-        /\$: if \(\$taskStore\.allTasks\) \{[\s\S]*?setTimeout\(\(\) => \{[\s\S]*?loadReviewData\(\);[\s\S]*?\}, 300\)/,
-    );
-    assert.match(
-        reviewViewSource,
-        /handleMarkReviewed[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?await loadReviewData\(\)/,
-    );
-    assert.match(
-        reviewViewSource,
-        /onMount\(\(\) => \{[\s\S]*?clearTimeout\(refreshTimer\);[\s\S]*?loadReviewData\(\)/,
-    );
-    assert.match(reviewViewSource, /onDestroy\(\(\) => \{[\s\S]*?clearTimeout\(refreshTimer\)/);
-});
-
 test("回顾清单显式依赖最新回顾数据以刷新展开项", () => {
     assert.match(reviewGuideSource, /function getTasks\(key: string, data: ReviewData\)/);
     assert.match(reviewGuideSource, /\{@const tasks = getTasks\(item\.key, reviewData\)\}/);

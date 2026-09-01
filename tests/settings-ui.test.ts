@@ -17,9 +17,10 @@ const primitives = read("src/frontend/ui/primitives.scss");
 
 test("设置页使用五个现代页面并保留外部组件契约", () => {
     assert.match(panel, /type ModernTabId = SettingsPage/);
-    assert.match(panel, /export let bridge: KernelBridge/);
-    assert.match(panel, /export let onSave: \(settings: PluginSettings\) => void \| Promise<void>/);
-    assert.match(panel, /export let onClose: \(\) => void/);
+    assert.match(panel, /bridge: KernelBridge/);
+    assert.match(panel, /onSave: \(settings: PluginSettings\) => void \| Promise<void>/);
+    assert.match(panel, /onClose: \(\) => void/);
+    assert.match(panel, /}: Props = \$props\(\)/);
     for (const id of ["general", "customFields", "ai", "mcp", "advanced"]) {
         assert.match(panel, new RegExp(`id: "${id}"`));
     }
@@ -32,7 +33,7 @@ test("设置页支持脏状态、显式保存和 Esc 防误关", () => {
     assert.doesNotMatch(panel, /afterUpdate|savedSignature|draftSignature/);
     assert.match(controller, /dirty:\s*!settingsEqual\(next, this\.state\.saved\)/);
     assert.match(panel, /settingsUnsavedDesc/);
-    assert.match(panel, /on:keydown\|capture=\{handleWindowKeydown\}/);
+    assert.match(panel, /onkeydowncapture=\{handleWindowKeydown\}/);
     assert.match(panel, /disabled=\{saving \|\| !settingsLoaded \|\| !isDirty\}/);
     assert.match(panel, /const result = await controller\.save/);
     assert.match(panel, /applySettings\(result\);[\s\S]*await onSave\(result\)/);

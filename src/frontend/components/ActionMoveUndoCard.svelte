@@ -5,10 +5,14 @@
     import NaIconButton from "../ui/NaIconButton.svelte";
     import NaInlineNotice from "../ui/NaInlineNotice.svelte";
 
-    export let feedback: ActionMoveUndoFeedback;
-    export let i18n: I18nStrings;
-    export let onUndo: () => void;
-    export let onDismiss: () => void;
+    interface Props {
+        feedback: ActionMoveUndoFeedback;
+        i18n: I18nStrings;
+        onUndo: () => void;
+        onDismiss: () => void;
+    }
+
+    let { feedback, i18n, onUndo, onDismiss }: Props = $props();
 </script>
 
 <section class="na-action-move-undo" role="status" aria-live="polite" aria-atomic="true">

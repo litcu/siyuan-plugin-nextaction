@@ -8,22 +8,22 @@
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let projectId: string;
-    export let i18n: I18nStrings;
-    export let loadSupport: (projectId: string) => Promise<ProjectSupportData>;
-    export let onOpen: (blockId: string) => void;
-    export let onExtract: ((blockId: string, title: string) => void) | undefined = undefined;
-    export let onAiExtract: ((blockId: string) => void) | undefined = undefined;
-
-    let data: ProjectSupportData | null = null;
-    let loadedProjectId = "";
-    let loading = false;
-    let error = "";
-    let requestId = 0;
-
-    $: if (projectId && projectId !== loadedProjectId) {
-        void requestSupport(projectId);
+    interface Props {
+        projectId: string;
+        i18n: I18nStrings;
+        loadSupport: (projectId: string) => Promise<ProjectSupportData>;
+        onOpen: (blockId: string) => void;
+        onExtract?: ((blockId: string, title: string) => void) | undefined;
+        onAiExtract?: ((blockId: string) => void) | undefined;
     }
+
+    let { projectId, i18n, loadSupport, onOpen, onExtract = undefined, onAiExtract = undefined }: Props = $props();
+
+    let data: ProjectSupportData | null = $state(null);
+    let loadedProjectId = $state("");
+    let loading = $state(false);
+    let error = $state("");
+    let requestId = 0;
 
     async function requestSupport(nextProjectId = projectId): Promise<void> {
         loadedProjectId = nextProjectId;
@@ -52,7 +52,12 @@
         return kind === "document" ? i18n.projectSupportDocument : i18n.projectSupportBlock;
     }
 
-    $: errorMessage = error ? i18n.projectSupportLoadError.replace("{error}", error) : "";
+    $effect(() => {
+        if (projectId && projectId !== loadedProjectId) {
+            void requestSupport(projectId);
+        }
+    });
+    let errorMessage = $derived(error ? i18n.projectSupportLoadError.replace("{error}", error) : "");
 </script>
 
 <div class="na-project-support">
@@ -78,7 +83,7 @@
             <div class="na-project-support__list">
                 {#each data.items as item (item.blockId)}
                     <article class="na-project-support__item">
-                        <button type="button" class="na-project-support__title" on:click={() => onOpen(item.blockId)}>
+                        <button type="button" class="na-project-support__title" onclick={() => onOpen(item.blockId)}>
                             {item.title}
                         </button>
                         <div class="na-project-support__meta">

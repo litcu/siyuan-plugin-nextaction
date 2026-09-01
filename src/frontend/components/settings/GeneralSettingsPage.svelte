@@ -19,37 +19,73 @@
         icon: string;
     };
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
-    export let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget;
-    export let taskCreationInboxDocument: DocumentSelection | null;
-    export let taskCreationDailyNoteNotebookId: string;
-    export let taskCreationNotebooks: Array<{ id: string; name: string; icon: string }> = [];
-    export let defaultImportance: number;
-    export let defaultEffort: number;
-    export let semanticDateParsingEnabled: boolean;
-    export let myDayResetHour: number;
-    export let myDayDefaultViewMode: MyDayViewMode;
-    export let myDayDefaultDuration: number;
-    export let reminderEnabled: boolean;
-    export let reminderDefaultOffsets: number[];
-    export let reminderDueSound: ReminderSoundId;
-    export let reminderReviewSound: ReminderSoundId;
-    export let reminderSoundEnabled: boolean;
-    export let newOffsetValue: number;
-    export let newOffsetUnit: "minutes" | "hours" | "days";
-    export let soundIds: readonly ReminderSoundId[];
-    export let getSoundLabel: (soundId: ReminderSoundId) => string;
-    export let getUnitLabel: (unit: "minutes" | "hours" | "days") => string;
-    export let minutesToDisplay: (minutes: number) => { value: number; unit: "minutes" | "hours" | "days" };
-    export let onAddOffset: () => void;
-    export let onRemoveOffset: (minutes: number) => void;
-    export let onPreviewSound: (soundId: ReminderSoundId) => void;
-    export let onTaskCreationDocumentChange: (document: DocumentSelection | null) => void;
-    export let onResetTaskCreation: () => void;
-    export let onResetDefaults: () => void;
-    export let onResetMyDay: () => void;
-    export let onResetReminder: () => void;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+        taskCreationDefaultCreateTarget: CreateTaskDefaultTarget;
+        taskCreationInboxDocument: DocumentSelection | null;
+        taskCreationDailyNoteNotebookId: string;
+        taskCreationNotebooks?: Array<{ id: string; name: string; icon: string }>;
+        defaultImportance: number;
+        defaultEffort: number;
+        semanticDateParsingEnabled: boolean;
+        myDayResetHour: number;
+        myDayDefaultViewMode: MyDayViewMode;
+        myDayDefaultDuration: number;
+        reminderEnabled: boolean;
+        reminderDefaultOffsets: number[];
+        reminderDueSound: ReminderSoundId;
+        reminderReviewSound: ReminderSoundId;
+        reminderSoundEnabled: boolean;
+        newOffsetValue: number;
+        newOffsetUnit: "minutes" | "hours" | "days";
+        soundIds: readonly ReminderSoundId[];
+        getSoundLabel: (soundId: ReminderSoundId) => string;
+        getUnitLabel: (unit: "minutes" | "hours" | "days") => string;
+        minutesToDisplay: (minutes: number) => { value: number; unit: "minutes" | "hours" | "days" };
+        onAddOffset: () => void;
+        onRemoveOffset: (minutes: number) => void;
+        onPreviewSound: (soundId: ReminderSoundId) => void;
+        onTaskCreationDocumentChange: (document: DocumentSelection | null) => void;
+        onResetTaskCreation: () => void;
+        onResetDefaults: () => void;
+        onResetMyDay: () => void;
+        onResetReminder: () => void;
+    }
+
+    let {
+        bridge,
+        i18n,
+        taskCreationDefaultCreateTarget = $bindable(),
+        taskCreationInboxDocument = $bindable(),
+        taskCreationDailyNoteNotebookId = $bindable(),
+        taskCreationNotebooks = [],
+        defaultImportance = $bindable(),
+        defaultEffort = $bindable(),
+        semanticDateParsingEnabled = $bindable(),
+        myDayResetHour = $bindable(),
+        myDayDefaultViewMode = $bindable(),
+        myDayDefaultDuration = $bindable(),
+        reminderEnabled = $bindable(),
+        reminderDefaultOffsets = $bindable(),
+        reminderDueSound = $bindable(),
+        reminderReviewSound = $bindable(),
+        reminderSoundEnabled = $bindable(),
+        newOffsetValue = $bindable(),
+        newOffsetUnit = $bindable(),
+        soundIds,
+        getSoundLabel,
+        getUnitLabel,
+        minutesToDisplay,
+        onAddOffset,
+        onRemoveOffset,
+        onPreviewSound,
+        onTaskCreationDocumentChange,
+        onResetTaskCreation,
+        onResetDefaults,
+        onResetMyDay,
+        onResetReminder,
+    }: Props = $props();
 </script>
 
 <div class="na-page-stack na-settings-general">
@@ -237,7 +273,7 @@
                             <button
                                 type="button"
                                 class="b3-tooltips b3-tooltips__n"
-                                on:click={() => onRemoveOffset(offset)}
+                                onclick={() => onRemoveOffset(offset)}
                                 disabled={!reminderEnabled}
                                 aria-label={i18n?.reminderRemoveOffset || "Remove"}
                             >
@@ -263,7 +299,7 @@
                         <option value="hours">{i18n?.reminderOffsetHours || "hours"}</option>
                         <option value="days">{i18n?.reminderOffsetDays || "days"}</option>
                     </select>
-                    <button type="button" class="b3-button" on:click={onAddOffset} disabled={!reminderEnabled}>
+                    <button type="button" class="b3-button" onclick={onAddOffset} disabled={!reminderEnabled}>
                         <NaIcon symbol="iconAdd" size={14} />
                         {i18n?.reminderAddOffset || "Add"}
                     </button>
@@ -287,7 +323,7 @@
                 <button
                     type="button"
                     class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                    on:click={() => onPreviewSound(reminderDueSound)}
+                    onclick={() => onPreviewSound(reminderDueSound)}
                     disabled={!reminderEnabled}
                     aria-label={i18n?.reminderSoundPreview || "Preview"}
                 >
@@ -312,7 +348,7 @@
                 <button
                     type="button"
                     class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                    on:click={() => onPreviewSound(reminderReviewSound)}
+                    onclick={() => onPreviewSound(reminderReviewSound)}
                     disabled={!reminderEnabled}
                     aria-label={i18n?.reminderSoundPreview || "Preview"}
                 >

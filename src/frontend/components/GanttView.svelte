@@ -18,51 +18,37 @@
     } from "../utils/gantt";
     import GanttBar from "./GanttBar.svelte";
 
-    export let model: ProjectTreeModel;
-    export let projectTasks: TaskCacheEntry[];
-    export let selectedTaskId = "";
-    export let i18n: any;
-    export let sortMode: ProjectTreeSortMode = "timeline";
-    export let onSortModeChange: (value: ProjectTreeSortMode) => void;
-    export let onToggleCollapse: (blockId: string) => void;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        model: ProjectTreeModel;
+        projectTasks: TaskCacheEntry[];
+        selectedTaskId?: string;
+        i18n: any;
+        sortMode?: ProjectTreeSortMode;
+        onSortModeChange: (value: ProjectTreeSortMode) => void;
+        onToggleCollapse: (blockId: string) => void;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
 
-    let viewportElement: HTMLDivElement;
-    let outlineElement: HTMLDivElement;
-    let availableTimelineWidth = 0;
+    let {
+        model,
+        projectTasks,
+        selectedTaskId = "",
+        i18n,
+        sortMode = "timeline",
+        onSortModeChange,
+        onToggleCollapse,
+        onSelectTask = undefined,
+        onEdit,
+        onContextMenu,
+    }: Props = $props();
+
+    let viewportElement: HTMLDivElement | undefined = $state();
+    let outlineElement: HTMLDivElement | undefined = $state();
+    let availableTimelineWidth = $state(0);
     let resizeObserver: ResizeObserver | null = null;
     let lastScrollKey = "";
-
-    $: baseRange = calculateGanttRange(model.includedTasks);
-    $: range = baseRange ? fitGanttRange(baseRange, availableTimelineWidth) : null;
-    $: axis = range ? buildGanttAxis(range) : { primary: [], secondary: [] };
-    $: geometries = range ? calculateGanttGeometries(projectTasks, model, range) : new Map();
-    $: edges = range ? calculateGanttEdges(model.rows, projectTasks, geometries) : [];
-    $: timelineWidth = range ? range.totalDays * range.pixelsPerDay : Math.max(availableTimelineWidth, 360);
-    $: rowsHeight = range
-        ? Math.max(model.rows.length * GANTT_ROW_HEIGHT, GANTT_ROW_HEIGHT)
-        : Math.max(model.rows.length * GANTT_ROW_HEIGHT, 200);
-    $: contentHeight = rowsHeight + 56;
-    $: todayX = range ? dateToPixel(localCalendarDate(), range) : null;
-    $: markerPrefix = `na-gantt-${model.rows[0]?.task.blockId || "project"}`;
-    $: explicitlyScheduledTaskIds = new Set(
-        model.rows.filter((row) => hasScheduledDate(row.task)).map((row) => row.task.blockId),
-    );
-    $: scheduledTaskIds = range ? new Set(geometries.keys()) : explicitlyScheduledTaskIds;
-    $: scheduledCount = scheduledTaskIds.size;
-    $: unscheduledRows = model.rows.filter((row) => !scheduledTaskIds.has(row.task.blockId));
-    $: firstUnscheduledTask =
-        unscheduledRows.find((row) => row.task.blockId !== model.rows[0]?.task.blockId)?.task ||
-        unscheduledRows[0]?.task;
-    $: scaleLabel =
-        range?.scale === "day"
-            ? i18n?.ganttScaleDay || "Day"
-            : range?.scale === "week"
-              ? i18n?.ganttScaleWeek || "Week"
-              : i18n?.ganttScaleMonth || "Month";
-    $: if (range && viewportElement) scheduleInitialScroll();
 
     function hasScheduledDate(task: TaskCacheEntry): boolean {
         return calendarDayNumber(task.start || "") !== null || calendarDayNumber(task.due || "") !== null;
@@ -83,7 +69,7 @@
     }
 
     async function scheduleInitialScroll(): Promise<void> {
-        if (!range || !viewportElement) return;
+        if (!range || !viewportElement || !outlineElement) return;
         const key = `${model.rows[0]?.task.blockId || ""}:${range.startDate}:${range.endDate}:${range.scale}:${range.pixelsPerDay.toFixed(3)}`;
         if (key === lastScrollKey) return;
         lastScrollKey = key;
@@ -107,11 +93,17 @@
         onSelectTask?.(task);
     }
 
+    function handleContextMenu(task: TaskCacheEntry, event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
+
     function handleSortModeChange(value: string): void {
         onSortModeChange(value as ProjectTreeSortMode);
     }
 
     onMount(() => {
+        if (!viewportElement || !outlineElement) return;
         measure();
         if (typeof ResizeObserver !== "undefined") {
             resizeObserver = new ResizeObserver(measure);
@@ -121,6 +113,40 @@
     });
 
     onDestroy(() => resizeObserver?.disconnect());
+    let baseRange = $derived(calculateGanttRange(model.includedTasks));
+    let range = $derived(baseRange ? fitGanttRange(baseRange, availableTimelineWidth) : null);
+    let axis = $derived(range ? buildGanttAxis(range) : { primary: [], secondary: [] });
+    let geometries = $derived(range ? calculateGanttGeometries(projectTasks, model, range) : new Map());
+    let edges = $derived(range ? calculateGanttEdges(model.rows, projectTasks, geometries) : []);
+    let timelineWidth = $derived(range ? range.totalDays * range.pixelsPerDay : Math.max(availableTimelineWidth, 360));
+    let rowsHeight = $derived(
+        range
+            ? Math.max(model.rows.length * GANTT_ROW_HEIGHT, GANTT_ROW_HEIGHT)
+            : Math.max(model.rows.length * GANTT_ROW_HEIGHT, 200),
+    );
+    let contentHeight = $derived(rowsHeight + 56);
+    let todayX = $derived(range ? dateToPixel(localCalendarDate(), range) : null);
+    let markerPrefix = $derived(`na-gantt-${model.rows[0]?.task.blockId || "project"}`);
+    let explicitlyScheduledTaskIds = $derived(
+        new Set(model.rows.filter((row) => hasScheduledDate(row.task)).map((row) => row.task.blockId)),
+    );
+    let scheduledTaskIds = $derived(range ? new Set(geometries.keys()) : explicitlyScheduledTaskIds);
+    let scheduledCount = $derived(scheduledTaskIds.size);
+    let unscheduledRows = $derived(model.rows.filter((row) => !scheduledTaskIds.has(row.task.blockId)));
+    let firstUnscheduledTask = $derived(
+        unscheduledRows.find((row) => row.task.blockId !== model.rows[0]?.task.blockId)?.task ||
+            unscheduledRows[0]?.task,
+    );
+    let scaleLabel = $derived(
+        range?.scale === "day"
+            ? i18n?.ganttScaleDay || "Day"
+            : range?.scale === "week"
+              ? i18n?.ganttScaleWeek || "Week"
+              : i18n?.ganttScaleMonth || "Month",
+    );
+    $effect(() => {
+        if (range && viewportElement) scheduleInitialScroll();
+    });
 </script>
 
 <div
@@ -222,9 +248,9 @@
                             type="button"
                             class="na-gantt__task-title"
                             aria-current={row.task.blockId === selectedTaskId ? "true" : undefined}
-                            on:click={() => handleRowSelect(row.task)}
-                            on:dblclick={() => onEdit(row.task)}
-                            on:contextmenu|preventDefault={(event) => onContextMenu(row.task, event)}
+                            onclick={() => handleRowSelect(row.task)}
+                            ondblclick={() => onEdit(row.task)}
+                            oncontextmenu={(event) => handleContextMenu(row.task, event)}
                         >
                             <span class="na-gantt__task-name">{row.task.title || i18n?.untitled || "Untitled"}</span>
                             <span class="na-gantt__task-meta">

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { get } from "svelte/store";
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
     import type { KernelBridge } from "../kernel-bridge";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { CreateTaskDestinationType, CreateTaskFormat, CreateTaskInput } from "../../shared/task-creation";
@@ -16,12 +16,23 @@
     import NaInlineNotice from "../ui/NaInlineNotice.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let dialog: any;
-    export let parentTask: TaskCacheEntry | null = null;
-    export let initialActionKind: "action" | "stage" = "action";
-    export let onCreated: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: any;
+        dialog: any;
+        parentTask?: TaskCacheEntry | null;
+        initialActionKind?: "action" | "stage";
+        onCreated?: ((task: TaskCacheEntry) => void) | undefined;
+    }
+
+    let {
+        bridge,
+        i18n,
+        dialog,
+        parentTask = null,
+        initialActionKind = "action",
+        onCreated = undefined,
+    }: Props = $props();
 
     type TargetMode = CreateTaskDestinationType;
     type DocumentSelection = {
@@ -34,36 +45,38 @@
     };
 
     const initialSettings = get(taskStore).settings;
-    let title = "";
-    let kind: "task" | "project" = "task";
-    let actionKind: "action" | "stage" = initialActionKind;
-    let status = "inbox";
-    let priority = "medium";
-    let start = "";
-    let due = "";
-    let contextsText = "";
-    let tagsText = "";
-    let note = "";
-    let targetMode: TargetMode = parentTask ? "block" : initialSettings.taskCreationSettings.defaultCreateTarget;
-    let format: CreateTaskFormat = "paragraph";
-    let selectedDocument: DocumentSelection | null = null;
-    let notebooks: Array<{ id: string; name: string; icon: string }> = [];
-    let dailyNotebookId = initialSettings.taskCreationSettings.dailyNoteNotebookId;
-    let busy = false;
-    let error = "";
-    let morePropertiesOpen = false;
-    let titleInput: HTMLInputElement;
+    let title = $state("");
+    let kind = $state<"task" | "project">("task");
+    let actionKind = $state<"action" | "stage">(untrack(() => initialActionKind));
+    let status = $state("inbox");
+    let priority = $state("medium");
+    let start = $state("");
+    let due = $state("");
+    let contextsText = $state("");
+    let tagsText = $state("");
+    let note = $state("");
+    let targetMode = $state<TargetMode>(
+        untrack(() => (parentTask ? "block" : initialSettings.taskCreationSettings.defaultCreateTarget)),
+    );
+    let format: CreateTaskFormat = $state("paragraph");
+    let selectedDocument: DocumentSelection | null = $state(null);
+    let notebooks: Array<{ id: string; name: string; icon: string }> = $state([]);
+    let dailyNotebookId = $state(initialSettings.taskCreationSettings.dailyNoteNotebookId);
+    let busy = $state(false);
+    let error = $state("");
+    let morePropertiesOpen = $state(false);
+    let titleInput: HTMLInputElement | undefined = $state();
 
-    const kindOptions = [
+    let kindOptions = $derived([
         { value: "task", label: i18n?.task || "Task" },
         { value: "project", label: i18n?.project || "Project" },
-    ];
-    const formatOptions = [
+    ]);
+    let formatOptions = $derived([
         { value: "paragraph", label: i18n?.createFormatParagraph || "Text block" },
         { value: "document", label: i18n?.createFormatDocument || "Document block" },
-    ];
+    ]);
 
-    $: locationOptions =
+    let locationOptions = $derived(
         kind === "project"
             ? [{ value: "document", label: i18n?.createSpecificDocument || "Specific document" }]
             : [
@@ -71,11 +84,18 @@
                   { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
                   { value: "document", label: i18n?.createSpecificDocument || "Specific document" },
                   ...(parentTask ? [{ value: "block", label: i18n?.createChildTask || "Child task" }] : []),
-              ];
-    $: if (kind === "project") targetMode = "document";
-    $: if (targetMode === "block") format = "paragraph";
-    $: if (kind === "project") format = "document";
-    $: morePropertiesCount = [contextsText, tagsText, note].filter((value) => value.trim()).length;
+              ],
+    );
+    $effect(() => {
+        if (kind === "project") targetMode = "document";
+    });
+    $effect(() => {
+        if (targetMode === "block") format = "paragraph";
+    });
+    $effect(() => {
+        if (kind === "project") format = "document";
+    });
+    let morePropertiesCount = $derived([contextsText, tagsText, note].filter((value) => value.trim()).length);
 
     onMount(async () => {
         titleInput?.focus();
@@ -170,9 +190,14 @@
             busy = false;
         }
     }
+
+    function handleSubmit(event: SubmitEvent): void {
+        event.preventDefault();
+        void submit();
+    }
 </script>
 
-<form class="na-create-task" on:submit|preventDefault={submit}>
+<form class="na-create-task" onsubmit={handleSubmit}>
     <div class="na-create-task__composer">
         <div class="na-create-task__title-row">
             <span

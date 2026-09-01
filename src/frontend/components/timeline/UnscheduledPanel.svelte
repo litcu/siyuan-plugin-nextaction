@@ -7,16 +7,31 @@
     import { taskStore } from "../../stores/task-store";
     import { isMyDayEntryDone } from "../../../shared/my-day";
 
-    export let unscheduledEntries: MyDayTaskEntry[] = [];
-    export let taskMap: Map<string, TaskCacheEntry>;
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let isDropTarget: boolean = false;
-    export let horizontal: boolean = false;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onDragOver: (event: DragEvent) => void = () => {};
-    export let onDragLeave: (event: DragEvent) => void = () => {};
-    export let onDrop: (event: DragEvent) => void | Promise<void> = () => {};
+    interface Props {
+        unscheduledEntries?: MyDayTaskEntry[];
+        taskMap: Map<string, TaskCacheEntry>;
+        bridge: KernelBridge;
+        i18n: any;
+        isDropTarget?: boolean;
+        horizontal?: boolean;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onDragOver?: (event: DragEvent) => void;
+        onDragLeave?: (event: DragEvent) => void;
+        onDrop?: (event: DragEvent) => void | Promise<void>;
+    }
+
+    let {
+        unscheduledEntries = [],
+        taskMap,
+        bridge,
+        i18n,
+        isDropTarget = false,
+        horizontal = false,
+        onContextMenu,
+        onDragOver = () => {},
+        onDragLeave = () => {},
+        onDrop = () => {},
+    }: Props = $props();
 
     function handleDragStart(e: DragEvent, blockId: string) {
         if (!e.dataTransfer) return;
@@ -68,6 +83,11 @@
         }
     }
 
+    function handleContextMenu(task: TaskCacheEntry, event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
+
     function parseLocalDateOnly(value: string): Date {
         const datePart = value.split("T")[0];
         const [year, month, day] = datePart.split("-").map(Number);
@@ -107,9 +127,9 @@
     aria-label={i18n?.unscheduled || "Unscheduled"}
     class:na-unscheduled--drop-target={isDropTarget}
     class:na-unscheduled--horizontal={horizontal}
-    on:dragover={handleDragOver}
-    on:dragleave={onDragLeave}
-    on:drop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={onDragLeave}
+    ondrop={handleDrop}
 >
     <div class="na-unscheduled__header">
         <span>{i18n?.unscheduled || "Unscheduled"}</span>
@@ -134,10 +154,10 @@
                         draggable="true"
                         role="button"
                         tabindex="0"
-                        on:dragstart={(e) => handleDragStart(e, entry.blockId)}
-                        on:click={(e) => handleClick(e, task, entry)}
-                        on:keydown={(event) => handleCardKeydown(event, task, entry)}
-                        on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
+                        ondragstart={(e) => handleDragStart(e, entry.blockId)}
+                        onclick={(e) => handleClick(e, task, entry)}
+                        onkeydown={(event) => handleCardKeydown(event, task, entry)}
+                        oncontextmenu={(event) => handleContextMenu(task, event)}
                     >
                         <span class="na-unscheduled-card__accent"></span>
                         <div class="na-unscheduled-card__name">{task.title}</div>

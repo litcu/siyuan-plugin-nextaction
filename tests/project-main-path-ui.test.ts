@@ -12,25 +12,26 @@ test("项目回顾可以打开对应项目并将目标选择传递给项目视�
     const queue = source("../src/frontend/components/ProjectReviewQueue.svelte");
     const projectView = source("../src/frontend/components/ProjectView.svelte");
 
-    assert.match(queue, /export let onOpenProject:/);
+    assert.match(queue, /onOpenProject: \(project: TaskCacheEntry\) => void/);
+    assert.match(queue, /}: Props = \$props\(\)/);
     assert.match(queue, /onclick=\{\(\) => onOpenProject\(project\)\}/);
     assert.match(review, /\{onOpenProject\}/);
     assert.match(app, /function handleOpenProject\(project: TaskCacheEntry\)/);
     assert.match(app, /onOpenProject=\{handleOpenProject\}/);
     assert.match(app, /requestedProjectId=\{projectFocusId\}/);
-    assert.match(app, /let reviewManualProjectIds: string\[\] = \[\]/);
-    assert.match(app, /let reviewExpandedProjectId = ""/);
+    assert.match(app, /let reviewManualProjectIds: string\[\] = \$state\(\[\]\)/);
+    assert.match(app, /let reviewExpandedProjectId = \$state\(""\)/);
     assert.match(app, /bind:manualProjectIds=\{reviewManualProjectIds\}/);
     assert.match(app, /bind:expandedProjectId=\{reviewExpandedProjectId\}/);
     assert.match(app, /bind:reviewScrollTop/);
-    assert.match(review, /export let manualProjectIds: string\[\]/);
-    assert.match(review, /export let expandedProjectId: string/);
-    assert.match(review, /export let reviewScrollTop = 0/);
-    assert.match(review, /on:scroll=\{\(\) => \(reviewScrollTop = reviewScrollElement\?\.scrollTop \|\| 0\)\}/);
-    assert.match(queue, /export let expandedProjectId: string/);
-    assert.match(projectView, /export let requestedProjectId/);
+    assert.match(review, /manualProjectIds = \$bindable\(\[\]\)/);
+    assert.match(review, /expandedProjectId = \$bindable\(""\)/);
+    assert.match(review, /reviewScrollTop = \$bindable\(0\)/);
+    assert.match(review, /onscroll=\{\(\) => \(reviewScrollTop = reviewScrollElement\?\.scrollTop \|\| 0\)\}/);
+    assert.match(queue, /expandedProjectId = \$bindable\(""\)/);
+    assert.match(projectView, /requestedProjectId\?: string/);
     assert.match(projectView, /activeProjectId = requestedProjectId/);
-    assert.match(projectView, /let requestedProjectFilterBypassId = ""/);
+    assert.match(projectView, /let requestedProjectFilterBypassId = \$state\(""\)/);
     assert.match(
         projectView,
         /function handleFilterChange\(state: FilterState\) \{\s*requestedProjectFilterBypassId = "";/,
@@ -73,7 +74,7 @@ test("Stage 在项目计划、Next Action 和 Review 共用的任务卡片中可
     const card = source("../src/frontend/components/TaskCard.svelte");
     const styles = source("../src/frontend/styles/components.scss");
 
-    assert.match(card, /\$: isStage = !isProject && task\.actionKind === "stage"/);
+    assert.match(card, /isStage = \$derived\(!isProject && task\.actionKind === "stage"\)/);
     assert.match(card, /\{#if isStage\}<span class="na-task-card__kind">\{i18n\?\.actionKindStage/);
     assert.match(styles, /\.na-task-card__kind\s*\{/);
 });

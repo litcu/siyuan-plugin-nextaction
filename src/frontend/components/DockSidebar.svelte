@@ -16,12 +16,16 @@
     import NaIconButton from "../ui/NaIconButton.svelte";
     import { openTaskDetailDialog } from "../dialogs/task-detail-dialog";
 
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let onOpenFullPanel: (() => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: any;
+        onOpenFullPanel?: (() => void) | undefined;
+    }
+
+    let { bridge, i18n, onOpenFullPanel = undefined }: Props = $props();
 
     type DockTab = "nextAction" | "myDay" | "inbox";
-    let activeTab: DockTab = "nextAction";
+    let activeTab: DockTab = $state("nextAction");
 
     function openCreateChild(task: TaskCacheEntry) {
         openCreateTaskDialog({
@@ -34,17 +38,17 @@
         }).catch((error) => notifyOperationError(error, i18n));
     }
 
-    const tabs: { id: DockTab; label: string }[] = [
+    const tabs: { id: DockTab; label: string }[] = $state([
         { id: "nextAction", label: "" },
         { id: "myDay", label: "" },
         { id: "inbox", label: "" },
-    ];
+    ]);
 
-    $: {
+    $effect(() => {
         tabs[0].label = i18n?.nextAction || "Next Actions";
         tabs[1].label = i18n?.myDay || "My Day";
         tabs[2].label = i18n?.inbox || "Inbox";
-    }
+    });
 
     function handleEdit(task: TaskCacheEntry) {
         void openTaskDetailDialog({
@@ -103,10 +107,10 @@
         switchTab(value as DockTab);
     }
 
-    $: visibleTabs = tabs;
+    let visibleTabs = $derived(tabs);
 
-    $: tabOptions = visibleTabs.map((tab) => ({ value: tab.id, label: tab.label }));
-    $: activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || "";
+    let tabOptions = $derived(visibleTabs.map((tab) => ({ value: tab.id, label: tab.label })));
+    let activeTabLabel = $derived(tabs.find((tab) => tab.id === activeTab)?.label || "");
 </script>
 
 <div class="na-dock">

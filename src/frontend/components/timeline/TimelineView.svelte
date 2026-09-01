@@ -7,23 +7,33 @@
     import UnscheduledPanel from "./UnscheduledPanel.svelte";
     import TimelineColumn from "./TimelineColumn.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let resetHour: number = 5;
-    export let defaultDuration: number = 60;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: any;
+        resetHour?: number;
+        defaultDuration?: number;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
+
+    let { bridge, i18n, resetHour = 5, defaultDuration = 60, onContextMenu }: Props = $props();
 
     let containerWidth: number = 600;
-    let containerEl: HTMLElement | null = null;
-    let isNarrow: boolean = false;
-    let dropTargetActive: boolean = false;
+    let containerEl: HTMLElement | null = $state(null);
+    let isNarrow: boolean = $state(false);
+    let dropTargetActive: boolean = $state(false);
 
-    $: myDayState = $taskStore.myDayState;
-    $: allTasks = $taskStore.allTasks;
-    $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry]));
+    let myDayState = $derived($taskStore.myDayState);
+    let allTasks = $derived($taskStore.allTasks);
+    let taskMap = $derived(
+        new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry])),
+    );
 
-    $: unscheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null);
-    $: scheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null);
+    let unscheduledEntries = $derived(
+        (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null),
+    );
+    let scheduledEntries = $derived(
+        (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null),
+    );
 
     function handleDragOver(e: DragEvent) {
         if (!e.dataTransfer?.types.includes(MY_DAY_DRAG_TYPE)) return;

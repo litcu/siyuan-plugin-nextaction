@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-const taskCardSource = read("../src/frontend/components/TaskCard.svelte");
 const navItemSource = read("../src/frontend/ui/NaNavItem.svelte");
 const iconButtonSource = read("../src/frontend/ui/NaIconButton.svelte");
 const tooltipSource = read("../src/frontend/ui/NaTooltip.svelte");
@@ -22,14 +23,48 @@ const stylesheetSource = [
 const zh = JSON.parse(read("../src/i18n/zh-CN.json"));
 const en = JSON.parse(read("../src/i18n/en.json"));
 
-test("紧凑任务卡片没有可见元数据时移除空白第二行", () => {
-    assert.match(taskCardSource, /\$: hasCardMetadata = Boolean\(/);
-    assert.match(taskCardSource, /class:na-task-card__body--metadata-empty=\{!hasCardMetadata\}/);
-    assert.match(stylesheetSource, /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/);
-    assert.match(
-        stylesheetSource,
-        /@container nextaction-app \(max-width: 520px\)[\s\S]*\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/,
-    );
+// Regression: Svelte 5 migration once left an empty metadata row visible in compact cards.
+test("紧凑任务卡片没有可见元数据时移除空白第二行", async () => {
+    const result = await runSvelteBrowserTest<{ hasEmptyClass: boolean; metaDisplay: string }>({
+        fixtureName: "task-card-empty-metadata",
+        browserArgs: ["--window-size=390,844"],
+        prepareFixture(fixtureRoot) {
+            const taskCardPath = resolve("src/frontend/components/TaskCard.svelte").replace(/\\/g, "/");
+            writeFileSync(
+                join(fixtureRoot, "siyuan.js"),
+                "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+            );
+            writeFileSync(
+                join(fixtureRoot, "Harness.svelte"),
+                `<script>
+import TaskCard from ${JSON.stringify(taskCardPath)};
+const task = {
+    blockId: "task", identificationSource: "document", attrHostId: "task", contentBlockId: "task", parentId: "",
+    status: "todo", priority: "none", importance: 4, effort: 4, due: "", start: "", context: "", taskType: "1",
+    order: 0, childIds: [], title: "Task", depends: "", depMode: "all", sequential: false, repeat: "", repeatState: "",
+    sort: 0, completed: "", note: "", outcome: "", dod: "", actionKind: "action", created: "", tags: "",
+    blocked: false, blockedReason: "", reviewInterval: 0, reviewDate: "", reminder: "", customFields: {},
+};
+const i18n = new Proxy({}, { get: (_target, key) => String(key) });
+const noop = () => {};
+</script>
+<TaskCard task={task} {i18n} onEdit={noop} onStatusClick={noop} onContextMenu={noop} />`,
+            );
+            writeFileSync(
+                join(fixtureRoot, "main.js"),
+                `import { mount } from "svelte";
+import Harness from "./Harness.svelte";
+import "${resolve("src/frontend/styles/components.scss").replace(/\\/g, "/")}";
+mount(Harness, { target: document.querySelector("#app") });
+setTimeout(() => {
+    const body = document.querySelector(".na-task-card__body");
+    const meta = document.querySelector(".na-task-card__meta");
+    window.__NA_BROWSER_RESULT__({ hasEmptyClass: body?.classList.contains("na-task-card__body--metadata-empty"), metaDisplay: getComputedStyle(meta).display });
+}, 0);`,
+            );
+        },
+    });
+    assert.deepEqual(result, { hasEmptyClass: true, metaDisplay: "none" });
 });
 
 test("任务面板建立独立层叠上下文且折叠导航低于抽屉", () => {

@@ -15,18 +15,22 @@
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaSpinner from "../../ui/NaSpinner.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
-    export let task: TaskCacheEntry;
-    export let project: TaskCacheEntry;
-    export let onMoved: ((result: ActionMoveResult) => void) | undefined = undefined;
-    export let onClose: (() => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+        task: TaskCacheEntry;
+        project: TaskCacheEntry;
+        onMoved?: ((result: ActionMoveResult) => void) | undefined;
+        onClose?: (() => void) | undefined;
+    }
 
-    let preview: ActionMovePreview | null = null;
-    let loading = true;
-    let moving = false;
-    let error = "";
-    let selectedPlacementId = "";
+    let { bridge, i18n, task, project, onMoved = undefined, onClose = undefined }: Props = $props();
+
+    let preview: ActionMovePreview | null = $state(null);
+    let loading = $state(true);
+    let moving = $state(false);
+    let error = $state("");
+    let selectedPlacementId = $state("");
 
     onMount(loadPreview);
 

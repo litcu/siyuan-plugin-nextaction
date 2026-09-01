@@ -9,21 +9,25 @@
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
 
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selectedTaskId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
 
-    $: filterState = $taskStore.filterByView[VIEW_WAITING] || DEFAULT_FILTER_STATE;
-    $: waitingTasks = $taskStore.allTasks.filter((t) => t.status === "waiting");
-    $: filteredTasks = applyFilters(waitingTasks, filterState, $taskStore.settings.customFields);
+    let { onEdit, onStatusClick, onContextMenu, i18n, selectedTaskId = "", onSelectTask = undefined }: Props = $props();
 
-    const waitingSortOptions = [
+    let filterState = $derived($taskStore.filterByView[VIEW_WAITING] || DEFAULT_FILTER_STATE);
+    let waitingTasks = $derived($taskStore.allTasks.filter((t) => t.status === "waiting"));
+    let filteredTasks = $derived(applyFilters(waitingTasks, filterState, $taskStore.settings.customFields));
+
+    let waitingSortOptions = $derived([
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
         { value: "importance", label: i18n?.sortByImportance || "Importance" },
-    ];
+    ]);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_WAITING, state);

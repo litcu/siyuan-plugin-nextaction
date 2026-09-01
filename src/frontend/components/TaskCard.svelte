@@ -12,25 +12,45 @@
     import NaIconButton from "../ui/NaIconButton.svelte";
     import { isProjectTask } from "../../shared/project-domain";
 
-    export let task: TaskCacheEntry;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selected: boolean = false;
-    export let onSelect: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let hasChildren = false;
-    export let isCollapsed = false;
-    export let childCount = 0;
-    export let onToggleCollapse: (() => void) | undefined = undefined;
-    export let onActivate: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let isRoot = true;
-    export let completedOverride: boolean | undefined = undefined;
-    export let managedFocus = false;
+    interface Props {
+        task: TaskCacheEntry;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selected?: boolean;
+        onSelect?: ((task: TaskCacheEntry) => void) | undefined;
+        hasChildren?: boolean;
+        isCollapsed?: boolean;
+        childCount?: number;
+        onToggleCollapse?: (() => void) | undefined;
+        onActivate?: ((task: TaskCacheEntry) => void) | undefined;
+        isRoot?: boolean;
+        completedOverride?: boolean | undefined;
+        managedFocus?: boolean;
+    }
 
-    $: isInbox = task.status === "inbox";
-    $: isBlocked = task.blocked;
-    $: blockedText =
+    let {
+        task,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        i18n,
+        selected = false,
+        onSelect = undefined,
+        hasChildren = false,
+        isCollapsed = false,
+        childCount = 0,
+        onToggleCollapse = undefined,
+        onActivate = undefined,
+        isRoot = true,
+        completedOverride = undefined,
+        managedFocus = false,
+    }: Props = $props();
+
+    let isInbox = $derived(task.status === "inbox");
+    let isBlocked = $derived(task.blocked);
+    let blockedText = $derived(
         task.blockedReason === "inbox"
             ? i18n?.blockedByInbox || "Inbox - needs clarification"
             : task.blockedReason === "someday"
@@ -39,59 +59,67 @@
                 ? i18n?.blockedByChildren || "Blocked - subtasks incomplete"
                 : task.blockedReason === "sequential"
                   ? i18n?.blockedBySequence || "Blocked - waiting in sequence"
-                  : i18n?.blockedByDependency || "Blocked - dependency incomplete";
-    $: isDone = completedOverride ?? task.status === "done";
-    let isOverdue = false;
-    let overdueSourceKey = "";
-    $: {
+                  : i18n?.blockedByDependency || "Blocked - dependency incomplete",
+    );
+    let isDone = $derived(completedOverride ?? task.status === "done");
+    let isOverdue = $state(false);
+    let overdueSourceKey = $state("");
+    $effect(() => {
         const nextOverdueSourceKey = `${task.due}|${isDone}`;
         if (nextOverdueSourceKey !== overdueSourceKey) {
             overdueSourceKey = nextOverdueSourceKey;
             isOverdue = !isDone && !!task.due && getDuePresentation(task.due, Date.now()).isOverdue;
         }
-    }
-    $: isWaiting = task.status === "waiting";
-    $: isSomeday = task.status === "someday";
-    $: isProject = isProjectTask(task);
-    $: isStage = !isProject && task.actionKind === "stage";
-    $: displayPriority = normalizePriority(task.priority);
-    $: parentTitle = task.parentId ? $taskById.get(task.parentId)?.title || i18n?.untitled || "(untitled)" : "";
-    $: taskTitle = task.title || i18n?.untitled || "(untitled)";
-    $: compositeTitle = parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle;
+    });
+    let isWaiting = $derived(task.status === "waiting");
+    let isSomeday = $derived(task.status === "someday");
+    let isProject = $derived(isProjectTask(task));
+    let isStage = $derived(!isProject && task.actionKind === "stage");
+    let displayPriority = $derived(normalizePriority(task.priority));
+    let parentTitle = $derived(
+        task.parentId ? $taskById.get(task.parentId)?.title || i18n?.untitled || "(untitled)" : "",
+    );
+    let taskTitle = $derived(task.title || i18n?.untitled || "(untitled)");
+    let compositeTitle = $derived(parentTitle && isRoot ? `${taskTitle} — ${parentTitle}` : taskTitle);
 
-    $: priorityBorderColor = !isProject && displayPriority ? PRIORITY_COLORS[displayPriority] || "" : "";
-    $: cardAccentColor = selected ? "var(--b3-theme-primary)" : priorityBorderColor || "transparent";
-    $: priorityTextColor = PRIORITY_COLORS[displayPriority] || "currentColor";
-    $: priorityLabel = i18n?.[toI18nKey("priority", displayPriority)] || displayPriority;
-    $: repeatState = parseRepeatState(task.repeatState);
-    $: repeatStatus = repeatState?.status || (task.repeat ? "active" : "");
-    $: repeatTooltip =
+    let priorityBorderColor = $derived(!isProject && displayPriority ? PRIORITY_COLORS[displayPriority] || "" : "");
+    let cardAccentColor = $derived(selected ? "var(--b3-theme-primary)" : priorityBorderColor || "transparent");
+    let priorityTextColor = $derived(PRIORITY_COLORS[displayPriority] || "currentColor");
+    let priorityLabel = $derived(i18n?.[toI18nKey("priority", displayPriority)] || displayPriority);
+    let repeatState = $derived(parseRepeatState(task.repeatState));
+    let repeatStatus = $derived(repeatState?.status || (task.repeat ? "active" : ""));
+    let repeatTooltip = $derived(
         repeatStatus === "paused"
             ? i18n?.repeatPaused || "Repeat paused"
             : repeatStatus === "ended"
               ? i18n?.repeatEnded || "Repeat ended"
-              : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`;
-    $: applicableCardCustomFields = ($taskStore.settings.customFields || []).filter(
-        (def) =>
-            def.showOnCard &&
-            isCustomFieldApplicable(def, task, $projectMembershipGraph) &&
-            !!task.customFields?.[def.key],
+              : `${i18n?.repeatNextOccurrence || "Next"}: ${repeatState?.currentDue || repeatState?.currentStart || task.due || task.start || "—"}`,
     );
-    $: cardCustomFields = applicableCardCustomFields.slice(0, 3);
-    $: hiddenCustomFieldCount = Math.max(0, applicableCardCustomFields.length - cardCustomFields.length);
-    $: hasCardMetadata = Boolean(
-        (task.due && !isDone) ||
-        (isBlocked && !isProject) ||
-        task.repeat ||
-        task.reviewInterval > 0 ||
-        task.context ||
-        task.tags ||
-        cardCustomFields.length > 0 ||
-        (isCollapsed && childCount > 0),
+    let applicableCardCustomFields = $derived(
+        ($taskStore.settings.customFields || []).filter(
+            (def) =>
+                def.showOnCard &&
+                isCustomFieldApplicable(def, task, $projectMembershipGraph) &&
+                !!task.customFields?.[def.key],
+        ),
+    );
+    let cardCustomFields = $derived(applicableCardCustomFields.slice(0, 3));
+    let hiddenCustomFieldCount = $derived(Math.max(0, applicableCardCustomFields.length - cardCustomFields.length));
+    let hasCardMetadata = $derived(
+        Boolean(
+            (task.due && !isDone) ||
+            (isBlocked && !isProject) ||
+            task.repeat ||
+            task.reviewInterval > 0 ||
+            task.context ||
+            task.tags ||
+            cardCustomFields.length > 0 ||
+            (isCollapsed && childCount > 0),
+        ),
     );
 
-    function handleOverdueChange(event: CustomEvent<{ isOverdue: boolean }>): void {
-        isOverdue = !isDone && event.detail.isOverdue;
+    function handleOverdueChange(nextIsOverdue: boolean): void {
+        isOverdue = !isDone && nextIsOverdue;
     }
 
     function handleToggleCollapse(event: MouseEvent): void {
@@ -102,6 +130,30 @@
     function handleJump(event: MouseEvent): void {
         event.stopPropagation();
         jumpToBlock(task.contentBlockId || task.blockId);
+    }
+
+    function handleContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
+
+    function handleBodyClick(event: MouseEvent): void {
+        event.stopPropagation();
+        onEdit(task);
+    }
+
+    function handleBodyKeydown(event: KeyboardEvent): void {
+        event.stopPropagation();
+        if (event.key === "Enter" || event.key === " ") onEdit(task);
+    }
+
+    function stopPointerDown(event: PointerEvent): void {
+        event.stopPropagation();
+    }
+
+    function handleActivate(event: MouseEvent): void {
+        event.stopPropagation();
+        onActivate?.(task);
     }
 </script>
 
@@ -119,13 +171,13 @@
     style="--na-task-card-accent: {cardAccentColor}"
     role="button"
     tabindex={managedFocus ? -1 : 0}
-    on:click={() => {
+    onclick={() => {
         if (onSelect) onSelect(task);
     }}
-    on:keydown={(event) => {
+    onkeydown={(event) => {
         if (event.key === "Enter" || event.key === " ") onSelect?.(task);
     }}
-    on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
+    oncontextmenu={handleContextMenu}
 >
     <div class="na-task-card__content">
         <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} focusable={!managedFocus} />
@@ -134,10 +186,8 @@
             class:na-task-card__body--metadata-empty={!hasCardMetadata}
             role="button"
             tabindex={managedFocus ? -1 : 0}
-            on:click|stopPropagation={() => onEdit(task)}
-            on:keydown|stopPropagation={(event) => {
-                if (event.key === "Enter" || event.key === " ") onEdit(task);
-            }}
+            onclick={handleBodyClick}
+            onkeydown={handleBodyKeydown}
         >
             <div class="na-task-card__title-row">
                 {#if isProject}
@@ -185,7 +235,7 @@
             <div class="na-task-card__meta">
                 <div class="na-task-card__meta-cluster">
                     {#if task.due && !isDone}
-                        <DueDateLabel due={task.due} {i18n} on:overduechange={handleOverdueChange} />
+                        <DueDateLabel due={task.due} {i18n} onOverdueChange={handleOverdueChange} />
                     {/if}
                     {#if isBlocked && !isProject}
                         <NaTooltip text={blockedText}
@@ -295,26 +345,14 @@
                 </span>
             </div>
         </div>
-        <div class="na-task-card__actions" role="presentation" on:pointerdown|stopPropagation>
+        <div class="na-task-card__actions" role="presentation" onpointerdown={stopPointerDown}>
             {#if isInbox && onActivate}
-                <button
-                    class="na-task-card__activate-btn"
-                    tabindex={managedFocus ? -1 : 0}
-                    on:click|stopPropagation={() => {
-                        if (onActivate) onActivate(task);
-                    }}
-                >
+                <button class="na-task-card__activate-btn" tabindex={managedFocus ? -1 : 0} onclick={handleActivate}>
                     {i18n?.clarify || "Clarify"}
                 </button>
             {/if}
             {#if isSomeday && onActivate}
-                <button
-                    class="na-task-card__activate-btn"
-                    tabindex={managedFocus ? -1 : 0}
-                    on:click|stopPropagation={() => {
-                        if (onActivate) onActivate(task);
-                    }}
-                >
+                <button class="na-task-card__activate-btn" tabindex={managedFocus ? -1 : 0} onclick={handleActivate}>
                     {i18n?.activate || "Activate"}
                 </button>
             {/if}

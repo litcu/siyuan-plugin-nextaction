@@ -23,53 +23,69 @@
     import { isMyDayEntryDone } from "../../shared/my-day";
     import { runAiPlanMyDay } from "../ai/ai-feature-service";
 
-    export let bridge: KernelBridge;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selectedTaskId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
+
+    let {
+        bridge,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        i18n,
+        selectedTaskId = "",
+        onSelectTask = undefined,
+    }: Props = $props();
 
     type ViewMode = "timeline" | "list";
-    let viewMode: ViewMode = $taskStore.settings?.myDayDefaultViewMode ?? DEFAULT_MY_DAY_VIEW_MODE;
+    let viewMode: ViewMode = $state($taskStore.settings?.myDayDefaultViewMode ?? DEFAULT_MY_DAY_VIEW_MODE);
 
-    $: filterState = $taskStore.filterByView[VIEW_MY_DAY] || DEFAULT_FILTER_STATE;
-    $: resetHour = $taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR;
-    $: defaultDuration = $taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION;
-    $: myDayEntries = $taskStore.myDayState?.tasks ?? [];
-    $: myDayEntryMap = new Map(myDayEntries.map((entry) => [entry.blockId, entry]));
-    $: scheduledCount = myDayEntries.filter(
-        (entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null,
-    ).length;
-    $: unscheduledCount = myDayEntries.length - scheduledCount;
-    $: plannedMinutes = myDayEntries.reduce((sum, entry) => {
-        if (entry.scheduleStart === null || entry.scheduleEnd === null) return sum;
-        return sum + Math.max(0, entry.scheduleEnd - entry.scheduleStart);
-    }, 0);
+    let filterState = $derived($taskStore.filterByView[VIEW_MY_DAY] || DEFAULT_FILTER_STATE);
+    let resetHour = $derived($taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR);
+    let defaultDuration = $derived($taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION);
+    let myDayEntries = $derived($taskStore.myDayState?.tasks ?? []);
+    let myDayEntryMap = $derived(new Map(myDayEntries.map((entry) => [entry.blockId, entry])));
+    let scheduledCount = $derived(
+        myDayEntries.filter((entry) => entry.scheduleStart !== null && entry.scheduleEnd !== null).length,
+    );
+    let unscheduledCount = $derived(myDayEntries.length - scheduledCount);
+    let plannedMinutes = $derived(
+        myDayEntries.reduce((sum, entry) => {
+            if (entry.scheduleStart === null || entry.scheduleEnd === null) return sum;
+            return sum + Math.max(0, entry.scheduleEnd - entry.scheduleStart);
+        }, 0),
+    );
 
-    $: myDayTasks = (() => {
-        const state = $taskStore.myDayState;
-        if (!state) return [];
-        const taskMap = new Map<string, TaskCacheEntry>();
-        for (const t of $taskStore.allTasks) {
-            taskMap.set(t.blockId, t);
-        }
-        const result: TaskCacheEntry[] = [];
-        for (const entry of state.tasks) {
-            const task = taskMap.get(entry.blockId);
-            if (task) result.push(task);
-        }
-        return result;
-    })();
+    let myDayTasks = $derived(
+        (() => {
+            const state = $taskStore.myDayState;
+            if (!state) return [];
+            const taskMap = new Map<string, TaskCacheEntry>();
+            for (const t of $taskStore.allTasks) {
+                taskMap.set(t.blockId, t);
+            }
+            const result: TaskCacheEntry[] = [];
+            for (const entry of state.tasks) {
+                const task = taskMap.get(entry.blockId);
+                if (task) result.push(task);
+            }
+            return result;
+        })(),
+    );
 
-    $: filteredTasks = applyFilters(myDayTasks, filterState, $taskStore.settings.customFields);
+    let filteredTasks = $derived(applyFilters(myDayTasks, filterState, $taskStore.settings.customFields));
 
-    const myDaySortOptions = [
+    let myDaySortOptions = $derived([
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
         { value: "due", label: i18n?.sortByDue || "Due date" },
         { value: "importance", label: i18n?.sortByImportance || "Importance" },
-    ];
+    ]);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_MY_DAY, state);
@@ -92,12 +108,12 @@
         taskStore.loadMyDay();
     });
 
-    $: summaryItems = [
+    let summaryItems = $derived([
         { value: myDayEntries.length, label: i18n?.myDayTotalShort || "Total" },
         { value: scheduledCount, label: i18n?.myDayScheduledShort || "Scheduled", tone: "success" as const },
         { value: unscheduledCount, label: i18n?.myDayUnscheduledShort || "Unscheduled", tone: "warning" as const },
         { value: formatMinutes(plannedMinutes), label: i18n?.myDayPlannedTime || "Planned", tone: "primary" as const },
-    ];
+    ]);
 </script>
 
 <div class="na-view na-view--myday">

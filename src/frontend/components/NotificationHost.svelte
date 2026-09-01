@@ -19,13 +19,19 @@
     } from "../stores/action-move-undo-store";
     import ActionMoveUndoCard from "./ActionMoveUndoCard.svelte";
 
-    export let i18n: any;
-    export let bridge: KernelBridge | undefined = undefined;
+    interface Props {
+        i18n: any;
+        bridge?: KernelBridge | undefined;
+    }
 
-    $: hasNotifications = $visibleNotifications.length > 0;
-    $: overflowCount = Math.max(0, $notificationQueue.filter((r) => !r.dismissed).length - REMINDER_MAX_VISIBLE);
+    let { i18n, bridge = undefined }: Props = $props();
 
-    $: dismissAllLabel = i18n?.reminderDismissAll || "一键已读";
+    let hasNotifications = $derived($visibleNotifications.length > 0);
+    let overflowCount = $derived(
+        Math.max(0, $notificationQueue.filter((r) => !r.dismissed).length - REMINDER_MAX_VISIBLE),
+    );
+
+    let dismissAllLabel = $derived(i18n?.reminderDismissAll || "一键已读");
 
     function handleDismiss(item: {
         blockId: string;
@@ -141,7 +147,7 @@
     }
 </script>
 
-<svelte:window on:keydown={handleUndoKeydown} />
+<svelte:window onkeydown={handleUndoKeydown} />
 
 {#if hasNotifications || $actionMoveUndoFeedback}
     <div class="nextaction na-notification-host">
@@ -170,7 +176,7 @@
                     {(i18n?.reminderOverflow || "{count} more reminders").replace("{count}", String(overflowCount))}
                 </div>
             {/if}
-            <button class="na-notification-host__dismiss-all" on:click={handleDismissAll}>
+            <button class="na-notification-host__dismiss-all" onclick={handleDismissAll}>
                 {dismissAllLabel}
             </button>
         {/if}

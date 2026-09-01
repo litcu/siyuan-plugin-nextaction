@@ -35,6 +35,10 @@ test("五个任务列表视图统一使用公共视图、筛选和列表骨架",
     ]) {
         assert.match(projectView, new RegExp(mode), mode);
     }
+
+    const taskList = source("../src/frontend/ui/NaTaskList.svelte");
+    assert.match(taskList, /}: Props = \$props\(\)/);
+    assert.doesNotMatch(taskList, /export let/);
 });
 
 test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组件", () => {

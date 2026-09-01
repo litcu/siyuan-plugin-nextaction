@@ -1,7 +1,20 @@
 <script lang="ts">
-    export let status: string = "todo";
-    export let onclick: ((e: MouseEvent) => void) | undefined = undefined;
-    export let focusable = true;
+    interface Props {
+        status?: string;
+        onclick?: ((e: MouseEvent) => void) | undefined;
+        focusable?: boolean;
+    }
+
+    let { status = "todo", onclick = undefined, focusable = true }: Props = $props();
+
+    function handleClick(event: MouseEvent): void {
+        event.stopPropagation();
+        onclick?.(event);
+    }
+
+    function handlePointerDown(event: PointerEvent): void {
+        event.stopPropagation();
+    }
 </script>
 
 <button
@@ -12,10 +25,8 @@
     class:na-status-checkbox--waiting={status === "waiting"}
     class:na-status-checkbox--someday={status === "someday"}
     class:na-status-checkbox--done={status === "done"}
-    on:click|stopPropagation={(e) => {
-        if (onclick) onclick(e);
-    }}
-    on:pointerdown|stopPropagation
+    onclick={handleClick}
+    onpointerdown={handlePointerDown}
     aria-label={status}
     tabindex={focusable ? 0 : -1}
 ></button>

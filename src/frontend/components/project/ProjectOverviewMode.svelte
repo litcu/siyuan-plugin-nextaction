@@ -9,19 +9,37 @@
     import type { ProjectSupportData } from "../../../shared/types";
     import { shouldOfferProjectRiskAction } from "../../utils/project-view-state";
 
-    export let summary: ProjectSummary;
-    export let risks: ProjectControlRisk[];
-    export let selectedTaskId = "";
-    export let i18n: I18nStrings;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
-    export let onOpenProjectSupport: (blockId: string) => void;
-    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
-    export let onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
-    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        summary: ProjectSummary;
+        risks: ProjectControlRisk[];
+        selectedTaskId?: string;
+        i18n: I18nStrings;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+        onOpenProjectSupport: (blockId: string) => void;
+        onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+        onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
+        onCreateAction?: ((project: TaskCacheEntry) => void) | undefined;
+    }
+
+    let {
+        summary,
+        risks,
+        selectedTaskId = "",
+        i18n,
+        onSelectTask = undefined,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        loadProjectSupport,
+        onOpenProjectSupport,
+        onExtractAction,
+        onAiExtractAction,
+        onCreateAction = undefined,
+    }: Props = $props();
 
     function riskLabel(kind: ProjectRisk["kind"]): string {
         return translateKey(i18n, projectRiskI18nKey(kind), kind);
@@ -43,7 +61,7 @@
         {:else}
             {#each risks as item (item.kind + item.taskId)}
                 <div class="na-project-risk-row">
-                    <button type="button" class="na-project-risk" on:click={() => onSelectTask?.(item.target)}>
+                    <button type="button" class="na-project-risk" onclick={() => onSelectTask?.(item.target)}>
                         <span class="na-project-risk__marker na-project-risk__marker--{item.severity}"></span>
                         <span
                             ><strong>{riskLabel(item.kind)}</strong><small

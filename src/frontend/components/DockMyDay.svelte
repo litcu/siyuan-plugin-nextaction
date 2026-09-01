@@ -16,39 +16,56 @@
     import { isMyDayEntryDone } from "../../shared/my-day";
     import { runAiPlanMyDay } from "../ai/ai-feature-service";
 
-    export let bridge: KernelBridge;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
+    interface Props {
+        bridge: KernelBridge;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+    }
+
+    let { bridge, onEdit, onStatusClick, onContextMenu, i18n }: Props = $props();
 
     type ViewMode = "timeline" | "list";
-    let viewMode: ViewMode = $taskStore.settings?.myDayDefaultViewMode === "list" ? "list" : "timeline";
-    let selectedTaskId = "";
+    let viewMode: ViewMode = $state($taskStore.settings?.myDayDefaultViewMode === "list" ? "list" : "timeline");
+    let selectedTaskId = $state("");
 
-    $: resetHour = $taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR;
-    $: defaultDuration = $taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION;
+    let resetHour = $derived($taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR);
+    let defaultDuration = $derived($taskStore.settings?.myDayDefaultDuration ?? DEFAULT_MY_DAY_DURATION);
 
-    $: myDayState = $taskStore.myDayState;
-    $: allTasks = $taskStore.allTasks;
-    $: taskMap = new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry]));
-    $: myDayEntryMap = new Map((myDayState?.tasks ?? []).map((entry) => [entry.blockId, entry]));
+    let myDayState = $derived($taskStore.myDayState);
+    let allTasks = $derived($taskStore.allTasks);
+    let taskMap = $derived(
+        new Map<string, TaskCacheEntry>(allTasks.map((t) => [t.blockId, t] as [string, TaskCacheEntry])),
+    );
+    let myDayEntryMap = $derived(new Map((myDayState?.tasks ?? []).map((entry) => [entry.blockId, entry])));
 
-    $: myDayTasks = (() => {
-        const state = myDayState;
-        if (!state) return [];
-        const result: TaskCacheEntry[] = [];
-        for (const entry of state.tasks) {
-            const task = taskMap.get(entry.blockId);
-            if (task) result.push(task);
-        }
-        return result;
-    })();
+    let myDayTasks = $derived(
+        (() => {
+            const state = myDayState;
+            if (!state) return [];
+            const result: TaskCacheEntry[] = [];
+            for (const entry of state.tasks) {
+                const task = taskMap.get(entry.blockId);
+                if (task) result.push(task);
+            }
+            return result;
+        })(),
+    );
 
-    $: myDayBlockIds = new Set((myDayState?.tasks || []).map((t) => t.blockId));
+    let myDayBlockIds = $derived(new Set((myDayState?.tasks || []).map((t) => t.blockId)));
 
-    $: unscheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null);
-    $: scheduledEntries = (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null);
+    let unscheduledEntries = $derived(
+        (myDayState?.tasks ?? []).filter((e) => e.scheduleStart === null || e.scheduleEnd === null),
+    );
+    let scheduledEntries = $derived(
+        (myDayState?.tasks ?? []).filter((e) => e.scheduleStart !== null && e.scheduleEnd !== null),
+    );
+
+    function handleContextMenu(task: TaskCacheEntry, event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
 
     async function searchTasksForAdd(query: string): Promise<{ id: string; label: string }[]> {
         if (!query.trim()) return [];
@@ -172,12 +189,12 @@
                                     draggable="true"
                                     role="button"
                                     tabindex="0"
-                                    on:dragstart={(e) => handleDragStart(e, entry.blockId)}
-                                    on:click={(event) => handleUnscheduledClick(event, task)}
-                                    on:keydown={(event) => {
+                                    ondragstart={(e) => handleDragStart(e, entry.blockId)}
+                                    onclick={(event) => handleUnscheduledClick(event, task)}
+                                    onkeydown={(event) => {
                                         if (event.key === "Enter" || event.key === " ") onEdit(task);
                                     }}
-                                    on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
+                                    oncontextmenu={(event) => handleContextMenu(task, event)}
                                 >
                                     <span class="na-dock-myday__unscheduled-accent"></span>
                                     <span class="na-dock-myday__unscheduled-name"

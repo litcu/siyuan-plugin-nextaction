@@ -5,13 +5,25 @@
     import { projectPlanI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
 
-    export let groups: Array<{ bucket: ProjectDateBucket; tasks: TaskCacheEntry[] }>;
-    export let selectedTaskId = "";
-    export let i18n: I18nStrings;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        groups: Array<{ bucket: ProjectDateBucket; tasks: TaskCacheEntry[] }>;
+        selectedTaskId?: string;
+        i18n: I18nStrings;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
+
+    let {
+        groups,
+        selectedTaskId = "",
+        i18n,
+        onSelectTask = undefined,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+    }: Props = $props();
 
     function bucketLabel(bucket: ProjectDateBucket): string {
         return translateKey(i18n, projectPlanI18nKey(bucket), bucket);

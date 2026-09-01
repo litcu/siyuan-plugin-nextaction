@@ -4,23 +4,28 @@
     import NaButton from "../../ui/NaButton.svelte";
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
 
-    export let summary: ProjectSummary;
-    export let i18n: I18nStrings;
-    export let onConfirm: (() => Promise<void>) | undefined = undefined;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        summary: ProjectSummary;
+        i18n: I18nStrings;
+        onConfirm?: (() => Promise<void>) | undefined;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
 
-    let busy = false;
-    let error = "";
+    let { summary, i18n, onConfirm = undefined, onSelectTask = undefined }: Props = $props();
 
-    $: missingDefinition = !summary.project.outcome.trim() || !summary.project.dod.trim();
-    $: definitionWarning =
+    let busy = $state(false);
+    let error = $state("");
+
+    let missingDefinition = $derived(!summary.project.outcome.trim() || !summary.project.dod.trim());
+    let definitionWarning = $derived(
         !summary.project.outcome.trim() && !summary.project.dod.trim()
             ? i18n?.projectCompletionMissingBoth || "Outcome and Definition of Done are not defined."
             : !summary.project.outcome.trim()
               ? i18n?.projectCompletionMissingOutcome || "Outcome is not defined."
               : !summary.project.dod.trim()
                 ? i18n?.projectCompletionMissingDod || "Definition of Done is not defined."
-                : "";
+                : "",
+    );
 
     async function confirmCompletion() {
         if (!onConfirm || busy) return;

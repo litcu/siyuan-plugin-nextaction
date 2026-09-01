@@ -19,35 +19,53 @@
     import TaskCard from "./TaskCard.svelte";
     import { shouldOfferProjectRiskAction, shouldShowProjectCompletionPanel } from "../utils/project-view-state";
 
-    export let reviewData: ReviewData;
-    export let i18n: I18nStrings;
-    export let selectedTaskId: string;
-    export let onSelectTask: (task: TaskCacheEntry) => void;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onOpenProject: (project: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onMarkReviewed: (blockIds: string[]) => Promise<boolean>;
-    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
-    export let onConfirmCompletion: ((summary: ProjectSummary) => Promise<boolean>) | undefined = undefined;
-    export let manualProjectIds: string[] = [];
-    export let expandedProjectId: string = "";
+    interface Props {
+        reviewData: ReviewData;
+        i18n: I18nStrings;
+        selectedTaskId: string;
+        onSelectTask: (task: TaskCacheEntry) => void;
+        onEdit: (task: TaskCacheEntry) => void;
+        onOpenProject: (project: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onMarkReviewed: (blockIds: string[]) => Promise<boolean>;
+        onCreateAction?: ((project: TaskCacheEntry) => void) | undefined;
+        onConfirmCompletion?: ((summary: ProjectSummary) => Promise<boolean>) | undefined;
+        manualProjectIds?: string[];
+        expandedProjectId?: string;
+    }
 
-    let manualProjectId = "";
-    let reviewingIds = new Set<string>();
-    let completingIds = new Set<string>();
+    let {
+        reviewData,
+        i18n,
+        selectedTaskId,
+        onSelectTask,
+        onEdit,
+        onOpenProject,
+        onStatusClick,
+        onContextMenu,
+        onMarkReviewed,
+        onCreateAction = undefined,
+        onConfirmCompletion = undefined,
+        manualProjectIds = $bindable([]),
+        expandedProjectId = $bindable(""),
+    }: Props = $props();
 
-    $: reviewItems = mergeManualProjectReviews(
-        reviewData.projectReviews,
-        reviewData.reviewableProjects,
-        manualProjectIds,
+    let manualProjectId = $state("");
+    let reviewingIds = $state(new Set<string>());
+    let completingIds = $state(new Set<string>());
+
+    let reviewItems = $derived(
+        mergeManualProjectReviews(reviewData.projectReviews, reviewData.reviewableProjects, manualProjectIds),
     );
-    $: queuedProjectIds = new Set(reviewItems.map((item) => item.summary.project.blockId));
-    $: manualOptions = reviewData.reviewableProjects.filter(
-        (summary) => !queuedProjectIds.has(summary.project.blockId),
+    let queuedProjectIds = $derived(new Set(reviewItems.map((item) => item.summary.project.blockId)));
+    let manualOptions = $derived(
+        reviewData.reviewableProjects.filter((summary) => !queuedProjectIds.has(summary.project.blockId)),
     );
-    $: projectLabels = Object.fromEntries(
-        reviewData.reviewableProjects.map((summary) => [summary.project.blockId, summary.project.title]),
+    let projectLabels = $derived(
+        Object.fromEntries(
+            reviewData.reviewableProjects.map((summary) => [summary.project.blockId, summary.project.title]),
+        ),
     );
 
     function healthPresentation(health: ProjectHealth): {

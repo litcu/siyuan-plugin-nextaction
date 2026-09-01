@@ -5,14 +5,27 @@
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let i18n: I18nStrings;
-    export let mcpEnabled: boolean;
-    export let mcpAllowWrite: boolean;
-    export let mcpStatus: RpcMcpStatus | null;
-    export let mcpCopied = false;
-    export let mcpEndpoint = "";
-    export let onCopyEndpoint: () => void;
-    export let onReset: () => void;
+    interface Props {
+        i18n: I18nStrings;
+        mcpEnabled: boolean;
+        mcpAllowWrite: boolean;
+        mcpStatus: RpcMcpStatus | null;
+        mcpCopied?: boolean;
+        mcpEndpoint?: string;
+        onCopyEndpoint: () => void;
+        onReset: () => void;
+    }
+
+    let {
+        i18n,
+        mcpEnabled = $bindable(),
+        mcpAllowWrite = $bindable(),
+        mcpStatus,
+        mcpCopied = false,
+        mcpEndpoint = "",
+        onCopyEndpoint,
+        onReset,
+    }: Props = $props();
 </script>
 
 <div class="na-page-stack na-settings-mcp">
@@ -94,7 +107,7 @@
     >
         <div class="na-settings-mcp__endpoint">
             <code>{mcpEndpoint}</code>
-            <button type="button" class="b3-button" on:click={onCopyEndpoint}
+            <button type="button" class="b3-button" onclick={onCopyEndpoint}
                 ><NaIcon symbol={mcpCopied ? "iconCheck" : "iconCopy"} size={14} />{mcpCopied
                     ? i18n?.settingMcpCopied || "Copied"
                     : i18n?.settingMcpCopy || "Copy"}</button

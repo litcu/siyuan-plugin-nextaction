@@ -4,36 +4,17 @@
     import NaTooltip from "../ui/NaTooltip.svelte";
     import { localCalendarDate, type GanttBarGeometry } from "../utils/gantt";
 
-    export let task: TaskCacheEntry;
-    export let geometry: GanttBarGeometry;
-    export let selected = false;
-    export let i18n: any;
-    export let onSelect: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        task: TaskCacheEntry;
+        geometry: GanttBarGeometry;
+        selected?: boolean;
+        i18n: any;
+        onSelect?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
 
-    $: priorityColor = PRIORITY_COLORS[normalizePriority(task.priority)] || "var(--na-priority-medium)";
-    $: statusColor = getStatusColor(task);
-    $: isDone = task.status === "done";
-    $: isClarify = task.blocked && task.blockedReason === "inbox";
-    $: isHardBlocked = task.blocked && task.blockedReason !== "inbox" && task.blockedReason !== "someday";
-    $: isOverdue = !isDone && Boolean(task.due) && task.due.slice(0, 10) < localCalendarDate();
-    $: dependencyCount = task.depends.split("|").filter(Boolean).length;
-    $: showInsideLabel = geometry.kind === "bar" && geometry.width >= 84;
-    $: showInsideDate = geometry.kind === "bar" && geometry.width >= 148;
-    $: showOutsideLabel = geometry.kind !== "rollup" && !showInsideLabel;
-    $: anchorLeft = geometry.kind === "deadline" ? geometry.x - 10 : geometry.x;
-    $: anchorWidth = geometry.kind === "deadline" ? 20 : Math.max(22, geometry.width);
-    $: targetOffset = geometry.targetX === undefined ? null : geometry.targetX - anchorLeft;
-    $: targetBufferLeft = targetOffset === null ? 0 : Math.min(anchorWidth, targetOffset);
-    $: targetBufferWidth = targetOffset === null ? 0 : Math.abs(targetOffset - anchorWidth);
-    $: outsideLabel =
-        geometry.kind === "deadline"
-            ? `${geometry.endDate.slice(5)} · ${task.title || i18n?.untitled || "Untitled"}`
-            : geometry.kind === "open"
-              ? `${geometry.startDate.slice(5)} → · ${task.title || i18n?.untitled || "Untitled"}`
-              : task.title || i18n?.untitled || "Untitled";
-    $: tooltipText = buildTooltipText();
+    let { task, geometry, selected = false, i18n, onSelect = undefined, onEdit, onContextMenu }: Props = $props();
 
     function getStatusColor(entry: TaskCacheEntry): string {
         if (entry.status === "inbox") return "var(--na-color-inbox)";
@@ -84,6 +65,34 @@
         event.stopPropagation();
         onEdit(task);
     }
+
+    function handleContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
+    let priorityColor = $derived(PRIORITY_COLORS[normalizePriority(task.priority)] || "var(--na-priority-medium)");
+    let statusColor = $derived(getStatusColor(task));
+    let isDone = $derived(task.status === "done");
+    let isClarify = $derived(task.blocked && task.blockedReason === "inbox");
+    let isHardBlocked = $derived(task.blocked && task.blockedReason !== "inbox" && task.blockedReason !== "someday");
+    let isOverdue = $derived(!isDone && Boolean(task.due) && task.due.slice(0, 10) < localCalendarDate());
+    let dependencyCount = $derived(task.depends.split("|").filter(Boolean).length);
+    let showInsideLabel = $derived(geometry.kind === "bar" && geometry.width >= 84);
+    let showInsideDate = $derived(geometry.kind === "bar" && geometry.width >= 148);
+    let showOutsideLabel = $derived(geometry.kind !== "rollup" && !showInsideLabel);
+    let anchorLeft = $derived(geometry.kind === "deadline" ? geometry.x - 10 : geometry.x);
+    let anchorWidth = $derived(geometry.kind === "deadline" ? 20 : Math.max(22, geometry.width));
+    let targetOffset = $derived(geometry.targetX === undefined ? null : geometry.targetX - anchorLeft);
+    let targetBufferLeft = $derived(targetOffset === null ? 0 : Math.min(anchorWidth, targetOffset));
+    let targetBufferWidth = $derived(targetOffset === null ? 0 : Math.abs(targetOffset - anchorWidth));
+    let outsideLabel = $derived(
+        geometry.kind === "deadline"
+            ? `${geometry.endDate.slice(5)} · ${task.title || i18n?.untitled || "Untitled"}`
+            : geometry.kind === "open"
+              ? `${geometry.startDate.slice(5)} → · ${task.title || i18n?.untitled || "Untitled"}`
+              : task.title || i18n?.untitled || "Untitled",
+    );
+    let tooltipText = $derived(buildTooltipText());
 </script>
 
 <div
@@ -105,9 +114,9 @@
             class="na-gantt-bar"
             aria-label={`${task.title || i18n?.untitled || "Untitled"} · ${tooltipText}`}
             aria-pressed={selected}
-            on:click={handleClick}
-            on:dblclick={handleDoubleClick}
-            on:contextmenu|preventDefault={(event) => onContextMenu(task, event)}
+            onclick={handleClick}
+            ondblclick={handleDoubleClick}
+            oncontextmenu={handleContextMenu}
         >
             <span class="na-gantt-bar__visual">
                 {#if showInsideLabel}

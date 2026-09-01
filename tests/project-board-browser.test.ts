@@ -33,12 +33,14 @@ const task = (overrides = {}) => ({
     tags: "", blocked: false, blockedReason: "", reviewInterval: 0, reviewDate: "", reminder: "",
     customFields: {}, ...overrides,
 });
+
 const project = task({
     blockId: projectId, identificationSource: "document", contentBlockId: projectId, attrHostId: projectId,
     parentId: "", taskType: "2", title: "Board project", actionKind: "", childIds: ["20260825141736-actionx"],
 });
 let preference = { groupBy: "status", sortBy: "order", sortAsc: false, narrowColumnIndex: 0 };
 let changes = [];
+let moves = [];
 const i18n = new Proxy({
     projectBoardGroupBy: "Group by", sortBy: "Sort by", status: "Status", priority: "Priority",
     importance: "Importance", priorityCritical: "critical", priorityHigh: "high", priorityMedium: "medium",
@@ -53,9 +55,12 @@ function updatePreference(next) {
     changes = [...changes, next];
     preference = next;
 }
+async function moveTask(intent) {
+    moves = [...moves, { ...intent, task: intent.task.blockId }];
+}
 </script>
 
-<div id="state" data-group={preference.groupBy} data-sort={preference.sortBy} data-changes={JSON.stringify(changes)}></div>
+<div id="state" data-group={preference.groupBy} data-sort={preference.sortBy} data-changes={JSON.stringify(changes)} data-moves={JSON.stringify(moves)}></div>
 <ProjectBoardMode
     tasks={[task()]}
     projectTasks={[project, task()]}
@@ -65,7 +70,7 @@ function updatePreference(next) {
     onEdit={noop}
     onStatusClick={noop}
     onContextMenu={noop}
-    onMoveTask={async () => {}}
+    onMoveTask={moveTask}
 />
 `,
             );
@@ -88,6 +93,15 @@ setTimeout(() => {
         sort.value = "due";
         sort.dispatchEvent(new Event("change", { bubbles: true }));
         setTimeout(() => {
+            const dataTransfer = new DataTransfer();
+            document.querySelector(".na-project-board__card").dispatchEvent(
+                new DragEvent("dragstart", { bubbles: true, dataTransfer }),
+            );
+            const criticalColumn = [...document.querySelectorAll(".na-project-board__column")]
+                .find((column) => column.querySelector("header")?.textContent.includes("critical"));
+            criticalColumn.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer }));
+        }, 25);
+        setTimeout(() => {
             const state = document.querySelector("#state");
             finish({
                 groupValue: group.value,
@@ -95,10 +109,11 @@ setTimeout(() => {
                 parentGroup: state?.dataset.group,
                 parentSort: state?.dataset.sort,
                 changes: JSON.parse(state?.dataset.changes || "[]"),
+                moves: JSON.parse(state?.dataset.moves || "[]"),
                 priorityColumnVisible: [...document.querySelectorAll(".na-project-board__column header")]
                     .some((node) => node.textContent.includes("critical")),
             });
-        }, 50);
+        }, 100);
     } catch (error) {
         finish({ error: String(error?.message || error) });
     }
@@ -114,6 +129,16 @@ setTimeout(() => {
         changes: [
             { groupBy: "priority", sortBy: "order", sortAsc: false, narrowColumnIndex: 0 },
             { groupBy: "priority", sortBy: "due", sortAsc: false, narrowColumnIndex: 0 },
+        ],
+        moves: [
+            {
+                task: "20260825141736-actionx",
+                status: "",
+                groupBy: "priority",
+                value: "critical",
+                sortBy: "due",
+                visibleTaskIds: ["20260825141736-actionx"],
+            },
         ],
         priorityColumnVisible: true,
     });
