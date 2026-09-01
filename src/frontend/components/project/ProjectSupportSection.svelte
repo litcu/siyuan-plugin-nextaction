@@ -70,7 +70,7 @@
         {:else if error}
             <div class="na-project-support__state">
                 <NaInlineNotice message={errorMessage} tone="error" />
-                <NaButton size="sm" on:click={() => requestSupport()}>{i18n.projectSupportRetry}</NaButton>
+                <NaButton size="sm" onclick={() => requestSupport()}>{i18n.projectSupportRetry}</NaButton>
             </div>
         {:else if !data || data.items.length === 0}
             <NaEmpty text={i18n.projectSupportEmpty} />
@@ -91,7 +91,7 @@
                                     symbol="iconSparkles"
                                     label={i18n.aiExtractTasks}
                                     size={13}
-                                    on:click={() => onAiExtract?.(item.blockId)}
+                                    onclick={() => onAiExtract?.(item.blockId)}
                                 />
                             {/if}
                             {#if onExtract}
@@ -99,14 +99,14 @@
                                     symbol="iconNextAction"
                                     label={i18n.extractAction}
                                     size={13}
-                                    on:click={() => onExtract?.(item.blockId, item.title)}
+                                    onclick={() => onExtract?.(item.blockId, item.title)}
                                 />
                             {/if}
                             <NaIconButton
                                 symbol="iconOpenWindow"
                                 label={i18n.projectSupportOpen}
                                 size={13}
-                                on:click={() => onOpen(item.blockId)}
+                                onclick={() => onOpen(item.blockId)}
                             />
                         </div>
                     </article>

@@ -1,28 +1,27 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import type { Snippet } from "svelte";
 
     export let open = false;
     export let label: string;
-
-    const dispatch = createEventDispatcher<{ requestClose: "backdrop" | "escape" }>();
+    export let onRequestClose: (reason: "backdrop" | "escape") => void = () => {};
+    export let children: Snippet;
 
     function handleKeydown(event: KeyboardEvent) {
         if (!open || event.key !== "Escape" || event.defaultPrevented) return;
         const dialogs = (window as any).siyuan?.dialogs;
         if (Array.isArray(dialogs) && dialogs.length > 0) return;
         event.preventDefault();
-        dispatch("requestClose", "escape");
+        onRequestClose("escape");
     }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-    <button class="na-drawer-host__backdrop" aria-label={label} on:click={() => dispatch("requestClose", "backdrop")}
-    ></button>
+    <button class="na-drawer-host__backdrop" aria-label={label} onclick={() => onRequestClose("backdrop")}></button>
 {/if}
 <aside class="na-drawer-host" class:na-drawer-host--open={open} aria-hidden={!open}>
-    <slot />
+    {@render children()}
 </aside>
 
 <style lang="scss">

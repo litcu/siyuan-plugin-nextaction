@@ -1,16 +1,12 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-
     export let value = "";
     export let placeholder = "";
     export let disabled = false;
     export let openLabel = "";
     export let i18n: any = null;
 
-    const dispatch = createEventDispatcher<{
-        input: { value: string };
-        open: { value: string };
-    }>();
+    export let onInput: (value: string) => void = () => {};
+    export let onOpen: (value: string) => void = () => {};
 
     $: normalizedValue = value.trim();
     $: canOpen = isSupportedLink(normalizedValue);
@@ -33,12 +29,12 @@
 
     function handleInput(event: Event) {
         value = (event.currentTarget as HTMLInputElement).value;
-        dispatch("input", { value });
+        onInput(value);
     }
 
     function handleOpen() {
         if (!canOpen || disabled) return;
-        dispatch("open", { value: normalizedValue });
+        onOpen(normalizedValue);
     }
 </script>
 
@@ -49,14 +45,14 @@
         {value}
         placeholder={resolvedPlaceholder}
         {disabled}
-        on:input={handleInput}
+        oninput={handleInput}
     />
     <button
         class="na-link-input__open b3-tooltips b3-tooltips__n"
         type="button"
         disabled={!canOpen || disabled}
         aria-label={resolvedOpenLabel}
-        on:click={handleOpen}
+        onclick={handleOpen}
     >
         <svg
             viewBox="0 0 16 16"

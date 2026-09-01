@@ -42,13 +42,13 @@
     onDestroy(() => {});
 </script>
 
-<svelte:window on:click={closeOnOutsideClick} />
+<svelte:window onclick={closeOnOutsideClick} />
 
 <div class="na-filter-dropdown" bind:this={containerEl}>
     <button
         class="na-filter-dropdown__trigger"
         class:na-filter-dropdown__trigger--active={hasSelection}
-        on:click={toggle}
+        onclick={toggle}
     >
         <span class="na-filter-dropdown__label">{label}</span>
         {#if hasSelection}
@@ -70,10 +70,10 @@
     {#if open}
         <div class="na-filter-dropdown__panel">
             <div class="na-filter-dropdown__actions">
-                <button class="na-filter-dropdown__action" on:click={selectAll} disabled={isAllSelected}>
+                <button class="na-filter-dropdown__action" onclick={selectAll} disabled={isAllSelected}>
                     {i18n?.selectAll || "Select all"}
                 </button>
-                <button class="na-filter-dropdown__action" on:click={clearAll} disabled={!hasSelection}>
+                <button class="na-filter-dropdown__action" onclick={clearAll} disabled={!hasSelection}>
                     {i18n?.clearFilter || "Clear"}
                 </button>
             </div>
@@ -83,7 +83,10 @@
                         type="checkbox"
                         class="na-filter-dropdown__sr-only"
                         checked={selected.includes(opt.value)}
-                        on:change|stopPropagation={() => toggleOption(opt.value)}
+                        onchange={(event) => {
+                            event.stopPropagation();
+                            toggleOption(opt.value);
+                        }}
                     />
                     <span
                         class="na-filter-dropdown__checkbox"

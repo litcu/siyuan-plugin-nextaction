@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import type { Snippet } from "svelte";
     import NaIcon from "./NaIcon.svelte";
 
     export let title: string;
@@ -12,11 +12,13 @@
     export let modified = false;
     export let modifiedLabel = "";
     export let i18n: any = null;
-    const dispatch = createEventDispatcher<{ openChange: boolean }>();
+    export let onOpenChange: (open: boolean) => void = () => {};
+    export let action: Snippet | undefined = undefined;
+    export let children: Snippet;
 
     function toggle() {
         open = !open;
-        dispatch("openChange", open);
+        onOpenChange(open);
     }
 </script>
 
@@ -31,7 +33,7 @@
     class:na-accordion--warning={tone === "warning"}
 >
     <div class="na-accordion__header">
-        <button type="button" class="na-accordion__trigger" aria-expanded={open} on:click={toggle}>
+        <button type="button" class="na-accordion__trigger" aria-expanded={open} onclick={toggle}>
             <span class="na-accordion__chevron"><NaIcon symbol="iconRight" size={14} /></span>
             {#if icon}<span class="na-accordion__icon"><NaIcon symbol={icon} size={14} /></span>{/if}
             <span class="na-accordion__copy">
@@ -43,10 +45,10 @@
                 >{/if}
             {#if count !== undefined}<span class="na-accordion__count">{count}</span>{/if}
         </button>
-        {#if $$slots.action}<div class="na-accordion__action"><slot name="action" /></div>{/if}
+        {#if action}<div class="na-accordion__action">{@render action()}</div>{/if}
     </div>
     {#if open}
-        <div class="na-accordion__content"><slot /></div>
+        <div class="na-accordion__content">{@render children()}</div>
     {/if}
 </section>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import type { Snippet } from "svelte";
     import NaHelpTooltip from "./NaHelpTooltip.svelte";
     import NaIcon from "./NaIcon.svelte";
 
@@ -10,12 +10,13 @@
     export let open = true;
     export let summary = "";
     export let tone: "default" | "danger" = "default";
-
-    const dispatch = createEventDispatcher<{ openChange: boolean }>();
+    export let onOpenChange: (open: boolean) => void = () => {};
+    export let action: Snippet | undefined = undefined;
+    export let children: Snippet;
     function toggle() {
         if (!collapsible) return;
         open = !open;
-        dispatch("openChange", open);
+        onOpenChange(open);
     }
 </script>
 
@@ -27,7 +28,7 @@
                     type="button"
                     class="na-property-section__trigger na-property-section__trigger--compact"
                     aria-expanded={open}
-                    on:click={toggle}
+                    onclick={toggle}
                 >
                     <span class="na-property-section__chevron"><NaIcon symbol="iconRight" size={13} /></span>
                     <span class="na-property-section__heading"
@@ -38,7 +39,7 @@
                 <NaHelpTooltip label={title} text={helpText} />
             </header>
         {:else}
-            <button type="button" class="na-property-section__trigger" aria-expanded={open} on:click={toggle}>
+            <button type="button" class="na-property-section__trigger" aria-expanded={open} onclick={toggle}>
                 <span class="na-property-section__chevron"><NaIcon symbol="iconRight" size={13} /></span>
                 <span class="na-property-section__heading"
                     ><strong>{title}</strong>{#if description}<small>{description}</small>{/if}</span
@@ -56,11 +57,11 @@
                         />{/if}</span
                 >{#if description}<small>{description}</small>{/if}</span
             >
-            <slot name="action" />
+            {#if action}{@render action()}{/if}
         </header>
     {/if}
     {#if !collapsible || open}
-        <div class="na-property-section__body"><slot /></div>
+        <div class="na-property-section__body">{@render children()}</div>
     {/if}
 </section>
 

@@ -36,7 +36,7 @@
         <span class="na-empty__text">{text}</span>
     {/if}
     {#if !loading && action}
-        <NaButton size="sm" on:click={action.onClick}>{action.label}</NaButton>
+        <NaButton size="sm" onclick={action.onClick}>{action.label}</NaButton>
     {/if}
 </div>
 

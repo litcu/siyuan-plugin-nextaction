@@ -34,10 +34,10 @@
     }
 </script>
 
-<svelte:window on:click={closeOnOutsideClick} />
+<svelte:window onclick={closeOnOutsideClick} />
 
 <div class="na-sort-select" bind:this={containerEl}>
-    <button class="na-sort-select__trigger" on:click={toggle}>
+    <button class="na-sort-select__trigger" onclick={toggle}>
         <svg
             viewBox="0 0 12 12"
             width="10"
@@ -55,7 +55,7 @@
     {#if canToggleDirection}
         <button
             class="na-sort-select__dir-btn b3-tooltips b3-tooltips__n"
-            on:click={toggleDirection}
+            onclick={toggleDirection}
             aria-label={ascending ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}
         >
             {#if ascending}
@@ -96,7 +96,7 @@
                     type="button"
                     class="na-sort-select__option"
                     class:na-sort-select__option--active={opt.value === selected}
-                    on:click={() => selectOption(opt.value)}
+                    onclick={() => selectOption(opt.value)}
                 >
                     <span class="na-sort-select__option-label">{opt.label}</span>
                     {#if opt.value === selected}

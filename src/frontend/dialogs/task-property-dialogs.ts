@@ -87,20 +87,10 @@ export function openReminderSettingsDialog(
 
     const close = () => dialog.destroy();
     unbindClose = bindManagedClose(dialog, close);
-    mounted = mountSvelteComponent(NaReminderEditor, {
-        target,
-        props: {
-            items: currentItems,
-            due: task.due,
-            defaultOffsets: get(taskStore).settings.reminderSettings.defaultOffsets,
-            i18n,
-        },
-    }) as SvelteComponentMount<InstanceType<typeof NaReminderEditor>>;
-    const component = mounted.instance;
-    component.$on("close", close);
-    component.$on("change", async (event: CustomEvent<{ items: typeof currentItems }>) => {
+    const handleChange = async (items: typeof currentItems) => {
+        const component = mounted?.instance;
         const previousItems = currentItems;
-        currentItems = event.detail.items;
+        currentItems = items;
         component?.$set({ saving: true, error: "" });
         try {
             const updated = await bridge.updateTask(task.blockId, {
@@ -115,7 +105,18 @@ export function openReminderSettingsDialog(
         } finally {
             component?.$set({ saving: false });
         }
-    });
+    };
+    mounted = mountSvelteComponent(NaReminderEditor, {
+        target,
+        props: {
+            items: currentItems,
+            due: task.due,
+            defaultOffsets: get(taskStore).settings.reminderSettings.defaultOffsets,
+            i18n,
+            onClose: close,
+            onChange: handleChange,
+        },
+    }) as SvelteComponentMount<InstanceType<typeof NaReminderEditor>>;
 }
 
 export function openRepeatRuleDialog(
@@ -156,20 +157,19 @@ export function openRepeatRuleDialog(
         );
     };
     unbindClose = bindManagedClose(dialog, requestClose);
-    mounted = mountSvelteComponent(NaRepeatRuleEditor, {
-        target,
-        props: { task, i18n },
-    }) as SvelteComponentMount<InstanceType<typeof NaRepeatRuleEditor>>;
-    const component = mounted.instance;
-    component.$on("requestClose", requestClose);
-    component.$on("apply", async (event: CustomEvent<{ rule: RepeatRuleV2 }>) => {
+    const applyRule = async (rule: RepeatRuleV2) => {
+        const component = mounted?.instance;
         component?.$set({ saving: true, error: "" });
         try {
-            const updated = await bridge.setRepeatRule(task.blockId, event.detail.rule);
+            const updated = await bridge.setRepeatRule(task.blockId, rule);
             callbacks.onSave?.(updated);
             dialog.destroy();
         } catch (error) {
             component?.$set({ saving: false, error: formatRpcError(error, i18n) });
         }
-    });
+    };
+    mounted = mountSvelteComponent(NaRepeatRuleEditor, {
+        target,
+        props: { task, i18n, onRequestClose: requestClose, onApply: applyRule },
+    }) as SvelteComponentMount<InstanceType<typeof NaRepeatRuleEditor>>;
 }

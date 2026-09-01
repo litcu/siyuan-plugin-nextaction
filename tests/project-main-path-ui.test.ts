@@ -13,7 +13,7 @@ test("项目回顾可以打开对应项目并将目标选择传递给项目视�
     const projectView = source("../src/frontend/components/ProjectView.svelte");
 
     assert.match(queue, /export let onOpenProject:/);
-    assert.match(queue, /on:click=\{\(\) => onOpenProject\(project\)\}/);
+    assert.match(queue, /onclick=\{\(\) => onOpenProject\(project\)\}/);
     assert.match(review, /\{onOpenProject\}/);
     assert.match(app, /function handleOpenProject\(project: TaskCacheEntry\)/);
     assert.match(app, /onOpenProject=\{handleOpenProject\}/);

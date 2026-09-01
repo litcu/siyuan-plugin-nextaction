@@ -83,7 +83,10 @@
                     {i18n}
                     bind:value={taskCreationInboxDocument}
                     fixedDropdown
-                    on:change={() => onTaskCreationDocumentChange(taskCreationInboxDocument)}
+                    onChange={(selection) => {
+                        taskCreationInboxDocument = selection;
+                        onTaskCreationDocumentChange(selection);
+                    }}
                 />
             </NaSettingRow>
         {:else}

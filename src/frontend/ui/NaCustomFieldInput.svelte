@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
     import type { CustomFieldDef } from "../../shared/settings";
     import NaDatePicker from "./NaDatePicker.svelte";
     import NaLinkInput from "./NaLinkInput.svelte";
@@ -12,7 +11,8 @@
     export let fixedDropdown = true;
     export let disabled = false;
 
-    const dispatch = createEventDispatcher<{ change: { value: string }; open: { value: string } }>();
+    export let onChange: (value: string) => void = () => {};
+    export let onOpen: (value: string) => void = () => {};
 
     $: placeholder = (
         {
@@ -46,7 +46,7 @@
 
     function emit(nextValue: string) {
         value = nextValue;
-        dispatch("change", { value: nextValue });
+        onChange(nextValue);
     }
 
     function searchOptions(query: string, selected: Set<string>) {
@@ -66,7 +66,7 @@
         {disabled}
         {placeholder}
         {value}
-        on:input={(event) => emit(event.currentTarget.value)}
+        oninput={(event) => emit(event.currentTarget.value)}
     ></textarea>
 {:else if def.type === "boolean"}
     <div class="na-custom-field-input__toggle">
@@ -74,7 +74,7 @@
             checked={value === "1" || value === "true"}
             {disabled}
             label={def.label}
-            on:change={(event) => emit(event.detail.checked ? "1" : "0")}
+            onChange={(checked) => emit(checked ? "1" : "0")}
         />
         <span
             >{value === "1" || value === "true"
@@ -97,12 +97,7 @@
         clearLabel={i18n?.clearSelection || "Clear selection"}
         removeLabel={i18n?.removeSelection || "Remove selection"}
         {fixedDropdown}
-        on:change={(event) =>
-            emit(
-                Array.isArray(event.detail?.selected)
-                    ? event.detail.selected[0] || ""
-                    : String(event.detail?.selected || ""),
-            )}
+        onChange={(selected) => emit(Array.isArray(selected) ? selected[0] || "" : selected)}
     />
 {:else if def.type === "multiSelect"}
     <NaSearchSelect
@@ -117,8 +112,7 @@
         clearLabel={i18n?.clearSelection || "Clear selection"}
         removeLabel={i18n?.removeSelection || "Remove selection"}
         {fixedDropdown}
-        on:change={(event) =>
-            emit(JSON.stringify(Array.isArray(event.detail?.selected) ? event.detail.selected.map(String) : []))}
+        onChange={(selected) => emit(JSON.stringify(Array.isArray(selected) ? selected.map(String) : []))}
     />
 {:else if def.type === "date" || def.type === "datetime"}
     <NaDatePicker
@@ -128,7 +122,7 @@
         {fixedDropdown}
         {disabled}
         {i18n}
-        on:change={(event) => emit(event.detail?.value || "")}
+        onChange={emit}
     />
 {:else if def.type === "url"}
     <NaLinkInput
@@ -136,8 +130,8 @@
         {placeholder}
         {i18n}
         openLabel={i18n?.customFieldOpenLink || "Open link"}
-        on:input={(event) => emit(event.detail.value)}
-        on:open={(event) => dispatch("open", { value: event.detail.value })}
+        onInput={emit}
+        {onOpen}
     />
 {:else}
     <input
@@ -146,7 +140,7 @@
         {value}
         {placeholder}
         {disabled}
-        on:input={(event) => emit(event.currentTarget.value)}
+        oninput={(event) => emit(event.currentTarget.value)}
     />
 {/if}
 

@@ -61,7 +61,7 @@
                       "All leaf actions are complete. Review the intended result before confirming completion."}
             </p>
         </div>
-        <NaButton variant="primary" loading={busy} disabled={!onConfirm} on:click={confirmCompletion}>
+        <NaButton variant="primary" loading={busy} disabled={!onConfirm} onclick={confirmCompletion}>
             {i18n?.projectConfirmComplete || "Confirm complete"}
         </NaButton>
     </header>
@@ -104,7 +104,7 @@
             </p>
             <div>
                 {#each summary.incompleteNonLeafActions as task (task.blockId)}
-                    <NaButton size="sm" disabled={!onSelectTask} on:click={() => onSelectTask?.(task)}>
+                    <NaButton size="sm" disabled={!onSelectTask} onclick={() => onSelectTask?.(task)}>
                         {task.title}
                     </NaButton>
                 {/each}

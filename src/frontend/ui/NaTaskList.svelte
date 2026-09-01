@@ -1,7 +1,10 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
+
     export let density: "regular" | "compact" = "regular";
     export let nested = false;
     export let element: HTMLElement | null = null;
+    export let children: Snippet;
 </script>
 
 <div
@@ -10,7 +13,7 @@
     class:na-task-list--compact={density === "compact"}
     class:na-task-list--nested={nested}
 >
-    <slot />
+    {@render children()}
 </div>
 
 <style lang="scss">

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onDestroy } from "svelte";
+    import { onDestroy } from "svelte";
     import NaButton from "./NaButton.svelte";
     import NaChip from "./NaChip.svelte";
     import NaFilterDropdown from "./NaFilterDropdown.svelte";
@@ -21,7 +21,7 @@
     export let searchPlaceholder = "";
     export let i18n: any;
 
-    const dispatch = createEventDispatcher<{ change: FilterState }>();
+    export let onChange: (filterState: FilterState) => void = () => {};
     let searchText = filterState.searchText;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let customFieldKey = "";
@@ -46,7 +46,7 @@
     ];
 
     function change(next: FilterState) {
-        dispatch("change", next);
+        onChange(next);
     }
     function onSearchInput(nextSearchText: string) {
         searchText = nextSearchText;
@@ -90,7 +90,7 @@
             compact
             placeholder={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
             ariaLabel={searchPlaceholder || i18n?.searchPlaceholder || "Search..."}
-            on:input={(event) => onSearchInput(event.detail.value)}
+            onInput={onSearchInput}
         />
     </div>
     <div class="na-task-filter-bar__filters">
@@ -152,11 +152,11 @@
                 {#if customFieldOperator !== "empty" && customFieldOperator !== "notEmpty"}<input
                         class="na-input"
                         value={customFieldValue}
-                        on:input={(event) => (customFieldValue = event.currentTarget.value)}
+                        oninput={(event) => (customFieldValue = event.currentTarget.value)}
                         placeholder={i18n?.customFieldFilterValue || "Value"}
-                        on:keydown={(event) => event.key === "Enter" && addCustomFieldFilter()}
+                        onkeydown={(event) => event.key === "Enter" && addCustomFieldFilter()}
                     />{/if}
-                <NaButton size="sm" on:click={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
+                <NaButton size="sm" onclick={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
             </div>
             {#each filterState.customFieldFilters || [] as filter, index}
                 <NaChip

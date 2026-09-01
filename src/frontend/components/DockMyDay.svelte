@@ -66,9 +66,9 @@
             .map((t) => ({ id: t.blockId, label: t.title || i18n?.untitled || "(untitled)" }));
     }
 
-    async function handleSearchChange() {
-        if (!selectedTaskId) return;
-        const blockId = selectedTaskId;
+    async function handleSearchChange(selected: string | string[]) {
+        const blockId = typeof selected === "string" ? selected : "";
+        if (!blockId) return;
         selectedTaskId = "";
         try {
             const myDayState = await bridge.addTaskToMyDay(blockId);
@@ -78,8 +78,8 @@
         }
     }
 
-    function handleViewModeChange(event: CustomEvent<string>) {
-        viewMode = event.detail as ViewMode;
+    function handleViewModeChange(value: string) {
+        viewMode = value as ViewMode;
     }
 
     function handleDragStart(e: DragEvent, blockId: string) {
@@ -115,9 +115,9 @@
         emptyAction={{ label: i18n?.aiPlanMyDay || "自动规划", onClick: runAiPlanMyDay }}
         scrollMode="none"
     >
-        <svelte:fragment slot="toolbar">
+        {#snippet toolbar()}
             <NaToolbar compact>
-                <NaIconButton symbol="iconSparkles" label={i18n?.aiPlanMyDay || "自动规划"} on:click={runAiPlanMyDay} />
+                <NaIconButton symbol="iconSparkles" label={i18n?.aiPlanMyDay || "自动规划"} onclick={runAiPlanMyDay} />
                 <div class="na-dock-myday__add">
                     <NaSearchSelect
                         placeholder={i18n?.dockSearchAddTask || "搜索添加任务…"}
@@ -128,11 +128,10 @@
                         removeLabel={i18n?.removeSelection || "移除选择"}
                         searchFn={searchTasksForAdd}
                         bind:selected={selectedTaskId}
-                        on:change={handleSearchChange}
+                        onChange={handleSearchChange}
                     />
                 </div>
-                <svelte:fragment slot="actions"
-                    ><NaSegmentControl
+                {#snippet actions()}<NaSegmentControl
                         size="sm"
                         options={[
                             { value: "timeline", label: i18n?.timelineMode || "时间线" },
@@ -140,11 +139,10 @@
                         ]}
                         value={viewMode}
                         label={i18n?.settingMyDayDefaultViewMode || "Default View Mode"}
-                        on:change={handleViewModeChange}
-                    /></svelte:fragment
-                >
+                        onChange={handleViewModeChange}
+                    />{/snippet}
             </NaToolbar>
-        </svelte:fragment>
+        {/snippet}
 
         {#if viewMode === "timeline"}
             <div class="na-dock-myday__timeline">
@@ -191,7 +189,7 @@
                                             symbol="iconClose"
                                             label={i18n?.removeFromMyDay || "Remove from My Day"}
                                             tone="danger"
-                                            on:click={() => handleRemoveFromMyDay(entry.blockId)}
+                                            onclick={() => handleRemoveFromMyDay(entry.blockId)}
                                         /></span
                                     >
                                 </div>

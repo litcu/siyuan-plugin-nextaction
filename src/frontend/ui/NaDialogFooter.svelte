@@ -1,6 +1,13 @@
+<script lang="ts">
+    import type { Snippet } from "svelte";
+
+    export let start: Snippet | undefined = undefined;
+    export let end: Snippet | undefined = undefined;
+</script>
+
 <footer class="na-dialog-footer">
-    <div class="na-dialog-footer__start"><slot name="start" /></div>
-    <div class="na-dialog-footer__end"><slot name="end" /></div>
+    {#if start}<div class="na-dialog-footer__start">{@render start()}</div>{/if}
+    {#if end}<div class="na-dialog-footer__end">{@render end()}</div>{/if}
 </footer>
 
 <style lang="scss">

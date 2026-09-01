@@ -72,26 +72,26 @@ test("三个 Dock 页面共享壳层、工具栏和任务列表密度", () => {
     assert.match(source("../src/frontend/components/DockMyDay.svelte"), /@container na-dock \(max-width: 260px\)/);
 });
 
-test("公共筛选栏由 props 驱动并通过 change 事件返回完整状态", () => {
+test("公共筛选栏由 props 驱动并通过 typed callback 返回完整状态", () => {
     const filterBar = source("../src/frontend/ui/NaTaskFilterBar.svelte");
     assert.match(filterBar, /export let customFields/);
-    assert.match(filterBar, /createEventDispatcher<\{ change: FilterState \}>/);
-    assert.match(filterBar, /dispatch\("change", next\)/);
+    assert.match(filterBar, /export let onChange: \(filterState: FilterState\) => void/);
+    assert.match(filterBar, /onChange\(next\)/);
     assert.doesNotMatch(filterBar, /taskStore/);
 });
 
 test("公共搜索框使用明确的新值事件并把焦点环绘制在圆角外壳", () => {
     const searchInput = source("../src/frontend/ui/NaSearchInput.svelte");
-    assert.match(searchInput, /createEventDispatcher<\{ input: \{ value: string \} \}>/);
+    assert.match(searchInput, /export let onInput: \(value: string\) => void/);
     assert.match(searchInput, /value = \(event\.currentTarget as HTMLInputElement\)\.value;/);
-    assert.match(searchInput, /dispatch\("input", \{ value \}\)/);
+    assert.match(searchInput, /onInput\(value\)/);
     assert.match(searchInput, /\.na-search-input:focus-within\s*\{[\s\S]*box-shadow:/);
     assert.match(searchInput, /\.na-search-input \.na-search-input__control:focus-visible\s*\{\s*outline: none;/);
 });
 
 test("任务筛选搜索以本地输入为准且不会被旧 store 值反向覆盖", () => {
     const filterBar = source("../src/frontend/ui/NaTaskFilterBar.svelte");
-    assert.match(filterBar, /onSearchInput\(event\.detail\.value\)/);
+    assert.match(filterBar, /onInput=\{onSearchInput\}/);
     assert.match(filterBar, /function onSearchInput\(nextSearchText: string\) \{\s*searchText = nextSearchText;/);
     assert.match(filterBar, /\}, 300\);/);
     assert.doesNotMatch(filterBar, /\$:\s*if \(filterState\.searchText !== searchText/);
@@ -107,14 +107,15 @@ test("公共按钮、工具栏和折叠区覆盖加载、操作插槽及合法�
     assert.match(spinner, /prefers-reduced-motion/);
 
     const toolbar = source("../src/frontend/ui/NaToolbar.svelte");
-    assert.match(toolbar, /slot name="actions"/);
+    assert.match(toolbar, /export let actions: Snippet \| undefined/);
+    assert.match(toolbar, /\{@render actions\(\)\}/);
 
     const accordion = source("../src/frontend/ui/NaAccordion.svelte");
     assert.match(accordion, /class="na-accordion__header"/);
     assert.match(accordion, /class="na-accordion__action"/);
     const triggerStart = accordion.indexOf('<button type="button" class="na-accordion__trigger"');
     const triggerEnd = accordion.indexOf("</button>", triggerStart);
-    assert.doesNotMatch(accordion.slice(triggerStart, triggerEnd), /slot name="action"/);
+    assert.doesNotMatch(accordion.slice(triggerStart, triggerEnd), /\{@render action\(\)\}/);
 });
 
 test("旧筛选栏和未接入的 Dock 提醒组件已删除", () => {

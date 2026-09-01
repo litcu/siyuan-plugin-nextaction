@@ -99,8 +99,8 @@
         activeTab = tab;
     }
 
-    function handleTabChange(event: CustomEvent<string>) {
-        switchTab(event.detail as DockTab);
+    function handleTabChange(value: string) {
+        switchTab(value as DockTab);
     }
 
     $: visibleTabs = tabs;
@@ -111,13 +111,13 @@
 
 <div class="na-dock">
     <NaPanelHeader compact title={i18n?.pluginName || "NextAction"} icon="iconNextAction">
-        <svelte:fragment slot="actions">
+        {#snippet actions()}
             {#if onOpenFullPanel}
                 <NaIconButton
                     compact
                     symbol="iconNextAction"
                     label={i18n?.taskPanel || "Task Panel"}
-                    on:click={onOpenFullPanel}
+                    onclick={onOpenFullPanel}
                 />
             {/if}
             <NaSegmentControl
@@ -125,9 +125,9 @@
                 value={activeTab}
                 size="sm"
                 label={i18n?.pluginName || "NextAction"}
-                on:change={handleTabChange}
+                onChange={handleTabChange}
             />
-        </svelte:fragment>
+        {/snippet}
     </NaPanelHeader>
 
     <div class="na-dock__body">

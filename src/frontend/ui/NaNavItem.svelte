@@ -9,6 +9,7 @@
     export let badge: string | number = "";
     export let tooltip = "";
     export let disabled = false;
+    export let onclick: (event: MouseEvent) => void = () => {};
 </script>
 
 <NaTooltip text={tooltip || label} position="right" followCursor={false} block>
@@ -20,7 +21,7 @@
         {disabled}
         aria-label={label}
         aria-current={active ? "page" : undefined}
-        on:click
+        {onclick}
     >
         {#if icon}<span class="na-nav-item__icon"><NaIcon symbol={icon} size={collapsed ? 17 : 16} /></span>{/if}
         <span class="na-nav-item__label">{label}</span>

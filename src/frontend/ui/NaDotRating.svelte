@@ -1,16 +1,13 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-
     export let count: number = 7;
     export let value: number = 0;
     export let color: string = "var(--b3-theme-primary)";
-
-    const dispatch = createEventDispatcher<{ change: number }>();
+    export let onChange: (value: number) => void = () => {};
 
     function handleClick(i: number) {
         const newValue = i + 1 === value ? i : i + 1;
         value = newValue;
-        dispatch("change", newValue);
+        onChange(newValue);
     }
 </script>
 
@@ -21,7 +18,7 @@
             class="na-dot-rating__seg"
             class:na-dot-rating__seg--filled={i < value}
             style={i < value ? `background-color: ${color}` : ""}
-            on:click={() => handleClick(i)}
+            onclick={() => handleClick(i)}
             role="radio"
             aria-checked={i < value}
             aria-label={String(i + 1)}

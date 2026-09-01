@@ -25,8 +25,8 @@ test("单个和递归转换都通过共享解析器且只填充空日期", () =>
 
 test("日期输入框支持回车/失焦解析，并在无效时保留输入", () => {
     assert.match(datePickerSource, /import \{ parseNaturalDate \} from "\.\.\/\.\.\/shared\/natural-date"/);
-    assert.match(datePickerSource, /on:blur=\{handleInputBlur\}/);
-    assert.match(datePickerSource, /on:keydown=\{handleInputKeydown\}/);
+    assert.match(datePickerSource, /onblur=\{handleInputBlur\}/);
+    assert.match(datePickerSource, /onkeydown=\{handleInputKeydown\}/);
     assert.match(datePickerSource, /parseNaturalDate\(raw, \{ requireTime, defaultTime \}\)/);
     assert.match(datePickerSource, /inputError = i18n\?\.dpNaturalDateInvalid/);
     assert.match(datePickerSource, /aria-invalid=\{inputError \? "true" : "false"\}/);

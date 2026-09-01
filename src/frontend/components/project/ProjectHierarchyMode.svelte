@@ -231,7 +231,7 @@
             <NaInlineNotice message={error} tone="error" />{#if retryOperation}<NaButton
                     size="sm"
                     disabled={Boolean(busyTaskId)}
-                    on:click={() => retryOperation?.()}>{i18n?.retry || "Retry"}</NaButton
+                    onclick={() => retryOperation?.()}>{i18n?.retry || "Retry"}</NaButton
                 >{/if}
         </div>{/if}
     {#each model.rows as row (row.task.blockId)}
@@ -280,26 +280,26 @@
                             label={`${i18n?.manualSort || "Reorder"}: ${row.task.title}`}
                             disabled={Boolean(busyTaskId) || !onTaskReorder}
                             draggable={Boolean(onTaskReorder) && !busyTaskId}
-                            on:dragstart={(event) => handleDragStart(row.task, event)}
-                            on:dragend={handleDragEnd}
+                            ondragstart={(event) => handleDragStart(row.task, event)}
+                            ondragend={handleDragEnd}
                         /><NaIconButton
                             compact
                             symbol="iconUp"
                             label={`${i18n?.moveUp || "Move up"}: ${row.task.title}`}
                             disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "up")}
-                            on:click={() => moveTask(row.task, "up")}
+                            onclick={() => moveTask(row.task, "up")}
                         /><NaIconButton
                             compact
                             symbol="iconDown"
                             label={`${i18n?.moveDown || "Move down"}: ${row.task.title}`}
                             disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "down")}
-                            on:click={() => moveTask(row.task, "down")}
+                            onclick={() => moveTask(row.task, "down")}
                         /><NaIconButton
                             compact
                             symbol="iconEdit"
                             label={`${i18n?.renameStage || "Rename"}: ${row.task.title}`}
                             disabled={Boolean(busyTaskId) || !onTaskRename}
-                            on:click={() => startRename(row.task)}
+                            onclick={() => startRename(row.task)}
                         />{/if}
                 </div>
                 {#if editingTaskId === row.task.blockId}<form
@@ -318,7 +318,7 @@
                         ><NaButton
                             size="sm"
                             disabled={Boolean(busyTaskId)}
-                            on:click={() => cancelRename(row.task.blockId)}>{i18n?.cancel || "Cancel"}</NaButton
+                            onclick={() => cancelRename(row.task.blockId)}>{i18n?.cancel || "Cancel"}</NaButton
                         >
                     </form>{/if}
                 {#if shouldShowSubtreeProgress(row) && row.subtreeProgress}<div class="na-project-tree__stage-progress">

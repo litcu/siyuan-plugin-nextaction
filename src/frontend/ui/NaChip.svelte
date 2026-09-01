@@ -14,7 +14,7 @@
 >
     <span class="na-chip__label">{label}</span>
     {#if onClose}
-        <button class="na-chip__close" on:click={onClose} aria-label={i18n?.removeLabel || "Remove"}>
+        <button class="na-chip__close" onclick={onClose} aria-label={i18n?.removeLabel || "Remove"}>
             <svg
                 viewBox="0 0 16 16"
                 width="10"

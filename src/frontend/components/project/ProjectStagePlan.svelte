@@ -200,7 +200,7 @@
                 variant="primary"
                 icon="iconAdd"
                 disabled={!onCreateStage}
-                on:click={() => onCreateStage?.()}>{i18n?.createStage || "Create Stage"}</NaButton
+                onclick={() => onCreateStage?.()}>{i18n?.createStage || "Create Stage"}</NaButton
             >
         </div>
 
@@ -208,7 +208,7 @@
             <div class="na-project-stage-plan__error">
                 <NaInlineNotice message={error} tone="error" />
                 {#if retryOperation}
-                    <NaButton size="sm" disabled={Boolean(busyTaskId)} on:click={() => retryOperation?.()}
+                    <NaButton size="sm" disabled={Boolean(busyTaskId)} onclick={() => retryOperation?.()}
                         >{i18n?.retry || "Retry"}</NaButton
                     >
                 {/if}
@@ -255,7 +255,7 @@
                                         size="sm"
                                         disabled={busyTaskId === row.task.blockId}
                                         ariaLabel={`${i18n?.cancel || "Cancel"}: ${row.task.title}`}
-                                        on:click={() => cancelRename(row.task.blockId)}
+                                        onclick={() => cancelRename(row.task.blockId)}
                                         >{i18n?.cancel || "Cancel"}</NaButton
                                     >
                                 </form>
@@ -281,7 +281,7 @@
                                 size="sm"
                                 disabled={Boolean(busyTaskId) || editingTaskId === row.task.blockId || !onRenameTask}
                                 ariaLabel={`${i18n?.renameStage || "Rename"}: ${row.task.title}`}
-                                on:click={() => startRename(row.task)}>{i18n?.renameStage || "Rename"}</NaButton
+                                onclick={() => startRename(row.task)}>{i18n?.renameStage || "Rename"}</NaButton
                             >
                             <label>
                                 <span>{i18n?.actionKind || "Action kind"}</span>
@@ -321,14 +321,14 @@
                                     size="sm"
                                     disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "up")}
                                     ariaLabel={`${i18n?.moveUp || "Move up"}: ${row.task.title}`}
-                                    on:click={(event) => moveTask(row.task, "up", event)}
+                                    onclick={(event) => moveTask(row.task, "up", event)}
                                     >{i18n?.moveUp || "Move up"}</NaButton
                                 >
                                 <NaButton
                                     size="sm"
                                     disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "down")}
                                     ariaLabel={`${i18n?.moveDown || "Move down"}: ${row.task.title}`}
-                                    on:click={(event) => moveTask(row.task, "down", event)}
+                                    onclick={(event) => moveTask(row.task, "down", event)}
                                     >{i18n?.moveDown || "Move down"}</NaButton
                                 >
                             </div>
@@ -336,7 +336,7 @@
                                 size="sm"
                                 disabled={Boolean(busyTaskId) || !onMoveAction}
                                 ariaLabel={`${i18n?.moveActionConfirm || "Move to project document"}: ${row.task.title}`}
-                                on:click={() => onMoveAction?.(row.task, project)}
+                                onclick={() => onMoveAction?.(row.task, project)}
                                 >{i18n?.moveActionConfirm || "Move to project document"}</NaButton
                             >
                         </div>

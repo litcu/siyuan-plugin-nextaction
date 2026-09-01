@@ -345,7 +345,7 @@
                     tabIndex={managedFocus ? -1 : undefined}
                     symbol={isCollapsed ? "iconExpand" : "iconContract"}
                     label={isCollapsed ? i18n?.expandChildren || "Expand" : i18n?.collapseChildren || "Collapse"}
-                    on:click={handleToggleCollapse}
+                    onclick={handleToggleCollapse}
                 />
             {/if}
             <NaIconButton
@@ -353,7 +353,7 @@
                 tabIndex={managedFocus ? -1 : undefined}
                 symbol="iconOpenWindow"
                 label={i18n?.jumpToBlock || "Jump to Block"}
-                on:click={handleJump}
+                onclick={handleJump}
             />
         </div>
     </div>

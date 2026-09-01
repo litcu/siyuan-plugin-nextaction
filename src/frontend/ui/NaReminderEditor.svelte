@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
     import type { ReminderAbsolute, ReminderItem, ReminderRelative } from "../../shared/types";
     import { REMINDER_MAX_PER_TASK } from "../../shared/constants";
     import { formatOffset, formatReminderDescription } from "../utils/reminder-utils";
@@ -18,7 +17,8 @@
     export let saving = false;
     export let error = "";
 
-    const dispatch = createEventDispatcher<{ change: { items: ReminderItem[] }; close: void }>();
+    export let onChange: (items: ReminderItem[]) => void = () => {};
+    export let onClose: () => void = () => {};
     let showAbsolute = false;
     let absoluteTime = "";
     let offsetValue = 30;
@@ -31,7 +31,7 @@
 
     function update(next: ReminderItem[]) {
         items = next;
-        dispatch("change", { items: next });
+        onChange(next);
     }
 
     function sort(itemsToSort: ReminderItem[]) {
@@ -77,9 +77,9 @@
     subtitle={`${items.length}/${REMINDER_MAX_PER_TASK}`}
     closeLabel={i18n?.close || "Close"}
     status={saving ? i18n?.saving || "Saving..." : ""}
-    on:close={() => dispatch("close")}
+    {onClose}
 >
-    {#if error}<NaInlineNotice slot="notice" message={error} tone="error" />{/if}
+    {#if error}{#snippet notice()}<NaInlineNotice message={error} tone="error" />{/snippet}{/if}
 
     <NaPropertySection title={i18n?.reminderCurrent || i18n?.reminderPopupTitle || "Reminders"}>
         {#if items.length === 0}
@@ -96,7 +96,7 @@
                             size={13}
                             tone="danger"
                             disabled={saving}
-                            on:click={() => removeItem(index)}
+                            onclick={() => removeItem(index)}
                         />
                     </div>
                 {/each}
@@ -124,7 +124,7 @@
                         type="button"
                         class="b3-button b3-button--text"
                         disabled={!absoluteTime || isFull || saving}
-                        on:click={addAbsolute}>{i18n?.apply || "Apply"}</button
+                        onclick={addAbsolute}>{i18n?.apply || "Apply"}</button
                     >
                 </div>
             {:else}
@@ -132,7 +132,7 @@
                     type="button"
                     class="b3-button b3-button--text"
                     disabled={isFull || saving}
-                    on:click={() => (showAbsolute = true)}>{i18n?.reminderAddAbsolute || "Add"}</button
+                    onclick={() => (showAbsolute = true)}>{i18n?.reminderAddAbsolute || "Add"}</button
                 >
             {/if}
         </NaPropertyRow>
@@ -150,7 +150,7 @@
                             type="checkbox"
                             checked={selectedOffsets.has(offset)}
                             disabled={saving || (isFull && !selectedOffsets.has(offset))}
-                            on:change={() => toggleOffset(offset)}
+                            onchange={() => toggleOffset(offset)}
                         />
                         <span>{formatOffset(offset, i18n)}</span>
                     </label>
@@ -177,16 +177,18 @@
                         type="button"
                         class="b3-button b3-button--text"
                         disabled={isFull || saving}
-                        on:click={addCustomOffset}>{i18n?.apply || "Apply"}</button
+                        onclick={addCustomOffset}>{i18n?.apply || "Apply"}</button
                     >
                 </div>
             </NaPropertyRow>
         {/if}
     </NaPropertySection>
 
-    <div slot="footerEnd">
-        <button type="button" class="b3-button" on:click={() => dispatch("close")}>{i18n?.close || "Close"}</button>
-    </div>
+    {#snippet footerEnd()}
+        <div>
+            <button type="button" class="b3-button" onclick={onClose}>{i18n?.close || "Close"}</button>
+        </div>
+    {/snippet}
 </NaDialogShell>
 
 <style lang="scss">

@@ -1,12 +1,16 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
+
     export let compact = false;
     export let wrap = true;
+    export let actions: Snippet | undefined = undefined;
+    export let children: Snippet;
 </script>
 
 <div class="na-toolbar" class:na-toolbar--compact={compact} class:na-toolbar--nowrap={!wrap}>
     <div class="na-toolbar__main">
-        <slot />
-        {#if $$slots.actions}<div class="na-toolbar__actions-content"><slot name="actions" /></div>{/if}
+        {@render children()}
+        {#if actions}<div class="na-toolbar__actions-content">{@render actions()}</div>{/if}
     </div>
 </div>
 

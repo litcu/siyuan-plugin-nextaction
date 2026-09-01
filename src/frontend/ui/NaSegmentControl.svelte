@@ -1,20 +1,17 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-
     export let options: { value: string; label: string }[] = [];
     export let value: string = "";
     export let label: string = "";
     export let size: "md" | "sm" = "md";
     export let stretch = false;
     export let disabled = false;
-
-    const dispatch = createEventDispatcher<{ change: string }>();
+    export let onChange: (value: string) => void = () => {};
 
     function select(optionValue: string) {
         if (disabled) return;
         if (optionValue === value) return;
         value = optionValue;
-        dispatch("change", optionValue);
+        onChange(optionValue);
     }
 </script>
 
@@ -34,7 +31,7 @@
             aria-checked={option.value === value}
             aria-label={option.label}
             {disabled}
-            on:click={() => select(option.value)}
+            onclick={() => select(option.value)}
         >
             {option.label}
         </button>

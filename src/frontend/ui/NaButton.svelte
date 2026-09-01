@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import NaIcon from "./NaIcon.svelte";
     import NaSpinner from "./NaSpinner.svelte";
 
@@ -10,6 +11,8 @@
     export let type: "button" | "submit" | "reset" = "button";
     export let ariaLabel = "";
     export let ariaPressed: boolean | undefined = undefined;
+    export let children: Snippet;
+    export let onclick: (event: MouseEvent) => void = () => {};
 </script>
 
 <button
@@ -23,10 +26,10 @@
     aria-busy={loading || undefined}
     aria-label={ariaLabel || undefined}
     aria-pressed={ariaPressed}
-    on:click
+    {onclick}
 >
     {#if loading}<NaSpinner />{:else if icon}<NaIcon symbol={icon} size={size === "sm" ? 13 : 14} />{/if}
-    <span><slot /></span>
+    <span>{@render children()}</span>
 </button>
 
 <style lang="scss">

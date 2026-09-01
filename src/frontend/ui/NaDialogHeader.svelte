@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import type { Snippet } from "svelte";
     import NaIconButton from "./NaIconButton.svelte";
 
     export let title: string;
@@ -7,8 +7,8 @@
     export let closeLabel: string;
     export let status = "";
     export let statusTone: "default" | "warning" | "error" = "default";
-
-    const dispatch = createEventDispatcher<{ close: void }>();
+    export let onClose: () => void = () => {};
+    export let actions: Snippet | undefined = undefined;
 </script>
 
 <header class="na-dialog-header">
@@ -21,8 +21,8 @@
         {#if subtitle}<p>{subtitle}</p>{/if}
     </div>
     <div class="na-dialog-header__actions">
-        <slot name="actions" />
-        <NaIconButton symbol="iconClose" label={closeLabel} on:click={() => dispatch("close")} />
+        {#if actions}{@render actions()}{/if}
+        <NaIconButton symbol="iconClose" label={closeLabel} onclick={onClose} />
     </div>
 </header>
 

@@ -41,7 +41,7 @@ test("任务详情弹窗中的上下文、标签、任务关系和自定义选�
 });
 
 test("浮层 Esc 优先关闭自身而不穿透任务面板", () => {
-    assert.match(datePicker, /on:keydown\|capture=\{handleKeydown\}/);
+    assert.match(datePicker, /onkeydowncapture=\{handleKeydown\}/);
     assert.match(datePicker, /e\.preventDefault\(\)[\s\S]*e\.stopPropagation\(\)/);
     assert.match(searchSelect, /if \(dropdownOpen\)[\s\S]*e\.preventDefault\(\)[\s\S]*e\.stopPropagation\(\)/);
 });
@@ -49,9 +49,9 @@ test("浮层 Esc 优先关闭自身而不穿透任务面板", () => {
 test("浮层会在弹窗内部滚动和窗口缩放时重新定位", () => {
     assert.match(datePicker, /document\.addEventListener\("scroll", handleViewportChange, true\)/);
     assert.match(searchSelect, /document\.addEventListener\("scroll", handleViewportChange, true\)/);
-    assert.match(datePicker, /on:resize=\{handleViewportChange\}/);
-    assert.match(searchSelect, /on:resize=\{handleViewportChange\}/);
+    assert.match(datePicker, /onresize=\{handleViewportChange\}/);
+    assert.match(searchSelect, /onresize=\{handleViewportChange\}/);
     assert.match(documentPicker, /document\.addEventListener\("scroll", handleViewportChange, true\)/);
-    assert.match(documentPicker, /on:resize=\{handleViewportChange\}/);
+    assert.match(documentPicker, /onresize=\{handleViewportChange\}/);
     assert.match(documentPicker, /new ResizeObserver\(handleViewportChange\)/);
 });

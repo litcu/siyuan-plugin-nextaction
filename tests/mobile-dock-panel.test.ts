@@ -13,7 +13,7 @@ test("移动 Dock 在精简侧栏和完整任务面板之间切换", () => {
     assert.match(host, /let mode: MobileDockMode = "sidebar"/);
     assert.match(host, /<DockSidebar[\s\S]*onOpenFullPanel=\{openFullPanel\}/);
     assert.match(host, /<NextActionApp \{bridge\} \{i18n\}/);
-    assert.match(host, /on:click=\{backToSidebar\}/);
+    assert.match(host, /onclick=\{backToSidebar\}/);
     assert.match(host, /min-height: 44px/);
     assert.match(host, /safe-area-inset-bottom/);
     assert.match(source("../src/frontend/components/DockSidebar.svelte"), /onOpenFullPanel/);
@@ -39,7 +39,7 @@ test("侧边栏标题和页签使用同一行的弹性布局", () => {
 test("Tooltip 点击后立即隐藏，避免与任务详情叠加", () => {
     const tooltip = source("../src/frontend/ui/NaTooltip.svelte");
     assert.match(tooltip, /function handleClick\(\)/);
-    assert.match(tooltip, /on:click=\{handleClick\}/);
+    assert.match(tooltip, /onclick=\{handleClick\}/);
     assert.match(tooltip, /visible = false/);
 });
 

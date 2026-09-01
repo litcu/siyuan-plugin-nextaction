@@ -133,25 +133,23 @@
     hint={i18n?.viewHintReview}
     scrollMode="none"
 >
-    <svelte:fragment slot="toolbar"
-        ><NaToolbar compact>
+    {#snippet toolbar()}<NaToolbar compact>
             <div class="na-review__last-review" aria-live="polite">
                 <span class="na-review__last-review-label">{i18n?.reviewChecklistStatus || "Checklist status"}</span>
                 <span class="na-review__last-review-time">{formatLastReview(reviewData?.lastReviewAt || "")}</span>
             </div>
             <div class="na-toolbar__actions-content">
-                <NaButton size="sm" icon="iconSparkles" on:click={runAiReview}>{i18n?.aiReview || "智能回顾"}</NaButton
+                <NaButton size="sm" icon="iconSparkles" onclick={runAiReview}>{i18n?.aiReview || "智能回顾"}</NaButton
                 ><NaButton
                     size="sm"
                     variant="primary"
                     icon="iconSelect"
                     loading={completing}
                     disabled={completing}
-                    on:click={handleCompleteReview}>{i18n?.reviewCompleteChecklist || "Complete review"}</NaButton
+                    onclick={handleCompleteReview}>{i18n?.reviewCompleteChecklist || "Complete review"}</NaButton
                 >
             </div>
-        </NaToolbar></svelte:fragment
-    >
+        </NaToolbar>{/snippet}
     {#if visibleReviewData}
         <div
             class="na-review__scroll"

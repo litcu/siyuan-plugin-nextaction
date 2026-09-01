@@ -47,8 +47,7 @@
     emptyText={$taskStore.error || i18n?.noSomedayTasks || "No Someday/Maybe tasks"}
     hint={i18n?.viewHintSomeday}
 >
-    <svelte:fragment slot="toolbar"
-        ><NaTaskFilterBar
+    {#snippet toolbar()}<NaTaskFilterBar
             contexts={$taskStore.contexts}
             tags={$taskStore.tags}
             customFields={$taskStore.settings.customFields}
@@ -57,9 +56,8 @@
             showPriority={false}
             sortOptions={somedaySortOptions}
             {i18n}
-            on:change={(event) => handleFilterChange(event.detail)}
-        /></svelte:fragment
-    >
+            onChange={handleFilterChange}
+        />{/snippet}
     <NaTaskList>
         {#each filteredTasks as task (task.blockId)}
             <TaskCard

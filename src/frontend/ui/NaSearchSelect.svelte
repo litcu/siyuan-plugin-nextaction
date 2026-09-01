@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, onMount, createEventDispatcher } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import { portal } from "../utils/portal";
     import { getCurrentUiZIndex } from "../utils/layer";
     import NaIcon from "./NaIcon.svelte";
@@ -20,7 +20,7 @@
     export let fixedDropdown: boolean = false;
     export let disabled: boolean = false;
 
-    const dispatch = createEventDispatcher<{ change: { selected: string | string[] } }>();
+    export let onChange: (selected: string | string[]) => void = () => {};
 
     let input = "";
     let results: { id: string; label: string }[] = [];
@@ -126,7 +126,7 @@
         selectedLabel = "";
         results = [];
         input = "";
-        dispatch("change", { selected });
+        onChange(selected);
         // Focus input after Svelte updates the DOM (input becomes visible)
         setTimeout(() => {
             if (inputEl) inputEl.focus();
@@ -167,8 +167,9 @@
         }
     }
 
-    function onInputChange() {
+    function onInputChange(event: Event) {
         if (disabled) return;
+        input = (event.currentTarget as HTMLInputElement).value;
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(doSearch, 200);
     }
@@ -188,7 +189,7 @@
         input = "";
         dropdownOpen = false;
         results = [];
-        dispatch("change", { selected });
+        onChange(selected);
     }
 
     function selectOption(option: string) {
@@ -203,7 +204,7 @@
             selected = "";
             selectedLabel = "";
         }
-        dispatch("change", { selected });
+        onChange(selected);
     }
 
     function onKeydown(e: KeyboardEvent) {
@@ -246,7 +247,7 @@
     });
 </script>
 
-<svelte:window on:click={closeDropdown} on:resize={handleViewportChange} />
+<svelte:window onclick={closeDropdown} onresize={handleViewportChange} />
 
 <div class="na-search-select" bind:this={containerEl}>
     <div
@@ -258,9 +259,9 @@
         aria-expanded={dropdownOpen}
         aria-disabled={disabled}
         tabindex={disabled ? -1 : 0}
-        on:mousedown={handleBoxMousedown}
-        on:click={handleBoxClick}
-        on:keydown={(event) => {
+        onmousedown={handleBoxMousedown}
+        onclick={handleBoxClick}
+        onkeydown={(event) => {
             if (event.key === "Enter" || event.key === " ") handleBoxClick();
         }}
     >
@@ -269,7 +270,10 @@
             <button
                 type="button"
                 class="na-search-select__clear b3-tooltips b3-tooltips__n"
-                on:click|stopPropagation={clearAndReopen}
+                onclick={(event) => {
+                    event.stopPropagation();
+                    clearAndReopen();
+                }}
                 aria-label={clearLabel}
                 {disabled}
             >
@@ -284,7 +288,10 @@
                             <button
                                 type="button"
                                 class="na-search-select__chip-remove b3-tooltips b3-tooltips__n"
-                                on:click|stopPropagation={() => removeItem(item)}
+                                onclick={(event) => {
+                                    event.stopPropagation();
+                                    removeItem(item);
+                                }}
                                 aria-label={`${removeLabel}: ${labelMap.get(item) || item}`}
                                 {disabled}
                             >
@@ -297,10 +304,10 @@
                     type="text"
                     {disabled}
                     bind:this={inputEl}
-                    bind:value={input}
-                    on:input={onInputChange}
-                    on:keydown={onKeydown}
-                    on:focus={() => {
+                    value={input}
+                    oninput={onInputChange}
+                    onkeydown={onKeydown}
+                    onfocus={() => {
                         if (isClicking) return;
                         if (!dropdownOpen) {
                             openDropdown();
@@ -322,16 +329,16 @@
             id="na-search-select-options"
             role="listbox"
             tabindex="-1"
-            on:click|stopPropagation
-            on:keydown|stopPropagation
+            onclick={(event) => event.stopPropagation()}
+            onkeydown={(event) => event.stopPropagation()}
         >
             {#each filteredResults as item}
-                <button type="button" class="na-search-select__option" on:click={() => selectItem(item)}>
+                <button type="button" class="na-search-select__option" onclick={() => selectItem(item)}>
                     {item.label}
                 </button>
             {/each}
             {#each filteredOptions as option}
-                <button type="button" class="na-search-select__option" on:click={() => selectOption(option)}>
+                <button type="button" class="na-search-select__option" onclick={() => selectOption(option)}>
                     {option}
                 </button>
             {/each}
@@ -339,7 +346,7 @@
                 <button
                     type="button"
                     class="na-search-select__option na-search-select__option--create"
-                    on:click={() => selectItem({ id: input.trim(), label: input.trim() })}
+                    onclick={() => selectItem({ id: input.trim(), label: input.trim() })}
                 >
                     + {input.trim()}
                 </button>

@@ -10,7 +10,7 @@
 </script>
 
 <script lang="ts">
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import type { KernelBridge } from "../kernel-bridge";
     import { portal } from "../utils/portal";
     import { getCurrentUiZIndex } from "../utils/layer";
@@ -34,7 +34,7 @@
     export let disabled = false;
     export let fixedDropdown = false;
 
-    const dispatch = createEventDispatcher<{ change: DocumentSelection | null }>();
+    export let onChange: (selection: DocumentSelection | null) => void = () => {};
     let query = "";
     let results: DocumentItem[] = [];
     let loading = false;
@@ -90,7 +90,8 @@
         resizeObserver?.disconnect();
     });
 
-    function scheduleSearch() {
+    function scheduleSearch(nextQuery: string) {
+        query = nextQuery;
         if (searchTimer) clearTimeout(searchTimer);
         const keyword = query.trim();
         const version = ++searchVersion;
@@ -140,7 +141,7 @@
             query = "";
             results = [];
             searched = false;
-            dispatch("change", value);
+            onChange(value);
         } catch (cause: any) {
             value = null;
             error = cause?.message || String(cause);
@@ -155,11 +156,11 @@
         results = [];
         searched = false;
         error = "";
-        dispatch("change", null);
+        onChange(null);
     }
 </script>
 
-<svelte:window on:resize={handleViewportChange} />
+<svelte:window onresize={handleViewportChange} />
 
 <div bind:this={containerEl} class="na-document-picker" class:na-document-picker--disabled={disabled}>
     {#if value}
@@ -174,17 +175,17 @@
                 label={i18n?.clearSelection || "Clear selection"}
                 compact
                 {disabled}
-                on:click={clearSelection}
+                onclick={clearSelection}
             />
         </div>
     {/if}
 
     <NaSearchInput
-        bind:value={query}
+        value={query}
         {disabled}
         placeholder={i18n?.createSearchDocuments || "Search documents"}
         ariaLabel={i18n?.createSearchDocuments || "Search documents"}
-        on:input={scheduleSearch}
+        onInput={scheduleSearch}
     />
 
     {#if query.trim()}
@@ -198,8 +199,8 @@
             aria-live="polite"
             role="listbox"
             tabindex="-1"
-            on:click|stopPropagation
-            on:keydown|stopPropagation
+            onclick={(event) => event.stopPropagation()}
+            onkeydown={(event) => event.stopPropagation()}
         >
             {#if loading}
                 <div class="na-document-picker__state">{i18n?.loading || "Loading..."}</div>
@@ -213,7 +214,7 @@
                         type="button"
                         class="na-document-picker__result"
                         {disabled}
-                        on:click={() => choose(document)}
+                        onclick={() => choose(document)}
                     >
                         <span class="na-document-picker__icon"><NaIcon symbol="iconFile" size={14} /></span>
                         <span>

@@ -40,10 +40,10 @@ test("属性行不再逐行绘制分割线，仅保留分区边界", () => {
 
 test("遮罩、关闭按钮和 Esc 统一请求关闭", () => {
     assert.match(detail, /export async function requestClose/);
-    assert.match(detail, /on:close=\{requestClose\}/);
-    assert.match(app, /on:requestClose=\{requestDetailClose\}/);
-    assert.match(drawer, /dispatch\("requestClose", "backdrop"\)/);
-    assert.match(drawer, /dispatch\("requestClose", "escape"\)/);
+    assert.match(detail, /onClose=\{requestClose\}/);
+    assert.match(app, /onRequestClose=\{requestDetailClose\}/);
+    assert.match(drawer, /onRequestClose\("backdrop"\)/);
+    assert.match(drawer, /onRequestClose\("escape"\)/);
     assert.match(controller, /b3-dialog__scrim/);
     assert.match(tokens, /--na-color-overlay-bg:\s*var\(--b3-mask-background\)/);
 });

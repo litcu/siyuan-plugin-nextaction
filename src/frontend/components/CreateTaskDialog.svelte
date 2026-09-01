@@ -100,12 +100,12 @@
         ];
     }
 
-    function changeKind(event: CustomEvent<string>) {
-        kind = event.detail as "task" | "project";
+    function changeKind(value: string) {
+        kind = value as "task" | "project";
     }
 
-    function changeFormat(event: CustomEvent<string>) {
-        format = event.detail as CreateTaskFormat;
+    function changeFormat(value: string) {
+        format = value as CreateTaskFormat;
     }
 
     function buildInput(): CreateTaskInput | null {
@@ -200,7 +200,7 @@
                 size="sm"
                 label={i18n?.taskType || "Task type"}
                 disabled={busy}
-                on:change={changeKind}
+                onChange={changeKind}
             />
         </div>
     </div>
@@ -307,7 +307,7 @@
                         stretch
                         label={i18n?.createFormat || "Format"}
                         disabled={busy}
-                        on:change={changeFormat}
+                        onChange={changeFormat}
                     />
                 </div>
             {/if}
@@ -336,7 +336,7 @@
     {#if error}<div class="na-create-task__error"><NaInlineNotice message={error} tone="error" /></div>{/if}
 
     <footer class="na-create-task__actions">
-        <NaButton disabled={busy} on:click={() => dialog?.destroy?.()}>{i18n?.cancel || "Cancel"}</NaButton>
+        <NaButton disabled={busy} onclick={() => dialog?.destroy?.()}>{i18n?.cancel || "Cancel"}</NaButton>
         <NaButton type="submit" variant="primary" icon="iconAdd" loading={busy}
             >{kind === "task" && actionKind === "stage"
                 ? i18n?.createStage || "Create Stage"

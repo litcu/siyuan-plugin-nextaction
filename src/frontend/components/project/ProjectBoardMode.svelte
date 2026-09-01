@@ -178,7 +178,7 @@
             variant="text"
             ariaLabel={i18n?.projectBoardSortDirection || "Sort direction"}
             ariaPressed={sortAsc}
-            on:click={handleSortDirectionChange}
+            onclick={handleSortDirectionChange}
         >
             {sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}
         </NaButton>
@@ -189,7 +189,7 @@
                 symbol="iconLeft"
                 label={i18n?.previousPage || "Previous"}
                 disabled={narrowColumnIndex === 0}
-                on:click={() => {
+                onclick={() => {
                     narrowColumnIndex -= 1;
                     persistPreference();
                 }}
@@ -199,7 +199,7 @@
                 symbol="iconRight"
                 label={i18n?.nextPage || "Next"}
                 disabled={narrowColumnIndex === columns.length - 1}
-                on:click={() => {
+                onclick={() => {
                     narrowColumnIndex += 1;
                     persistPreference();
                 }}

@@ -26,16 +26,14 @@
             icon="iconCheck"
             count={reviewDueTasks.length}
             open={reviewDueExpanded}
-            on:openChange={(event) => (reviewDueExpanded = event.detail)}
+            onOpenChange={(open) => (reviewDueExpanded = open)}
         >
-            <svelte:fragment slot="action"
-                ><NaButton
+            {#snippet action()}<NaButton
                     size="sm"
                     variant="text"
-                    on:click={() => onMarkReviewed(reviewDueTasks.map((task) => task.blockId))}
+                    onclick={() => onMarkReviewed(reviewDueTasks.map((task) => task.blockId))}
                     >{i18n?.markAllReviewed || "Mark all reviewed"}</NaButton
-                ></svelte:fragment
-            >
+                >{/snippet}
             <div class="na-review-due__body">
                 {#each reviewDueTasks as task (task.blockId)}<div class="na-review-due__task-row">
                         <TaskCard
@@ -50,7 +48,7 @@
                             size="sm"
                             variant="text"
                             icon="iconSelect"
-                            on:click={() => onMarkReviewed([task.blockId])}>{i18n?.markReviewed || "Reviewed"}</NaButton
+                            onclick={() => onMarkReviewed([task.blockId])}>{i18n?.markReviewed || "Reviewed"}</NaButton
                         >
                     </div>{/each}
             </div>

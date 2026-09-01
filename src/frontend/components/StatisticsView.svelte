@@ -61,8 +61,8 @@
             loading = false;
         }
     }
-    function handlePeriodChange(event: CustomEvent<string>) {
-        period = event.detail as "week" | "month";
+    function handlePeriodChange(value: string) {
+        period = value as "week" | "month";
         loadStats(period);
     }
 
@@ -85,7 +85,7 @@
 </script>
 
 <NaViewShell loading={loading && !stats} empty={Boolean(error)} emptyText={error} hint={i18n?.viewHintStatistics}>
-    <svelte:fragment slot="toolbar">
+    {#snippet toolbar()}
         <NaToolbar compact>
             <span class="na-statistics__period-label">{periodLabelText}</span>
             <div class="na-toolbar__actions-content">
@@ -96,11 +96,11 @@
                         { value: "month", label: i18n?.thisMonth || "Month" },
                     ]}
                     value={period}
-                    on:change={handlePeriodChange}
+                    onChange={handlePeriodChange}
                 />
             </div>
         </NaToolbar>
-    </svelte:fragment>
+    {/snippet}
 
     {#if stats}
         <div class="na-statistics__content">

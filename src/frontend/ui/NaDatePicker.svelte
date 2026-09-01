@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import { parseNaturalDate } from "../../shared/natural-date";
     import { portal } from "../utils/portal";
     import { getCurrentUiZIndex } from "../utils/layer";
@@ -13,7 +13,7 @@
     export let fixedDropdown: boolean = false; // if true, use position:fixed for dropdown (for Dialog containers)
     export let i18n: any = null;
 
-    const dispatch = createEventDispatcher<{ change: { value: string } }>();
+    export let onChange: (value: string) => void = () => {};
 
     let open = false;
     let viewYear: number;
@@ -100,7 +100,7 @@
     function applyValue(nextValue: string, emitChange: boolean) {
         value = nextValue;
         syncInputFromValue();
-        if (emitChange) dispatch("change", { value: nextValue });
+        if (emitChange) onChange(nextValue);
     }
 
     function handleTextInput(event: Event) {
@@ -258,7 +258,8 @@
 
     function selectDay(date: string) {
         if (timeMode || requireTime) {
-            applyValue(`${date}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
+            const nextValue = `${date}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(nextValue, false);
             const parsed = parseDate(date);
             if (parsed) {
                 viewYear = parsed.year;
@@ -267,19 +268,20 @@
         } else {
             applyValue(date, false);
             open = false;
-            dispatch("change", { value });
+            onChange(date);
         }
     }
 
     function selectToday() {
         if (timeMode) {
-            applyValue(`${today}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
+            const nextValue = `${today}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(nextValue, false);
             initViewModel();
         } else {
             applyValue(today, false);
             initViewModel();
             open = false;
-            dispatch("change", { value });
+            onChange(today);
         }
     }
 
@@ -295,28 +297,31 @@
             }
             scrollToSelected();
         } else {
+            const nextValue = value && value.includes("T") ? value.split("T")[0] : value;
             if (value && value.includes("T")) {
-                applyValue(value.split("T")[0], false);
+                applyValue(nextValue, false);
             }
             open = false;
-            dispatch("change", { value });
+            onChange(nextValue);
         }
     }
 
     function confirmDateTime() {
+        let nextValue = value;
         if (timeMode || requireTime) {
             const d = value ? value.split("T")[0] : today;
-            applyValue(`${d}T${pad(selectedHour)}:${pad(selectedMinute)}`, false);
+            nextValue = `${d}T${pad(selectedHour)}:${pad(selectedMinute)}`;
+            applyValue(nextValue, false);
         }
         open = false;
-        dispatch("change", { value });
+        onChange(nextValue);
     }
 
     function clearValue() {
         applyValue("", false);
         timeMode = false;
         open = false;
-        dispatch("change", { value: "" });
+        onChange("");
     }
 
     function onHourClick(h: number) {
@@ -424,7 +429,7 @@
     });
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown|capture={handleKeydown} on:resize={handleViewportChange} />
+<svelte:window onclick={handleClickOutside} onkeydowncapture={handleKeydown} onresize={handleViewportChange} />
 
 <div class="na-date-picker" bind:this={containerEl}>
     <div
@@ -441,16 +446,16 @@
             placeholder={placeholder || i18n?.dpNaturalDatePlaceholder || "Date or natural language"}
             {disabled}
             aria-invalid={inputError ? "true" : "false"}
-            on:input={handleTextInput}
-            on:focus={() => (inputFocused = true)}
-            on:blur={handleInputBlur}
-            on:keydown={handleInputKeydown}
+            oninput={handleTextInput}
+            onfocus={() => (inputFocused = true)}
+            onblur={handleInputBlur}
+            onkeydown={handleInputKeydown}
         />
         <button
             type="button"
             class="na-date-picker__calendar-button b3-tooltips b3-tooltips__n"
-            on:mousedown|preventDefault
-            on:click={() => {
+            onmousedown={(event) => event.preventDefault()}
+            onclick={() => {
                 commitNaturalInput();
                 toggleOpen();
             }}
@@ -482,7 +487,7 @@
             <div class="na-date-picker__header">
                 <button
                     class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n"
-                    on:click={prevMonth}
+                    onclick={prevMonth}
                     aria-label={previousMonthLabel}
                 >
                     <NaIcon symbol="iconRight" size={12} />
@@ -494,7 +499,7 @@
                 >
                 <button
                     class="na-date-picker__nav b3-tooltips b3-tooltips__n"
-                    on:click={nextMonth}
+                    onclick={nextMonth}
                     aria-label={nextMonthLabel}
                 >
                     <NaIcon symbol="iconRight" size={12} />
@@ -514,9 +519,9 @@
                         class:na-date-picker__day--selected={cell.date === datePart}
                         class:na-date-picker__day--today={cell.date === today}
                         class:na-date-picker__day--outside={!cell.inMonth}
-                        on:click={() => selectDay(cell.date)}
-                        on:mouseenter={() => (hoverDate = cell.date)}
-                        on:mouseleave={() => (hoverDate = "")}
+                        onclick={() => selectDay(cell.date)}
+                        onmouseenter={() => (hoverDate = cell.date)}
+                        onmouseleave={() => (hoverDate = "")}
                         {disabled}
                     >
                         {cell.day}
@@ -530,17 +535,16 @@
                     <div class="na-date-picker__time-row">
                         <div class="na-date-picker__time-col">
                             <span class="na-date-picker__time-label">{hourLabel}</span>
-                            <div
-                                class="na-date-picker__time-scroll"
-                                bind:this={hourListEl}
-                                on:scroll={handleHourScroll}
-                            >
+                            <div class="na-date-picker__time-scroll" bind:this={hourListEl} onscroll={handleHourScroll}>
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each HOURS as h}
                                     <button
                                         class="na-date-picker__time-item"
                                         class:na-date-picker__time-item--active={h === selectedHour}
-                                        on:click|stopPropagation={() => onHourClick(h)}
+                                        onclick={(event) => {
+                                            event.stopPropagation();
+                                            onHourClick(h);
+                                        }}
                                     >
                                         {pad(h)}
                                     </button>
@@ -554,14 +558,17 @@
                             <div
                                 class="na-date-picker__time-scroll"
                                 bind:this={minuteListEl}
-                                on:scroll={handleMinuteScroll}
+                                onscroll={handleMinuteScroll}
                             >
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each MINUTES as m}
                                     <button
                                         class="na-date-picker__time-item"
                                         class:na-date-picker__time-item--active={m === selectedMinute}
-                                        on:click|stopPropagation={() => onMinuteClick(m)}
+                                        onclick={(event) => {
+                                            event.stopPropagation();
+                                            onMinuteClick(m);
+                                        }}
                                     >
                                         {pad(m)}
                                     </button>
@@ -575,19 +582,18 @@
 
             <!-- Footer -->
             <div class="na-date-picker__footer">
-                <button class="na-date-picker__time-toggle" on:click={toggleTimeMode} disabled={requireTime}>
+                <button class="na-date-picker__time-toggle" onclick={toggleTimeMode} disabled={requireTime}>
                     <NaIcon symbol="iconClock" size={11} />
                     <span>{timeMode ? dateOnlyLabel : setTimeLabel}</span>
                 </button>
                 <div class="na-date-picker__footer-actions">
-                    <button class="na-date-picker__action" on:click={selectToday}>{todayLabel}</button>
+                    <button class="na-date-picker__action" onclick={selectToday}>{todayLabel}</button>
                     {#if timeMode || requireTime}
-                        <button
-                            class="na-date-picker__action na-date-picker__action--primary"
-                            on:click={confirmDateTime}>{okLabel}</button
+                        <button class="na-date-picker__action na-date-picker__action--primary" onclick={confirmDateTime}
+                            >{okLabel}</button
                         >
                     {/if}
-                    <button class="na-date-picker__action na-date-picker__action--danger" on:click={clearValue}
+                    <button class="na-date-picker__action na-date-picker__action--danger" onclick={clearValue}
                         >{clearLabel}</button
                     >
                 </div>
