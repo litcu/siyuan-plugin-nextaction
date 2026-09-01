@@ -95,7 +95,8 @@ void (async () => {
         },
     });
 
-    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
+    const viewportWidth = (result as { viewportWidth: number }).viewportWidth;
+    assert.ok(viewportWidth >= 390 && viewportWidth <= 500);
     assert.deepEqual(
         { ...result, viewportWidth: 390 },
         {
