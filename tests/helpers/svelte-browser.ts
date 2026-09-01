@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { build, type Alias } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
@@ -10,24 +9,11 @@ import svelteConfig from "../../svelte.config.js";
 import { frontendInlineDynamicImports, frontendViteAliases } from "../../vite.shared.ts";
 import { findBrowserExecutable, removeBrowserFixture, runBrowser } from "./browser.ts";
 
-const require = createRequire(import.meta.url);
-const svelteRoot = resolve(require.resolve("svelte/package.json"), "..");
-
-const svelteBrowserAliases: Alias[] = [
-    {
-        find: /^svelte\/internal\/flags\/legacy$/,
-        replacement: join(svelteRoot, "src/internal/flags/legacy.js"),
-    },
-    {
-        find: /^svelte\/internal\/disclose-version$/,
-        replacement: join(svelteRoot, "src/internal/disclose-version.js"),
-    },
-    { find: /^svelte\/internal\/(.+)$/, replacement: join(svelteRoot, "src/internal/$1") },
-    { find: /^svelte\/internal$/, replacement: join(svelteRoot, "src/internal/index.js") },
+const svelteRoot = resolve("node_modules/svelte");
+const sveltePublicAliases: Alias[] = [
+    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
     { find: /^svelte\/store$/, replacement: join(svelteRoot, "src/store/index-client.js") },
     { find: /^svelte\/transition$/, replacement: join(svelteRoot, "src/transition/index.js") },
-    { find: /^svelte\/legacy$/, replacement: join(svelteRoot, "src/legacy/legacy-client.js") },
-    { find: /^svelte$/, replacement: join(svelteRoot, "src/index-client.js") },
 ];
 
 const defaultIndexHtml = `<!doctype html>
@@ -45,6 +31,10 @@ const defaultIndexHtml = `<!doctype html>
         <script type="module" src="./main.js"></script>
     </body>
 </html>`;
+
+// Browser fixtures are expensive; serialise them so concurrent node:test workers
+// do not starve Chromium and turn healthy tests into timeout failures.
+let browserTestQueue: Promise<void> = Promise.resolve();
 
 export type SvelteBrowserTestOptions = {
     fixtureName: string;
@@ -74,6 +64,15 @@ function writeFixtureFiles(fixtureRoot: string, files: Record<string, string>): 
         mkdirSync(dirname(target), { recursive: true });
         writeFileSync(target, contents);
     }
+    // Resolve Svelte through the package's public export map. This keeps
+    // browser fixtures independent from private runtime aliases while
+    // still allowing the compiler's generated runtime imports to resolve.
+    mkdirSync(join(fixtureRoot, "node_modules"), { recursive: true });
+    symlinkSync(
+        resolve("node_modules/svelte"),
+        join(fixtureRoot, "node_modules/svelte"),
+        process.platform === "win32" ? "junction" : "dir",
+    );
 }
 
 function browserArgs(fixtureRoot: string, options: SvelteBrowserTestOptions): string[] {
@@ -100,6 +99,13 @@ function browserArgs(fixtureRoot: string, options: SvelteBrowserTestOptions): st
 export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
     options: SvelteBrowserTestOptions,
 ): Promise<Result> {
+    const previous = browserTestQueue;
+    let release!: () => void;
+    browserTestQueue = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await previous;
+
     const fixtureRoot = mkdtempSync(join(tmpdir(), fixturePrefix(options.fixtureName)));
     try {
         writeFixtureFiles(fixtureRoot, {
@@ -117,11 +123,12 @@ export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
             configFile: false,
             logLevel: "silent",
             resolve: {
+                conditions: ["browser", "module", "import"],
                 alias: [
                     ...Object.entries(frontendViteAliases).map(([find, replacement]) => ({ find, replacement })),
                     ...fixtureAliases,
                     ...(aliases ?? []),
-                    ...svelteBrowserAliases,
+                    ...sveltePublicAliases,
                 ],
             },
             plugins: [svelte(svelteConfig as Parameters<typeof svelte>[0])],
@@ -156,5 +163,6 @@ export async function runSvelteBrowserTest<Result = Record<string, unknown>>(
         return JSON.parse(payload.replace(/&quot;/g, '"').replace(/&amp;/g, "&")) as Result;
     } finally {
         removeBrowserFixture(fixtureRoot);
+        release();
     }
 }

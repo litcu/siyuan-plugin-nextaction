@@ -5,15 +5,19 @@
     import NaIcon from "../ui/NaIcon.svelte";
     import TaskCard from "./TaskCard.svelte";
 
-    export let reviewData: ReviewData;
-    export let i18n: any;
-    export let selectedTaskId: string;
-    export let onSelectTask: (task: TaskCacheEntry) => void;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        reviewData: ReviewData;
+        i18n: any;
+        selectedTaskId: string;
+        onSelectTask: (task: TaskCacheEntry) => void;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
 
-    $: checklistItems = [
+    let { reviewData, i18n, selectedTaskId, onSelectTask, onEdit, onStatusClick, onContextMenu }: Props = $props();
+
+    let checklistItems = $derived([
         {
             key: "overdue",
             label: i18n?.reviewOverdue || "Overdue Tasks",
@@ -44,8 +48,8 @@
             hint: i18n?.reviewHintSomeday || "Any task ready to activate or should be removed?",
             icon: "iconLight",
         },
-    ];
-    let expandedKey: string | null = null;
+    ]);
+    let expandedKey: string | null = $state(null);
     function getTasks(key: string, data: ReviewData): TaskCacheEntry[] {
         if (key === "overdue") return data.overdueTasks;
         if (key === "nextActions") return data.nextActions;

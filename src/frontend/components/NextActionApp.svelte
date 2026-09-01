@@ -44,17 +44,21 @@
     import { confirm } from "siyuan";
     import { showProjectBoardMoveUndo } from "../stores/action-move-undo-store";
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+    }
 
-    let activeView: string = VIEW_NEXT_ACTION;
-    let selectedTask: TaskCacheEntry | null = null;
-    let detailComponent: TaskDetail | null = null;
+    let { bridge, i18n }: Props = $props();
+
+    let activeView: string = $state(VIEW_NEXT_ACTION);
+    let selectedTask = $state<TaskCacheEntry | null>(null);
+    let detailComponent: TaskDetail | null = $state(null);
     let viewAfterClose: string | undefined = undefined;
-    let projectFocusId = "";
-    let reviewManualProjectIds: string[] = [];
-    let reviewExpandedProjectId = "";
-    let reviewScrollTop = 0;
+    let projectFocusId = $state("");
+    let reviewManualProjectIds: string[] = $state([]);
+    let reviewExpandedProjectId = $state("");
+    let reviewScrollTop = $state(0);
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegistry();
 
@@ -379,22 +383,24 @@
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
-    $: selectedTaskId = selectedTask ? selectedTask.blockId : "";
-    $: activeViewMeta = (() => {
-        const labels: Record<string, { title: string; icon: string }> = {
-            [VIEW_INBOX]: { title: i18n?.inbox || "Inbox", icon: "iconInbox" },
-            [VIEW_NEXT_ACTION]: { title: i18n?.nextAction || "Next", icon: "iconListItem" },
-            [VIEW_MY_DAY]: { title: i18n?.myDay || "My Day", icon: "iconCalendar" },
-            [VIEW_ALL_TASKS]: { title: i18n?.allTasks || "All", icon: "iconList" },
-            [VIEW_BY_PROJECT]: { title: i18n?.byProject || "Project", icon: "iconFolder" },
-            [VIEW_SOMEDAY]: { title: i18n?.someday || "Someday", icon: "iconLight" },
-            [VIEW_WAITING]: { title: i18n?.waiting || "Waiting", icon: "iconClock" },
-            [VIEW_STATISTICS]: { title: i18n?.statistics || "Statistics", icon: "iconGraph" },
-            [VIEW_REVIEW]: { title: i18n?.review || "Review", icon: "iconCheck" },
-            [VIEW_REMINDER]: { title: i18n?.reminder || "Reminders", icon: "iconClock" },
-        };
-        return labels[activeView] || labels[VIEW_NEXT_ACTION];
-    })();
+    let selectedTaskId = $derived(selectedTask ? selectedTask.blockId : "");
+    let activeViewMeta = $derived(
+        (() => {
+            const labels: Record<string, { title: string; icon: string }> = {
+                [VIEW_INBOX]: { title: i18n?.inbox || "Inbox", icon: "iconInbox" },
+                [VIEW_NEXT_ACTION]: { title: i18n?.nextAction || "Next", icon: "iconListItem" },
+                [VIEW_MY_DAY]: { title: i18n?.myDay || "My Day", icon: "iconCalendar" },
+                [VIEW_ALL_TASKS]: { title: i18n?.allTasks || "All", icon: "iconList" },
+                [VIEW_BY_PROJECT]: { title: i18n?.byProject || "Project", icon: "iconFolder" },
+                [VIEW_SOMEDAY]: { title: i18n?.someday || "Someday", icon: "iconLight" },
+                [VIEW_WAITING]: { title: i18n?.waiting || "Waiting", icon: "iconClock" },
+                [VIEW_STATISTICS]: { title: i18n?.statistics || "Statistics", icon: "iconGraph" },
+                [VIEW_REVIEW]: { title: i18n?.review || "Review", icon: "iconCheck" },
+                [VIEW_REMINDER]: { title: i18n?.reminder || "Reminders", icon: "iconClock" },
+            };
+            return labels[activeView] || labels[VIEW_NEXT_ACTION];
+        })(),
+    );
 </script>
 
 <div class="nextaction na-app">

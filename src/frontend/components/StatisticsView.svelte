@@ -8,13 +8,17 @@
     import NaToolbar from "../ui/NaToolbar.svelte";
     import NaViewShell from "../ui/NaViewShell.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: any;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: any;
+    }
 
-    let period: "week" | "month" = "week";
-    let stats: StatisticsResult | null = null;
-    let loading = false;
-    let error = "";
+    let { bridge, i18n }: Props = $props();
+
+    let period: "week" | "month" = $state("week");
+    let stats = $state<StatisticsResult | null>(null);
+    let loading = $state(false);
+    let error = $state("");
 
     const STATUS_TONES: Record<string, "primary" | "info" | "success" | "warning" | "danger"> = {
         inbox: "info",
@@ -66,18 +70,26 @@
         loadStats(period);
     }
 
-    $: periodLabelText = period === "week" ? i18n?.thisWeek || "Week" : i18n?.thisMonth || "Month";
-    $: completedLabel = (i18n?.completedInPeriod || "Completed This {period}").replace("{period}", periodLabelText);
-    $: completionRate = stats?.summary.completionRate ?? 0;
-    $: metricItems = stats
-        ? [
-              { value: stats.summary.open, label: i18n?.openTasks || "Open", tone: "info" as const },
-              { value: stats.summary.nextAction, label: i18n?.nextAction || "Next Actions", tone: "primary" as const },
-              { value: stats.summary.someday, label: i18n?.someday || "Someday" },
-              { value: stats.summary.overdue, label: i18n?.overdueTasks || "Overdue", tone: "danger" as const },
-              { value: stats.summary.completedInPeriod, label: completedLabel, tone: "success" as const },
-          ]
-        : [];
+    let periodLabelText = $derived(period === "week" ? i18n?.thisWeek || "Week" : i18n?.thisMonth || "Month");
+    let completedLabel = $derived(
+        (i18n?.completedInPeriod || "Completed This {period}").replace("{period}", periodLabelText),
+    );
+    let completionRate = $derived(stats?.summary.completionRate ?? 0);
+    let metricItems = $derived(
+        stats
+            ? [
+                  { value: stats.summary.open, label: i18n?.openTasks || "Open", tone: "info" as const },
+                  {
+                      value: stats.summary.nextAction,
+                      label: i18n?.nextAction || "Next Actions",
+                      tone: "primary" as const,
+                  },
+                  { value: stats.summary.someday, label: i18n?.someday || "Someday" },
+                  { value: stats.summary.overdue, label: i18n?.overdueTasks || "Overdue", tone: "danger" as const },
+                  { value: stats.summary.completedInPeriod, label: completedLabel, tone: "success" as const },
+              ]
+            : [],
+    );
 
     onMount(() => {
         loadStats();

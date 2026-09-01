@@ -5,18 +5,31 @@
     import NaEmpty from "../ui/NaEmpty.svelte";
     import TaskCard from "./TaskCard.svelte";
 
-    export let reviewData: ReviewData;
-    export let i18n: any;
-    export let selectedTaskId: string;
-    export let onSelectTask: (task: TaskCacheEntry) => void;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onMarkReviewed: (blockIds: string[]) => void;
+    interface Props {
+        reviewData: ReviewData;
+        i18n: any;
+        selectedTaskId: string;
+        onSelectTask: (task: TaskCacheEntry) => void;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onMarkReviewed: (blockIds: string[]) => void;
+    }
 
-    let reviewDueExpanded = true;
-    $: reviewDueTasks = reviewData.reviewDueTasks;
-    $: totalDue = reviewDueTasks.length;
+    let {
+        reviewData,
+        i18n,
+        selectedTaskId,
+        onSelectTask,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        onMarkReviewed,
+    }: Props = $props();
+
+    let reviewDueExpanded = $state(true);
+    let reviewDueTasks = $derived(reviewData.reviewDueTasks);
+    let totalDue = $derived(reviewDueTasks.length);
 </script>
 
 <div class="na-review-due">

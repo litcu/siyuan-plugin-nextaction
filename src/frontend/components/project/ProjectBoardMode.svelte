@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount, untrack } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { CustomFieldDef } from "../../../shared/settings";
@@ -21,45 +21,46 @@
     import NaButton from "../../ui/NaButton.svelte";
     import NaIconButton from "../../ui/NaIconButton.svelte";
 
-    export let tasks: TaskCacheEntry[];
-    export let projectTasks: TaskCacheEntry[] = tasks;
-    export let selectedTaskId = "";
-    export let i18n: I18nStrings;
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
-    export let customFields: CustomFieldDef[] = [];
-    export let preference: ProjectBoardPreference = { ...DEFAULT_PROJECT_BOARD_PREFERENCE };
-    export let onPreferenceChange: ((preference: ProjectBoardPreference) => void) | undefined = undefined;
+    interface Props {
+        tasks: TaskCacheEntry[];
+        projectTasks?: TaskCacheEntry[];
+        selectedTaskId?: string;
+        i18n: I18nStrings;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
+        customFields?: CustomFieldDef[];
+        preference?: ProjectBoardPreference;
+        onPreferenceChange?: ((preference: ProjectBoardPreference) => void) | undefined;
+    }
+
+    let {
+        tasks,
+        projectTasks = tasks,
+        selectedTaskId = "",
+        i18n,
+        onSelectTask = undefined,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        onMoveTask,
+        customFields = [],
+        preference = { ...DEFAULT_PROJECT_BOARD_PREFERENCE },
+        onPreferenceChange = undefined,
+    }: Props = $props();
 
     let draggingTask: TaskCacheEntry | null = null;
-    let dropColumnKey = "";
-    let busy = false;
-    let boardElement: HTMLDivElement;
+    let dropColumnKey = $state("");
+    let busy = $state(false);
+    let boardElement: HTMLDivElement | undefined = $state();
     let resizeObserver: ResizeObserver | null = null;
-    let boardWidth = 1024;
-    let narrowColumnIndex = preference.narrowColumnIndex;
-    let groupBy: ProjectBoardGroupBy = preference.groupBy;
-    let sortBy: ProjectBoardSortBy = preference.sortBy;
-    let sortAsc = preference.sortAsc;
-
-    $: if (preference.groupBy !== groupBy) groupBy = preference.groupBy;
-    $: if (preference.sortBy !== sortBy) sortBy = preference.sortBy;
-    $: if (preference.sortAsc !== sortAsc) sortAsc = preference.sortAsc;
-    $: if (preference.narrowColumnIndex !== narrowColumnIndex) narrowColumnIndex = preference.narrowColumnIndex;
-    $: orderedTasks = sortProjectBoardTasks(tasks, sortBy, sortAsc, customFields);
-    $: columns = buildProjectBoardColumns(orderedTasks, groupBy, projectTasks);
-    $: narrow = boardWidth <= 780;
-    $: {
-        const clamped = Math.max(0, Math.min(narrowColumnIndex, Math.max(0, columns.length - 1)));
-        if (clamped !== narrowColumnIndex) {
-            narrowColumnIndex = clamped;
-            persistPreference();
-        }
-    }
-    $: visibleColumns = narrow ? [columns[narrowColumnIndex]] : columns;
+    let boardWidth = $state(1024);
+    let narrowColumnIndex = $state(untrack(() => preference.narrowColumnIndex));
+    let groupBy = $state<ProjectBoardGroupBy>(untrack(() => preference.groupBy));
+    let sortBy = $state<ProjectBoardSortBy>(untrack(() => preference.sortBy));
+    let sortAsc = $state(untrack(() => preference.sortAsc));
 
     function persistPreference() {
         onPreferenceChange?.({ groupBy, sortBy, sortAsc, narrowColumnIndex });
@@ -109,6 +110,22 @@
         dropColumnKey = "";
     }
 
+    function handleDragOver(columnKey: string, event: DragEvent): void {
+        event.preventDefault();
+        dropColumnKey = columnKey;
+    }
+
+    function handleColumnDrop(column: ProjectBoardColumn, event: DragEvent): void {
+        event.preventDefault();
+        void handleDrop(column);
+    }
+
+    function handleCardDrop(column: ProjectBoardColumn, task: TaskCacheEntry, event: DragEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleDrop(column, task.blockId, task.parentId);
+    }
+
     async function handleDrop(column: ProjectBoardColumn, afterId = "", afterParentId = "") {
         if (!draggingTask || busy) return;
         busy = true;
@@ -136,6 +153,7 @@
     }
 
     onMount(() => {
+        if (!boardElement) return;
         const measure = () => {
             if (boardElement) boardWidth = boardElement.clientWidth;
         };
@@ -147,6 +165,29 @@
     });
 
     onDestroy(() => resizeObserver?.disconnect());
+    $effect(() => {
+        if (preference.groupBy !== groupBy) groupBy = preference.groupBy;
+    });
+    $effect(() => {
+        if (preference.sortBy !== sortBy) sortBy = preference.sortBy;
+    });
+    $effect(() => {
+        if (preference.sortAsc !== sortAsc) sortAsc = preference.sortAsc;
+    });
+    $effect(() => {
+        if (preference.narrowColumnIndex !== narrowColumnIndex) narrowColumnIndex = preference.narrowColumnIndex;
+    });
+    let orderedTasks = $derived(sortProjectBoardTasks(tasks, sortBy, sortAsc, customFields));
+    let columns = $derived(buildProjectBoardColumns(orderedTasks, groupBy, projectTasks));
+    let narrow = $derived(boardWidth <= 780);
+    $effect(() => {
+        const clamped = Math.max(0, Math.min(narrowColumnIndex, Math.max(0, columns.length - 1)));
+        if (clamped !== narrowColumnIndex) {
+            narrowColumnIndex = clamped;
+            persistPreference();
+        }
+    });
+    let visibleColumns = $derived(narrow ? [columns[narrowColumnIndex]] : columns);
 </script>
 
 <div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
@@ -155,7 +196,7 @@
         <select
             id="na-project-board-group-by"
             class="na-select na-select--sm"
-            on:change={handleGroupByChange}
+            onchange={handleGroupByChange}
             value={groupBy}
         >
             <option value="status">{groupLabel("status")}</option>
@@ -164,7 +205,7 @@
             <option value="importance">{groupLabel("importance")}</option>
         </select>
         <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
-        <select id="na-project-board-sort" class="na-select na-select--sm" on:change={handleSortChange} value={sortBy}>
+        <select id="na-project-board-sort" class="na-select na-select--sm" onchange={handleSortChange} value={sortBy}>
             <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
             <option value="due">{i18n?.sortByDue || "Due date"}</option>
             <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
@@ -216,9 +257,9 @@
                 class="na-project-board__column"
                 role="list"
                 class:drop-active={dropColumnKey === column.key}
-                on:dragover|preventDefault={() => (dropColumnKey = column.key)}
-                on:dragleave={() => (dropColumnKey = "")}
-                on:drop|preventDefault={() => handleDrop(column)}
+                ondragover={(event) => handleDragOver(column.key, event)}
+                ondragleave={() => (dropColumnKey = "")}
+                ondrop={(event) => handleColumnDrop(column, event)}
             >
                 <header><span>{columnLabel(column)}</span><span>{column.tasks.length}</span></header>
                 <div class="na-project-board__cards">
@@ -227,11 +268,10 @@
                             class="na-project-board__card"
                             role="listitem"
                             draggable={!busy}
-                            on:dragstart={(event) => handleDragStart(task, event)}
-                            on:dragend={resetDrag}
-                            on:dragover|preventDefault={() => (dropColumnKey = column.key)}
-                            on:drop|preventDefault|stopPropagation={() =>
-                                handleDrop(column, task.blockId, task.parentId)}
+                            ondragstart={(event) => handleDragStart(task, event)}
+                            ondragend={resetDrag}
+                            ondragover={(event) => handleDragOver(column.key, event)}
+                            ondrop={(event) => handleCardDrop(column, task, event)}
                         >
                             <TaskCard
                                 {task}

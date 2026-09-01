@@ -12,7 +12,8 @@ const taskCardSource = source("../src/frontend/components/TaskCard.svelte");
 
 test("侧边栏收集箱为开始按钮接入状态更新", () => {
     assert.match(dockSidebarSource, /<DockInbox[\s\S]*?\{bridge\}/);
-    assert.match(dockInboxSource, /export let bridge: KernelBridge/);
+    assert.match(dockInboxSource, /bridge: KernelBridge/);
+    assert.match(dockInboxSource, /}: Props = \$props\(\)/);
     assert.match(dockInboxSource, /bridge\.updateTask\(task\.blockId, \{ "na-status": "todo" \}\)/);
     assert.match(dockInboxSource, /taskStore\.applyUpdate\(updated\)/);
     assert.match(dockInboxSource, /onActivate=\{handleClarify\}/);

@@ -2,7 +2,7 @@
     import type { ExtractActionInput } from "../../shared/action-extraction";
     import type { I18nStrings } from "../../shared/i18n";
     import type { TaskActionKind, TaskCacheEntry } from "../../shared/types";
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
     import type { KernelBridge } from "../kernel-bridge";
     import { STATUS_LIST } from "../constants";
     import { statusI18nKey, translateKey } from "../i18n";
@@ -16,32 +16,45 @@
     import NaSearchSelect from "../ui/NaSearchSelect.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
-    export let sourceBlockId: string;
-    export let sourceTitle: string;
-    export let projects: TaskCacheEntry[] = [];
-    export let defaultProjectId = "";
-    export let onCreated: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onClose: (() => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+        sourceBlockId: string;
+        sourceTitle: string;
+        projects?: TaskCacheEntry[];
+        defaultProjectId?: string;
+        onCreated?: ((task: TaskCacheEntry) => void) | undefined;
+        onClose?: (() => void) | undefined;
+    }
 
-    let title = sourceTitle;
-    let status = "inbox";
-    let actionKind: Exclude<TaskActionKind, ""> = "action";
-    let start = "";
-    let due = "";
-    let projectId = defaultProjectId;
-    let busy = false;
-    let error = "";
-    let titleInput: HTMLInputElement;
+    let {
+        bridge,
+        i18n,
+        sourceBlockId,
+        sourceTitle,
+        projects = [],
+        defaultProjectId = "",
+        onCreated = undefined,
+        onClose = undefined,
+    }: Props = $props();
 
-    const actionKindOptions = [
+    let title = $state(untrack(() => sourceTitle));
+    let status = $state("inbox");
+    let actionKind: Exclude<TaskActionKind, ""> = $state("action");
+    let start = $state("");
+    let due = $state("");
+    let projectId = $state(untrack(() => defaultProjectId));
+    let busy = $state(false);
+    let error = $state("");
+    let titleInput: HTMLInputElement | undefined = $state();
+
+    let actionKindOptions = $derived([
         { value: "action", label: i18n.actionKindAction },
         { value: "stage", label: i18n.actionKindStage },
-    ];
+    ]);
 
-    $: projectLabels = Object.fromEntries(projects.map((project) => [project.blockId, project.title]));
-    $: selectedProjectLabel = projectLabels[projectId] || "";
+    let projectLabels = $derived(Object.fromEntries(projects.map((project) => [project.blockId, project.title])));
+    let selectedProjectLabel = $derived(projectLabels[projectId] || "");
 
     onMount(() => titleInput?.focus());
 
@@ -88,6 +101,11 @@
             busy = false;
         }
     }
+
+    function handleSubmit(event: SubmitEvent): void {
+        event.preventDefault();
+        void submit();
+    }
 </script>
 
 <NaDialogShell
@@ -103,7 +121,7 @@
         </div>
     {/snippet}
 
-    <form class="na-extract-action" on:submit|preventDefault={submit}>
+    <form class="na-extract-action" onsubmit={handleSubmit}>
         <div class="na-extract-action__source">
             <strong>{i18n.extractActionSource}</strong>
             <span>{sourceTitle}</span>

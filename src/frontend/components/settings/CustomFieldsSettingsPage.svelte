@@ -11,21 +11,31 @@
     import { customFieldTypeI18nKey, translateKey } from "../../i18n";
     import NaIcon from "../../ui/NaIcon.svelte";
 
-    export let i18n: I18nStrings;
-    export let customFields: CustomFieldDef[];
-    export let customFieldUsage: Record<string, number> = {};
-    export let purgingFieldId = "";
-    export let onPurgeField: (field: CustomFieldDef) => void;
+    interface Props {
+        i18n: I18nStrings;
+        customFields: CustomFieldDef[];
+        customFieldUsage?: Record<string, number>;
+        purgingFieldId?: string;
+        onPurgeField: (field: CustomFieldDef) => void;
+    }
 
-    let builderOpen = false;
-    let newFieldKey = "";
-    let newFieldLabel = "";
-    let newFieldType: CustomFieldType = "text";
-    let newFieldOptions = "";
-    let newFieldScope: "all" | "task" | "project" | "projectTree" = "all";
-    let newFieldProjectIds = "";
-    let newFieldShowOnCard = true;
-    let error = "";
+    let {
+        i18n,
+        customFields = $bindable(),
+        customFieldUsage = {},
+        purgingFieldId = "",
+        onPurgeField,
+    }: Props = $props();
+
+    let builderOpen = $state(false);
+    let newFieldKey = $state("");
+    let newFieldLabel = $state("");
+    let newFieldType: CustomFieldType = $state("text");
+    let newFieldOptions = $state("");
+    let newFieldScope: "all" | "task" | "project" | "projectTree" = $state("all");
+    let newFieldProjectIds = $state("");
+    let newFieldShowOnCard = $state(true);
+    let error = $state("");
 
     function typeLabel(type: CustomFieldType): string {
         const fallback: Record<CustomFieldType, string> = {
@@ -222,7 +232,7 @@
         <button
             type="button"
             class="b3-button b3-button--primary"
-            on:click={() => {
+            onclick={() => {
                 builderOpen = !builderOpen;
                 if (!builderOpen) resetBuilder();
             }}
@@ -300,7 +310,7 @@
                     />{i18n?.customFieldShowOnCard || "Show on card"}</label
                 >
                 {#if error}<span class="na-settings-custom-fields__error">{error}</span>{/if}
-                <button type="button" class="b3-button b3-button--primary" on:click={addField}
+                <button type="button" class="b3-button b3-button--primary" onclick={addField}
                     ><NaIcon symbol="iconAdd" size={14} />{i18n?.addCustomFieldBtn || "Add field"}</button
                 >
             </div>
@@ -322,7 +332,7 @@
                             <input
                                 class="b3-text-field"
                                 value={field.label}
-                                on:change={(event) => updateField(index, { label: event.currentTarget.value })}
+                                onchange={(event) => updateField(index, { label: event.currentTarget.value })}
                                 aria-label={i18n?.customFieldLabelPlaceholder || "Field label"}
                             />
                             <span>{customFieldUsage[field.key] || 0} {i18n?.customFieldUsed || "used"}</span>
@@ -334,7 +344,7 @@
                                     class="b3-switch"
                                     type="checkbox"
                                     checked={field.showOnCard && field.status === "active"}
-                                    on:change={(event) =>
+                                    onchange={(event) =>
                                         updateField(index, { showOnCard: event.currentTarget.checked })}
                                     disabled={field.status !== "active"}
                                 />
@@ -343,19 +353,19 @@
                             <button
                                 type="button"
                                 class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                                on:click={() => moveField(index, -1)}
+                                onclick={() => moveField(index, -1)}
                                 disabled={index === 0}
                                 aria-label={i18n?.moveUp || "Move up"}><NaIcon symbol="iconUp" size={14} /></button
                             >
                             <button
                                 type="button"
                                 class="b3-button b3-button--text b3-tooltips b3-tooltips__n"
-                                on:click={() => moveField(index, 1)}
+                                onclick={() => moveField(index, 1)}
                                 disabled={index === customFields.length - 1}
                                 aria-label={i18n?.moveDown || "Move down"}
                                 ><NaIcon symbol="iconDown" size={14} /></button
                             >
-                            <button type="button" class="b3-button b3-button--text" on:click={() => toggleStatus(index)}
+                            <button type="button" class="b3-button b3-button--text" onclick={() => toggleStatus(index)}
                                 >{field.status === "active"
                                     ? i18n?.archiveCustomField || "Archive"
                                     : i18n?.restoreCustomField || "Restore"}</button
@@ -364,7 +374,7 @@
                                     type="button"
                                     class="b3-button b3-button--text na-settings-custom-field__danger"
                                     disabled={purgingFieldId === field.id}
-                                    on:click={() => purgeField(field)}>{i18n?.purgeCustomField || "Purge"}</button
+                                    onclick={() => purgeField(field)}>{i18n?.purgeCustomField || "Purge"}</button
                                 >{/if}
                         </div>
                     </header>
@@ -373,7 +383,7 @@
                             >{i18n?.customFieldType || "Type"}<select
                                 class="b3-select"
                                 value={field.type}
-                                on:change={(event) => updateType(index, event.currentTarget.value)}
+                                onchange={(event) => updateType(index, event.currentTarget.value)}
                                 disabled={field.status === "archived"}
                                 >{#each CUSTOM_FIELD_TYPES as type}<option value={type}>{typeLabel(type)}</option
                                     >{/each}</select
@@ -383,7 +393,7 @@
                             >{i18n?.customFieldScope || "Scope"}<select
                                 class="b3-select"
                                 value={field.scope.mode}
-                                on:change={(event) => updateScope(index, event.currentTarget.value)}
+                                onchange={(event) => updateScope(index, event.currentTarget.value)}
                                 disabled={field.status === "archived"}
                             >
                                 <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option><option
@@ -397,7 +407,7 @@
                                 >{i18n?.customFieldOptions || "Options"}<input
                                     class="b3-text-field"
                                     value={(field.options || []).map((option) => option.label).join(", ")}
-                                    on:change={(event) => updateOptions(index, event.currentTarget.value)}
+                                    onchange={(event) => updateOptions(index, event.currentTarget.value)}
                                     disabled={field.status === "archived"}
                                 /></label
                             >
@@ -407,7 +417,7 @@
                                 >{i18n?.customFieldProjectIds || "Project IDs"}<input
                                     class="b3-text-field"
                                     value={field.scope.projectIds.join(", ")}
-                                    on:change={(event) =>
+                                    onchange={(event) =>
                                         updateField(index, {
                                             scope: {
                                                 mode: "projectTree",

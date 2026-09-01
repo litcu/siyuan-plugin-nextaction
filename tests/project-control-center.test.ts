@@ -64,7 +64,7 @@ test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作",
     assert.match(gantt, /ganttScaleWeek/);
     assert.match(gantt, /ganttSortTimeline/);
     assert.match(gantt, /NaSegmentControl/);
-    assert.match(gantt, /contentHeight = rowsHeight \+ 56/);
+    assert.match(gantt, /contentHeight = \$derived\(rowsHeight \+ 56\)/);
     assert.match(gantt, /na-gantt__bar-row--summary/);
     assert.doesNotMatch(gantt, /scrollTop/);
     assert.match(bar, /NaTooltip/);
@@ -125,7 +125,7 @@ test("项目入口与共享详情按条目类型使用项目语义", () => {
     assert.match(filterBar, /export let searchPlaceholder = \"\"/);
     assert.match(
         detail,
-        /\$: isProject = isProjectTask\(\{ identificationSource: task\.identificationSource, taskType \}\)/,
+        /isProject = \$derived\(isProjectTask\(\{ identificationSource: task\.identificationSource, taskType \}\)\)/,
     );
     assert.match(detail, /i18n\?\.projectRelations/);
     assert.match(detail, /i18n\?\.parentItem/);

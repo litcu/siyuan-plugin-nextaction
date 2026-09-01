@@ -50,14 +50,15 @@ function start() {
     );
 }
 </script>
-<button id="start" on:click={start}>Start</button>
+<button id="start" onclick={start}>Start</button>
 <div id="state" data-calls={undoCalls} data-selected={selectedTaskId}></div>
 <NotificationHost {bridge} {i18n} />`,
             );
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre"); result.id = "browser-result";
     result.textContent = JSON.stringify(value); document.body.appendChild(result);

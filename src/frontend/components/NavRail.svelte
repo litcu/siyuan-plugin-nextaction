@@ -17,57 +17,63 @@
     import NaNavItem from "../ui/NaNavItem.svelte";
     import NaTooltip from "../ui/NaTooltip.svelte";
 
-    export let activeView: string = VIEW_NEXT_ACTION;
-    export let onSwitchView: (view: string) => void;
-    export let onRefresh: () => void;
-    export let i18n: any;
+    interface Props {
+        activeView?: string;
+        onSwitchView: (view: string) => void;
+        onRefresh: () => void;
+        i18n: any;
+    }
 
-    $: reminderEnabled = $taskStore.settings?.reminderSettings?.enabled !== false;
+    let { activeView = VIEW_NEXT_ACTION, onSwitchView, onRefresh, i18n }: Props = $props();
 
-    $: navGroups = [
-        {
-            label: i18n?.navFocus || "Focus",
-            items: [
-                { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
-                { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
-                { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day" },
-            ],
-        },
-        {
-            label: i18n?.navOrganize || "Organize",
-            items: [
-                { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
-                { view: VIEW_BY_PROJECT, icon: "iconFolder", label: i18n?.byProject || "Project" },
-                { view: VIEW_WAITING, icon: "iconClock", label: i18n?.waiting || "Waiting" },
-                { view: VIEW_SOMEDAY, icon: "iconLight", label: i18n?.someday || "Someday" },
-            ],
-        },
-        {
-            label: i18n?.navReflect || "Reflect",
-            items: [
-                { view: VIEW_REVIEW, icon: "iconCheck", label: i18n?.review || "Review" },
-                { view: VIEW_STATISTICS, icon: "iconGraph", label: i18n?.statistics || "Statistics" },
-                {
-                    view: VIEW_REMINDER,
-                    icon: "iconClock",
-                    label: i18n?.reminder || "Reminders",
-                    requiresReminder: true,
-                },
-            ],
-        },
-    ].map((group) => ({
-        ...group,
-        items: group.items.filter((item) => {
-            if (item.requiresReminder && !reminderEnabled) return false;
-            return true;
-        }),
-    }));
+    let reminderEnabled = $derived($taskStore.settings?.reminderSettings?.enabled !== false);
 
-    let refreshDone = false;
+    let navGroups = $derived(
+        [
+            {
+                label: i18n?.navFocus || "Focus",
+                items: [
+                    { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
+                    { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
+                    { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day" },
+                ],
+            },
+            {
+                label: i18n?.navOrganize || "Organize",
+                items: [
+                    { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
+                    { view: VIEW_BY_PROJECT, icon: "iconFolder", label: i18n?.byProject || "Project" },
+                    { view: VIEW_WAITING, icon: "iconClock", label: i18n?.waiting || "Waiting" },
+                    { view: VIEW_SOMEDAY, icon: "iconLight", label: i18n?.someday || "Someday" },
+                ],
+            },
+            {
+                label: i18n?.navReflect || "Reflect",
+                items: [
+                    { view: VIEW_REVIEW, icon: "iconCheck", label: i18n?.review || "Review" },
+                    { view: VIEW_STATISTICS, icon: "iconGraph", label: i18n?.statistics || "Statistics" },
+                    {
+                        view: VIEW_REMINDER,
+                        icon: "iconClock",
+                        label: i18n?.reminder || "Reminders",
+                        requiresReminder: true,
+                    },
+                ],
+            },
+        ].map((group) => ({
+            ...group,
+            items: group.items.filter((item) => {
+                if (item.requiresReminder && !reminderEnabled) return false;
+                return true;
+            }),
+        })),
+    );
+
+    let refreshDone = $state(false);
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let railEl: HTMLElement;
-    let compact = false;
-    let veryNarrow = false;
+    let railEl: HTMLElement | undefined = $state();
+    let compact = $state(false);
+    let veryNarrow = $state(false);
 
     onMount(() => {
         const root = railEl?.closest<HTMLElement>(".na-app");
@@ -133,7 +139,7 @@
             <button
                 class="na-nav-rail__action-btn"
                 class:is-done={refreshDone}
-                on:click={handleRefresh}
+                onclick={handleRefresh}
                 aria-label={refreshDone ? i18n?.refreshed || "Refreshed" : i18n?.refreshTasks || "Refresh Tasks"}
             >
                 {#if refreshDone}

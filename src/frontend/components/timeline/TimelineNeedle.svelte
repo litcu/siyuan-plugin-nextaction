@@ -3,10 +3,14 @@
     import { PIXELS_PER_MINUTE } from "../../../shared/constants";
     import { getCurrentMinuteOffset } from "./timeline-utils";
 
-    export let resetHour: number = 5;
-    export let containerHeight: number = 0;
+    interface Props {
+        resetHour?: number;
+        containerHeight?: number;
+    }
 
-    let needleTop: number = 0;
+    let { resetHour = 5, containerHeight = 0 }: Props = $props();
+
+    let needleTop: number = $state(0);
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     function updatePosition() {
@@ -22,7 +26,7 @@
         if (intervalId) clearInterval(intervalId);
     });
 
-    $: needleStyle = `top: ${needleTop}px`;
+    let needleStyle = $derived(`top: ${needleTop}px`);
 </script>
 
 {#if needleTop > 0 && needleTop < containerHeight}

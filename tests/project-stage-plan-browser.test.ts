@@ -84,7 +84,8 @@ const i18n = new Proxy({
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
     result.id = "browser-result";
@@ -203,8 +204,8 @@ function moveAction(task, targetProject) {
 }
 </script>
 
-<button id="fail-next" on:click={() => (failNext = true)}>fail</button>
-<button id="switch-project" on:click={() => { project = otherProject; tasks = []; selectedTaskId = ""; }}>switch</button>
+<button id="fail-next" onclick={() => (failNext = true)}>fail</button>
+<button id="switch-project" onclick={() => { project = otherProject; tasks = []; selectedTaskId = ""; }}>switch</button>
 <div id="harness" data-calls={JSON.stringify(calls)} data-selected={selectedTaskId}>
     <ProjectStagePlan
         {project} {model} {i18n} {selectedTaskId}
@@ -217,7 +218,8 @@ function moveAction(task, targetProject) {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const row = () => document.querySelector('[data-task-id="stage"]');
 const button = (label) => [...row().querySelectorAll("button")].find((item) => item.textContent.trim() === label);
 let focusedRename = false;

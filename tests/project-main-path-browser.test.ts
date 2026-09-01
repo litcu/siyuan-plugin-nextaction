@@ -79,7 +79,8 @@ async function openProject(nextProject) {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
     result.id = "browser-result";
@@ -190,7 +191,8 @@ const noop = () => {};
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
     result.id = "browser-result";
@@ -266,7 +268,8 @@ async function loadSupport(requestedProjectId) {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const findButton = (label) => [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === label);
 const finish = (value) => {
     const result = document.createElement("pre");

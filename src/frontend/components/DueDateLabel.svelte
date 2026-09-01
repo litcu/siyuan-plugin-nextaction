@@ -1,30 +1,38 @@
 <script lang="ts">
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import { registerDueTime, timeBoundaryStore } from "../stores/time-boundary-store";
     import { formatDueDate, getDuePresentation } from "../utils/time-boundary";
 
-    export let due: string;
-    export let i18n: any;
-
-    const dispatch = createEventDispatcher<{ overduechange: { isOverdue: boolean } }>();
-    let mounted = false;
-    let registeredDue = "";
-    let unregisterDue: (() => void) | null = null;
-    let lastOverdue: boolean | null = null;
-
-    $: presentation = getDuePresentation(due, $timeBoundaryStore);
-    $: label = formatDueDate(due, $timeBoundaryStore, i18n);
-
-    $: if (presentation.isOverdue !== lastOverdue) {
-        lastOverdue = presentation.isOverdue;
-        dispatch("overduechange", { isOverdue: presentation.isOverdue });
+    interface Props {
+        due: string;
+        i18n: any;
+        onOverdueChange?: (isOverdue: boolean) => void;
     }
 
-    $: if (mounted && due !== registeredDue) {
-        unregisterDue?.();
-        registeredDue = due;
-        unregisterDue = registerDueTime(due);
-    }
+    let { due, i18n, onOverdueChange }: Props = $props();
+
+    let mounted = $state(false);
+    let registeredDue = $state("");
+    let unregisterDue: (() => void) | null = $state(null);
+    let lastOverdue: boolean | null = $state(null);
+
+    let presentation = $derived(getDuePresentation(due, $timeBoundaryStore));
+    let label = $derived(formatDueDate(due, $timeBoundaryStore, i18n));
+
+    $effect(() => {
+        if (presentation.isOverdue !== lastOverdue) {
+            lastOverdue = presentation.isOverdue;
+            onOverdueChange?.(presentation.isOverdue);
+        }
+    });
+
+    $effect(() => {
+        if (mounted && due !== registeredDue) {
+            unregisterDue?.();
+            registeredDue = due;
+            unregisterDue = registerDueTime(due);
+        }
+    });
 
     onMount(() => {
         mounted = true;

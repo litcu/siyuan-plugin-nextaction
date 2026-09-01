@@ -1,6 +1,6 @@
 <script lang="ts">
     import { confirm } from "siyuan";
-    import { onDestroy } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import type { TaskActionKind, TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
     import type { CustomFieldDef } from "../../shared/settings";
@@ -38,81 +38,99 @@
     import NaTaskLinkList from "../ui/NaTaskLinkList.svelte";
     import NaToggle from "../ui/NaToggle.svelte";
 
-    export let task: TaskCacheEntry;
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
-    export let onClose: (() => void) | undefined = undefined;
-    export let onConfirmDiscard: ((confirmDiscard: () => void, cancelClose: () => void) => void) | undefined =
-        undefined;
-    export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onTaskChange: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let showJumpToBlock = true;
-    export let dialogMode = false;
+    interface Props {
+        task: TaskCacheEntry;
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+        onClose?: (() => void) | undefined;
+        onConfirmDiscard?: ((confirmDiscard: () => void, cancelClose: () => void) => void) | undefined;
+        onCreateChild?: ((task: TaskCacheEntry) => void) | undefined;
+        onTaskChange?: ((task: TaskCacheEntry) => void) | undefined;
+        showJumpToBlock?: boolean;
+        dialogMode?: boolean;
+    }
 
-    let status = "todo";
-    let priority = "none";
-    let importance = 4;
-    let effort = 4;
-    let due = "";
-    let start = "";
-    let note = "";
-    let outcome = "";
-    let dod = "";
-    let actionKind: TaskActionKind = "action";
-    let contexts: string[] = [];
-    let taskTags: string[] = [];
-    let parentId = "";
-    let depends: string[] = [];
-    let depMode = "all";
-    let sequentialEnabled = false;
-    let repeatEnabled = false;
-    let taskType = "1";
-    let reviewInterval = 0;
-    let reviewDate = "";
-    let reviewIntervalMode = "0";
-    let reviewIntervalCustom = "";
-    let customFieldValues: Record<string, string> = {};
-    let saveState: TaskDetailSaveState = "idle";
-    let saveError = "";
-    let depError = "";
-    let customFieldError = "";
-    let repeatDateError = "";
-    let operationBusy = false;
+    let {
+        task = $bindable(),
+        bridge,
+        i18n,
+        onClose = undefined,
+        onConfirmDiscard = undefined,
+        onCreateChild = undefined,
+        onTaskChange = undefined,
+        showJumpToBlock = true,
+        dialogMode = false,
+    }: Props = $props();
+
+    let status = $state("todo");
+    let priority = $state("none");
+    let importance = $state(4);
+    let effort = $state(4);
+    let due = $state("");
+    let start = $state("");
+    let note = $state("");
+    let outcome = $state("");
+    let dod = $state("");
+    let actionKind: TaskActionKind = $state("action");
+    let contexts: string[] = $state([]);
+    let taskTags: string[] = $state([]);
+    let parentId = $state("");
+    let depends: string[] = $state([]);
+    let depMode = $state("all");
+    let sequentialEnabled = $state(false);
+    let repeatEnabled = $state(false);
+    let taskType = $state("1");
+    let reviewInterval = $state(0);
+    let reviewDate = $state("");
+    let reviewIntervalMode = $state("0");
+    let reviewIntervalCustom = $state("");
+    let customFieldValues: Record<string, string> = $state({});
+    let saveState = $state<TaskDetailSaveState>("idle");
+    let saveError = $state("");
+    let depError = $state("");
+    let customFieldError = $state("");
+    let repeatDateError = $state("");
+    let operationBusy = $state(false);
     let repeatDateNoticeTaskId = "";
     let repeatDateErrorTimer: ReturnType<typeof setTimeout> | null = null;
-    let shellElement: HTMLDivElement | undefined;
+    let shellElement: HTMLDivElement | undefined = $state();
     let appliedSessionTask: TaskCacheEntry | null = null;
     let removedHandled = false;
     const transitionQueue = new TaskDetailTransitionQueue();
 
-    $: allTasks = $taskStore.allTasks || [];
-    $: allContexts = $taskStore.contexts || [];
-    $: allTags = $taskStore.tags || [];
-    $: taskMap = new Map(allTasks.map((entry) => [entry.blockId, entry]));
-    $: parentLabel = parentId ? taskMap.get(parentId)?.title || i18n?.untitled || "(untitled)" : "";
-    $: depLabels = Object.fromEntries(
-        depends.map((id) => [id, taskMap.get(id)?.title || i18n?.untitled || "(untitled)"]),
+    let allTasks = $derived($taskStore.allTasks || []);
+    let allContexts = $derived($taskStore.contexts || []);
+    let allTags = $derived($taskStore.tags || []);
+    let taskMap = $derived(new Map(allTasks.map((entry) => [entry.blockId, entry])));
+    let parentLabel = $derived(parentId ? taskMap.get(parentId)?.title || i18n?.untitled || "(untitled)" : "");
+    let depLabels = $derived(
+        Object.fromEntries(depends.map((id) => [id, taskMap.get(id)?.title || i18n?.untitled || "(untitled)"])),
     );
-    $: childTasks = allTasks
-        .filter((entry) => entry.parentId === task.blockId)
-        .map((entry) => ({
-            blockId: entry.blockId,
-            title: entry.title || i18n?.untitled || "(untitled)",
-            status: entry.status,
-        }));
-    $: customFieldDefs = (($taskStore.settings.customFields || []) as CustomFieldDef[]).filter((field) =>
-        isCustomFieldApplicable(field, task, $projectMembershipGraph),
+    let childTasks = $derived(
+        allTasks
+            .filter((entry) => entry.parentId === task.blockId)
+            .map((entry) => ({
+                blockId: entry.blockId,
+                title: entry.title || i18n?.untitled || "(untitled)",
+                status: entry.status,
+            })),
     );
-    $: isInMyDay = !!$taskStore.myDayState?.tasks.some((entry) => entry.blockId === task.blockId);
-    $: hasReminders = parseReminderItems(task.reminder).length > 0;
-    $: repeatRuntimeState = parseRepeatState(task.repeatState);
-    $: repeatStatus = repeatRuntimeState?.status || (task.repeat ? "active" : "");
-    $: dateError = getDateError(start, due);
-    $: noticeMessage = dateError || depError || customFieldError || saveError || repeatDateError;
-    $: noticeTone = (
-        dateError || depError || customFieldError || saveError ? "error" : repeatDateError ? "warning" : "info"
-    ) as "error" | "warning" | "info";
-    $: statusLabel =
+    let customFieldDefs = $derived(
+        (($taskStore.settings.customFields || []) as CustomFieldDef[]).filter((field) =>
+            isCustomFieldApplicable(field, task, $projectMembershipGraph),
+        ),
+    );
+    let isInMyDay = $derived(!!$taskStore.myDayState?.tasks.some((entry) => entry.blockId === task.blockId));
+    let hasReminders = $derived(parseReminderItems(task.reminder).length > 0);
+    let repeatRuntimeState = $derived(parseRepeatState(task.repeatState));
+    let repeatStatus = $derived(repeatRuntimeState?.status || (task.repeat ? "active" : ""));
+    let dateError = $derived(getDateError(start, due));
+    let noticeMessage = $derived(dateError || depError || customFieldError || saveError || repeatDateError);
+    let noticeTone = $derived(
+        (dateError || depError || customFieldError || saveError ? "error" : repeatDateError ? "warning" : "info") as
+            "error" | "warning" | "info",
+    );
+    let statusLabel = $derived(
         saveState === "saving"
             ? i18n?.saving || "Saving..."
             : saveState === "pending"
@@ -121,52 +139,63 @@
                 ? i18n?.saved || "Saved"
                 : saveState === "error"
                   ? i18n?.saveFailed || "Save failed"
-                  : translateKey(i18n, statusI18nKey(status), status);
-    $: statusTone = (saveState === "error" ? "error" : saveState === "pending" ? "warning" : "default") as
-        "error" | "warning" | "default";
-    $: relationSummary =
+                  : translateKey(i18n, statusI18nKey(status), status),
+    );
+    let statusTone = $derived(
+        (saveState === "error" ? "error" : saveState === "pending" ? "warning" : "default") as
+            "error" | "warning" | "default",
+    );
+    let relationSummary = $derived(
         [
             childTasks.length ? (i18n?.subtaskCount || "{n} subtasks").replace("{n}", String(childTasks.length)) : "",
             depends.length ? (i18n?.dependencyCount || "{n} dependencies").replace("{n}", String(depends.length)) : "",
         ]
             .filter(Boolean)
             .join(" · ") ||
-        i18n?.notConfigured ||
-        "Not configured";
-    $: reviewSummary =
+            i18n?.notConfigured ||
+            "Not configured",
+    );
+    let reviewSummary = $derived(
         reviewInterval > 0
             ? (i18n?.reviewEveryDays || "Every {n} days").replace("{n}", String(reviewInterval))
-            : i18n?.reviewIntervalNone || "None";
-    $: taskTypeOptions = [
+            : i18n?.reviewIntervalNone || "None",
+    );
+    let taskTypeOptions = $derived([
         { value: "1", label: i18n?.task || "Task" },
         { value: "2", label: i18n?.project || "Project" },
-    ];
-    $: actionKindOptions = [
+    ]);
+    let actionKindOptions = $derived([
         { value: "action", label: i18n?.actionKindAction || "Action" },
         { value: "stage", label: i18n?.actionKindStage || "Stage" },
-    ];
-    $: isProject = isProjectTask({ identificationSource: task.identificationSource, taskType });
-    $: hasProjectScope = !isProject && Boolean($projectMembershipGraph.node(parentId)?.projectId);
-    $: aiDecomposeLabel = isProject
-        ? i18n?.aiDecomposeProject || "Break down project with AI"
-        : i18n?.aiDecomposeTask || "Break down with AI";
-    $: removeLabel = isProject ? i18n?.removeProject || "Remove project" : i18n?.removeTask || "Remove task";
-    $: removeConfirmMessage = isProject
-        ? i18n?.confirmRemoveProject ||
-          "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
-        : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.";
-    $: headerSubtitle = [
-        task.created ? formatCreated(task.created) : "",
-        task.blocked && !isProject
-            ? task.blockedReason === "children"
-                ? i18n?.blockedByChildren || "Blocked by subtasks"
-                : task.blockedReason === "sequential"
-                  ? i18n?.blockedBySequence || "Blocked by sequence"
-                  : i18n?.blockedByDependency || "Blocked by dependency"
-            : "",
-    ]
-        .filter(Boolean)
-        .join(" · ");
+    ]);
+    let isProject = $derived(isProjectTask({ identificationSource: task.identificationSource, taskType }));
+    let hasProjectScope = $derived(!isProject && Boolean($projectMembershipGraph.node(parentId)?.projectId));
+    let aiDecomposeLabel = $derived(
+        isProject
+            ? i18n?.aiDecomposeProject || "Break down project with AI"
+            : i18n?.aiDecomposeTask || "Break down with AI",
+    );
+    let removeLabel = $derived(isProject ? i18n?.removeProject || "Remove project" : i18n?.removeTask || "Remove task");
+    let removeConfirmMessage = $derived(
+        isProject
+            ? i18n?.confirmRemoveProject ||
+                  "This keeps the document and project fields, removes its Project identity, and clears direct Action assignments. Continue?"
+            : i18n?.confirmRemoveTask || "This will clear all task attributes. This action cannot be undone.",
+    );
+    let headerSubtitle = $derived(
+        [
+            task.created ? formatCreated(task.created) : "",
+            task.blocked && !isProject
+                ? task.blockedReason === "children"
+                    ? i18n?.blockedByChildren || "Blocked by subtasks"
+                    : task.blockedReason === "sequential"
+                      ? i18n?.blockedBySequence || "Blocked by sequence"
+                      : i18n?.blockedByDependency || "Blocked by dependency"
+                : "",
+        ]
+            .filter(Boolean)
+            .join(" · "),
+    );
 
     function buildDraft(): TaskDetailDraft {
         return {
@@ -248,29 +277,33 @@
 
     class CustomFieldDraftError extends Error {}
 
-    const session = new TaskDetailSession(task, {
-        source: createTaskDetailTaskSource((blockId) => bridge.getTask(blockId)),
-        save: async (blockId, draft) => {
-            const customAttrs: Record<string, string> = {};
-            for (const def of customFieldDefs) {
-                try {
-                    customAttrs["na-ext-" + def.key] = encodeCustomFieldValue(
-                        def,
-                        draft.customFieldValues[def.key] || "",
-                    );
-                } catch {
-                    throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
-                }
-            }
-            const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
-            const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
-            if (warningMessage) notifyInfo(warningMessage);
-            return updated;
-        },
-        remove: (blockId) => bridge.removeTask(blockId),
-        formatError: (error) => (error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n)),
-        missingTaskMessage: i18n?.errItemNotFound || i18n?.errTaskNotFound || "Project or task not found",
-    });
+    const session = untrack(
+        () =>
+            new TaskDetailSession(task, {
+                source: createTaskDetailTaskSource((blockId) => bridge.getTask(blockId)),
+                save: async (blockId, draft) => {
+                    const customAttrs: Record<string, string> = {};
+                    for (const def of customFieldDefs) {
+                        try {
+                            customAttrs["na-ext-" + def.key] = encodeCustomFieldValue(
+                                def,
+                                draft.customFieldValues[def.key] || "",
+                            );
+                        } catch {
+                            throw new CustomFieldDraftError(`${def.label}: ${getCustomFieldValidationError(def)}`);
+                        }
+                    }
+                    const updated = await bridge.updateTask(blockId, taskDetailDraftToAttrs(draft, customAttrs));
+                    const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
+                    if (warningMessage) notifyInfo(warningMessage);
+                    return updated;
+                },
+                remove: (blockId) => bridge.removeTask(blockId),
+                formatError: (error) =>
+                    error instanceof CustomFieldDraftError ? error.message : formatRpcError(error, i18n),
+                missingTaskMessage: i18n?.errItemNotFound || i18n?.errTaskNotFound || "Project or task not found",
+            }),
+    );
     const unsubscribeSession = session.subscribe(applySessionSnapshot);
 
     function getDateError(startValue: string, dueValue: string): string {
@@ -575,7 +608,7 @@
     });
 </script>
 
-<svelte:window on:keydown={handleWindowKeydown} />
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <NaDialogShell
     bind:element={shellElement}
@@ -642,7 +675,7 @@
                     maxlength="500"
                     placeholder={i18n?.outcomePlaceholder || "Describe the result in one sentence"}
                     bind:value={outcome}
-                    on:input={handleChange}
+                    oninput={handleChange}
                 />
             </NaPropertyRow>
             <NaPropertyRow
@@ -658,7 +691,7 @@
                     maxlength="4000"
                     placeholder={i18n?.dodPlaceholder || "Describe the conditions that mean the outcome is achieved"}
                     bind:value={dod}
-                    on:input={handleChange}
+                    oninput={handleChange}
                 ></textarea>
             </NaPropertyRow>
         </NaPropertySection>
@@ -666,7 +699,7 @@
 
     <NaPropertySection title={i18n?.detailGroupBasics || i18n?.detailGroupNotes || "Core properties"}>
         <NaPropertyRow label={i18n?.status || "Status"}>
-            <select class="b3-select fn__block" bind:value={status} on:change={handleChange}>
+            <select class="b3-select fn__block" bind:value={status} onchange={handleChange}>
                 {#each STATUS_LIST as item}<option value={item}>{translateKey(i18n, statusI18nKey(item), item)}</option
                     >{/each}
             </select>
@@ -702,7 +735,7 @@
             label={i18n?.priority || "Priority"}
             helpText={i18n?.priorityHint || "Urgency that combines with importance in automatic ranking"}
         >
-            <select class="b3-select fn__block" bind:value={priority} on:change={handleChange}>
+            <select class="b3-select fn__block" bind:value={priority} onchange={handleChange}>
                 {#each PRIORITY_LIST as item}<option value={item}
                         >{translateKey(i18n, priorityI18nKey(item), item)}</option
                     >{/each}
@@ -733,7 +766,7 @@
             /></NaPropertyRow
         >
         <NaPropertyRow label={i18n?.note || "Note"} stacked={true}
-            ><textarea class="b3-text-field fn__block" rows="3" bind:value={note} on:input={handleChange}
+            ><textarea class="b3-text-field fn__block" rows="3" bind:value={note} oninput={handleChange}
             ></textarea></NaPropertyRow
         >
     </NaPropertySection>
@@ -780,7 +813,7 @@
             <button
                 type="button"
                 class="b3-button b3-button--text na-task-detail__setting-action"
-                on:click={openReminders}
+                onclick={openReminders}
             >
                 {hasReminders ? i18n?.reminderConfigured || "Configured" : i18n?.notConfigured || "Not configured"}
             </button>
@@ -801,7 +834,7 @@
                             type="button"
                             class="b3-button"
                             disabled={operationBusy}
-                            on:click={handleRepeatPauseToggle}
+                            onclick={handleRepeatPauseToggle}
                             >{repeatStatus === "paused"
                                 ? i18n?.repeatResume || "Resume"
                                 : i18n?.repeatPause || "Pause"}</button
@@ -810,13 +843,13 @@
                             type="button"
                             class="b3-button"
                             disabled={operationBusy}
-                            on:click={handleRepeatSkip}>{i18n?.repeatSkipOccurrence || "Skip"}</button
+                            onclick={handleRepeatSkip}>{i18n?.repeatSkipOccurrence || "Skip"}</button
                         >{/if}
                     <button
                         type="button"
                         class="b3-button b3-button--text"
                         disabled={operationBusy}
-                        on:click={openRepeatSettings}>{i18n?.repeatConfigure || "Configure"}</button
+                        onclick={openRepeatSettings}>{i18n?.repeatConfigure || "Configure"}</button
                     >
                 {/if}
             </div>
@@ -929,7 +962,7 @@
             label={i18n?.depMode || "Dependency mode"}
             helpText={i18n?.depModeHint || "Unblock after all dependencies finish, or after any one finishes"}
         >
-            <select class="b3-select fn__block" bind:value={depMode} on:change={handleChange}
+            <select class="b3-select fn__block" bind:value={depMode} onchange={handleChange}
                 ><option value="all">{i18n?.depModeAll || "All must complete"}</option><option value="any"
                     >{i18n?.depModeAny || "Any can complete"}</option
                 ></select
@@ -960,7 +993,7 @@
             helpText={i18n?.reviewIntervalHint || "Schedule the next review this many days after each review"}
         >
             <div class="na-task-detail__review-control">
-                <select class="b3-select" bind:value={reviewIntervalMode} on:change={handleReviewIntervalChange}>
+                <select class="b3-select" bind:value={reviewIntervalMode} onchange={handleReviewIntervalChange}>
                     <option value="0">{i18n?.reviewIntervalNone || "None"}</option>
                     {#each [7, 14, 30, 60, 90] as days}<option value={String(days)}
                             >{days} {i18n?.days || "days"}</option
@@ -973,7 +1006,7 @@
                         min="1"
                         max="365"
                         bind:value={reviewIntervalCustom}
-                        on:change={handleReviewIntervalCustomChange}
+                        onchange={handleReviewIntervalCustomChange}
                     />{/if}
             </div>
         </NaPropertyRow>

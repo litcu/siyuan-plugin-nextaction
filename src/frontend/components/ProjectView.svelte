@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
     import { DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
@@ -56,55 +56,76 @@
     } from "../utils/project-view-state";
     import type { ProjectBoardMoveResult } from "../../shared/project-board-move";
 
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: I18nStrings;
-    export let selectedTaskId: string = "";
-    export let selectedTaskOverride: TaskCacheEntry | null = null;
-    export let requestedProjectId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onTaskUpdate:
-        ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined = undefined;
-    export let onTaskRename: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined = undefined;
-    export let onTaskReorder: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined =
-        undefined;
-    export let onProjectBoardMove:
-        ((intent: ProjectBoardMoveIntent, projectId: string) => Promise<ProjectBoardMoveResult>) | undefined =
-        undefined;
-    export let onCreateChild: ((task: TaskCacheEntry) => void) | undefined = undefined;
-    export let onCreateStage: ((project: TaskCacheEntry) => void) | undefined = undefined;
-    export let onMoveAction: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined = undefined;
-    export let loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
-    export let onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
-    export let projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
-    export let bridge:
-        | {
-              getProjectBoardPreferences: () => Promise<ProjectBoardPreferences>;
-              updateProjectBoardPreference: (
-                  projectId: string,
-                  preference: ProjectBoardPreference,
-              ) => Promise<ProjectBoardPreferences>;
-          }
-        | undefined = undefined;
+    interface Props {
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: I18nStrings;
+        selectedTaskId?: string;
+        selectedTaskOverride?: TaskCacheEntry | null;
+        requestedProjectId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+        onTaskUpdate?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
+        onTaskRename?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
+        onTaskReorder?: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined;
+        onProjectBoardMove?:
+            ((intent: ProjectBoardMoveIntent, projectId: string) => Promise<ProjectBoardMoveResult>) | undefined;
+        onCreateChild?: ((task: TaskCacheEntry) => void) | undefined;
+        onCreateStage?: ((project: TaskCacheEntry) => void) | undefined;
+        onMoveAction?: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined;
+        loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
+        onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
+        projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
+        bridge?:
+            | {
+                  getProjectBoardPreferences: () => Promise<ProjectBoardPreferences>;
+                  updateProjectBoardPreference: (
+                      projectId: string,
+                      preference: ProjectBoardPreference,
+                  ) => Promise<ProjectBoardPreferences>;
+              }
+            | undefined;
+    }
+
+    let {
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        i18n,
+        selectedTaskId = "",
+        selectedTaskOverride = null,
+        requestedProjectId = "",
+        onSelectTask = undefined,
+        onTaskUpdate = undefined,
+        onTaskRename = undefined,
+        onTaskReorder = undefined,
+        onProjectBoardMove = undefined,
+        onCreateChild = undefined,
+        onCreateStage = undefined,
+        onMoveAction = undefined,
+        loadProjectSupport,
+        onExtractAction,
+        projectDefinitionControllerRegistry,
+        bridge = undefined,
+    }: Props = $props();
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
-    let mode: ProjectViewMode = "overview";
-    let activeProjectId = "";
-    let appliedRequestedProjectId = "";
-    let appliedSelectedTaskId = selectedTaskId;
-    let requestedProjectFilterBypassId = "";
-    let preferActiveProject = false;
-    let collapsedByProject: Record<string, string[]> = {};
-    let collapsedIds: Set<string> = new Set();
-    let showCompleted = false;
-    let riskFilter: ProjectRiskFilter = "all";
-    let dateFilter: ProjectDateFilter = "all";
-    let actionFilter: ProjectActionFilter = "all";
-    let ganttSortMode: ProjectTreeSortMode = "timeline";
-    let riskItems: RiskItem[] = [];
-    let boardPreferences: ProjectBoardPreferences = createDefaultProjectBoardPreferences();
+    let mode: ProjectViewMode = $state("overview");
+    let activeProjectId = $state("");
+    let appliedRequestedProjectId = $state("");
+    let appliedSelectedTaskId = $state(untrack(() => selectedTaskId));
+    let requestedProjectFilterBypassId = $state("");
+    let preferActiveProject = $state(false);
+    let collapsedByProject: Record<string, string[]> = $state({});
+    let collapsedIds: Set<string> = $state(new Set());
+    let showCompleted = $state(false);
+    let riskFilter: ProjectRiskFilter = $state("all");
+    let dateFilter: ProjectDateFilter = $state("all");
+    let actionFilter: ProjectActionFilter = $state("all");
+    let ganttSortMode: ProjectTreeSortMode = $state("timeline");
+    let riskItems: RiskItem[] = $state([]);
+    let boardPreferences: ProjectBoardPreferences = $state(createDefaultProjectBoardPreferences());
     let boardPreferenceSaveQueue: Promise<unknown> = Promise.resolve();
     const dirtyBoardPreferenceProjects = new Set<string>();
 
@@ -123,20 +144,24 @@
             .catch((error) => console.warn("[NextAction] board preferences load failed:", error));
     });
 
-    $: if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
-        activeProjectId = requestedProjectId;
-        preferActiveProject = true;
-        requestedProjectFilterBypassId = requestedProjectId;
-        appliedRequestedProjectId = requestedProjectId;
-    }
+    $effect(() => {
+        if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
+            activeProjectId = requestedProjectId;
+            preferActiveProject = true;
+            requestedProjectFilterBypassId = requestedProjectId;
+            appliedRequestedProjectId = requestedProjectId;
+        }
+    });
 
-    $: if (selectedTaskId !== appliedSelectedTaskId) {
-        appliedSelectedTaskId = selectedTaskId;
-        preferActiveProject = false;
-    }
+    $effect(() => {
+        if (selectedTaskId !== appliedSelectedTaskId) {
+            appliedSelectedTaskId = selectedTaskId;
+            preferActiveProject = false;
+        }
+    });
 
-    $: filterState = $taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE;
-    $: viewState = {
+    let filterState = $derived($taskStore.filterByView[VIEW_BY_PROJECT] || DEFAULT_FILTER_STATE);
+    let viewState = $derived({
         mode,
         activeProjectId,
         filterBypassProjectId: requestedProjectFilterBypassId,
@@ -151,24 +176,28 @@
         collapsedByProject,
         ganttSortMode,
         startPreviewDays: $taskStore.settings.priorityEngine.startPreviewDays,
-    };
-    $: projectControl = buildProjectViewControl($taskStore.allTasks, viewState);
-    $: viewModel = buildProjectViewModel(projectControl, $taskStore.settings.customFields, viewState);
-    $: resolvedActiveProjectId = viewModel.activeProjectId;
-    $: summaries = viewModel.summaries;
-    $: visibleSummaries = viewModel.visibleSummaries;
-    $: selectedSummary = viewModel.selectedSummary;
-    $: selectedProject = viewModel.selectedProject;
-    $: riskItems = viewModel.riskItems;
-    $: projectTreeModel = viewModel.projectTreeModel;
-    $: collapsedIds = new Set(collapsedByProject[resolvedActiveProjectId] || []);
-    $: boardTasks = viewModel.boardTasks;
-    $: planGroups = viewModel.planGroups;
-    $: activeProjectsCount = viewModel.metrics.activeProjects;
-    $: attentionCount = viewModel.metrics.attention;
-    $: overdueCount = viewModel.metrics.overdue;
-    $: dueSoonCount = viewModel.metrics.dueSoon;
-    $: noActionCount = viewModel.metrics.noAction;
+    });
+    let projectControl = $derived(buildProjectViewControl($taskStore.allTasks, viewState));
+    let viewModel = $derived(buildProjectViewModel(projectControl, $taskStore.settings.customFields, viewState));
+    let resolvedActiveProjectId = $derived(viewModel.activeProjectId);
+    let summaries = $derived(viewModel.summaries);
+    let visibleSummaries = $derived(viewModel.visibleSummaries);
+    let selectedSummary = $derived(viewModel.selectedSummary);
+    let selectedProject = $derived(viewModel.selectedProject);
+    $effect(() => {
+        riskItems = viewModel.riskItems;
+    });
+    let projectTreeModel = $derived(viewModel.projectTreeModel);
+    $effect(() => {
+        collapsedIds = new Set(collapsedByProject[resolvedActiveProjectId] || []);
+    });
+    let boardTasks = $derived(viewModel.boardTasks);
+    let planGroups = $derived(viewModel.planGroups);
+    let activeProjectsCount = $derived(viewModel.metrics.activeProjects);
+    let attentionCount = $derived(viewModel.metrics.attention);
+    let overdueCount = $derived(viewModel.metrics.overdue);
+    let dueSoonCount = $derived(viewModel.metrics.dueSoon);
+    let noActionCount = $derived(viewModel.metrics.noAction);
 
     function statusLabel(status: string): string {
         return translateKey(i18n, statusI18nKey(status), status);
@@ -375,7 +404,7 @@
                         type="button"
                         class="na-project-index__item"
                         class:active={summary.project.blockId === resolvedActiveProjectId}
-                        on:click={() => selectProject(summary)}
+                        onclick={() => selectProject(summary)}
                     >
                         <span class="na-project-index__item-accent na-project-index__item-accent--{summary.health}"
                         ></span>
@@ -542,7 +571,7 @@
                     <button
                         type="button"
                         class="na-project-risk-rail__item"
-                        on:click={() => {
+                        onclick={() => {
                             activeProjectId = item.summary.project.blockId;
                             onSelectTask?.(item.risk.target);
                         }}
@@ -607,7 +636,7 @@
         overflow: hidden;
         background: var(--b3-theme-background);
     }
-    :global(.na-toolbar__main):has(> .na-toolbar__actions-content) {
+    :global(.na-toolbar__main):has(:global(> .na-toolbar__actions-content)) {
         flex-wrap: wrap;
     }
     .na-toolbar__actions-content {

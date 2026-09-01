@@ -4,20 +4,39 @@
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
 
-    export let i18n: I18nStrings;
-    export let dueWeight: number;
-    export let startWeight: number;
-    export let importanceWeight: number;
-    export let dueDecayTau: number;
-    export let overdueGrowth: number;
-    export let overdueCap: number;
-    export let startHorizon: number;
-    export let effortScale: number;
-    export let startPreviewDays: number;
-    export let weightSum: number;
-    export let rebuilding = false;
-    export let onResetPriority: () => void;
-    export let onRebuildCache: () => void;
+    interface Props {
+        i18n: I18nStrings;
+        dueWeight: number;
+        startWeight: number;
+        importanceWeight: number;
+        dueDecayTau: number;
+        overdueGrowth: number;
+        overdueCap: number;
+        startHorizon: number;
+        effortScale: number;
+        startPreviewDays: number;
+        weightSum: number;
+        rebuilding?: boolean;
+        onResetPriority: () => void;
+        onRebuildCache: () => void;
+    }
+
+    let {
+        i18n,
+        dueWeight = $bindable(),
+        startWeight = $bindable(),
+        importanceWeight = $bindable(),
+        dueDecayTau = $bindable(),
+        overdueGrowth = $bindable(),
+        overdueCap = $bindable(),
+        startHorizon = $bindable(),
+        effortScale = $bindable(),
+        startPreviewDays = $bindable(),
+        weightSum,
+        rebuilding = false,
+        onResetPriority,
+        onRebuildCache,
+    }: Props = $props();
 </script>
 
 <div class="na-page-stack na-settings-advanced">
@@ -172,7 +191,7 @@
                         >{i18n?.rebuildCacheDesc || "Reload all task data from the database"}</span
                     >
                 </div>
-                <button type="button" class="b3-button" on:click={onRebuildCache} disabled={rebuilding}
+                <button type="button" class="b3-button" onclick={onRebuildCache} disabled={rebuilding}
                     >{rebuilding ? "…" : i18n?.run || "Run"}</button
                 >
             </div>

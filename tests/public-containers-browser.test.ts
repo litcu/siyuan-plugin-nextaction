@@ -68,10 +68,10 @@ function handleDialogClose() {
     <p id="drawer-content">Drawer body</p>
 </NaDrawerHost>`,
             "main.js": `import Harness from "./Harness.svelte";
-import { tick } from "svelte";
+import { mount, tick } from "svelte";
 
 void (async () => {
-new Harness({ target: document.querySelector("#app") });
+mount(Harness, { target: document.querySelector("#app") });
 await tick();
 const initialAccordionContent = Boolean(document.querySelector("#accordion-content"));
 document.querySelector(".na-accordion__trigger").click();

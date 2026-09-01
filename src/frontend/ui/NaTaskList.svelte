@@ -1,10 +1,19 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
 
-    export let density: "regular" | "compact" = "regular";
-    export let nested = false;
-    export let element: HTMLElement | null = null;
-    export let children: Snippet;
+    interface Props {
+        density?: "regular" | "compact";
+        nested?: boolean;
+        element?: HTMLElement | null;
+        children: Snippet;
+    }
+
+    let {
+        density = "regular",
+        nested = false,
+        element = $bindable<HTMLElement | null>(null),
+        children,
+    }: Props = $props();
 </script>
 
 <div

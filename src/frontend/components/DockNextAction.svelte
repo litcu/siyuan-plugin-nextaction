@@ -8,25 +8,33 @@
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
 
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
+    interface Props {
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+    }
 
-    let searchText = "";
+    let { onEdit, onStatusClick, onContextMenu, i18n }: Props = $props();
 
-    $: nextActionTasks = $taskStore.allTasks.filter((t) =>
-        isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays),
+    let searchText = $state("");
+
+    let nextActionTasks = $derived(
+        $taskStore.allTasks.filter((t) =>
+            isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays),
+        ),
     );
 
-    $: filteredTasks = searchText.trim()
-        ? nextActionTasks.filter((t) => {
-              const q = searchText.toLowerCase();
-              if (t.title.toLowerCase().includes(q)) return true;
-              if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
-              return false;
-          })
-        : nextActionTasks;
+    let filteredTasks = $derived(
+        searchText.trim()
+            ? nextActionTasks.filter((t) => {
+                  const q = searchText.toLowerCase();
+                  if (t.title.toLowerCase().includes(q)) return true;
+                  if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
+                  return false;
+              })
+            : nextActionTasks,
+    );
 </script>
 
 <NaViewShell

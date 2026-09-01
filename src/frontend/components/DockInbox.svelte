@@ -8,24 +8,30 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
 
-    export let bridge: KernelBridge;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
+    interface Props {
+        bridge: KernelBridge;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+    }
 
-    let searchText = "";
+    let { bridge, onEdit, onStatusClick, onContextMenu, i18n }: Props = $props();
 
-    $: inboxTasks = $taskStore.allTasks.filter((t) => t.status === "inbox");
+    let searchText = $state("");
 
-    $: filteredTasks = searchText.trim()
-        ? inboxTasks.filter((t) => {
-              const q = searchText.toLowerCase();
-              if (t.title.toLowerCase().includes(q)) return true;
-              if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
-              return false;
-          })
-        : inboxTasks;
+    let inboxTasks = $derived($taskStore.allTasks.filter((t) => t.status === "inbox"));
+
+    let filteredTasks = $derived(
+        searchText.trim()
+            ? inboxTasks.filter((t) => {
+                  const q = searchText.toLowerCase();
+                  if (t.title.toLowerCase().includes(q)) return true;
+                  if (t.tags && t.tags.replace(/\|/g, ", ").toLowerCase().includes(q)) return true;
+                  return false;
+              })
+            : inboxTasks,
+    );
 
     async function handleClarify(task: TaskCacheEntry) {
         try {

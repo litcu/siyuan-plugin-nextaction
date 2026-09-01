@@ -75,7 +75,7 @@ test("任务草稿显式声明响应式字段依赖", () => {
         /function buildDraft\(\): TaskDetailDraft \{[\s\S]*status,[\s\S]*customFieldValues,[\s\S]*\};/,
     );
     assert.match(stateController, /dirtyFieldsFor\(this\.state\.draft, this\.state\.baseline\)/);
-    assert.match(detail, /\$:\s*dateError\s*=\s*getDateError\(start, due\)/);
+    assert.match(detail, /dateError = \$derived\(getDateError\(start, due\)\)/);
 });
 
 test("全部既有任务属性进入统一保存载荷", () => {
@@ -110,7 +110,7 @@ test("任务类型与标签保持同行，极窄视口再由公共属性行换�
 test("行动类型仅在项目祖先链内显示，离开项目时恢复为普通 Action", () => {
     assert.match(
         detail,
-        /\$: hasProjectScope = !isProject && Boolean\(\$projectMembershipGraph\.node\(parentId\)\?\.projectId\)/,
+        /hasProjectScope = \$derived\(!isProject && Boolean\(\$projectMembershipGraph\.node\(parentId\)\?\.projectId\)\)/,
     );
     assert.match(detail, /\{#if hasProjectScope\}[\s\S]*?label=\{i18n\?\.actionKind[\s\S]*?<NaSegmentControl/);
     assert.match(
@@ -124,7 +124,7 @@ test("行动类型仅在项目祖先链内显示，离开项目时恢复为普�
 });
 
 test("任务关系提供只读子任务并保留依赖编辑", () => {
-    assert.match(detail, /childTasks = allTasks[\s\S]*entry\.parentId === task\.blockId/);
+    assert.match(detail, /childTasks = \$derived\([\s\S]*allTasks[\s\S]*entry\.parentId === task\.blockId/);
     assert.match(detail, /<NaTaskLinkList\s+items=\{childTasks\}/);
     assert.match(detail, /<NaSearchSelect\s+multi=\{true\}\s+bind:selected=\{depends\}/);
     assert.match(detail, /bind:value=\{depMode\}/);

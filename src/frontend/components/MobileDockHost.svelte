@@ -6,11 +6,15 @@
     import type { KernelBridge } from "../kernel-bridge";
     import type { I18nStrings } from "../../shared/i18n";
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+    }
+
+    let { bridge, i18n }: Props = $props();
 
     type MobileDockMode = "sidebar" | "full";
-    let mode: MobileDockMode = "sidebar";
+    let mode: MobileDockMode = $state("sidebar");
 
     function openFullPanel(): void {
         mode = "full";

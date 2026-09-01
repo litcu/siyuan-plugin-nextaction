@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, tick } from "svelte";
+    import { onDestroy, tick, untrack } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import { ATTR_DOD, ATTR_OUTCOME } from "../../../shared/constants";
@@ -16,20 +16,23 @@
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaPropertyRow from "../../ui/NaPropertyRow.svelte";
 
-    export let project: TaskCacheEntry;
-    export let i18n: I18nStrings;
-    export let controllerRegistry: ProjectDefinitionControllerRegistry;
-    export let onSave: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined =
-        undefined;
+    interface Props {
+        project: TaskCacheEntry;
+        i18n: I18nStrings;
+        controllerRegistry: ProjectDefinitionControllerRegistry;
+        onSave?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
+    }
+
+    let { project, i18n, controllerRegistry, onSave = undefined }: Props = $props();
 
     const fields: ProjectDefinitionField[] = ["outcome", "dod"];
     const attrByField = { outcome: ATTR_OUTCOME, dod: ATTR_DOD } as const;
-    const fieldInputs: Partial<Record<ProjectDefinitionField, HTMLInputElement | HTMLTextAreaElement>> = {};
+    const fieldInputs: Partial<Record<ProjectDefinitionField, HTMLInputElement | HTMLTextAreaElement>> = $state({});
 
-    let activeProjectId = project.blockId;
-    let controller = controllerFor(project);
-    let snapshot: ProjectDefinitionSnapshot = controller.snapshot;
-    let unsubscribe = controller.subscribe((next) => (snapshot = next));
+    let activeProjectId = $state(untrack(() => project.blockId));
+    let controller = $state(untrack(() => controllerFor(project)));
+    let snapshot = $state<ProjectDefinitionSnapshot>(untrack(() => controller.snapshot));
+    let unsubscribe = $state(untrack(() => controller.subscribe((next) => (snapshot = next))));
 
     function valuesFromTask(task: TaskCacheEntry): ProjectDefinitionValues {
         return { outcome: task.outcome || "", dod: task.dod || "" };
@@ -79,20 +82,24 @@
         }
     }
 
-    $: if (project.blockId !== activeProjectId) {
-        activeProjectId = project.blockId;
-        unsubscribe();
-        controller = controllerFor(project);
-        unsubscribe = controller.subscribe((next) => (snapshot = next));
-    }
+    $effect(() => {
+        if (project.blockId !== activeProjectId) {
+            activeProjectId = project.blockId;
+            unsubscribe();
+            controller = controllerFor(project);
+            unsubscribe = controller.subscribe((next) => (snapshot = next));
+        }
+    });
 
-    $: if (project.blockId === activeProjectId) {
-        controller.rebind(controllerOptions(project));
-        controller.sync(valuesFromTask(project));
-    }
+    $effect(() => {
+        if (project.blockId === activeProjectId) {
+            controller.rebind(controllerOptions(project));
+            controller.sync(valuesFromTask(project));
+        }
+    });
     onDestroy(() => unsubscribe());
-    $: anySaving = fields.some((field) => snapshot[field].saveState === "saving");
-    $: presentationByField = {
+    let anySaving = $derived(fields.some((field) => snapshot[field].saveState === "saving"));
+    let presentationByField = $derived({
         outcome: {
             label: i18n?.outcome || "Outcome",
             description: i18n?.outcomeHint || "The result this project is meant to create",
@@ -103,7 +110,7 @@
             description: i18n?.dodHint || "Conditions to check before confirming completion",
             placeholder: i18n?.dodPlaceholder || "Describe the conditions that mean the outcome is achieved",
         },
-    };
+    });
 </script>
 
 <section class="na-project-definition" aria-labelledby="na-project-definition-title">
@@ -140,7 +147,7 @@
                         placeholder={presentation.placeholder}
                         disabled={!onSave || anySaving}
                         aria-describedby={`${fieldId}-feedback`}
-                        on:input={(event) => edit(field, event)}
+                        oninput={(event) => edit(field, event)}
                     />
                 {:else}
                     <textarea
@@ -152,7 +159,7 @@
                         placeholder={presentation.placeholder}
                         disabled={!onSave || anySaving}
                         aria-describedby={`${fieldId}-feedback`}
-                        on:input={(event) => edit(field, event)}
+                        oninput={(event) => edit(field, event)}
                     ></textarea>
                 {/if}
             </NaPropertyRow>

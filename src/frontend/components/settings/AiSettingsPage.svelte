@@ -4,15 +4,19 @@
     import NaAccordion from "../../ui/NaAccordion.svelte";
     import NaIcon from "../../ui/NaIcon.svelte";
 
-    export let i18n: I18nStrings;
-    export let aiPrompts: Record<AiFeatureId, string>;
-    export let defaultPrompts: Record<AiFeatureId, string>;
-    export let getRuntimePreview: (feature: AiFeatureId) => { input: string; schema: string; example: string };
-    export let onResetPrompt: (feature: AiFeatureId) => void;
+    interface Props {
+        i18n: I18nStrings;
+        aiPrompts: Record<AiFeatureId, string>;
+        defaultPrompts: Record<AiFeatureId, string>;
+        getRuntimePreview: (feature: AiFeatureId) => { input: string; schema: string; example: string };
+        onResetPrompt: (feature: AiFeatureId) => void;
+    }
+
+    let { i18n, aiPrompts = $bindable(), defaultPrompts, getRuntimePreview, onResetPrompt }: Props = $props();
 
     let openFeatures: AiFeatureId[] = ["extractTasks"];
 
-    $: features = [
+    let features = $derived([
         {
             id: "extractTasks" as const,
             label: i18n?.settingAiPromptExtractTasks || "Extract tasks from notes",
@@ -35,7 +39,7 @@
             label: i18n?.settingAiPromptReview || "Smart review",
             description: i18n?.settingAiPromptReviewDesc || "Analyze GTD review groups and suggest follow-up actions.",
         },
-    ];
+    ]);
 
     const variableGroups = [
         { id: "runtime", names: ["{{today}}", "{{currentDateTime}}", "{{timezone}}", "{{feature}}"] },
@@ -133,7 +137,7 @@
                         maxlength="12000"
                         value={aiPrompts[feature.id]}
                         placeholder={defaultPrompts[feature.id]}
-                        on:input={(event) => updatePrompt(feature.id, event.currentTarget.value)}
+                        oninput={(event) => updatePrompt(feature.id, event.currentTarget.value)}
                     ></textarea>
                     <div class="na-settings-ai__footer">
                         <span
@@ -144,7 +148,7 @@
                         <button
                             type="button"
                             class="b3-button b3-button--text"
-                            on:click={() => onResetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button
+                            onclick={() => onResetPrompt(feature.id)}>{i18n?.settingAiPromptReset || "Reset"}</button
                         >
                     </div>
                     <details class="na-settings-ai__runtime">

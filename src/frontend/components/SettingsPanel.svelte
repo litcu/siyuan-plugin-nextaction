@@ -32,10 +32,14 @@
     import McpSettingsPage from "./settings/McpSettingsPage.svelte";
     import AdvancedSettingsPage from "./settings/AdvancedSettingsPage.svelte";
 
-    export let bridge: KernelBridge;
-    export let i18n: I18nStrings;
-    export let onSave: (settings: PluginSettings) => void | Promise<void>;
-    export let onClose: () => void;
+    interface Props {
+        bridge: KernelBridge;
+        i18n: I18nStrings;
+        onSave: (settings: PluginSettings) => void | Promise<void>;
+        onClose: () => void;
+    }
+
+    let { bridge, i18n, onSave, onClose }: Props = $props();
 
     type ModernTabId = SettingsPage;
     type DocumentSelection = {
@@ -48,96 +52,59 @@
     };
 
     let current: PluginSettings = { ...DEFAULT_SETTINGS };
-    let saving = false;
-    let rebuilding = false;
-    let error = "";
-    let modernTab: ModernTabId = "general";
-    let settingsRootEl: HTMLDivElement;
-    let settingsBodyEl: HTMLDivElement;
-    let settingsLoaded = false;
-    let isDirty = false;
+    let saving = $state(false);
+    let rebuilding = $state(false);
+    let error = $state("");
+    let modernTab: ModernTabId = $state("general");
+    let settingsRootEl: HTMLDivElement | undefined = $state();
+    let settingsBodyEl: HTMLDivElement | undefined = $state();
+    let settingsLoaded = $state(false);
+    let isDirty = $state(false);
 
-    $: modernTabs = [
-        {
-            id: "general" as const,
-            label: i18n?.settingGeneral || "General",
-            desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders",
-            icon: "iconSettings",
-            group: i18n?.settingNavGroupTask || "Workspace",
-        },
-        {
-            id: "customFields" as const,
-            label: i18n?.settingCustomFields || "Custom fields",
-            desc: i18n?.settingCustomFieldsDesc || "Extend task attributes",
-            icon: "iconDatabase",
-            group: i18n?.settingNavGroupTask || "Workspace",
-        },
-        {
-            id: "ai" as const,
-            label: i18n?.settingAi || "AI features",
-            desc: i18n?.settingAiDesc || "Customize prompts used by AI features",
-            icon: "iconSparkles",
-            group: i18n?.settingNavGroupIntegration || "Integrations",
-        },
-        {
-            id: "mcp" as const,
-            label: i18n?.settingMcp || "MCP",
-            desc: i18n?.settingMcpDesc || "Expose task tools to AI clients",
-            icon: "iconCloud",
-            group: i18n?.settingNavGroupIntegration || "Integrations",
-        },
-        {
-            id: "advanced" as const,
-            label: i18n?.settingAdvanced || "Advanced",
-            desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance",
-            icon: "iconSort",
-            group: i18n?.settingNavGroupSystem || "System",
-        },
-    ];
+    let defaultImportance = $state(DEFAULT_SETTINGS.defaultImportance);
+    let defaultEffort = $state(DEFAULT_SETTINGS.defaultEffort);
+    let semanticDateParsingEnabled = $state(DEFAULT_SETTINGS.semanticDateParsingEnabled);
+    let myDayResetHour = $state(DEFAULT_SETTINGS.myDayResetHour);
+    let myDayDefaultViewMode: MyDayViewMode = $state(DEFAULT_SETTINGS.myDayDefaultViewMode);
+    let myDayDefaultDuration = $state(DEFAULT_SETTINGS.myDayDefaultDuration);
 
-    let defaultImportance = DEFAULT_SETTINGS.defaultImportance;
-    let defaultEffort = DEFAULT_SETTINGS.defaultEffort;
-    let semanticDateParsingEnabled = DEFAULT_SETTINGS.semanticDateParsingEnabled;
-    let myDayResetHour = DEFAULT_SETTINGS.myDayResetHour;
-    let myDayDefaultViewMode: MyDayViewMode = DEFAULT_SETTINGS.myDayDefaultViewMode;
-    let myDayDefaultDuration = DEFAULT_SETTINGS.myDayDefaultDuration;
+    let dueWeight = $state(DEFAULT_PRIORITY_ENGINE.dueWeight);
+    let startWeight = $state(DEFAULT_PRIORITY_ENGINE.startWeight);
+    let importanceWeight = $state(DEFAULT_PRIORITY_ENGINE.importanceWeight);
+    let dueDecayTau = $state(DEFAULT_PRIORITY_ENGINE.dueDecayTau);
+    let overdueGrowth = $state(DEFAULT_PRIORITY_ENGINE.overdueGrowth);
+    let overdueCap = $state(DEFAULT_PRIORITY_ENGINE.overdueCap);
+    let startHorizon = $state(DEFAULT_PRIORITY_ENGINE.startHorizon);
+    let effortScale = $state(DEFAULT_PRIORITY_ENGINE.effortScale);
+    let startPreviewDays = $state(DEFAULT_PRIORITY_ENGINE.startPreviewDays);
 
-    let dueWeight = DEFAULT_PRIORITY_ENGINE.dueWeight;
-    let startWeight = DEFAULT_PRIORITY_ENGINE.startWeight;
-    let importanceWeight = DEFAULT_PRIORITY_ENGINE.importanceWeight;
-    let dueDecayTau = DEFAULT_PRIORITY_ENGINE.dueDecayTau;
-    let overdueGrowth = DEFAULT_PRIORITY_ENGINE.overdueGrowth;
-    let overdueCap = DEFAULT_PRIORITY_ENGINE.overdueCap;
-    let startHorizon = DEFAULT_PRIORITY_ENGINE.startHorizon;
-    let effortScale = DEFAULT_PRIORITY_ENGINE.effortScale;
-    let startPreviewDays = DEFAULT_PRIORITY_ENGINE.startPreviewDays;
+    let reminderEnabled = $state(DEFAULT_REMINDER_SETTINGS.enabled);
+    let reminderDefaultOffsets = $state([...DEFAULT_REMINDER_SETTINGS.defaultOffsets]);
+    let reminderDueSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.dueSound);
+    let reminderReviewSound: ReminderSoundId = $state(DEFAULT_REMINDER_SETTINGS.reviewSound);
+    let reminderSoundEnabled = $state(DEFAULT_REMINDER_SETTINGS.soundEnabled);
+    let newOffsetValue = $state(60);
+    let newOffsetUnit: "minutes" | "hours" | "days" = $state("minutes");
 
-    let reminderEnabled = DEFAULT_REMINDER_SETTINGS.enabled;
-    let reminderDefaultOffsets = [...DEFAULT_REMINDER_SETTINGS.defaultOffsets];
-    let reminderDueSound: ReminderSoundId = DEFAULT_REMINDER_SETTINGS.dueSound;
-    let reminderReviewSound: ReminderSoundId = DEFAULT_REMINDER_SETTINGS.reviewSound;
-    let reminderSoundEnabled = DEFAULT_REMINDER_SETTINGS.soundEnabled;
-    let newOffsetValue = 60;
-    let newOffsetUnit: "minutes" | "hours" | "days" = "minutes";
-
-    let mcpEnabled = DEFAULT_MCP_SETTINGS.enabled;
-    let mcpAllowWrite = DEFAULT_MCP_SETTINGS.allowWrite;
-    let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget =
-        DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget;
-    let taskCreationInboxDocumentId = DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId;
-    let taskCreationInboxDocument: DocumentSelection | null = null;
-    let taskCreationDailyNoteNotebookId = DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId;
-    let mcpStatus: RpcMcpStatus | null = null;
-    let mcpNotebooks: Array<{ id: string; name: string; icon: string }> = [];
-    let mcpCopied = false;
+    let mcpEnabled = $state(DEFAULT_MCP_SETTINGS.enabled);
+    let mcpAllowWrite = $state(DEFAULT_MCP_SETTINGS.allowWrite);
+    let taskCreationDefaultCreateTarget: CreateTaskDefaultTarget = $state(
+        DEFAULT_SETTINGS.taskCreationSettings.defaultCreateTarget,
+    );
+    let taskCreationInboxDocumentId = $state(DEFAULT_SETTINGS.taskCreationSettings.inboxDocumentId);
+    let taskCreationInboxDocument: DocumentSelection | null = $state(null);
+    let taskCreationDailyNoteNotebookId = $state(DEFAULT_SETTINGS.taskCreationSettings.dailyNoteNotebookId);
+    let mcpStatus: RpcMcpStatus | null = $state(null);
+    let mcpNotebooks: Array<{ id: string; name: string; icon: string }> = $state([]);
+    let mcpCopied = $state(false);
     // SiYuan's desktop kernel listens on a random internal port and proxies
     // the first workspace through the stable external service port 6806.
     const mcpEndpoint = "http://127.0.0.1:6806/mcp";
 
-    let aiPrompts: Record<AiFeatureId, string> = { ...DEFAULT_AI_SETTINGS.prompts };
-    let customFields: CustomFieldDef[] = [];
-    let customFieldUsage: Record<string, number> = {};
-    let purgingFieldId = "";
+    let aiPrompts: Record<AiFeatureId, string> = $state({ ...DEFAULT_AI_SETTINGS.prompts });
+    let customFields: CustomFieldDef[] = $state([]);
+    let customFieldUsage: Record<string, number> = $state({});
+    let purgingFieldId = $state("");
 
     const controller = new SettingsPanelController({
         formatError: (error) => formatOperationError(error, i18n),
@@ -154,41 +121,6 @@
         modernTab = state.page;
         settingsLoaded = state.loadState === "loaded";
         isDirty = state.dirty;
-    }
-
-    $: weightSum = Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100;
-    $: draftRevision = [
-        defaultImportance,
-        defaultEffort,
-        semanticDateParsingEnabled,
-        dueWeight,
-        startWeight,
-        importanceWeight,
-        dueDecayTau,
-        overdueGrowth,
-        overdueCap,
-        startHorizon,
-        effortScale,
-        startPreviewDays,
-        myDayResetHour,
-        myDayDefaultViewMode,
-        myDayDefaultDuration,
-        reminderEnabled,
-        reminderDefaultOffsets,
-        reminderDueSound,
-        reminderReviewSound,
-        reminderSoundEnabled,
-        mcpEnabled,
-        mcpAllowWrite,
-        taskCreationDefaultCreateTarget,
-        taskCreationInboxDocumentId,
-        taskCreationDailyNoteNotebookId,
-        aiPrompts,
-        customFields,
-    ];
-    $: if (settingsLoaded && draftRevision) {
-        controller.edit(buildSettings());
-        syncControllerState();
     }
 
     function applySettings(settings: PluginSettings) {
@@ -688,9 +620,82 @@
         if (unit === "days") return i18n?.reminderOffsetDays || "days";
         return i18n?.reminderOffsetMinutes || "minutes";
     }
+    let modernTabs = $derived([
+        {
+            id: "general" as const,
+            label: i18n?.settingGeneral || "General",
+            desc: i18n?.settingGeneralDesc || "Task creation, defaults, My Day and reminders",
+            icon: "iconSettings",
+            group: i18n?.settingNavGroupTask || "Workspace",
+        },
+        {
+            id: "customFields" as const,
+            label: i18n?.settingCustomFields || "Custom fields",
+            desc: i18n?.settingCustomFieldsDesc || "Extend task attributes",
+            icon: "iconDatabase",
+            group: i18n?.settingNavGroupTask || "Workspace",
+        },
+        {
+            id: "ai" as const,
+            label: i18n?.settingAi || "AI features",
+            desc: i18n?.settingAiDesc || "Customize prompts used by AI features",
+            icon: "iconSparkles",
+            group: i18n?.settingNavGroupIntegration || "Integrations",
+        },
+        {
+            id: "mcp" as const,
+            label: i18n?.settingMcp || "MCP",
+            desc: i18n?.settingMcpDesc || "Expose task tools to AI clients",
+            icon: "iconCloud",
+            group: i18n?.settingNavGroupIntegration || "Integrations",
+        },
+        {
+            id: "advanced" as const,
+            label: i18n?.settingAdvanced || "Advanced",
+            desc: i18n?.settingAdvancedDesc || "Priority engine and maintenance",
+            icon: "iconSort",
+            group: i18n?.settingNavGroupSystem || "System",
+        },
+    ]);
+    let weightSum = $derived(Math.round((dueWeight + startWeight + importanceWeight) * 100) / 100);
+    let draftRevision = $derived([
+        defaultImportance,
+        defaultEffort,
+        semanticDateParsingEnabled,
+        dueWeight,
+        startWeight,
+        importanceWeight,
+        dueDecayTau,
+        overdueGrowth,
+        overdueCap,
+        startHorizon,
+        effortScale,
+        startPreviewDays,
+        myDayResetHour,
+        myDayDefaultViewMode,
+        myDayDefaultDuration,
+        reminderEnabled,
+        reminderDefaultOffsets,
+        reminderDueSound,
+        reminderReviewSound,
+        reminderSoundEnabled,
+        mcpEnabled,
+        mcpAllowWrite,
+        taskCreationDefaultCreateTarget,
+        taskCreationInboxDocumentId,
+        taskCreationDailyNoteNotebookId,
+        aiPrompts,
+        customFields,
+    ]);
+    $effect(() => {
+        if (settingsLoaded && draftRevision) {
+            controller.edit(buildSettings());
+            syncControllerState();
+        }
+    });
 </script>
 
-<svelte:window on:keydown|capture={handleWindowKeydown} />
+<svelte:window onkeydowncapture={handleWindowKeydown} />
 
 <div class="na-settings-modern" bind:this={settingsRootEl}>
     <aside class="na-settings-modern__nav" aria-label={i18n?.settingsTitle || "Settings"}>
@@ -706,7 +711,7 @@
                         type="button"
                         class:active={modernTab === tab.id}
                         class="na-settings-modern__nav-item b3-tooltips b3-tooltips__e"
-                        on:click={() => selectModernTab(tab.id)}
+                        onclick={() => selectModernTab(tab.id)}
                         aria-label={tab.label}
                         aria-current={modernTab === tab.id ? "page" : undefined}
                     >
@@ -716,7 +721,7 @@
                 {/each}
             </div>
         {/each}
-        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" on:click={handleResetAll}>
+        <button type="button" class="b3-button b3-button--text na-settings-modern__reset-all" onclick={handleResetAll}>
             <NaIcon symbol="iconRefresh" size={16} />
             <span>{i18n?.settingResetAll || "Reset all settings"}</span>
         </button>
@@ -733,7 +738,7 @@
                     <button
                         type="button"
                         class="b3-button b3-button--text na-settings-modern__close b3-tooltips b3-tooltips__n"
-                        on:click={requestClose}
+                        onclick={requestClose}
                         aria-label={i18n?.cancel || "Close"}
                     >
                         <NaIcon symbol="iconCloseRound" size={18} />
@@ -830,13 +835,13 @@
                 <span></span>{i18n?.settingsUnsaved || "Unsaved changes"}
             </div>
             <div class="na-settings-modern__footer-actions">
-                <button type="button" class="b3-button b3-button--text" on:click={requestClose}
+                <button type="button" class="b3-button b3-button--text" onclick={requestClose}
                     >{i18n?.cancel || "Cancel"}</button
                 >
                 <button
                     type="button"
                     class="b3-button b3-button--primary"
-                    on:click={handleSave}
+                    onclick={handleSave}
                     disabled={saving || !settingsLoaded || !isDirty}
                     >{saving ? i18n?.loading || "…" : i18n?.save || "Save"}</button
                 >

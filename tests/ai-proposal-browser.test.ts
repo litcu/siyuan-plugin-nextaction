@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
 type AiProposalBrowserResult = {
+    viewportWidth: number;
     beforeConfirm: number;
     titleInputFound: boolean;
     disabledWithEmptyTitle: boolean;
@@ -18,6 +19,7 @@ type AiProposalBrowserResult = {
 test("AI Action 预览支持编辑与选择，确认前不写入", async () => {
     const result = await runSvelteBrowserTest<AiProposalBrowserResult>({
         fixtureName: "ai-proposal",
+        browserArgs: ["--window-size=390,844"],
         prepareFixture(fixtureRoot) {
             const componentPath = resolve("src/frontend/components/AiProposalDialog.svelte").replace(/\\/g, "/");
             writeFileSync(
@@ -84,7 +86,8 @@ const bridge = {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
     const result = document.createElement("pre");
     result.id = "browser-result";
@@ -117,6 +120,7 @@ setTimeout(() => {
                 [...document.querySelectorAll("button")].find((button) => button.textContent.trim() === "Retry failed")?.click();
                 setTimeout(() => {
                     finish({
+                        viewportWidth: window.innerWidth,
                         beforeConfirm,
                         titleInputFound: Boolean(title),
                         disabledWithEmptyTitle,
@@ -134,6 +138,7 @@ setTimeout(() => {
             );
         },
     });
+    assert.ok(result.viewportWidth >= 390 && result.viewportWidth <= 500);
     assert.equal(result.beforeConfirm, 0);
     assert.equal(result.titleInputFound, true);
     assert.equal(result.disabledWithEmptyTitle, true);

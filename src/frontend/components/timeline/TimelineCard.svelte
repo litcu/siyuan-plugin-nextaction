@@ -14,17 +14,33 @@
     import { taskStore } from "../../stores/task-store";
     import { isMyDayEntryDone } from "../../../shared/my-day";
 
-    export let entry: MyDayTaskEntry;
-    export let task: TaskCacheEntry;
-    export let resetHour: number = 5;
-    export let laneIndex: number = 0;
-    export let laneCount: number = 1;
-    export let containerWidth: number = 0;
-    export let leftOffset: number = 48;
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let taskMap: Map<string, TaskCacheEntry>;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    interface Props {
+        entry: MyDayTaskEntry;
+        task: TaskCacheEntry;
+        resetHour?: number;
+        laneIndex?: number;
+        laneCount?: number;
+        containerWidth?: number;
+        leftOffset?: number;
+        bridge: KernelBridge;
+        i18n: any;
+        taskMap: Map<string, TaskCacheEntry>;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+    }
+
+    let {
+        entry,
+        task,
+        resetHour = 5,
+        laneIndex = 0,
+        laneCount = 1,
+        containerWidth = 0,
+        leftOffset = 48,
+        bridge,
+        i18n,
+        taskMap,
+        onContextMenu,
+    }: Props = $props();
 
     type DragMode = "none" | "move" | "resize-start" | "resize-end";
 
@@ -33,29 +49,29 @@
     let originClientY: number = 0;
     let originStart: number = 0;
     let originEnd: number = 0;
-    let previewStart: number = 0;
-    let previewEnd: number = 0;
+    let previewStart: number = $state(0);
+    let previewEnd: number = $state(0);
     let originClientX: number = 0;
-    let previewOffsetX: number = 0;
-    let isDragging: boolean = false;
+    let previewOffsetX: number = $state(0);
+    let isDragging: boolean = $state(false);
 
-    $: duration = (entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0);
-    $: cardTop = minuteToPixel(entry.scheduleStart ?? 0);
-    $: cardHeight = minuteToPixel(duration);
-    $: cardWidth = laneCount > 0 ? containerWidth / laneCount - 4 : containerWidth;
-    $: cardLeft = leftOffset + laneIndex * (containerWidth / laneCount);
-    $: timeLabel = minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour);
-    $: endTimeLabel = minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour);
-    $: displayPriority = normalizePriority(task.priority);
-    $: priorityColor = PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)";
-    $: priorityClass = `na-timeline-card--priority-${displayPriority}`;
-    $: parentTitle = task.parentId ? (taskMap.get(task.parentId)?.title ?? "") : "";
-    $: tags = task.tags ? task.tags.split("|").filter(Boolean) : [];
-    $: isDone = isMyDayEntryDone(entry, task.status);
+    let duration = $derived((entry.scheduleEnd ?? 0) - (entry.scheduleStart ?? 0));
+    let cardTop = $derived(minuteToPixel(entry.scheduleStart ?? 0));
+    let cardHeight = $derived(minuteToPixel(duration));
+    let cardWidth = $derived(laneCount > 0 ? containerWidth / laneCount - 4 : containerWidth);
+    let cardLeft = $derived(leftOffset + laneIndex * (containerWidth / laneCount));
+    let timeLabel = $derived(minuteToTimeLabel(entry.scheduleStart ?? 0, resetHour));
+    let endTimeLabel = $derived(minuteToTimeLabel(entry.scheduleEnd ?? 0, resetHour));
+    let displayPriority = $derived(normalizePriority(task.priority));
+    let priorityColor = $derived(PRIORITY_COLORS[displayPriority] || "var(--b3-theme-primary)");
+    let priorityClass = $derived(`na-timeline-card--priority-${displayPriority}`);
+    let parentTitle = $derived(task.parentId ? (taskMap.get(task.parentId)?.title ?? "") : "");
+    let tags = $derived(task.tags ? task.tags.split("|").filter(Boolean) : []);
+    let isDone = $derived(isMyDayEntryDone(entry, task.status));
 
     // 卡片较短时隐藏次要信息
-    $: isCompact = cardHeight < 44;
-    $: isMinimal = cardHeight < 28;
+    let isCompact = $derived(cardHeight < 44);
+    let isMinimal = $derived(cardHeight < 28);
 
     function formatDue(due: string | null | undefined): string {
         if (!due) return "";
@@ -66,10 +82,10 @@
         return due.slice(5);
     }
 
-    $: displayTop = isDragging ? minuteToPixel(previewStart) : cardTop;
-    $: displayHeight = isDragging ? minuteToPixel(previewEnd - previewStart) : cardHeight;
-    $: displayLeft = isDragging ? Math.max(0, cardLeft + 2 + previewOffsetX) : cardLeft + 2;
-    $: isRemoving = isDragging && previewOffsetX < -150;
+    let displayTop = $derived(isDragging ? minuteToPixel(previewStart) : cardTop);
+    let displayHeight = $derived(isDragging ? minuteToPixel(previewEnd - previewStart) : cardHeight);
+    let displayLeft = $derived(isDragging ? Math.max(0, cardLeft + 2 + previewOffsetX) : cardLeft + 2);
+    let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
         if (e.button !== 0) return;
@@ -170,6 +186,16 @@
             onContextMenu(task, new MouseEvent("contextmenu"));
         }
     }
+
+    function handleContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        onContextMenu(task, event);
+    }
+
+    function handleResizePointerDown(event: PointerEvent, mode: "resize-start" | "resize-end"): void {
+        event.stopPropagation();
+        handlePointerDown(event, mode);
+    }
 </script>
 
 <div
@@ -182,16 +208,16 @@
     style="top: {displayTop}px; height: {displayHeight}px; left: {displayLeft}px; width: {cardWidth}px; --na-timeline-card-accent: {priorityColor};"
     role="button"
     tabindex="0"
-    on:pointerdown={(e) => handlePointerDown(e, "move")}
-    on:pointermove={handlePointerMove}
-    on:pointerup={handlePointerUp}
-    on:contextmenu|preventDefault={(e) => onContextMenu(task, e)}
-    on:keydown={handleCardKeydown}
+    onpointerdown={(e) => handlePointerDown(e, "move")}
+    onpointermove={handlePointerMove}
+    onpointerup={handlePointerUp}
+    oncontextmenu={handleContextMenu}
+    onkeydown={handleCardKeydown}
 >
     <div
         class="na-timeline-card__handle na-timeline-card__handle--top"
         role="separator"
-        on:pointerdown|stopPropagation={(e) => handlePointerDown(e, "resize-start")}
+        onpointerdown={(event) => handleResizePointerDown(event, "resize-start")}
     ></div>
 
     <div class="na-timeline-card__content">
@@ -228,7 +254,7 @@
     <div
         class="na-timeline-card__handle na-timeline-card__handle--bottom"
         role="separator"
-        on:pointerdown|stopPropagation={(e) => handlePointerDown(e, "resize-end")}
+        onpointerdown={(event) => handleResizePointerDown(event, "resize-end")}
     ></div>
 </div>
 

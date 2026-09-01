@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import type { AiProposal, AiProposalApplyItemResult, AiProposalContext, AiProposedTask } from "../../shared/ai";
     import type { KernelBridge } from "../kernel-bridge";
     import { taskStore } from "../stores/task-store";
@@ -8,40 +9,67 @@
     import NaButton from "../ui/NaButton.svelte";
     import NaInlineNotice from "../ui/NaInlineNotice.svelte";
 
-    export let proposal: AiProposal;
-    export let bridge: KernelBridge;
-    export let i18n: any;
-    export let dialog: any;
-    export let onDone: (() => void) | undefined = undefined;
-    export let myDayOnly = false;
-    export let defaultDocumentId = "";
-    export let childParentBlockId = "";
-    export let childParentTitle = "";
-    export let childFromSource = false;
-    export let sourceBlockIds: string[] = [];
-    export let defaultProjectId = "";
+    interface Props {
+        proposal: AiProposal;
+        bridge: KernelBridge;
+        i18n: any;
+        dialog: any;
+        onDone?: (() => void) | undefined;
+        myDayOnly?: boolean;
+        defaultDocumentId?: string;
+        childParentBlockId?: string;
+        childParentTitle?: string;
+        childFromSource?: boolean;
+        sourceBlockIds?: string[];
+        defaultProjectId?: string;
+    }
 
-    let selected = new Set<number>((proposal.tasks || proposal.myDay || []).map((_item, index) => index));
-    let taskDrafts: AiProposedTask[] = (proposal.tasks || []).map((item) => ({
-        ...item,
-        ...(proposal.feature === "extractTasks" && defaultProjectId ? { parentId: defaultProjectId } : {}),
-    }));
-    let itemResults = new Map<number, AiProposalApplyItemResult>();
-    let applyMessage = "";
-    let target = proposal.target?.type || "mcp_default";
-    let documentId = proposal.target?.documentId || defaultDocumentId;
-    let busy = false;
-    $: tasks = taskDrafts;
-    $: proposalItems = proposal.feature === "planMyDay" ? proposal.myDay || [] : tasks;
-    $: selectedCount = proposalItems.filter((_item, index) => selected.has(index)).length;
-    $: hasInvalidSelectedTitle = tasks.some((item, index) => selected.has(index) && !item.title.trim());
-    $: canUseSourceChild =
-        childFromSource && !myDayOnly && tasks.length > 0 && tasks.every((item) => !!item.sourceBlockId);
-    $: if (target === "source_child" && !canUseSourceChild) target = "mcp_default";
-    $: proposalContext =
+    let {
+        proposal,
+        bridge,
+        i18n,
+        dialog,
+        onDone = undefined,
+        myDayOnly = false,
+        defaultDocumentId = "",
+        childParentBlockId = "",
+        childParentTitle = "",
+        childFromSource = false,
+        sourceBlockIds = [],
+        defaultProjectId = "",
+    }: Props = $props();
+
+    let selected = $state(
+        untrack(() => new Set<number>((proposal.tasks || proposal.myDay || []).map((_item, index) => index))),
+    );
+    let taskDrafts = $state<AiProposedTask[]>(
+        untrack(() =>
+            (proposal.tasks || []).map((item) => ({
+                ...item,
+                ...(proposal.feature === "extractTasks" && defaultProjectId ? { parentId: defaultProjectId } : {}),
+            })),
+        ),
+    );
+    let itemResults = $state(new Map<number, AiProposalApplyItemResult>());
+    let applyMessage = $state("");
+    let target = $state(untrack(() => proposal.target?.type || "mcp_default"));
+    let documentId = $state(untrack(() => proposal.target?.documentId || defaultDocumentId));
+    let busy = $state(false);
+    let tasks = $derived(taskDrafts);
+    let proposalItems = $derived(proposal.feature === "planMyDay" ? proposal.myDay || [] : tasks);
+    let selectedCount = $derived(proposalItems.filter((_item, index) => selected.has(index)).length);
+    let hasInvalidSelectedTitle = $derived(tasks.some((item, index) => selected.has(index) && !item.title.trim()));
+    let canUseSourceChild = $derived(
+        childFromSource && !myDayOnly && tasks.length > 0 && tasks.every((item) => !!item.sourceBlockId),
+    );
+    $effect(() => {
+        if (target === "source_child" && !canUseSourceChild) target = "mcp_default";
+    });
+    let proposalContext = $derived(
         proposal.feature === "extractTasks"
             ? ({ sourceBlockIds, ...(defaultProjectId ? { defaultProjectId } : {}) } satisfies AiProposalContext)
-            : ({} satisfies AiProposalContext);
+            : ({} satisfies AiProposalContext),
+    );
 
     function toggle(index: number) {
         const next = new Set(selected);
@@ -190,7 +218,7 @@
         <div class="na-ai-proposal__list">
             {#each proposal.myDay || [] as item, index}
                 <label class="na-ai-proposal__row" class:na-ai-proposal__row--selected={selected.has(index)}>
-                    <input type="checkbox" checked={selected.has(index)} on:change={() => toggle(index)} />
+                    <input type="checkbox" checked={selected.has(index)} onchange={() => toggle(index)} />
                     <span class="na-ai-proposal__row-copy">
                         <strong
                             >{$taskStore.allTasks.find((task) => task.blockId === item.blockId)?.title ||
@@ -214,7 +242,7 @@
                                 "{count}",
                                 String(index + 1),
                             )}
-                            on:change={() => toggle(index)}
+                            onchange={() => toggle(index)}
                         />
                     </label>
                     <span class="na-ai-proposal__row-copy">
@@ -225,7 +253,7 @@
                             value={item.title}
                             disabled={busy}
                             aria-invalid={!item.title.trim()}
-                            on:input={(event) => updateTitle(index, event)}
+                            oninput={(event) => updateTitle(index, event)}
                         />
                         {#if !item.title.trim()}
                             <small class="na-ai-proposal__field-error"

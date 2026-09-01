@@ -19,10 +19,11 @@ test("共享 Svelte 浏览器 Harness 使用生产兼容配置渲染并返回行
         fixtureName: "shared-harness-success",
         files: {
             "Fixture.svelte":
-                "<script>export let message; export let onSelect;</script><button on:click={() => onSelect(message)}>{message}</button>",
+                "<script>let { message, onSelect } = $props();</script><button onclick={() => onSelect(message)}>{message}</button>",
             "main.js": `import Fixture from "./Fixture.svelte";
+import { mount } from "svelte";
 const calls = [];
-new Fixture({ target: document.querySelector("#app"), props: { message: "ready", onSelect: (value) => calls.push(value) } });
+mount(Fixture, { target: document.querySelector("#app"), props: { message: "ready", onSelect: (value) => calls.push(value) } });
 document.querySelector("button")?.click();
 window.__NA_BROWSER_RESULT__({ text: document.querySelector("button")?.textContent, calls });`,
         },

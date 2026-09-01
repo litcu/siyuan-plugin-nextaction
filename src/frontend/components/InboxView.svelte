@@ -10,22 +10,34 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
 
-    export let bridge: KernelBridge;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selectedTaskId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        bridge: KernelBridge;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
 
-    $: filterState = $taskStore.filterByView[VIEW_INBOX] || DEFAULT_FILTER_STATE;
-    $: inboxTasks = $taskStore.allTasks.filter((t) => t.status === "inbox");
-    $: filteredTasks = applyFilters(inboxTasks, filterState, $taskStore.settings.customFields);
+    let {
+        bridge,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        i18n,
+        selectedTaskId = "",
+        onSelectTask = undefined,
+    }: Props = $props();
 
-    const inboxSortOptions = [
+    let filterState = $derived($taskStore.filterByView[VIEW_INBOX] || DEFAULT_FILTER_STATE);
+    let inboxTasks = $derived($taskStore.allTasks.filter((t) => t.status === "inbox"));
+    let filteredTasks = $derived(applyFilters(inboxTasks, filterState, $taskStore.settings.customFields));
+
+    let inboxSortOptions = $derived([
         { value: "order", label: i18n?.sortByOrder || "Comprehensive" },
         { value: "importance", label: i18n?.sortByImportance || "Importance" },
-    ];
+    ]);
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_INBOX, state);

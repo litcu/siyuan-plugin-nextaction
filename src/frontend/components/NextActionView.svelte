@@ -10,18 +10,24 @@
     import NaViewShell from "../ui/NaViewShell.svelte";
     import type { TaskCacheEntry } from "../../shared/types";
 
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selectedTaskId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
 
-    $: filterState = $taskStore.filterByView[VIEW_NEXT_ACTION] || DEFAULT_FILTER_STATE;
-    $: nextActionTasks = $taskStore.allTasks.filter((t) =>
-        isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays),
+    let { onEdit, onStatusClick, onContextMenu, i18n, selectedTaskId = "", onSelectTask = undefined }: Props = $props();
+
+    let filterState = $derived($taskStore.filterByView[VIEW_NEXT_ACTION] || DEFAULT_FILTER_STATE);
+    let nextActionTasks = $derived(
+        $taskStore.allTasks.filter((t) =>
+            isNextActionCandidate(t, $taskStore.settings.priorityEngine.startPreviewDays),
+        ),
     );
-    $: filteredTasks = applyFilters(nextActionTasks, filterState, $taskStore.settings.customFields);
+    let filteredTasks = $derived(applyFilters(nextActionTasks, filterState, $taskStore.settings.customFields));
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_NEXT_ACTION, state);

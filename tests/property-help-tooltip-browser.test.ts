@@ -48,7 +48,8 @@ import NaPropertySection from ${JSON.stringify(sectionComponentPath)};
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
-new Harness({ target: document.querySelector("#app") });
+import { mount } from "svelte";
+mount(Harness, { target: document.querySelector("#app") });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const popup = () => document.querySelector('.na-tooltip__popup[role="tooltip"]');

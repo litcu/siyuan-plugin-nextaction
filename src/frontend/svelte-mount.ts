@@ -1,23 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Svelte's legacy ComponentType API exposes any-based generics. */
-import { mount, unmount, type Component, type ComponentType, type MountOptions, type SvelteComponent } from "svelte";
+import { mount, unmount, type Component, type ComponentProps, type MountOptions } from "svelte";
 
-export type MountableSvelteComponent = Component<any, any> | ComponentType<SvelteComponent<any>>;
-export type SvelteComponentLoader<ComponentType extends MountableSvelteComponent = MountableSvelteComponent> =
-    () => Promise<{ default: ComponentType }>;
+export type MountableSvelteComponent = Component<any, any>;
+export type SvelteComponentLoader<TComponent extends MountableSvelteComponent = MountableSvelteComponent> =
+    () => Promise<{ default: TComponent }>;
 
-type ComponentProps<ComponentType> =
-    ComponentType extends Component<infer Props, any>
-        ? Props
-        : ComponentType extends new (...args: any[]) => SvelteComponent<infer Props>
-          ? Props
-          : Record<string, any>;
-
-type ComponentExports<ComponentType> =
-    ComponentType extends Component<any, infer Exports>
-        ? Exports
-        : ComponentType extends new (...args: any[]) => infer Instance
-          ? Instance
-          : Record<string, any>;
+type ComponentExports<TComponent> = TComponent extends Component<any, infer Exports> ? Exports : Record<string, any>;
 
 export interface SvelteComponentMount<Exports extends object> {
     readonly instance: Exports;
@@ -71,11 +58,11 @@ class SvelteMountLifecycle<Exports extends object> {
     }
 }
 
-export function mountSvelteComponent<ComponentType extends MountableSvelteComponent>(
-    component: ComponentType,
-    options: MountOptions<ComponentProps<ComponentType>>,
-): SvelteComponentMount<ComponentExports<ComponentType>> {
-    const lifecycle = new SvelteMountLifecycle<ComponentExports<ComponentType>>();
+export function mountSvelteComponent<TComponent extends MountableSvelteComponent>(
+    component: TComponent,
+    options: MountOptions<ComponentProps<TComponent>>,
+): SvelteComponentMount<ComponentExports<TComponent>> {
+    const lifecycle = new SvelteMountLifecycle<ComponentExports<TComponent>>();
     const instance = lifecycle.mount(component, options);
     if (!instance) throw new Error("Cannot mount a disposed Svelte component lifecycle");
     return {
@@ -84,11 +71,11 @@ export function mountSvelteComponent<ComponentType extends MountableSvelteCompon
     };
 }
 
-export function mountSvelteComponentAsync<ComponentType extends MountableSvelteComponent>(
-    loader: SvelteComponentLoader<ComponentType>,
-    options: MountOptions<ComponentProps<ComponentType>> | (() => MountOptions<ComponentProps<ComponentType>>),
-): AsyncSvelteComponentMount<ComponentExports<ComponentType>> {
-    const lifecycle = new SvelteMountLifecycle<ComponentExports<ComponentType>>();
+export function mountSvelteComponentAsync<TComponent extends MountableSvelteComponent>(
+    loader: SvelteComponentLoader<TComponent>,
+    options: MountOptions<ComponentProps<TComponent>> | (() => MountOptions<ComponentProps<TComponent>>),
+): AsyncSvelteComponentMount<ComponentExports<TComponent>> {
+    const lifecycle = new SvelteMountLifecycle<ComponentExports<TComponent>>();
     const ready = loader().then(({ default: component }) => lifecycle.mountDeferred(component, options));
     return {
         get instance() {

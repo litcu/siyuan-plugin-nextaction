@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, onMount, tick } from "svelte";
+    import { onDestroy, onMount, tick, untrack } from "svelte";
     import { runAiReview } from "../ai/ai-feature-service";
     import type { KernelBridge } from "../kernel-bridge";
     import type { ProjectSummary, TaskCacheEntry, ReviewData } from "../../shared/types";
@@ -14,34 +14,41 @@
     import { excludeManualProjectReviewTasks } from "../../shared/review";
     import { confirmProjectCompletion } from "../utils/project-view-state";
 
-    export let bridge: KernelBridge;
-    export let selectedTaskId: string;
-    export let onSelectTask: (task: TaskCacheEntry) => void;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onOpenProject: (project: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onCreateAction: ((project: TaskCacheEntry) => void) | undefined = undefined;
-    export let i18n: any;
-    export let manualProjectIds: string[] = [];
-    export let expandedProjectId: string = "";
-    export let reviewScrollTop = 0;
-
-    let reviewData: ReviewData | null = null;
-    let loading = false;
-    let completing = false;
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    let reviewScrollElement: HTMLDivElement | null = null;
-
-    $: visibleReviewData = reviewData ? excludeManualProjectReviewTasks(reviewData, manualProjectIds) : null;
-
-    $: if ($taskStore.allTasks) {
-        if (refreshTimer) clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => {
-            refreshTimer = null;
-            loadReviewData();
-        }, 300);
+    interface Props {
+        bridge: KernelBridge;
+        selectedTaskId: string;
+        onSelectTask: (task: TaskCacheEntry) => void;
+        onEdit: (task: TaskCacheEntry) => void;
+        onOpenProject: (project: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onCreateAction?: ((project: TaskCacheEntry) => void) | undefined;
+        i18n: any;
+        manualProjectIds?: string[];
+        expandedProjectId?: string;
+        reviewScrollTop?: number;
     }
+
+    let {
+        bridge,
+        selectedTaskId,
+        onSelectTask,
+        onEdit,
+        onOpenProject,
+        onStatusClick,
+        onContextMenu,
+        onCreateAction = undefined,
+        i18n,
+        manualProjectIds = $bindable([]),
+        expandedProjectId = $bindable(""),
+        reviewScrollTop = $bindable(0),
+    }: Props = $props();
+
+    let reviewData: ReviewData | null = $state(null);
+    let loading = $state(false);
+    let completing = $state(false);
+    let refreshTimer: ReturnType<typeof setTimeout> | null = $state(null);
+    let reviewScrollElement: HTMLDivElement | null = $state(null);
 
     function formatLastReview(value: string): string {
         if (!value) return i18n?.reviewNeverCompleted || "No checklist review recorded";
@@ -124,6 +131,17 @@
             refreshTimer = null;
         }
     });
+    let visibleReviewData = $derived(reviewData ? excludeManualProjectReviewTasks(reviewData, manualProjectIds) : null);
+    $effect(() => {
+        $taskStore.allTasks;
+        untrack(() => {
+            if (refreshTimer) clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => {
+                refreshTimer = null;
+                void loadReviewData();
+            }, 300);
+        });
+    });
 </script>
 
 <NaViewShell
@@ -154,7 +172,7 @@
         <div
             class="na-review__scroll"
             bind:this={reviewScrollElement}
-            on:scroll={() => (reviewScrollTop = reviewScrollElement?.scrollTop || 0)}
+            onscroll={() => (reviewScrollTop = reviewScrollElement?.scrollTop || 0)}
         >
             <section class="na-review__section">
                 <h3 class="na-review__section-title">{i18n?.reviewProjectTitle || "Project Reviews"}</h3>

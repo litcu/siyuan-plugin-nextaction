@@ -14,18 +14,30 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import { buildTaskListRows } from "../utils/task-rows";
 
-    export let bridge: any;
-    export let onEdit: (task: TaskCacheEntry) => void;
-    export let onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-    export let i18n: any;
-    export let selectedTaskId: string = "";
-    export let onSelectTask: ((task: TaskCacheEntry) => void) | undefined = undefined;
+    interface Props {
+        bridge: any;
+        onEdit: (task: TaskCacheEntry) => void;
+        onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
+        onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
+        i18n: any;
+        selectedTaskId?: string;
+        onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
+    }
+
+    let {
+        bridge,
+        onEdit,
+        onStatusClick,
+        onContextMenu,
+        i18n,
+        selectedTaskId = "",
+        onSelectTask = undefined,
+    }: Props = $props();
 
     const ALL_TASK_STATUS_FILTERS = STATUS_LIST.filter((status) => status !== "done");
 
-    let dragHandler: ReturnType<typeof createDragHandler> | null = null;
-    let listEl: HTMLElement | null = null;
+    let dragHandler: ReturnType<typeof createDragHandler> | null = $state(null);
+    let listEl: HTMLElement | null = $state(null);
 
     function initDragHandler() {
         if (dragHandler || !listEl || !bridge) return;
@@ -47,16 +59,20 @@
         });
     }
 
-    $: if (listEl && bridge) initDragHandler();
+    $effect(() => {
+        if (listEl && bridge) initDragHandler();
+    });
 
-    let collapsed: Record<string, boolean> = {};
+    let collapsed: Record<string, boolean> = $state({});
 
-    $: filterState = $taskStore.filterByView[VIEW_ALL_TASKS] || DEFAULT_FILTER_STATE;
-    $: activeTasks = $taskStore.allTasks.filter((task: TaskCacheEntry) => task.status !== "done");
-    $: allTaskFilterState = filterState.statuses.includes("done")
-        ? { ...filterState, statuses: filterState.statuses.filter((status) => status !== "done") }
-        : filterState;
-    $: filteredTasks = applyFilters(activeTasks, allTaskFilterState, $taskStore.settings.customFields);
+    let filterState = $derived($taskStore.filterByView[VIEW_ALL_TASKS] || DEFAULT_FILTER_STATE);
+    let activeTasks = $derived($taskStore.allTasks.filter((task: TaskCacheEntry) => task.status !== "done"));
+    let allTaskFilterState = $derived(
+        filterState.statuses.includes("done")
+            ? { ...filterState, statuses: filterState.statuses.filter((status) => status !== "done") }
+            : filterState,
+    );
+    let filteredTasks = $derived(applyFilters(activeTasks, allTaskFilterState, $taskStore.settings.customFields));
 
     function handleFilterChange(state: FilterState) {
         taskStore.setFilterState(VIEW_ALL_TASKS, state);
@@ -70,13 +86,13 @@
         taskStore.toggleCompleted();
     }
 
-    const completedSortOptions = [
+    let completedSortOptions = $derived([
         { value: "completed", label: i18n?.sortByCompleted || "Completed date" },
         { value: "order", label: i18n?.sortByOrder || "Priority score" },
         { value: "due", label: i18n?.sortByDue || "Due date" },
         { value: "importance", label: i18n?.sortByImportance || "Importance" },
         { value: "priority", label: i18n?.sortByPriority || "Manual priority" },
-    ];
+    ]);
 
     function getPageNumbers(current: number, total: number): number[] {
         const max = Math.min(total, 7);
@@ -94,10 +110,12 @@
         taskStore.setCompletedPage(page);
     }
 
-    $: taskRows = buildTaskListRows(filteredTasks, collapsed, filterState.sortBy !== "order");
-    $: doneCount = $taskStore.doneCount;
-    $: totalCompletedPages = Math.max(1, Math.ceil($taskStore.completedTotal / $taskStore.completedPageSize));
-    $: completedPageNumbers = getPageNumbers($taskStore.completedPage, totalCompletedPages);
+    let taskRows = $derived(buildTaskListRows(filteredTasks, collapsed, filterState.sortBy !== "order"));
+    let doneCount = $derived($taskStore.doneCount);
+    let totalCompletedPages = $derived(
+        Math.max(1, Math.ceil($taskStore.completedTotal / $taskStore.completedPageSize)),
+    );
+    let completedPageNumbers = $derived(getPageNumbers($taskStore.completedPage, totalCompletedPages));
 </script>
 
 <NaViewShell
@@ -124,7 +142,7 @@
                 class:na-all-tasks__item--root={row.indent === 0}
                 style="--indent: {row.indent}"
                 role="listitem"
-                on:pointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}
+                onpointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}
             >
                 <TaskCard
                     task={row.task}

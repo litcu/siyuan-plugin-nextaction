@@ -3,13 +3,17 @@
     import type { TaskCacheEntry } from "../../shared/types";
     import { taskStore } from "../stores/task-store";
     import { jumpToBlock } from "../utils";
-    export let proposal: AiProposal;
-    export let i18n: any;
-    export let dialog: any;
-    export let reviewTasks: TaskCacheEntry[] = [];
+    interface Props {
+        proposal: AiProposal;
+        i18n: any;
+        dialog: any;
+        reviewTasks?: TaskCacheEntry[];
+    }
+
+    let { proposal, i18n, dialog, reviewTasks = [] }: Props = $props();
 
     // 回顾提案只传递稳定的 blockId；展示层从任务缓存解析标题，避免把内部 ID 暴露给用户。
-    $: taskMap = new Map([...$taskStore.allTasks, ...reviewTasks].map((task) => [task.blockId, task]));
+    let taskMap = $derived(new Map([...$taskStore.allTasks, ...reviewTasks].map((task) => [task.blockId, task])));
 
     function taskLabel(blockId: string): string {
         return taskMap.get(blockId)?.title || i18n?.aiTaskUnavailable || "任务未加载";
@@ -46,7 +50,7 @@
                                 <button
                                     class="na-ai-review__block-link b3-tooltips b3-tooltips__e"
                                     aria-label={taskTitle(blockId)}
-                                    on:click={() => openBlock(blockId)}>{taskLabel(blockId)}</button
+                                    onclick={() => openBlock(blockId)}>{taskLabel(blockId)}</button
                                 >
                             {/each}
                         </div>
@@ -60,7 +64,7 @@
             <div class="na-ai-review__actions-list">
                 <div class="na-ai-review__label">{i18n?.aiReviewSuggestions || "建议"}</div>
                 {#each proposal.review.actions as action}
-                    <button class="na-ai-review__action" on:click={() => openBlock(action.blockId)}>
+                    <button class="na-ai-review__action" onclick={() => openBlock(action.blockId)}>
                         <span class="na-ai-review__action-mark">↗</span>
                         <span class="na-ai-review__action-copy">
                             <strong>{action.action}</strong>
@@ -78,7 +82,7 @@
         <span class="na-ai-review__footer-hint"
             >{i18n?.aiReviewReadOnly || "This is a read-only review; tasks will not be modified automatically."}</span
         >
-        <button class="na-button na-button--primary" on:click={() => dialog.destroy()}>{i18n?.done || "完成"}</button>
+        <button class="na-button na-button--primary" onclick={() => dialog.destroy()}>{i18n?.done || "完成"}</button>
     </div>
 </div>
 
