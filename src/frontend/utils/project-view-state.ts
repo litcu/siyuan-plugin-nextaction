@@ -192,7 +192,15 @@ export function buildProjectViewModel(
     const visibleSummaries = orderedProjectIds
         .map((blockId) => summaryByProjectId.get(blockId))
         .filter((summary): summary is ProjectSummary => Boolean(summary));
-    const preferredProjectId = control.selection.projectId;
+    // With no explicit selection, follow the already sorted project list. The control layer
+    // keeps a stable fallback for non-view consumers, but that creation-order fallback should
+    // not override the order users see in this view.
+    const preferredProjectId =
+        state.preferActiveProject || state.filterBypassProjectId
+            ? state.activeProjectId
+            : state.selectedTaskId
+              ? control.selection.projectId
+              : "";
     const activeProjectId = visibleSummaries.some((summary) => summary.project.blockId === preferredProjectId)
         ? preferredProjectId
         : visibleSummaries[0]?.project.blockId || "";

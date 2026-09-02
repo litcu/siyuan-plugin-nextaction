@@ -84,7 +84,7 @@
     "parentTask": "Parent",
     "searchParentItem": "Search projects and tasks...",
     "parentItem": "Parent item",
-    "projectAssignment": "Join project or set parent task",
+    "projectAssignment": "Project or parent task",
     "projectAssignmentHint": "Changes logical assignment only; the SiYuan block stays in place",
     "clearProjectAssignment": "Clear project or parent assignment",
     "overdueDays": "{n} days overdue",

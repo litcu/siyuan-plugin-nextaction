@@ -68,6 +68,16 @@ test("任务详情区分逻辑加入项目、物理移动和取消项目身份",
         assert.match(translation, /"clearProjectAssignment"/);
         assert.match(translation, /"confirmRemoveProject"/);
     }
+    assert.match(zh, /"projectAssignment": "项目或父任务"/);
+    assert.match(en, /"projectAssignment": "Project or parent task"/);
+});
+
+test("项目层级视图只保留缩进和任务卡片，不显示冗余上级行或操作按钮", () => {
+    // Regression: hierarchy cards rendered a parent selector row and four action buttons for every task.
+    const hierarchy = source("../src/frontend/components/project/ProjectHierarchyMode.svelte");
+
+    assert.doesNotMatch(hierarchy, /class="na-project-tree__controls"/);
+    assert.doesNotMatch(hierarchy, /class="na-project-tree__parent"/);
 });
 
 test("Stage 在项目计划、Next Action 和 Review 共用的任务卡片中可见", () => {

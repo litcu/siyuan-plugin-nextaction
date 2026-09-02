@@ -193,6 +193,35 @@ test("看板只展示普通 Action 和叶子 Stage，并始终保留六个状态
     assert.deepEqual(columns.find((column) => column.status === "inbox")?.tasks, []);
 });
 
+test("空的根 Stage 仍归入自身阶段列而不是无阶段", () => {
+    // Regression: a Stage without subtasks had no nearestStage and was incorrectly put in Unassigned stage.
+    const project = task("project", { taskType: "2", childIds: ["stage"] });
+    const stage = task("stage", { parentId: project.blockId, actionKind: "stage", title: "独立阶段" });
+    const columns = buildProjectBoardColumns([stage], "stage", [project, stage]);
+
+    assert.deepEqual(
+        columns.find((column) => column.value === stage.blockId)?.tasks.map((item) => item.blockId),
+        [stage.blockId],
+    );
+    assert.deepEqual(columns.find((column) => column.value === PROJECT_BOARD_UNASSIGNED_STAGE)?.tasks, []);
+});
+
+test("首次进入项目视图时选择项目列表第一项", () => {
+    // Regression: the first-created project was selected even when project-list ordering put another project first.
+    const orderedProjects = [
+        task("created-first", { taskType: "2", order: 0 }),
+        task("listed-first", { taskType: "2", order: 100 }),
+    ];
+    const model = buildProjectViewModel(orderedProjects, [], state());
+
+    assert.deepEqual(
+        model.visibleSummaries.map((summary) => summary.project.blockId),
+        ["listed-first", "created-first"],
+    );
+    assert.equal(model.activeProjectId, "listed-first");
+    assert.equal(model.selectedSummary?.project.blockId, "listed-first");
+});
+
 test("看板复用任务筛选但不受完成项开关隐藏 done 列", () => {
     // Regression: showCompleted=false made the board's done column empty even when a completed Action existed.
     const boardProject = [
