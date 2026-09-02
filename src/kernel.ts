@@ -14,7 +14,8 @@ import {
     validateStoredSettings,
     type PluginSettings,
 } from "./shared/settings";
-import { McpToolManager } from "./kernel/mcp-tool-manager";
+import { McpToolExecutor } from "./kernel/mcp-tool-executor";
+import { McpCapabilityManager } from "./kernel/mcp-capability-manager";
 import { AiProposalService } from "./kernel/ai-proposal-service";
 import type { ReviewData } from "./shared/types";
 import { ProductionSiyuanApi } from "./kernel/siyuan-api";
@@ -35,7 +36,8 @@ class NextActionKernelPlugin {
     private mutex!: Mutex;
     private syncEngine!: SyncEngine;
     private taskService!: TaskService;
-    private mcpToolManager!: McpToolManager;
+    private mcpToolExecutor!: McpToolExecutor;
+    private mcpCapabilityManager!: McpCapabilityManager;
     private taskTargetResolver!: TaskTargetResolver;
     private taskCreationService!: TaskCreationService;
     private projectBoardPreferenceManager!: ProjectBoardPreferenceManager;
@@ -80,13 +82,19 @@ class NextActionKernelPlugin {
         this.taskCreationService = new TaskCreationService(this.taskService, api, this.taskTargetResolver, () =>
             this.taskService.getSettings(),
         );
-        this.mcpToolManager = new McpToolManager(
+        this.mcpToolExecutor = new McpToolExecutor(
             this.siyuan,
             this.taskService,
             this.taskService.getSettings(),
             api,
             this.taskTargetResolver,
             this.taskCreationService,
+            () => this.mcpCapabilityManager.getStatus(),
+        );
+        this.mcpCapabilityManager = new McpCapabilityManager(
+            this.siyuan,
+            this.mcpToolExecutor,
+            this.taskService.getSettings(),
         );
         const createTask = async (
             input: Parameters<TaskCreationService["create"]>[0],
@@ -94,17 +102,17 @@ class NextActionKernelPlugin {
         ) => {
             const outcome = await this.taskCreationService.create(
                 input,
-                this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+                this.mcpToolExecutor.applyTaskProperties.bind(this.mcpToolExecutor),
                 options,
             );
-            return this.mcpToolManager.executor.adaptTaskCreationOutcome(outcome);
+            return this.mcpToolExecutor.adaptTaskCreationOutcome(outcome);
         };
         const convertTask = async (input: Record<string, unknown>) => {
             const outcome = await this.taskCreationService.convertExisting(
                 input,
-                this.mcpToolManager.executor.applyTaskProperties.bind(this.mcpToolManager.executor),
+                this.mcpToolExecutor.applyTaskProperties.bind(this.mcpToolExecutor),
             );
-            return this.mcpToolManager.executor.adaptConvertedTaskOutcome(outcome);
+            return this.mcpToolExecutor.adaptConvertedTaskOutcome(outcome);
         };
         const actionSourcePort = new SiyuanActionSourcePort(api);
         const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask, actionSourcePort);
@@ -125,7 +133,7 @@ class NextActionKernelPlugin {
         registerRpcMethods(this.taskService, {
             updateSettings: this.updateSettings.bind(this),
             completeReview: this.completeReview.bind(this),
-            getMcpStatus: () => this.mcpToolManager.getStatus(),
+            getMcpStatus: () => this.mcpCapabilityManager.getStatus(),
             listMcpTargetNotebooks: () => this.taskTargetResolver.listNotebooks(),
             listMcpTargetDocuments: (notebookId, path) => this.taskTargetResolver.listDocuments(notebookId, path),
             searchMcpTargetDocuments: (query) => this.taskTargetResolver.searchDocuments(query),
@@ -164,7 +172,7 @@ class NextActionKernelPlugin {
             updateProjectBoardPreference: (projectId, preference) =>
                 this.projectBoardPreferenceManager.update(projectId, preference),
         });
-        await this.mcpToolManager.reconcile(this.taskService.getSettings());
+        await this.mcpCapabilityManager.reconcile(this.taskService.getSettings());
 
         void this.taskService
             .loadCache()
@@ -197,7 +205,7 @@ class NextActionKernelPlugin {
         this.syncEngine.stop();
         this.isReady = false;
         this.taskService.setIsReady(false);
-        await this.mcpToolManager?.unload();
+        await this.mcpCapabilityManager?.unload();
         await logger.info("onunload: NextAction kernel plugin unloaded");
     }
 
@@ -223,7 +231,7 @@ class NextActionKernelPlugin {
         await this.taskTargetResolver.validateSettings(next);
         await this.siyuan.storage.put("settings.json", JSON.stringify(next));
         const applied = this.taskService.updateSettings(next);
-        await this.mcpToolManager.reconcile(applied);
+        await this.mcpCapabilityManager.reconcile(applied);
         return applied;
     }
 

@@ -29,23 +29,17 @@ import {
 import { isBlockId, isBlockIdPipe } from "../shared/block-id";
 import type { RpcFailure } from "../shared/rpc-methods";
 import { McpToolError } from "./mcp-tool-error";
-import { getDefaultSiyuanApi, ProductionSiyuanApi, setDefaultSiyuanApi } from "./siyuan-api";
 import type * as kernel from "siyuan/kernel";
 
 let siyuanRef: kernel.ISiyuan | null = null;
 
 export function setSiyuan(siyuan: kernel.ISiyuan): void {
     siyuanRef = siyuan;
-    setDefaultSiyuanApi(new ProductionSiyuanApi(siyuan));
 }
 
 export function getSiyuan(): kernel.ISiyuan {
     if (!siyuanRef) throw new Error("SiYuan kernel API is not initialized");
     return siyuanRef;
-}
-
-export async function siyuanFetch<T = unknown>(path: `/${string}`, body: object = {}): Promise<T> {
-    return getDefaultSiyuanApi().request<T>(path, body);
 }
 
 export function attrToNumber(value: string | undefined | null, defaultVal: number): number {

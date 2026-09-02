@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type * as kernel from "siyuan/kernel";
 import {
     areBlockIds,
     assertBlockId,
@@ -11,8 +10,7 @@ import {
 } from "../src/shared/block-id.ts";
 import { escapeSqlLiteral, sql } from "../src/shared/sql.ts";
 import { buildTaskAttrsFromMcpPatch } from "../src/kernel/mcp-utils.ts";
-import { McpToolManager } from "../src/kernel/mcp-tool-manager.ts";
-import type { TaskService } from "../src/kernel/task-service.ts";
+import { TaskTargetResolver } from "../src/kernel/task-target-resolver.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/settings.ts";
 import { ATTR_DEPENDS, ATTR_PARENT } from "../src/shared/constants.ts";
 import { FakeSiyuanApi, taskFactory } from "./helpers/fakes.ts";
@@ -57,13 +55,9 @@ test("MCP 文档入口接受完整块链接并只向 SQL 传递 raw ID", async (
     const api = new FakeSiyuanApi();
     api.addBlock(ID, "d", "Inbox", "notebook", "/Inbox");
     api.notebooks.push({ id: "notebook", name: "Notebook" });
-    const siyuan = {
-        plugin: { name: "nextaction", version: "test" },
-        logger: { info: async () => {}, warn: async () => {}, error: async () => {} },
-    } as unknown as kernel.ISiyuan;
-    const manager = new McpToolManager(siyuan, {} as TaskService, DEFAULT_SETTINGS, api);
+    const resolver = new TaskTargetResolver(api, () => DEFAULT_SETTINGS);
 
-    const result = await manager.resolveDocumentTarget(`siyuan://blocks/${ID}`);
+    const result = await resolver.resolveDocument(`siyuan://blocks/${ID}`);
     assert.equal(result.id, ID);
     const sqlRequest = api.requests.find((request) => request.path === "/api/query/sql");
     assert.match(String((sqlRequest?.body as { stmt?: string }).stmt), new RegExp(`'${ID}'`));

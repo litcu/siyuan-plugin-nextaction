@@ -37,7 +37,7 @@ test("MCP 工具通过思源 Agent capability 注册并保留插件来源和完�
 test("设置由内核存储并触发 MCP 动态重配置", () => {
     assert.match(kernelSource, /storage\.get\("settings\.json"\)/);
     assert.match(kernelSource, /storage\.put\("settings\.json"/);
-    assert.match(kernelSource, /mcpToolManager\.reconcile/);
+    assert.match(kernelSource, /mcpCapabilityManager\.reconcile/);
     assert.match(rpcSource, /getMcpStatus/);
     assert.match(rpcSource, /listMcpTargetNotebooks/);
     assert.match(rpcSource, /resolveMcpDocumentTarget/);

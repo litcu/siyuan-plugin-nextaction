@@ -10,10 +10,6 @@ import {
 // === 运行时配置（可通过 updateSettings 更新）===
 let config: PriorityEngineSettings = { ...DEFAULT_PRIORITY_ENGINE };
 
-export function getPriorityConfig(): PriorityEngineSettings {
-    return config;
-}
-
 export function updatePriorityConfig(newConfig: Partial<PriorityEngineSettings>): void {
     config = { ...config, ...newConfig };
 }
