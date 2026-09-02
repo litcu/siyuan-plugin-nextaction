@@ -41,7 +41,6 @@ export class TaskCommandController {
                     }
                     try {
                         await this.doConvertToTask(blockId, cleanTitle);
-                        notifyInfo(this.plugin.i18n.convertToTaskSuccess);
                         void taskStore.loadTasks();
                     } catch (e) {
                         console.error("[NextAction] convertToTask error:", e);
@@ -63,7 +62,6 @@ export class TaskCommandController {
                     }
                     try {
                         await this.doConvertToTask(blockId, cleanTitle, "2");
-                        notifyInfo(this.plugin.i18n.convertToProjectSuccess);
                         void taskStore.loadTasks();
                     } catch (e) {
                         console.error("[NextAction] convertToProject error:", e);
@@ -153,9 +151,6 @@ export class TaskCommandController {
         if (!blockId) return;
         try {
             await this.doConvertToTask(blockId, undefined, taskType);
-            notifyInfo(
-                taskType === "2" ? this.plugin.i18n.convertToProjectSuccess : this.plugin.i18n.convertToTaskSuccess,
-            );
             void taskStore.loadTasks();
         } catch (e) {
             notifyOperationError(e, this.plugin.i18n);

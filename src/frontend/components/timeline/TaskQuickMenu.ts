@@ -3,7 +3,7 @@ import type { MyDayState, TaskCacheEntry } from "../../../shared/types";
 import type { KernelBridge } from "../../kernel-bridge";
 import { normalizePriority, PRIORITY_LIST } from "../../constants";
 import { toI18nKey } from "../../utils";
-import { notifyError, notifyInfo, formatRpcError } from "../../notify";
+import { notifyError, formatRpcError } from "../../notify";
 
 interface QuickMenuCallbacks {
     onScheduleRemoved: (newState: MyDayState) => void;
@@ -45,7 +45,6 @@ export function showTaskQuickMenu(
                 try {
                     const updated = await bridge.updateTask(task.blockId, { "na-status": "done" });
                     callbacks.onTaskUpdated(updated);
-                    notifyInfo(i18n?.taskMarkedDone || "Marked as done");
                 } catch (e: any) {
                     notifyError(formatRpcError(e, i18n));
                 }

@@ -158,8 +158,6 @@
             );
             if (result.warnings?.length) {
                 notifyInfo(result.warnings.map((warning) => taskCreationWarningMessage(warning, i18n)).join("；"));
-            } else if (failedItems.length === 0) {
-                notifyInfo(i18n?.aiApplied || "AI 建议已应用");
             }
             const changed = result.created.length > 0 || result.converted.length > 0 || Boolean(result.myDay);
             if (changed) {

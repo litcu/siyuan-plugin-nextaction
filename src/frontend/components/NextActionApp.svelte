@@ -245,11 +245,11 @@
                             .map((item) => item.blockId),
                     });
                     taskStore.applyUpdate(result.task);
-                    notifyInfo(
-                        result.status === "partial"
-                            ? i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed"
-                            : i18n?.projectBoardMoveSuccess || "Task moved",
-                    );
+                    if (result.status === "partial") {
+                        notifyInfo(
+                            i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed",
+                        );
+                    }
                     if (result.status === "success" && result.undo)
                         showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
                 } catch (error) {
@@ -321,9 +321,8 @@
             taskStore.applyUpdate(result.task);
             if (result.status === "partial") {
                 notifyInfo(i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed");
-            } else {
-                notifyInfo(i18n?.projectBoardMoveSuccess || "Task moved");
-                if (result.undo) showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
+            } else if (result.undo) {
+                showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
             }
             return result;
         } catch (error: any) {

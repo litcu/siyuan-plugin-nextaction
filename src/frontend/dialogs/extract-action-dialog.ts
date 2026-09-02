@@ -4,7 +4,6 @@ import type { I18nStrings } from "../../shared/i18n";
 import type { TaskCacheEntry } from "../../shared/types";
 import { isProjectTask } from "../../shared/project-domain";
 import type { KernelBridge } from "../kernel-bridge";
-import { notifyInfo } from "../notify";
 import { taskStore } from "../stores/task-store";
 import { mountSvelteComponentAsync, type AsyncSvelteComponentMount } from "../svelte-mount";
 
@@ -67,7 +66,6 @@ export async function openExtractActionDialog(options: OpenExtractActionDialogOp
             onCreated: (task: TaskCacheEntry) => {
                 if (options.onCreated) options.onCreated(task);
                 else taskStore.applyUpdate(task);
-                notifyInfo(options.i18n.extractActionSuccess);
                 dialog.destroy();
             },
         },
