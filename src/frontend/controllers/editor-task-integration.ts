@@ -169,12 +169,6 @@ export class EditorTaskIntegration {
                     try {
                         const updated = await this.getBridge().updateTask(blockId, { "na-status": s });
                         taskStore.applyUpdate(updated);
-                        const statusLabel = translateKey(this.i18n, i18nKey, s);
-                        const template =
-                            s === "done"
-                                ? this.plugin.i18n.taskMarkedDone || "Marked as done"
-                                : this.plugin.i18n.taskStatusUpdated || "Status updated to {status}";
-                        notifyInfo(template.replace("{status}", statusLabel));
                         const warningMessage = taskWriteWarningMessage(updated._warning, this.i18n);
                         if (warningMessage) notifyInfo(warningMessage);
                     } catch (e) {
@@ -469,19 +463,16 @@ export class EditorTaskIntegration {
                 icon: "iconNextAction",
                 label: `[NextAction] ${this.plugin.i18n.convertToTask}`,
                 click: async () => {
-                    let ok = 0;
                     for (const blockElement of detail.blockElements) {
                         const blockId = this.resolveTaskBlock(blockElement)?.blockId || blockElement.dataset.nodeId;
                         if (blockId) {
                             try {
                                 await this.commands.doConvertToTask(blockId);
-                                ok++;
                             } catch (e) {
                                 notifyOperationError(e, this.plugin.i18n);
                             }
                         }
                     }
-                    if (ok > 0) notifyInfo(this.plugin.i18n.convertToTaskSuccess);
                     void taskStore.loadTasks();
                 },
             });
@@ -489,19 +480,16 @@ export class EditorTaskIntegration {
                 icon: "iconFolder",
                 label: `[NextAction] ${this.plugin.i18n.convertToProject}`,
                 click: async () => {
-                    let ok = 0;
                     for (const blockElement of detail.blockElements) {
                         const blockId = blockElement.dataset.nodeId;
                         if (blockId) {
                             try {
                                 await this.commands.doConvertToTask(blockId, undefined, "2");
-                                ok++;
                             } catch (e) {
                                 notifyOperationError(e, this.plugin.i18n);
                             }
                         }
                     }
-                    if (ok > 0) notifyInfo(this.plugin.i18n.convertToProjectSuccess);
                     void taskStore.loadTasks();
                 },
             });
@@ -560,7 +548,6 @@ export class EditorTaskIntegration {
                 click: async () => {
                     try {
                         await this.commands.doConvertToTask(docId);
-                        notifyInfo(this.plugin.i18n.convertToTaskSuccess);
                         void taskStore.loadTasks();
                     } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);
@@ -573,7 +560,6 @@ export class EditorTaskIntegration {
                 click: async () => {
                     try {
                         await this.commands.doConvertToTask(docId, undefined, "2");
-                        notifyInfo(this.plugin.i18n.convertToProjectSuccess);
                         void taskStore.loadTasks();
                     } catch (e) {
                         notifyOperationError(e, this.plugin.i18n);

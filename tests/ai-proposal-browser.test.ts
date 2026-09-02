@@ -14,6 +14,7 @@ type AiProposalBrowserResult = {
     validateCalls: Array<{ context: { sourceBlockIds: string[] } }>;
     applyCalls: Array<{ proposal: { tasks: unknown[] }; context: unknown }>;
     destroyed: number;
+    notifications: string[];
 };
 
 test("AI Action 预览支持编辑与选择，确认前不写入", async () => {
@@ -24,7 +25,11 @@ test("AI Action 预览支持编辑与选择，确认前不写入", async () => {
             const componentPath = resolve("src/frontend/components/AiProposalDialog.svelte").replace(/\\/g, "/");
             writeFileSync(
                 join(fixtureRoot, "siyuan.js"),
-                "export class Menu {}\nexport function openTab() {}\nexport function showMessage() {}\n",
+                `export const messages = [];
+export class Menu {}
+export function openTab() {}
+export function showMessage(message) { messages.push(message); }
+`,
             );
             writeFileSync(
                 join(fixtureRoot, "Harness.svelte"),
@@ -48,7 +53,7 @@ const i18n = new Proxy({
     aiTargetSourceChild: "Source child", aiTargetCurrentDocument: "Current document", aiTargetSourceDocument: "Source document",
     aiTargetDocument: "Specific document", aiTargetOriginal: "Convert in place", aiCandidateTitle: "Action title",
     aiProposalKindTask: "Action", aiProposalEyebrow: "AI Proposal", cancel: "Cancel", confirm: "Confirm",
-    loading: "Loading", aiApplied: "Applied", aiRetryFailed: "Retry failed", aiItemFailed: "Not applied",
+    loading: "Loading", aiRetryFailed: "Retry failed", aiItemFailed: "Not applied",
     aiRetryAvailable: "Can retry", aiPartialSummary: "{count} suggestions need attention", aiItemCreated: "Action created",
 }, { get: (target, key) => target[key] || String(key) });
 let validateCalls = [];
@@ -86,6 +91,7 @@ const bridge = {
             writeFileSync(
                 join(fixtureRoot, "main.js"),
                 `import Harness from "./Harness.svelte";
+import { messages } from "siyuan";
 import { mount } from "svelte";
 mount(Harness, { target: document.querySelector("#app") });
 const finish = (value) => {
@@ -129,6 +135,7 @@ setTimeout(() => {
                         validateCalls: JSON.parse(harness?.dataset.validates || "[]"),
                         applyCalls: JSON.parse(harness?.dataset.applies || "[]"),
                         destroyed: Number(harness?.dataset.destroyed || 0),
+                        notifications: messages,
                     });
                 }, 100);
             }, 100);
@@ -160,4 +167,6 @@ setTimeout(() => {
     assert.deepEqual(result.applyCalls[0].context, result.validateCalls[0].context);
     assert.deepEqual(result.applyCalls[1].context, result.validateCalls[1].context);
     assert.equal(result.destroyed, 1);
+    // Regression: AI 建议成功应用后，列表刷新和对话框关闭已提供充分反馈，不应再弹成功消息。
+    assert.deepEqual(result.notifications, []);
 });
