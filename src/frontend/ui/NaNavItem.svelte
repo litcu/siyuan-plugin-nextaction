@@ -12,7 +12,7 @@
     export let onclick: (event: MouseEvent) => void = () => {};
 </script>
 
-<NaTooltip text={tooltip || label} position="right" followCursor={false} block>
+<NaTooltip text={tooltip || label} position="right" followCursor={false} block disabled={!collapsed}>
     <button
         type="button"
         class="na-nav-item"

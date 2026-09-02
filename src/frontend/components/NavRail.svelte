@@ -135,6 +135,7 @@
             position="right"
             followCursor={false}
             block
+            disabled={!compact}
         >
             <button
                 class="na-nav-rail__action-btn"

@@ -13,6 +13,7 @@
     export let multiline = false;
     export let openOnClick = false;
     export let ariaLabel = "";
+    export let disabled = false;
     export let children: Snippet;
 
     let visible = false;
@@ -150,39 +151,43 @@
     });
 </script>
 
-<span
-    class="na-tooltip"
-    class:na-tooltip--fill={fill}
-    class:na-tooltip--block={block}
-    class:na-tooltip--multiline={multiline}
-    bind:this={triggerEl}
-    role="button"
-    tabindex="0"
-    aria-label={ariaLabel || undefined}
-    aria-expanded={openOnClick ? visible : undefined}
-    onmouseenter={handleMouseEnter}
-    onmousemove={handleMouseMove}
-    onmouseleave={handleMouseLeave}
-    onclick={handleClick}
-    onkeydown={handleKeydown}
-    onfocusin={handleFocusIn}
-    onfocusout={handleMouseLeave}
->
+{#if disabled}
     {@render children()}
-    {#if visible}
-        <span
-            use:portal
-            bind:this={popupEl}
-            class="na-tooltip__popup"
-            class:na-tooltip__popup--multiline={multiline}
-            data-position={resolvedPosition}
-            style={popupStyle}
-            role="tooltip"
-        >
-            {text}
-        </span>
-    {/if}
-</span>
+{:else}
+    <span
+        class="na-tooltip"
+        class:na-tooltip--fill={fill}
+        class:na-tooltip--block={block}
+        class:na-tooltip--multiline={multiline}
+        bind:this={triggerEl}
+        role="button"
+        tabindex="0"
+        aria-label={ariaLabel || undefined}
+        aria-expanded={openOnClick ? visible : undefined}
+        onmouseenter={handleMouseEnter}
+        onmousemove={handleMouseMove}
+        onmouseleave={handleMouseLeave}
+        onclick={handleClick}
+        onkeydown={handleKeydown}
+        onfocusin={handleFocusIn}
+        onfocusout={handleMouseLeave}
+    >
+        {@render children()}
+        {#if visible}
+            <span
+                use:portal
+                bind:this={popupEl}
+                class="na-tooltip__popup"
+                class:na-tooltip__popup--multiline={multiline}
+                data-position={resolvedPosition}
+                style={popupStyle}
+                role="tooltip"
+            >
+                {text}
+            </span>
+        {/if}
+    </span>
+{/if}
 
 <style lang="scss">
     .na-tooltip {
