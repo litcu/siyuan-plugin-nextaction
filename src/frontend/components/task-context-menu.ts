@@ -43,12 +43,6 @@ export function showTaskContextMenu(
                 try {
                     const updated = await bridge.updateTask(task.blockId, { "na-status": s });
                     callbacks.onUpdated(updated);
-                    const statusLabel = i18n?.[i18nKey] || s;
-                    const template =
-                        s === "done"
-                            ? i18n?.taskMarkedDone || "Marked as done"
-                            : i18n?.taskStatusUpdated || "Status updated to {status}";
-                    notifyInfo(template.replace("{status}", statusLabel));
                     const warningMessage = taskWriteWarningMessage(updated._warning, i18n);
                     if (warningMessage) notifyInfo(warningMessage);
                 } catch (e: any) {
