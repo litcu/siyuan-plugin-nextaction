@@ -4,6 +4,7 @@ import { taskStore } from "../stores/task-store";
 import { notifyError, notifyInfo, notifyOperationError } from "../notify";
 import { runAiExtractTasks } from "../ai/ai-feature-service";
 import { assertBlockId } from "../../shared/block-id";
+import { refreshTasks } from "../utils/refresh-tasks";
 
 type CommandProtyle = {
     toolbar?: IProtyle["toolbar"];
@@ -250,8 +251,7 @@ export class TaskCommandController {
 
     private async runRefreshCommand(): Promise<void> {
         try {
-            await this.getBridge().recalcAllOrders();
-            void taskStore.loadTasks();
+            await refreshTasks(this.getBridge(), () => taskStore.loadTasks());
             notifyInfo(`${this.plugin.i18n.refreshTasks} ✓`);
         } catch (e) {
             notifyOperationError(e, this.plugin.i18n);
