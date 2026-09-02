@@ -147,10 +147,6 @@ export class TaskLifecycleService {
     }
 
     assertReady(): void {
-        this.checkReady();
-    }
-
-    private checkReady(): void {
         this.runtime.assertReady();
     }
 
@@ -307,7 +303,7 @@ export class TaskLifecycleService {
                 if (options.evidence.parentId) assertBlockId(options.evidence.parentId, "evidence.parentId");
             }
         }
-        this.checkReady();
+        this.runtime.assertReady();
         if (taskType !== "1" && taskType !== "2") {
             throw codedError("Invalid task type: " + taskType, RPC_ERROR_INVALID_PARAMS);
         }
@@ -427,7 +423,7 @@ export class TaskLifecycleService {
         taskType: string = "1",
     ): Promise<{ converted: number; skipped: number }> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
 
         if (taskType !== "1" && taskType !== "2") {
             throw codedError("Invalid task type: " + taskType, RPC_ERROR_INVALID_PARAMS);
@@ -492,7 +488,7 @@ export class TaskLifecycleService {
 
     async removeTask(blockId: string): Promise<void> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
 
         const entry = this.cacheManager.get(blockId);
         if (!entry) {
@@ -621,7 +617,7 @@ export class TaskLifecycleService {
             throw codedError("Invalid task type: " + attrs[ATTR_TASK], RPC_ERROR_INVALID_PARAMS);
         }
 
-        this.checkReady();
+        this.runtime.assertReady();
         let cachedTask = this.cacheManager.get(blockId);
         let resolvedUncached: Exclude<ResolvedTaskTarget, { kind: "convert-text" }> | null = null;
         let resolvedExisting: Exclude<ResolvedTaskTarget, { kind: "convert-text" }> | null = null;
@@ -893,7 +889,7 @@ export class TaskLifecycleService {
         if (!title || title.length > 512) {
             throw codedError("title must contain 1-512 characters", RPC_ERROR_INVALID_PARAMS);
         }
-        this.checkReady();
+        this.runtime.assertReady();
         const existing = this.cacheManager.get(blockId);
         if (!existing) {
             throw codedError("Task not found: " + blockId, RPC_ERROR_TASK_NOT_FOUND);
@@ -984,13 +980,13 @@ export class TaskLifecycleService {
     }
 
     async getMyDay(): Promise<MyDayState> {
-        this.checkReady();
+        this.runtime.assertReady();
         return this.myDayManager.getState();
     }
 
     async addTaskToMyDay(blockId: string): Promise<MyDayState> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
         const entry = this.cacheManager.get(blockId);
         if (entry?.identificationSource === "native" && !entry.created) {
             await this.repository.withConfirmedChanges(async (changes) => {
@@ -1002,26 +998,26 @@ export class TaskLifecycleService {
 
     async removeTaskFromMyDay(blockId: string): Promise<MyDayState> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
         return this.myDayManager.removeTask(blockId);
     }
 
     async reorderMyDayTask(blockId: string, afterId?: string): Promise<MyDayState> {
         blockId = assertBlockId(blockId);
         if (afterId) assertBlockId(afterId, "afterId");
-        this.checkReady();
+        this.runtime.assertReady();
         return this.myDayManager.reorderTask(blockId, afterId);
     }
 
     async setMyDaySchedule(blockId: string, start: number | null, end: number | null): Promise<MyDayState> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
         return this.myDayManager.setSchedule(blockId, start, end);
     }
 
     async removeMyDaySchedule(blockId: string): Promise<MyDayState> {
         blockId = assertBlockId(blockId);
-        this.checkReady();
+        this.runtime.assertReady();
         return this.myDayManager.removeSchedule(blockId);
     }
 

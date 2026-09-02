@@ -78,7 +78,6 @@ export class McpToolExecutor {
     private readonly siyuan: kernel.ISiyuan;
     private readonly taskService: TaskService;
     private settings: PluginSettings;
-    private readonly targets: TaskTargetResolver;
     private readonly creation: TaskCreationService;
     private catalog?: McpToolCatalog;
 
@@ -101,29 +100,12 @@ export class McpToolExecutor {
         this.siyuan = siyuan;
         this.taskService = taskService;
         this.settings = settings;
-        this.targets = targets || new TaskTargetResolver(api, () => this.settings);
-        this.creation = creation || new TaskCreationService(taskService, api, this.targets, () => this.settings);
+        const targetResolver = targets || new TaskTargetResolver(api, () => this.settings);
+        this.creation = creation || new TaskCreationService(taskService, api, targetResolver, () => this.settings);
     }
 
     updateSettings(settings: PluginSettings): void {
         this.settings = settings;
-    }
-
-    async listTargetNotebooks() {
-        return this.targets.listNotebooks();
-    }
-    async listTargetDocuments(notebookId: string, path = "/") {
-        return this.targets.listDocuments(notebookId, path);
-    }
-    async searchTargetDocuments(query: string) {
-        return this.targets.searchDocuments(query);
-    }
-    async resolveDocumentTarget(value: unknown) {
-        return this.targets.resolveDocument(value);
-    }
-
-    async validateSettings(settings: PluginSettings): Promise<void> {
-        return this.targets.validateSettings(settings);
     }
 
     createHandler(name: McpToolName) {
@@ -687,18 +669,6 @@ export class McpToolExecutor {
     private minuteText(value: number | null): string | null {
         if (value === null) return null;
         return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
-    }
-
-    async createTaskForPlugin(input: CreateTaskInput) {
-        return this.createTask(input);
-    }
-
-    async convertTaskForPlugin(input: Record<string, unknown>) {
-        return this.convertBlock(input);
-    }
-
-    async resolveChildTarget(value: unknown) {
-        return this.targets.resolveChildTarget(value);
     }
 
     applyTaskProperties(task: TaskCacheEntry, properties: Record<string, unknown>): Promise<TaskCacheEntry> {
