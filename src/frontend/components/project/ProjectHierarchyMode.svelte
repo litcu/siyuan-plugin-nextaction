@@ -5,15 +5,12 @@
     import { shouldShowSubtreeProgress, type ProjectTreeModel } from "../../utils/project-tree";
     import {
         buildProjectTreeDropIntent,
-        buildProjectTreeParentOptions,
-        buildProjectTreeReorderIntent,
         executeProjectTreeCommand,
         type ProjectTreeDropPosition,
     } from "../../utils/project-tree-operations";
     import { formatOperationError } from "../../error-format";
     import TaskCard from "../TaskCard.svelte";
     import NaButton from "../../ui/NaButton.svelte";
-    import NaIconButton from "../../ui/NaIconButton.svelte";
     import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
     import NaProgressBar from "../../ui/NaProgressBar.svelte";
 
@@ -162,9 +159,6 @@
         void submitRename(task);
     }
 
-    function stopPointerDown(event: PointerEvent): void {
-        event.stopPropagation();
-    }
     async function cancelRename(taskId: string) {
         editingTaskId = "";
         renameDraft = "";
@@ -175,39 +169,6 @@
             event.preventDefault();
             void cancelRename(taskId);
         }
-    }
-    function moveIntent(task: TaskCacheEntry, direction: "up" | "down") {
-        const effectiveTask = operationTasks.find((entry) => entry.blockId === task.blockId) || task;
-        return buildProjectTreeReorderIntent(
-            effectiveTask,
-            operationTasks.filter((entry) => entry.parentId === effectiveTask.parentId),
-            direction,
-        );
-    }
-    async function moveTask(task: TaskCacheEntry, direction: "up" | "down") {
-        const intent = moveIntent(task, direction);
-        if (intent)
-            await perform(task, () =>
-                executeProjectTreeCommand(
-                    { type: "reorder", task, parentId: intent.parentId, afterId: intent.afterId },
-                    { reorderTask: onTaskReorder },
-                ),
-            );
-    }
-    async function changeParent(task: TaskCacheEntry, event: Event) {
-        const control = event.currentTarget as HTMLSelectElement;
-        const parentId = control.value;
-        const siblings = operationTasks
-            .filter((entry) => entry.parentId === parentId)
-            .filter((e) => e.blockId !== task.blockId)
-            .sort((a, b) => a.sort - b.sort);
-        const succeeded = await perform(task, () =>
-            executeProjectTreeCommand(
-                { type: "reorder", task, parentId, afterId: siblings[siblings.length - 1]?.blockId },
-                { reorderTask: onTaskReorder },
-            ),
-        );
-        if (!succeeded) control.value = model.parentByChild.get(task.blockId) || task.parentId;
     }
     function handleDragStart(task: TaskCacheEntry, event: DragEvent) {
         if (task.taskType === "2" || !event.dataTransfer) return;
@@ -282,6 +243,9 @@
             aria-selected={row.task.blockId === selectedTaskId}
             onfocus={() => (focusedTaskId = row.task.blockId)}
             onkeydown={(event) => handleTreeKeydown(row, event)}
+            draggable={row.task.taskType !== "2" && Boolean(onTaskReorder) && !busyTaskId}
+            ondragstart={(event) => handleDragStart(row.task, event)}
+            ondragend={handleDragEnd}
             ondragover={(event) => handleDragOver(row.task, event)}
             ondrop={(event) => handleDrop(row.task, event)}
         >
@@ -301,35 +265,6 @@
                     isRoot={row.depth === 0}
                     managedFocus
                 />
-                <div class="na-project-tree__controls" role="presentation" onpointerdown={stopPointerDown}>
-                    {#if row.task.taskType !== "2"}<NaIconButton
-                            compact
-                            symbol="iconList"
-                            label={`${i18n?.manualSort || "Reorder"}: ${row.task.title}`}
-                            disabled={Boolean(busyTaskId) || !onTaskReorder}
-                            draggable={Boolean(onTaskReorder) && !busyTaskId}
-                            ondragstart={(event) => handleDragStart(row.task, event)}
-                            ondragend={handleDragEnd}
-                        /><NaIconButton
-                            compact
-                            symbol="iconUp"
-                            label={`${i18n?.moveUp || "Move up"}: ${row.task.title}`}
-                            disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "up")}
-                            onclick={() => moveTask(row.task, "up")}
-                        /><NaIconButton
-                            compact
-                            symbol="iconDown"
-                            label={`${i18n?.moveDown || "Move down"}: ${row.task.title}`}
-                            disabled={Boolean(busyTaskId) || !onTaskReorder || !moveIntent(row.task, "down")}
-                            onclick={() => moveTask(row.task, "down")}
-                        /><NaIconButton
-                            compact
-                            symbol="iconEdit"
-                            label={`${i18n?.renameStage || "Rename"}: ${row.task.title}`}
-                            disabled={Boolean(busyTaskId) || !onTaskRename}
-                            onclick={() => startRename(row.task)}
-                        />{/if}
-                </div>
                 {#if editingTaskId === row.task.blockId}<form
                         class="na-project-tree__rename"
                         onsubmit={(event) => handleRenameSubmit(row.task, event)}
@@ -355,22 +290,6 @@
                             label={`${row.task.actionKind === "stage" ? i18n?.actionKindStage || "Stage" : i18n?.actionKindAction || "Action"} · ${row.subtreeProgress.done}/${row.subtreeProgress.total}`}
                         />
                     </div>{/if}
-                {#if row.task.taskType !== "2"}<label class="na-project-tree__parent"
-                        ><span>{i18n?.parentItem || "Parent"}</span><select
-                            class="na-select na-select--sm"
-                            value={row.visibleParentId || row.task.parentId}
-                            tabindex="-1"
-                            disabled={Boolean(busyTaskId) || !onTaskReorder}
-                            onchange={(event) => changeParent(row.task, event)}
-                            aria-label={`${i18n?.parentItem || "Parent"}: ${row.task.title}`}
-                            >{#each buildProjectTreeParentOptions(row.task, project, operationTasks, visibleTaskIds) as parent}<option
-                                    value={parent.blockId}
-                                    >{parent.blockId === project.blockId
-                                        ? `${i18n?.project || "Project"}: ${parent.title}`
-                                        : parent.title || i18n?.untitled || "(untitled)"}</option
-                                >{/each}</select
-                        ></label
-                    >{/if}
             </div>
         </div>
     {/each}
@@ -429,17 +348,12 @@
     .na-project-tree__item {
         position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
         align-items: center;
         min-width: 0;
     }
     .na-project-tree__item :global(.na-task-card) {
         min-width: 0;
-    }
-    .na-project-tree__controls {
-        display: flex;
-        align-items: center;
-        gap: 2px;
     }
     .na-project-tree__rename {
         grid-column: 1 / -1;
@@ -455,28 +369,9 @@
         grid-column: 1 / -1;
         padding: 3px 8px 1px 34px;
     }
-    .na-project-tree__parent {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        gap: var(--na-space-sm);
-        padding: 2px 8px 4px 34px;
-        color: var(--na-text-secondary);
-        font-size: var(--na-font-size-xs);
-    }
-    .na-project-tree__parent .na-select {
-        min-width: 150px;
-        max-width: 280px;
-    }
     @container nextaction-app (max-width: 600px) {
         .na-project-tree__item {
             grid-template-columns: minmax(0, 1fr);
-        }
-        .na-project-tree__controls {
-            justify-content: flex-end;
-        }
-        .na-project-tree__parent {
-            flex-wrap: wrap;
         }
     }
 </style>

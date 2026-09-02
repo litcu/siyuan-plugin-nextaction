@@ -84,7 +84,7 @@
     "parentTask": "父任务",
     "searchParentItem": "搜索上级项目或任务...",
     "parentItem": "上级项目或任务",
-    "projectAssignment": "加入项目或设置父任务",
+    "projectAssignment": "项目或父任务",
     "projectAssignmentHint": "仅更改逻辑归属，不会移动思源块；移动到项目文档暂未实现。",
     "clearProjectAssignment": "取消项目或父级归属",
     "overdueDays": "逾期 {n} 天",

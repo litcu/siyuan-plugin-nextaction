@@ -79,7 +79,9 @@ function columnTasks(
         if (groupBy === "status") return task.status === value;
         if (groupBy === "priority") return (isBoardPriority(task.priority) ? task.priority : PRIORITY_NONE) === value;
         if (groupBy === "importance") return boardImportance(task.importance) === value;
-        const stageId = membership.node(task.blockId)?.nearestStage?.blockId || PROJECT_BOARD_UNASSIGNED_STAGE;
+        const node = membership.node(task.blockId);
+        const stageId =
+            node?.nearestStage?.blockId || (node?.role === "stage" ? task.blockId : PROJECT_BOARD_UNASSIGNED_STAGE);
         return stageId === value;
     });
 }
