@@ -43,6 +43,7 @@
     import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
     import { showProjectBoardMoveUndo } from "../stores/action-move-undo-store";
+    import { refreshTasks } from "../utils/refresh-tasks";
 
     interface Props {
         bridge: KernelBridge;
@@ -333,10 +334,9 @@
 
     async function handleRefresh() {
         try {
-            await bridge.recalcAllOrders();
-            await taskStore.loadTasks();
+            await refreshTasks(bridge, () => taskStore.loadTasks());
         } catch (e: any) {
-            console.error("[NextAction] recalcAllOrders failed:", e);
+            console.error("[NextAction] refresh tasks failed:", e);
             notifyError(formatRpcError(e, i18n));
         }
     }
