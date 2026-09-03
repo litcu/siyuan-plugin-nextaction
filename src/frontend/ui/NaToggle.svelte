@@ -2,6 +2,7 @@
     export let checked: boolean = false;
     export let disabled: boolean = false;
     export let label: string = "";
+    export let showText: boolean = false;
     export let onChange: (checked: boolean) => void = () => {};
 
     function toggle() {
@@ -36,6 +37,7 @@
     <div class="na-toggle__track">
         <div class="na-toggle__thumb"></div>
     </div>
+    {#if showText && label}<span class="na-toggle__label">{label}</span>{/if}
 </div>
 
 <style lang="scss">
@@ -43,6 +45,7 @@
         display: inline-flex;
         align-items: center;
         cursor: pointer;
+        gap: 6px;
         outline: none;
     }
 
@@ -63,6 +66,12 @@
         background: var(--b3-theme-surface-lighter);
         border: none;
         transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .na-toggle__label {
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+        white-space: nowrap;
     }
 
     .na-toggle--checked .na-toggle__track {

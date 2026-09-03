@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
-    import { DEFAULT_FILTER_STATE } from "../utils/filter";
+    import { DEFAULT_FILTER_STATE, hasActiveTaskFilters } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import GanttView from "./GanttView.svelte";
     import ProjectOverviewMode from "./project/ProjectOverviewMode.svelte";
@@ -198,6 +198,9 @@
     let overdueCount = $derived(viewModel.metrics.overdue);
     let dueSoonCount = $derived(viewModel.metrics.dueSoon);
     let noActionCount = $derived(viewModel.metrics.noAction);
+    let taskFiltersActive = $derived(hasActiveTaskFilters(filterState));
+    let projectFiltersActive = $derived(riskFilter !== "all" || dateFilter !== "all" || actionFilter !== "all");
+    let anyFiltersActive = $derived(taskFiltersActive || projectFiltersActive);
 
     function statusLabel(status: string): string {
         return translateKey(i18n, statusI18nKey(status), status);
@@ -218,6 +221,14 @@
     function handleFilterChange(state: FilterState) {
         requestedProjectFilterBypassId = "";
         taskStore.setFilterState(VIEW_BY_PROJECT, state);
+    }
+
+    function clearAllFilters() {
+        requestedProjectFilterBypassId = "";
+        riskFilter = "all";
+        dateFilter = "all";
+        actionFilter = "all";
+        taskStore.setFilterState(VIEW_BY_PROJECT, { ...DEFAULT_FILTER_STATE });
     }
 
     function handleModeChange(value: string) {
@@ -284,6 +295,9 @@
     loading={$taskStore.loading && summaries.length === 0}
     empty={visibleSummaries.length === 0}
     emptyText={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"}
+    emptyAction={anyFiltersActive
+        ? { label: i18n?.clearFilters || "Clear filters", onClick: clearAllFilters }
+        : undefined}
     hint={i18n?.viewHintProject}
 >
     {#snippet toolbar()}
@@ -331,6 +345,7 @@
                 <NaSegmentControl
                     size="sm"
                     value={mode}
+                    label={i18n?.projectViewMode || "Project view"}
                     options={[
                         { value: "overview", label: i18n?.projectViewOverview || "Overview" },
                         { value: "hierarchy", label: i18n?.projectViewHierarchy || "Hierarchy" },
@@ -341,14 +356,14 @@
                     onChange={handleModeChange}
                 />
             </div>
-            <div class="na-project-toolbar__completed">
-                <NaToggle
-                    checked={showCompleted}
-                    label={i18n?.projectShowCompleted || "Show completed"}
-                    onChange={(checked) => (showCompleted = checked)}
-                />
-                <span>{i18n?.projectShowCompleted || "Show completed"}</span>
-            </div>
+            {#if mode !== "board"}<div class="na-project-toolbar__completed">
+                    <NaToggle
+                        checked={showCompleted}
+                        label={i18n?.projectShowCompleted || "Show completed"}
+                        showText
+                        onChange={(checked) => (showCompleted = checked)}
+                    />
+                </div>{/if}
             <select
                 class="na-select na-select--sm na-project-toolbar__select"
                 bind:value={riskFilter}
@@ -389,6 +404,9 @@
             searchPlaceholder={i18n?.searchProjectsAndTasks || "Search projects and tasks..."}
             {i18n}
             onChange={handleFilterChange}
+            showClear={taskFiltersActive}
+            clearLabel={i18n?.clearFilters || "Clear filters"}
+            onClear={clearAllFilters}
         />
     {/snippet}
 
@@ -404,6 +422,7 @@
                         type="button"
                         class="na-project-index__item"
                         class:active={summary.project.blockId === resolvedActiveProjectId}
+                        aria-current={summary.project.blockId === resolvedActiveProjectId ? "true" : undefined}
                         onclick={() => selectProject(summary)}
                     >
                         <span class="na-project-index__item-accent na-project-index__item-accent--{summary.health}"
@@ -460,30 +479,7 @@
                     />
                 {/if}
 
-                <div hidden={mode !== "overview"}>
-                    <ProjectDefinitionEditor
-                        project={selectedSummary.project}
-                        {i18n}
-                        onSave={onTaskUpdate}
-                        controllerRegistry={projectDefinitionControllerRegistry}
-                    />
-                </div>
-
                 {#if mode === "overview"}
-                    {#if projectTreeModel}
-                        <ProjectStagePlan
-                            project={selectedSummary.project}
-                            model={projectTreeModel}
-                            {selectedTaskId}
-                            {i18n}
-                            {onSelectTask}
-                            onCreateStage={onCreateStage ? () => onCreateStage?.(selectedSummary.project) : undefined}
-                            onRenameTask={onTaskRename}
-                            {onTaskUpdate}
-                            {onTaskReorder}
-                            {onMoveAction}
-                        />
-                    {/if}
                     <ProjectOverviewMode
                         summary={selectedSummary}
                         risks={selectedProject?.risks || []}
@@ -500,6 +496,26 @@
                         onAiExtractAction={(sourceBlockId, projectId) =>
                             runAiExtractTasks([sourceBlockId], { projectId })}
                     />
+                    <ProjectDefinitionEditor
+                        project={selectedSummary.project}
+                        {i18n}
+                        onSave={onTaskUpdate}
+                        controllerRegistry={projectDefinitionControllerRegistry}
+                    />
+                    {#if projectTreeModel}
+                        <ProjectStagePlan
+                            project={selectedSummary.project}
+                            model={projectTreeModel}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            onCreateStage={onCreateStage ? () => onCreateStage?.(selectedSummary.project) : undefined}
+                            onRenameTask={onTaskRename}
+                            {onTaskUpdate}
+                            {onTaskReorder}
+                            {onMoveAction}
+                        />
+                    {/if}
                 {:else if mode === "hierarchy" && projectTreeModel}
                     <ProjectHierarchyMode
                         project={selectedSummary.project}

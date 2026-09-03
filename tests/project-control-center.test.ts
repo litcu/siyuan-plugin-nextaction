@@ -48,6 +48,18 @@ test("项目视图窄屏筛选控件流式换行并与搜索区保持间距", ()
     );
 });
 
+test("项目总览优先呈现风险与下一步，并提供可恢复的筛选清除入口", () => {
+    const view = source("../src/frontend/components/ProjectView.svelte");
+    const overview = source("../src/frontend/components/project/ProjectOverviewMode.svelte");
+    assert.ok(view.indexOf("<ProjectOverviewMode") < view.indexOf("<ProjectDefinitionEditor"));
+    assert.match(view, /emptyAction=\{anyFiltersActive/);
+    assert.match(view, /showClear=\{taskFiltersActive\}/);
+    assert.match(view, /aria-current=\{summary\.project\.blockId === resolvedActiveProjectId/);
+    assert.match(view, /label=\{i18n\?\.projectViewMode/);
+    assert.match(overview, /projectRisks/);
+    assert.match(overview, /projectNextActions/);
+});
+
 test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作", () => {
     const gantt = source("../src/frontend/components/GanttView.svelte");
     const bar = source("../src/frontend/components/GanttBar.svelte");
