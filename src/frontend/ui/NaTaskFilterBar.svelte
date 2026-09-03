@@ -20,6 +20,9 @@
     export let sortOptions: { value: string; label: string }[] | undefined = undefined;
     export let searchPlaceholder = "";
     export let i18n: any;
+    export let showClear = false;
+    export let clearLabel = "";
+    export let onClear: (() => void) | undefined = undefined;
 
     export let onChange: (filterState: FilterState) => void = () => {};
     let searchText = filterState.searchText;
@@ -173,6 +176,11 @@
             {i18n}
             onChange={(value, ascending) => change({ ...filterState, sortBy: value, sortAsc: ascending })}
         />
+        {#if showClear && onClear}
+            <NaButton size="sm" variant="text" onclick={onClear}
+                >{clearLabel || i18n?.clearFilters || "Clear filters"}</NaButton
+            >
+        {/if}
     </div>
 </div>
 
