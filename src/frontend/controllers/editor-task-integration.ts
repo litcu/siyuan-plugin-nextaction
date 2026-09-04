@@ -1,4 +1,4 @@
-import { Menu, confirm, type IEventBusMap, type Plugin } from "siyuan";
+import { getAllEditor, Menu, confirm, type IEventBusMap, type IProtyle, type Plugin } from "siyuan";
 import { get } from "svelte/store";
 import type { KernelBridge } from "../kernel-bridge";
 import type { I18nStrings } from "../../shared/i18n";
@@ -25,6 +25,9 @@ import { taskWriteWarningMessage } from "../utils";
 export class EditorTaskIntegration {
     private blockIconHandler: ((event: CustomEvent<IEventBusMap["click-blockicon"]>) => void) | null = null;
     private editorTitleIconHandler: ((event: CustomEvent<IEventBusMap["click-editortitleicon"]>) => void) | null = null;
+    private loadedProtyleHandler: ((event: CustomEvent<IEventBusMap["loaded-protyle-static"]>) => void) | null = null;
+    private loadedProtyleDynamicHandler: ((event: CustomEvent<IEventBusMap["loaded-protyle-dynamic"]>) => void) | null =
+        null;
     private nativeTaskObserver: MutationObserver | null = null;
     private nativeTaskRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private taskStoreUnsubscribe: (() => void) | null = null;
@@ -79,6 +82,71 @@ export class EditorTaskIntegration {
 
         void this.openEditorTaskMenu(taskBlock, taskTarget.blockId, event, isNative);
     };
+
+    private handleDocumentTaskStatusClick = (event: MouseEvent): void => {
+        const action = event.currentTarget as HTMLElement;
+        const blockId = action.dataset.taskBlockId;
+        if (!blockId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const taskBlock = action.closest(".protyle-title") as HTMLElement | null;
+        if (taskBlock) void this.openEditorTaskMenu(taskBlock, blockId, event, false);
+    };
+
+    private handleDocumentTaskStatusKeydown = (event: KeyboardEvent): void => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const action = event.currentTarget as HTMLElement;
+        const blockId = action.dataset.taskBlockId;
+        const taskBlock = action.closest(".protyle-title") as HTMLElement | null;
+        if (!blockId || !taskBlock) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = action.getBoundingClientRect();
+        void this.openEditorTaskMenu(
+            taskBlock,
+            blockId,
+            new MouseEvent("click", { clientX: rect.left, clientY: rect.bottom }),
+            false,
+        );
+    };
+
+    private syncDocumentTaskTitleActions(tasks: TaskCacheEntry[], targetProtyle?: IProtyle): void {
+        const tasksById = new Map(
+            tasks.filter((task) => task.identificationSource === "document").map((task) => [task.blockId, task]),
+        );
+        const protyles = targetProtyle ? [targetProtyle] : getAllEditor().map((editor) => editor.protyle);
+        for (const protyle of protyles) {
+            const title = protyle.title?.element;
+            const blockId = protyle.block?.rootID || "";
+            if (!title || !blockId) continue;
+            const existing = title.querySelector<HTMLElement>(".na-document-task-status");
+            const task = tasksById.get(blockId);
+            if (!task) {
+                existing?.remove();
+                title.classList.remove("na-document-task-title");
+                continue;
+            }
+            title.classList.add("na-document-task-title");
+            const action = (existing || document.createElement("button")) as HTMLButtonElement;
+            action.classList.add("na-document-task-status", "na-status-checkbox");
+            action.type = "button";
+            action.tabIndex = 0;
+            action.dataset.taskBlockId = blockId;
+            action.setAttribute("aria-haspopup", "menu");
+            action.setAttribute("aria-label", this.plugin.i18n.status || "Status");
+            action.title = this.plugin.i18n.status || "Status";
+            for (const className of Array.from(action.classList) as string[]) {
+                if (className.startsWith("na-status-checkbox--")) action.classList.remove(className);
+            }
+            action.classList.add(`na-status-checkbox--${task.status}`);
+            if (!existing) {
+                action.addEventListener("click", this.handleDocumentTaskStatusClick);
+                action.addEventListener("keydown", this.handleDocumentTaskStatusKeydown);
+                action.addEventListener("pointerdown", (event: PointerEvent) => event.stopPropagation());
+                title.append(action);
+            }
+        }
+    }
 
     private handleEditorStatusKeydown = (event: KeyboardEvent) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -585,19 +653,33 @@ export class EditorTaskIntegration {
         };
         this.plugin.eventBus.on("click-editortitleicon", this.editorTitleIconHandler);
 
+        this.loadedProtyleHandler = ({ detail }) =>
+            this.syncDocumentTaskTitleActions(get(taskStore).allTasks, detail.protyle);
+        this.loadedProtyleDynamicHandler = ({ detail }) =>
+            this.syncDocumentTaskTitleActions(get(taskStore).allTasks, detail.protyle);
+        this.plugin.eventBus.on("loaded-protyle-static", this.loadedProtyleHandler);
+        this.plugin.eventBus.on("loaded-protyle-dynamic", this.loadedProtyleDynamicHandler);
+
         // Capture native checkbox input before SiYuan toggles its binary marker.
         document.addEventListener("pointerdown", this.handleEditorStatusClick, true);
         document.addEventListener("mousedown", this.handleEditorStatusClick, true);
         document.addEventListener("click", this.handleEditorStatusClick, true);
         document.addEventListener("keydown", this.handleEditorStatusKeydown, true);
         this.decorateNativeTaskActions(document);
-        this.taskStoreUnsubscribe = taskStore.subscribe((state) => this.syncNativeTaskDomState(state.allTasks));
+        this.taskStoreUnsubscribe = taskStore.subscribe((state) => {
+            this.syncNativeTaskDomState(state.allTasks);
+            this.syncDocumentTaskTitleActions(state.allTasks);
+        });
         this.nativeTaskObserver = new MutationObserver((mutations) => {
+            let hasDocumentTitle = false;
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
-                    if (node instanceof Element) this.decorateNativeTaskActions(node);
+                    if (!(node instanceof Element)) continue;
+                    this.decorateNativeTaskActions(node);
+                    if (node.matches(".protyle-title") || node.querySelector(".protyle-title")) hasDocumentTitle = true;
                 }
             }
+            if (hasDocumentTitle) this.syncDocumentTaskTitleActions(get(taskStore).allTasks);
             const hasNativeTask = mutations.some((mutation) =>
                 [...mutation.addedNodes].some((node) => node instanceof Element && containsNativeTaskTarget(node)),
             );
@@ -621,7 +703,16 @@ export class EditorTaskIntegration {
         this.nativeTaskRefreshTimer = null;
         if (this.blockIconHandler) this.plugin.eventBus.off("click-blockicon", this.blockIconHandler);
         if (this.editorTitleIconHandler) this.plugin.eventBus.off("click-editortitleicon", this.editorTitleIconHandler);
+        if (this.loadedProtyleHandler) this.plugin.eventBus.off("loaded-protyle-static", this.loadedProtyleHandler);
+        if (this.loadedProtyleDynamicHandler)
+            this.plugin.eventBus.off("loaded-protyle-dynamic", this.loadedProtyleDynamicHandler);
+        for (const title of document.querySelectorAll<HTMLElement>(".protyle-title.na-document-task-title")) {
+            title.querySelector(".na-document-task-status")?.remove();
+            title.classList.remove("na-document-task-title");
+        }
         this.blockIconHandler = null;
         this.editorTitleIconHandler = null;
+        this.loadedProtyleHandler = null;
+        this.loadedProtyleDynamicHandler = null;
     }
 }

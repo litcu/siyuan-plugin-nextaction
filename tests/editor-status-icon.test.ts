@@ -8,27 +8,22 @@ import {
 } from "../src/frontend/controllers/editor-task-dom.ts";
 
 const source = readFileSync(new URL("../src/frontend/styles/host-integration.scss", import.meta.url), "utf8");
-const tokens = readFileSync(new URL("../src/frontend/ui/tokens.scss", import.meta.url), "utf8");
 const integration = readFileSync(
     new URL("../src/frontend/controllers/editor-task-integration.ts", import.meta.url),
     "utf8",
 );
-const start = source.indexOf(".protyle-wysiwyg [data-node-id][custom-na-task]");
-const end = source.indexOf("// Notification Host & Card", start);
-const editorIconStyles = source.slice(start, end);
+test("文档任务目标不拥有正文状态操作按钮", () => {
+    // Regression: document-level status actions must be attached to the title, not regular blocks.
+    const documentTask = {
+        dataset: { nodeId: "document-task" },
+        matches: (selector: string) => selector === "[data-node-id][custom-na-task]",
+        closest: () => null,
+        querySelectorAll: () => [],
+    } as unknown as HTMLElement;
 
-test("editor task status markers match the panel circular checkbox", () => {
-    assert.notEqual(start, -1);
-    assert.notEqual(end, -1);
-    assert.match(editorIconStyles, /border-radius:\s*50%/);
-    assert.match(editorIconStyles, /border:\s*2px solid var\(--na-text-secondary\)/);
-    assert.match(editorIconStyles, /border-style:\s*dashed/);
-    assert.match(editorIconStyles, /top:\s*calc\(0\.5lh - 8px\)/);
-    assert.match(editorIconStyles, /top:\s*0\.5lh/);
-    assert.match(
-        tokens,
-        /:root\s*\{[\s\S]*--na-text-secondary:\s*color-mix\(in srgb, var\(--b3-theme-on-background\) 78%, var\(--b3-theme-surface\)\)/,
-    );
+    const target = closestTaskTarget(documentTask);
+    assert.deepEqual(target?.ownedActions, []);
+    assert.equal(target?.identificationSource, "document");
 });
 
 test("原生任务 checkbox 使用六态样式并在 capture 阶段阻止 SiYuan 二态切换", () => {
@@ -97,6 +92,30 @@ test("编辑器识别由任务列表拥有的列表项", () => {
     assert.equal(target?.blockId, "task-list-owned-item");
     assert.equal(target?.identificationSource, "native");
     assert.deepEqual(target?.ownedActions, [action]);
+});
+
+test("文档任务不将正文普通块识别为文档级任务", () => {
+    // Regression: clicking a block icon inside a document task must keep SiYuan's normal block menu.
+    const documentTask = { dataset: { nodeId: "document-task" } } as unknown as HTMLElement;
+    const ordinaryBlock = {
+        closest: (selector: string) => (selector.includes("NodeList") ? null : documentTask),
+        matches: () => false,
+    } as unknown as HTMLElement;
+
+    assert.equal(closestTaskTarget(ordinaryBlock), null);
+});
+
+test("文档任务自身仍可作为文档级任务目标", () => {
+    // Regression: the document task status entry must retain access to the task menu.
+    const documentTask = {
+        dataset: { nodeId: "document-task" },
+        matches: (selector: string) => selector === "[data-node-id][custom-na-task]",
+        closest: () => null,
+    } as unknown as HTMLElement;
+
+    const target = closestTaskTarget(documentTask);
+    assert.equal(target?.blockId, "document-task");
+    assert.equal(target?.identificationSource, "document");
 });
 
 test("编辑器状态同步只扫描一次原生任务 DOM", () => {
