@@ -162,77 +162,28 @@
     font-size: 12px;
 }
 
-// 编辑器中任务块状态图标 — 与面板 StatusCheckbox 视觉一致
-.protyle-wysiwyg [data-node-id][custom-na-task] {
-    position: relative;
-    padding-left: 26px;
+// 文档任务状态按钮与思源文档图标并列，避免复用文档图标或拦截正文块菜单。
+.protyle-title.na-document-task-title {
+    margin-left: 50px;
 
-    &::before {
-        content: "";
+    .na-document-task-status {
         position: absolute;
-        left: 0;
-        top: calc(0.5lh - 8px);
-        transform: none;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        border: 2px solid var(--na-text-secondary);
-        cursor: pointer;
-        transition:
-            border-color 0.15s,
-            background 0.15s;
-        box-sizing: border-box;
-    }
+        left: -46px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        opacity: 1;
+        z-index: 1;
 
-    &[custom-na-status="doing"]::before {
-        border-color: var(--na-color-doing);
-        background: linear-gradient(135deg, var(--na-color-doing) 50%, transparent 50%);
-    }
+        &:hover {
+            transform: translateY(-50%) scale(1.12);
+        }
 
-    &[custom-na-status="inbox"]::before {
-        border-color: var(--na-color-inbox);
-    }
-
-    &[custom-na-status="inbox"]::after {
-        content: "";
-        position: absolute;
-        left: 8px;
-        top: 0.5lh;
-        width: 0;
-        height: 0;
-        border-left: 2.5px solid transparent;
-        border-right: 2.5px solid transparent;
-        border-top: 3.5px solid var(--na-color-inbox);
-        transform: translate(-50%, -1px);
-        pointer-events: none;
-    }
-
-    &[custom-na-status="waiting"]::before {
-        border-color: var(--na-color-waiting);
-        border-style: dashed;
-        border-width: 2px;
-    }
-
-    &[custom-na-status="someday"]::before {
-        content: "···";
-        border-color: var(--na-color-someday);
-        color: var(--na-text-secondary);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    &[custom-na-status="done"]::before {
-        background: var(--na-color-success-bg);
-        border-color: var(--na-color-done);
-    }
-
-    &[custom-na-status="done"] {
-        text-decoration: line-through;
+        &:active {
+            transform: translateY(-50%) scale(0.9);
+        }
     }
 }
 

@@ -28,7 +28,7 @@ function toTarget(taskElement: HTMLElement, identificationSource: "native" | "do
 export function closestTaskTarget(target: HTMLElement): EditorTaskTarget | null {
     const native = target.closest(`[data-node-id]:is(${NATIVE_TASK_ITEM_SELECTOR})`) as HTMLElement | null;
     if (native) return toTarget(native, "native");
-    const documentTask = target.closest("[data-node-id][custom-na-task]") as HTMLElement | null;
+    const documentTask = target.matches("[data-node-id][custom-na-task]") ? target : null;
     return documentTask ? toTarget(documentTask, "document") : null;
 }
 

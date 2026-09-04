@@ -24,7 +24,7 @@ test("根样式入口只按稳定职责顺序汇总", () => {
 test("壳层、组件和宿主集成样式各自拥有对应选择器", () => {
     assert.match(shell, /\.na-app\s*\{/);
     assert.match(shell, /\.na-nav-rail\s*\{/);
-    assert.match(host, /\.protyle-wysiwyg \[data-node-id\]\[custom-na-task\]/);
+    assert.match(host, /\.protyle-title[\s\S]*\.na-document-task-status/);
     assert.match(host, /\.na-ai-dialog \.b3-dialog__container/);
     assert.match(host, /\.na-notification-host/);
     assert.doesNotMatch(components, /\.protyle-wysiwyg|\.na-notification-host|\.na-app\s*\{/);
