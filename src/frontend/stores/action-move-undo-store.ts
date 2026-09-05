@@ -4,8 +4,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 
 export interface ActionMoveUndoFeedback {
     undo: ActionMoveUndo;
-    status: "available" | "working" | "success" | "error";
-    resultSummary: string;
+    status: "available" | "working" | "error";
     error: string;
     onUndone?: (task: TaskCacheEntry) => void;
 }
@@ -13,23 +12,24 @@ export interface ActionMoveUndoFeedback {
 export const actionMoveUndoFeedback = writable<ActionMoveUndoFeedback | null>(null);
 
 export function showActionMoveUndo(undo: ActionMoveUndo, onUndone?: (task: TaskCacheEntry) => void): void {
-    actionMoveUndoFeedback.set({ undo, status: "available", resultSummary: "", error: "", onUndone });
+    actionMoveUndoFeedback.set({ undo, status: "available", error: "", onUndone });
 }
 
 export function markActionMoveUndoWorking(): void {
     actionMoveUndoFeedback.update((feedback) => (feedback ? { ...feedback, status: "working", error: "" } : null));
 }
 
-export function completeActionMoveUndo(task: TaskCacheEntry, summary: string): void {
+export function completeActionMoveUndo(credential: string, task: TaskCacheEntry): void {
     actionMoveUndoFeedback.update((feedback) => {
-        feedback?.onUndone?.(task);
-        return feedback ? { ...feedback, status: "success", resultSummary: summary, error: "" } : null;
+        if (feedback?.undo.credential !== credential) return feedback;
+        feedback.onUndone?.(task);
+        return null;
     });
 }
 
-export function failActionMoveUndo(error: string): void {
+export function failActionMoveUndo(credential: string, error: string): void {
     actionMoveUndoFeedback.update((feedback) =>
-        feedback ? { ...feedback, status: "error", error, resultSummary: "" } : null,
+        feedback?.undo.credential === credential ? { ...feedback, status: "error", error } : feedback,
     );
 }
 

@@ -802,7 +802,6 @@
     "moveActionUndoTitle": "Action moved",
     "moveActionUndo": "Undo move",
     "moveActionUndoShortcut": "Ctrl/⌘+Z",
-    "moveActionUndoSuccess": "Move undone.",
     "moveActionUndoFailed": "Undo failed: {error}",
     "manualSort": "Manual order",
     "retry": "Retry",

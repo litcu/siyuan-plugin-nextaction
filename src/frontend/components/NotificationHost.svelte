@@ -55,10 +55,13 @@
             if (!bridge) throw new Error("Kernel bridge is unavailable");
             const result = await bridge.undoActionMove(feedback.undo.credential);
             taskStore.applyUpdate(result.task);
-            completeActionMoveUndo(result.task, result.summary);
+            completeActionMoveUndo(feedback.undo.credential, result.task);
         } catch (cause: unknown) {
             const detail = formatOperationError(cause, i18n);
-            failActionMoveUndo((i18n?.moveActionUndoFailed || "Undo failed: {error}").replace("{error}", detail));
+            failActionMoveUndo(
+                feedback.undo.credential,
+                (i18n?.moveActionUndoFailed || "Undo failed: {error}").replace("{error}", detail),
+            );
         }
     }
 

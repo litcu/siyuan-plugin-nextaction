@@ -802,7 +802,6 @@
     "moveActionUndoTitle": "行动已移动",
     "moveActionUndo": "撤销移动",
     "moveActionUndoShortcut": "Ctrl/⌘+Z",
-    "moveActionUndoSuccess": "已撤销移动并恢复原位置。",
     "moveActionUndoFailed": "撤销失败：{error}",
     "manualSort": "手工排序",
     "retry": "重试",

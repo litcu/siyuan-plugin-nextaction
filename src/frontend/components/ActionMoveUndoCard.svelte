@@ -20,10 +20,8 @@
         <strong>{i18n.moveActionUndoTitle || "Action moved"}</strong>
         <NaIconButton symbol="iconCloseRound" label={i18n.close || "Close"} size={14} compact onclick={onDismiss} />
     </header>
-    <p>{feedback.status === "success" ? feedback.resultSummary : feedback.undo.summary}</p>
-    {#if feedback.status === "success"}
-        <NaInlineNotice message={i18n.moveActionUndoSuccess || "Move undone."} tone="success" />
-    {:else if feedback.status === "error"}
+    <p>{feedback.undo.summary}</p>
+    {#if feedback.status === "error"}
         <NaInlineNotice message={feedback.error} tone="error" />
     {:else}
         <div class="na-action-move-undo__actions">
