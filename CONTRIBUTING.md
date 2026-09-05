@@ -17,10 +17,13 @@
 
 ```bash
 pnpm install --frozen-lockfile
+npx playwright install chromium --only-shell
 pnpm run check
 ```
 
 `pnpm run check` 会运行测试、类型检查、Svelte 检查、ESLint、格式检查、架构检查、主题检查、生产构建和空白检查。
+
+浏览器行为测试优先使用本机 Playwright 缓存中的 Headless Shell；上述安装命令只准备本地浏览器，不向项目添加依赖。完整 Chrome 的最小窗口限制可能使移动视口大于请求尺寸，导致视口断言失败。若使用 `NA_LAYOUT_BROWSER` 指定浏览器，请指向支持所需视口的可执行文件。
 
 ## 开发流程
 
