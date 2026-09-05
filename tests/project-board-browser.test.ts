@@ -56,12 +56,14 @@ function updatePreference(next) {
     preference = next;
 }
 async function moveTask(intent) {
-    moves = [...moves, { ...intent, task: intent.task.blockId }];
+    moves = [...moves, intent];
+    return { status: "success", task: task(), reordered: false };
 }
 </script>
 
 <div id="state" data-group={preference.groupBy} data-sort={preference.sortBy} data-changes={JSON.stringify(changes)} data-moves={JSON.stringify(moves)}></div>
 <ProjectBoardMode
+    {projectId}
     tasks={[task()]}
     projectTasks={[project, task()]}
     {i18n}
@@ -133,8 +135,8 @@ setTimeout(() => {
         ],
         moves: [
             {
-                task: "20260825141736-actionx",
-                status: "",
+                taskId: "20260825141736-actionx",
+                projectId: "20260825141735-project",
                 groupBy: "priority",
                 value: "critical",
                 sortBy: "due",

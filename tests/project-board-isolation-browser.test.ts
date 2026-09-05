@@ -66,6 +66,7 @@ const registry = new ProjectDefinitionControllerRegistry();
 
 <div id="writes" data-value={JSON.stringify(writes)}></div>
 <ProjectView
+    onProjectBoardMove={async () => { throw new Error("Board move is not used by this fixture"); }}
     onEdit={noop} onStatusClick={noop} onContextMenu={noop} {i18n}
     loadProjectSupport={async (projectId) => ({ projectId, items: [] })}
     onExtractAction={noop} projectDefinitionControllerRegistry={registry} {bridge}

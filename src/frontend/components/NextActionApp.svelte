@@ -31,7 +31,7 @@
     import { notifyError, notifyInfo, formatRpcError } from "../notify";
     import type { TaskCacheEntry } from "../../shared/types";
     import type { I18nStrings } from "../../shared/i18n";
-    import type { ProjectBoardMoveIntent } from "../utils/project-view-state";
+    import type { ProjectBoardMoveInput } from "../../shared/project-board-move";
     import { get } from "svelte/store";
     import NaDrawerHost from "../ui/NaDrawerHost.svelte";
     import { openReminderSettingsDialog } from "../dialogs/task-property-dialogs";
@@ -218,7 +218,7 @@
                 }
                 if (!projectId) return;
                 try {
-                    const result = await bridge.moveProjectBoardTask({
+                    await handleProjectBoardMove({
                         taskId: entry.blockId,
                         projectId,
                         groupBy,
@@ -245,16 +245,8 @@
                             })
                             .map((item) => item.blockId),
                     });
-                    taskStore.applyUpdate(result.task);
-                    if (result.status === "partial") {
-                        notifyInfo(
-                            i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed",
-                        );
-                    }
-                    if (result.status === "success" && result.undo)
-                        showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
-                } catch (error) {
-                    notifyError(formatRpcError(error, i18n));
+                } catch {
+                    // The shared move handler has already reported the failure.
                 }
             };
         showTaskContextMenu(task, event, bridge, i18n, callbacks, activeView, inMyDay);
@@ -307,18 +299,9 @@
         }
     }
 
-    async function handleProjectBoardMove(intent: ProjectBoardMoveIntent, projectId: string) {
+    async function handleProjectBoardMove(input: ProjectBoardMoveInput) {
         try {
-            const result = await bridge.moveProjectBoardTask({
-                taskId: intent.task.blockId,
-                projectId,
-                groupBy: intent.groupBy || "status",
-                value: intent.value ?? intent.status,
-                sortBy: intent.sortBy,
-                afterId: intent.afterId,
-                afterParentId: intent.afterParentId,
-                visibleTaskIds: intent.visibleTaskIds,
-            });
+            const result = await bridge.moveProjectBoardTask(input);
             taskStore.applyUpdate(result.task);
             if (result.status === "partial") {
                 notifyInfo(i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed");

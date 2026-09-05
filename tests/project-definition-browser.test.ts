@@ -259,6 +259,7 @@ const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegis
 </script>
 
 <ProjectView
+    onProjectBoardMove={async () => { throw new Error("Board move is not used by this fixture"); }}
     onEdit={noop}
     onStatusClick={noop}
     onContextMenu={noop}

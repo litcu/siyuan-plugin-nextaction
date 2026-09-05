@@ -1,22 +1,10 @@
-import { ATTR_KIND } from "../../shared/constants";
-import type { TaskActionKind, TaskCacheEntry } from "../../shared/types";
+import type { TaskCacheEntry } from "../../shared/types";
 
 export interface ProjectTreeReorderIntent {
     blockId: string;
     parentId: string;
     afterId?: string;
 }
-
-export interface ProjectTreeCommandHandlers {
-    renameTask?: (task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>;
-    updateTask?: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>;
-    reorderTask?: (blockId: string, parentId: string, afterId?: string) => Promise<void>;
-}
-
-export type ProjectTreeCommand =
-    | { type: "rename"; task: TaskCacheEntry; title: string }
-    | { type: "setKind"; task: TaskCacheEntry; actionKind: Exclude<TaskActionKind, ""> }
-    | { type: "reorder"; task: TaskCacheEntry; parentId: string; afterId?: string };
 
 export type ProjectTreeDropPosition = "before" | "inside" | "after";
 
@@ -135,20 +123,4 @@ export function buildProjectTreeDropIntent(
         parentId,
         afterId: position === "after" ? target.blockId : siblings[targetIndex - 1]?.blockId,
     };
-}
-
-export async function executeProjectTreeCommand(
-    command: ProjectTreeCommand,
-    handlers: ProjectTreeCommandHandlers,
-): Promise<TaskCacheEntry | void> {
-    if (command.type === "rename") {
-        if (!handlers.renameTask) throw new Error("Task rename is unavailable");
-        return handlers.renameTask(command.task, command.title);
-    }
-    if (command.type === "setKind") {
-        if (!handlers.updateTask) throw new Error("Task update is unavailable");
-        return handlers.updateTask(command.task, { [ATTR_KIND]: command.actionKind });
-    }
-    if (!handlers.reorderTask) throw new Error("Task reorder is unavailable");
-    await handlers.reorderTask(command.task.blockId, command.parentId, command.afterId);
 }

@@ -3,11 +3,7 @@
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import { shouldShowSubtreeProgress, type ProjectTreeModel } from "../../utils/project-tree";
-    import {
-        buildProjectTreeDropIntent,
-        executeProjectTreeCommand,
-        type ProjectTreeDropPosition,
-    } from "../../utils/project-tree-operations";
+    import { buildProjectTreeDropIntent, type ProjectTreeDropPosition } from "../../utils/project-tree-operations";
     import { formatOperationError } from "../../error-format";
     import TaskCard from "../TaskCard.svelte";
     import NaButton from "../../ui/NaButton.svelte";
@@ -146,7 +142,10 @@
         }
         await perform(
             task,
-            () => executeProjectTreeCommand({ type: "rename", task, title }, { renameTask: onTaskRename }),
+            () => {
+                if (!onTaskRename) throw new Error("Task rename is unavailable");
+                return onTaskRename(task, title);
+            },
             () => {
                 editingTaskId = "";
                 renameDraft = "";
@@ -201,12 +200,10 @@
                 : null;
         handleDragEnd();
         if (moving && intent)
-            await perform(moving, () =>
-                executeProjectTreeCommand(
-                    { type: "reorder", task: moving, parentId: intent.parentId, afterId: intent.afterId },
-                    { reorderTask: onTaskReorder },
-                ),
-            );
+            await perform(moving, () => {
+                if (!onTaskReorder) throw new Error("Task reorder is unavailable");
+                return onTaskReorder(moving.blockId, intent.parentId, intent.afterId);
+            });
     }
     function handleDragEnd() {
         dragTaskId = "";
