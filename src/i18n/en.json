@@ -842,12 +842,8 @@
     "extractActionProjectEmpty": "No Projects found",
     "extractActionSubmit": "Keep source and create Action",
     "extractActionDialogUnavailable": "Action extraction window is unavailable",
-    "projectBoardMoveSuccess": "Task moved",
     "projectBoardMovePartial": "Task field updated, but order could not be confirmed",
     "projectBoardMove": "Move on project board",
     "projectBoardMoveTop": "Move to top",
-    "projectBoardMoveBottom": "Move to bottom",
-    "projectBoardMoveUndoSuccess": "Board move undone",
-    "projectBoardMoveUndoInvalid": "This board move undo is no longer available",
-    "projectBoardMoveUndoUnsafe": "Undo refused: the task changed after the move"
+    "projectBoardMoveBottom": "Move to bottom"
 }

@@ -42,7 +42,6 @@
     import { openActionMoveDialog } from "../dialogs/action-move-dialog";
     import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
-    import { showProjectBoardMoveUndo } from "../stores/action-move-undo-store";
     import { refreshTasks } from "../utils/refresh-tasks";
 
     interface Props {
@@ -305,8 +304,6 @@
             taskStore.applyUpdate(result.task);
             if (result.status === "partial") {
                 notifyInfo(i18n?.projectBoardMovePartial || "Task field updated, but order could not be confirmed");
-            } else if (result.undo) {
-                showProjectBoardMoveUndo(result.undo, (undone) => taskStore.applyUpdate(undone));
             }
             return result;
         } catch (error: any) {

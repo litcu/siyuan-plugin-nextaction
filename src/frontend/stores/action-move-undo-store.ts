@@ -1,11 +1,9 @@
 import { writable } from "svelte/store";
 import type { ActionMoveUndo } from "../../shared/action-move";
-import type { ProjectBoardMoveUndo } from "../../shared/project-board-move";
 import type { TaskCacheEntry } from "../../shared/types";
 
 export interface ActionMoveUndoFeedback {
-    undo: ActionMoveUndo | ProjectBoardMoveUndo;
-    kind: "action" | "projectBoard";
+    undo: ActionMoveUndo;
     status: "available" | "working" | "success" | "error";
     resultSummary: string;
     error: string;
@@ -15,18 +13,7 @@ export interface ActionMoveUndoFeedback {
 export const actionMoveUndoFeedback = writable<ActionMoveUndoFeedback | null>(null);
 
 export function showActionMoveUndo(undo: ActionMoveUndo, onUndone?: (task: TaskCacheEntry) => void): void {
-    actionMoveUndoFeedback.set({ undo, kind: "action", status: "available", resultSummary: "", error: "", onUndone });
-}
-
-export function showProjectBoardMoveUndo(undo: ProjectBoardMoveUndo, onUndone?: (task: TaskCacheEntry) => void): void {
-    actionMoveUndoFeedback.set({
-        undo,
-        kind: "projectBoard",
-        status: "available",
-        resultSummary: "",
-        error: "",
-        onUndone,
-    });
+    actionMoveUndoFeedback.set({ undo, status: "available", resultSummary: "", error: "", onUndone });
 }
 
 export function markActionMoveUndoWorking(): void {

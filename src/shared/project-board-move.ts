@@ -19,25 +19,9 @@ export interface ProjectBoardMoveInput {
     visibleTaskIds?: string[];
 }
 
-export interface ProjectBoardMoveUndo {
-    credential: string;
-    taskId: string;
-    summary: string;
-}
-
 export interface ProjectBoardMoveResult {
     status: ProjectBoardMoveResultStatus;
     task: TaskCacheEntry;
     reordered: boolean;
-    undo?: ProjectBoardMoveUndo;
     warning?: string;
-}
-
-export interface ProjectBoardUndoInput {
-    credential: string;
-}
-
-export interface ProjectBoardUndoResult {
-    task: TaskCacheEntry;
-    summary: string;
 }

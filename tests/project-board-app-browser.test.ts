@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { runSvelteBrowserTest } from "./helpers/svelte-browser.ts";
 
-test("看板拖动与菜单共用专用写入并保留部分成功、失败和撤销反馈", async () => {
+// Regression: 看板每次移动都弹出撤销卡片，并展示实际不可用的 Ctrl+Z 快捷键。
+test("看板拖动与菜单成功时静默更新，仅部分成功和失败提示", async () => {
     const modulePath = (path: string) => JSON.stringify(resolve(path).replace(/\\/g, "/"));
     const result = await runSvelteBrowserTest({
         fixtureName: "project-board-app",
@@ -60,13 +61,11 @@ const action = { ...base, blockId: 'action', attrHostId: 'action', parentId: 'pr
 const sibling = { ...base, blockId: 'sibling', attrHostId: 'sibling', parentId: 'project', title: 'Sibling', sort: 10 };
 const stage = { ...base, blockId: 'stage', attrHostId: 'stage', parentId: 'project', title: 'Stage', actionKind: 'stage', sort: 20 };
 let calls = [];
-let undoCalls = [];
 let forbiddenCalls = [];
 let mode = 'success';
 function reset(nextMode) {
     mode = nextMode;
     calls = [];
-    undoCalls = [];
     forbiddenCalls = [];
     messages.length = 0;
     dismissActionMoveUndo();
@@ -85,12 +84,7 @@ const bridge = {
             status: mode === 'partial' ? 'partial' : 'success',
             task: { ...action, ...field, title: 'Confirmed action' },
             reordered: mode === 'success',
-            ...(mode === 'success' ? { undo: { credential: 'credential', taskId: 'action', summary: 'Board move' } } : {}),
         };
-    },
-    undoProjectBoardMove: async (credential) => {
-        undoCalls = [...undoCalls, credential];
-        return { task: action, summary: 'Restored action' };
     },
     updateTask: async () => { forbiddenCalls = [...forbiddenCalls, 'update']; throw new Error('unexpected update'); },
     reorderTask: async () => { forbiddenCalls = [...forbiddenCalls, 'reorder']; throw new Error('unexpected reorder'); },
@@ -102,7 +96,7 @@ const i18n = { ...en, byProject: 'Projects', projectViewBoard: 'Board', statusDo
 <button id="reset-success" onclick={() => reset('success')}>reset success</button>
 <button id="reset-partial" onclick={() => reset('partial')}>reset partial</button>
 <button id="reset-failure" onclick={() => reset('failure')}>reset failure</button>
-<div id="calls" data-moves={JSON.stringify(calls)} data-undos={JSON.stringify(undoCalls)} data-forbidden={JSON.stringify(forbiddenCalls)}></div>
+<div id="calls" data-moves={JSON.stringify(calls)} data-forbidden={JSON.stringify(forbiddenCalls)}></div>
 <NextActionApp {bridge} {i18n} />
 <NotificationHost {bridge} {i18n} />`,
             "main.js": `import { mount, tick } from 'svelte';
@@ -117,6 +111,8 @@ const column = label => [...document.querySelectorAll('.na-project-board__column
 const button = label => [...document.querySelectorAll('button')].find(node => node.textContent.trim() === label);
 const readCalls = () => JSON.parse(document.querySelector('#calls').dataset.moves);
 const snapshot = () => ({ calls: readCalls(), messages: [...messages], undo: Boolean(button('Undo')),
+    panel: Boolean(document.querySelector('.na-action-move-undo')),
+    shortcut: Boolean(document.querySelector('.na-action-move-undo kbd')),
     confirmed: Boolean(card('Confirmed action')), reset: [...document.querySelectorAll('.na-project-board__card')]
         .every(node => node.draggable), forbidden: JSON.parse(document.querySelector('#calls').dataset.forbidden) });
 const drop = async (label, target) => {
@@ -151,12 +147,9 @@ void (async () => {
             await pause();
             if (entry === 'drag') await drop('Doing'); else await menuClick('Board move/Doing');
             const state = snapshot();
-            if (mode === 'success') {
-                button('Undo').click();
-                await pause();
-                state.restored = Boolean(card('Action'));
-                state.undoCalls = JSON.parse(document.querySelector('#calls').dataset.undos);
-            }
+            const undoKey = new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true });
+            window.dispatchEvent(undoKey);
+            state.keyConsumed = undoKey.defaultPrevented;
             scenarios.push({ entry, mode, ...state });
         }
     }
@@ -188,12 +181,13 @@ void (async () => {
         assert.deepEqual(scenario.forbidden, []);
         assert.equal(scenario.reset, true);
         assert.equal(scenario.confirmed, scenario.mode !== "failure");
-        assert.equal(scenario.undo, scenario.mode === "success");
+        assert.equal(scenario.undo, false);
+        assert.equal(scenario.panel, false);
+        assert.equal(scenario.shortcut, false);
+        assert.equal(scenario.keyConsumed, false);
         const messages = scenario.messages as Array<{ message: string; type: string }>;
         if (scenario.mode === "success") {
             assert.deepEqual(messages, []);
-            assert.equal(scenario.restored, true);
-            assert.deepEqual(scenario.undoCalls, ["credential"]);
         } else {
             assert.equal(messages.length, 1);
             assert.equal(messages[0].type, scenario.mode === "partial" ? "info" : "error");

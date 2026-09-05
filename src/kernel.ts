@@ -157,10 +157,6 @@ class NextActionKernelPlugin {
                 this.taskService.assertReady();
                 return projectBoardMoveService.move(input);
             },
-            undoProjectBoardMove: ({ credential }) => {
-                this.taskService.assertReady();
-                return projectBoardMoveService.undo(credential);
-            },
             undoActionMove: (input) => {
                 this.taskService.assertReady();
                 return actionMoveService.undo(input);
