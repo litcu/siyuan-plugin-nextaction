@@ -1,7 +1,7 @@
 <script lang="ts">
     import NaIconButton from "./NaIconButton.svelte";
 
-    export let items: { blockId: string; title: string; status: string }[] = [];
+    export let items: { blockId: string; title: string; status: string; reason?: string }[] = [];
     export let emptyText: string;
     export let openLabel: string;
     export let onOpen: (blockId: string) => void;
@@ -25,6 +25,7 @@
                 {:else}
                     <span class="na-task-link-list__title">{item.title}</span>
                 {/if}
+                {#if item.reason}<span class="na-task-link-list__reason">{item.reason}</span>{/if}
                 <NaIconButton
                     symbol="iconOpenWindow"
                     label={openLabel}
@@ -46,9 +47,10 @@
     .na-task-link-list__item {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
         min-width: 0;
-        min-height: 32px;
+        min-height: 34px;
+        padding: 2px 0;
         border-bottom: 1px solid var(--b3-border-color);
     }
     .na-task-link-list__item:last-child {
@@ -83,7 +85,9 @@
         white-space: nowrap;
     }
     .na-task-link-list__title-button {
-        padding: 4px 0;
+        margin: 0;
+        padding: 5px 6px;
+        border-radius: 4px;
         border: 0;
         background: transparent;
         cursor: pointer;
@@ -93,8 +97,24 @@
     .na-task-link-list__title-button:hover,
     .na-task-link-list__title-button:focus-visible {
         color: var(--na-text-interactive);
+        background: var(--b3-list-hover);
+    }
+    .na-task-link-list__title-button:focus-visible {
         outline: 2px solid var(--b3-theme-primary);
-        outline-offset: 2px;
+        outline-offset: -1px;
+    }
+    .na-task-link-list__reason {
+        overflow: hidden;
+        flex: 0 0 auto;
+        max-width: 42%;
+        padding: 2px 6px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: 4px;
+        color: var(--na-text-secondary);
+        font-size: var(--na-font-size-sm);
+        line-height: 18px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     .na-task-link-list__empty {
         width: 100%;

@@ -9,7 +9,13 @@
     import { parseRepeatState } from "../../shared/repeat";
     import type { KernelBridge } from "../kernel-bridge";
     import { PRIORITY_LIST, STATUS_LIST } from "../constants";
-    import { createTaskDetailTaskSource, projectMembershipGraph, taskStore } from "../stores/task-store";
+    import {
+        createTaskDetailTaskSource,
+        projectMembershipGraph,
+        taskChildrenByParent,
+        taskDependentsByDependency,
+        taskStore,
+    } from "../stores/task-store";
     import { formatRpcError, notifyError, notifyInfo } from "../notify";
     import { jumpToBlock as jump, taskWriteWarningMessage } from "../utils";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../i18n";
@@ -102,6 +108,42 @@
     let allContexts = $derived($taskStore.contexts || []);
     let allTags = $derived($taskStore.tags || []);
     let taskMap = $derived(new Map(allTasks.map((entry) => [entry.blockId, entry])));
+    let blockedByTasks = $derived(
+        [
+            ...($taskDependentsByDependency.get(task.blockId) || []),
+            ...(task.parentId && taskMap.get(task.parentId) ? [taskMap.get(task.parentId)!] : []),
+            ...($taskChildrenByParent.get(task.parentId) || []),
+        ]
+            .filter(
+                (entry, index, entries) =>
+                    entry.blockId !== task.blockId &&
+                    entries.findIndex((item) => item.blockId === entry.blockId) === index,
+            )
+            .filter((entry) => entry.status !== "done")
+            .map((entry) => {
+                const reasons: string[] = [];
+                if (entry.depends.split("|").filter(Boolean).includes(task.blockId))
+                    reasons.push(i18n?.blockedByDependency || "Dependency");
+                if (task.parentId && entry.blockId === task.parentId)
+                    reasons.push(i18n?.blockedByChildren || "Blocked by subtasks");
+                const parent = entry.parentId ? taskMap.get(entry.parentId) : undefined;
+                if (
+                    parent?.sequential &&
+                    task.parentId === entry.parentId &&
+                    task.sort < entry.sort &&
+                    task.status !== "done"
+                ) {
+                    reasons.push(i18n?.blockedBySequence || "Blocked by sequence");
+                }
+                return {
+                    blockId: entry.blockId,
+                    title: entry.title || i18n?.untitled || "(untitled)",
+                    status: entry.status,
+                    reason: reasons.join(", "),
+                };
+            })
+            .filter((entry) => Boolean(entry.reason)),
+    );
     let parentLabel = $derived(parentId ? taskMap.get(parentId)?.title || i18n?.untitled || "(untitled)" : "");
     let depLabels = $derived(
         Object.fromEntries(depends.map((id) => [id, taskMap.get(id)?.title || i18n?.untitled || "(untitled)"])),
@@ -149,6 +191,9 @@
         [
             childTasks.length ? (i18n?.subtaskCount || "{n} subtasks").replace("{n}", String(childTasks.length)) : "",
             depends.length ? (i18n?.dependencyCount || "{n} dependencies").replace("{n}", String(depends.length)) : "",
+            blockedByTasks.length
+                ? (i18n?.blockedTaskCount || "{n} blocked tasks").replace("{n}", String(blockedByTasks.length))
+                : "",
         ]
             .filter(Boolean)
             .join(" · ") ||
@@ -956,6 +1001,15 @@
                     depends = Array.isArray(selected) ? selected : [];
                     handleChange();
                 }}
+            />
+        </NaPropertyRow>
+        <NaPropertyRow label={i18n?.blockedTasks || "Blocked tasks"} stacked={true}>
+            <NaTaskLinkList
+                items={blockedByTasks}
+                emptyText={i18n?.noBlockedTasks || "No unfinished tasks are blocked by this task"}
+                openLabel={i18n?.jumpToBlock || "Jump to block"}
+                onOpen={handleJumpToBlock}
+                onSelect={handleOpenTask}
             />
         </NaPropertyRow>
         <NaPropertyRow

@@ -129,6 +129,12 @@ test("任务关系提供只读子任务并保留依赖编辑", () => {
     assert.match(detail, /<NaSearchSelect\s+multi=\{true\}\s+bind:selected=\{depends\}/);
     assert.match(detail, /bind:value=\{depMode\}/);
     assert.match(detail, /bind:checked=\{sequentialEnabled\}/);
+    assert.match(detail, /taskDependentsByDependency/);
+    assert.match(detail, /blockedByTasks = \$derived/);
+    assert.match(detail, /blockedByDependency/);
+    assert.match(detail, /blockedByChildren/);
+    assert.match(detail, /blockedBySequence/);
+    assert.match(detail, /<NaTaskLinkList\s+items=\{blockedByTasks\}/);
 });
 
 test("任务详情子任务导航和跳转使用统一 Session 与 Dialog 静态接线", () => {

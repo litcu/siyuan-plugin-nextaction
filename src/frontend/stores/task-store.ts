@@ -455,6 +455,30 @@ export const taskById = derived(taskStore, ($state) => {
     return index;
 });
 
+/** Reverse explicit dependency index for relationship panels and navigation. */
+export const taskDependentsByDependency = derived(taskStore, ($state) => {
+    const index = new Map<string, TaskCacheEntry[]>();
+    for (const task of $state.allTasks) {
+        for (const dependencyId of task.depends.split("|").filter(Boolean)) {
+            const dependents = index.get(dependencyId);
+            if (dependents) dependents.push(task);
+            else index.set(dependencyId, [task]);
+        }
+    }
+    return index;
+});
+
+export const taskChildrenByParent = derived(taskStore, ($state) => {
+    const index = new Map<string, TaskCacheEntry[]>();
+    for (const task of $state.allTasks) {
+        if (!task.parentId) continue;
+        const children = index.get(task.parentId);
+        if (children) children.push(task);
+        else index.set(task.parentId, [task]);
+    }
+    return index;
+});
+
 /** Shared immutable Project membership snapshot for frontend relationship queries. */
 export const projectMembershipGraph = derived(taskStore, ($state) => createProjectMembershipGraph($state.allTasks));
 
