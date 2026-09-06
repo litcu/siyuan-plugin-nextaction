@@ -328,13 +328,17 @@
 .na-task-card__child-count {
     display: inline-flex;
     align-items: center;
-    max-width: 150px;
+    // Let metadata use the remaining row width before truncating. A fixed
+    // per-item cap made long context/tag text clip while the card still had
+    // visible empty space on the right.
+    max-width: 100%;
+    min-width: 0;
     min-height: 14px;
     line-height: 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex-shrink: 0;
+    flex-shrink: 1;
 }
 
 .na-task-card__due {
