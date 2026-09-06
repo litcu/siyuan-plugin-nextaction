@@ -151,7 +151,7 @@ const bridge = {
         }}
     />
 </div>
-<NaDatePicker value={date} onChange={(value) => {
+<NaDatePicker fixedDropdown value={date} onChange={(value) => {
     date = value;
     window.__selectorValues.date.push(value);
 }} />
@@ -178,16 +178,19 @@ const searchEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true
 searchInput.dispatchEvent(searchEscape);
 await tick();
 
-        const calendarButton = document.querySelector(".na-date-picker__calendar-button");
-        calendarButton.click();
-        await tick();
-        document.querySelector('.na-date-picker__day:not([class*="--outside"])').click();
-        await tick();
-        const dateEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+const calendarButton = document.querySelector(".na-date-picker__calendar-button");
+calendarButton.click();
+await tick();
+// Regression: Portal 日期点击必须到达 Svelte 回调；选中后需重新打开日历才能验证 Escape。
+document.querySelector('.na-date-picker__day:not([class*="--outside"])').click();
+await tick();
+calendarButton.click();
+await tick();
+const dateEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
 document.body.dispatchEvent(dateEscape);
 await tick();
 const dateInput = document.querySelector(".na-date-picker__input");
-        dateInput.value = "2026-09-15";
+dateInput.value = "2026-09-15";
 dateInput.dispatchEvent(new Event("input", { bubbles: true }));
 dateInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 await tick();

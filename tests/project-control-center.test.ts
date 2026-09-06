@@ -72,11 +72,11 @@ test("甘特视图使用单滚动账本、冻结纲要和可访问任务操作",
     assert.match(gantt, /onClick: \(\) => onEdit\(firstUnscheduledTask\)/);
     assert.match(gantt, /path\.sequential/);
     assert.match(gantt, /@container nextaction-app \(max-width: 520px\)/);
-    assert.match(gantt, /--na-gantt-outline-width: 248px/);
+    assert.match(gantt, /--na-gantt-outline-width: 276px/);
     assert.match(gantt, /ganttScaleWeek/);
     assert.match(gantt, /ganttSortTimeline/);
     assert.match(gantt, /NaSegmentControl/);
-    assert.match(gantt, /contentHeight = \$derived\(rowsHeight \+ 56\)/);
+    assert.match(gantt, /contentHeight = \$derived\(rowsHeight \+ 72\)/);
     assert.match(gantt, /na-gantt__bar-row--summary/);
     assert.doesNotMatch(gantt, /scrollTop/);
     assert.match(bar, /NaTooltip/);
