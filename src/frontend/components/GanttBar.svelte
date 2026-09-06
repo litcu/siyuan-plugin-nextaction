@@ -158,8 +158,8 @@
 <style lang="scss">
     .na-gantt-bar-anchor {
         position: absolute;
-        top: 9px;
-        height: 22px;
+        top: 11px;
+        height: 26px;
         z-index: 2;
         min-width: 0;
     }
@@ -196,24 +196,26 @@
         display: flex;
         align-items: center;
         min-width: 0;
-        border: 1px solid color-mix(in srgb, var(--na-gantt-bar-color) 54%, var(--na-color-divider));
-        border-radius: var(--na-radius-sm);
-        background: color-mix(in srgb, var(--na-gantt-bar-color) 16%, var(--b3-theme-surface));
-        box-shadow: inset 0 1px color-mix(in srgb, var(--b3-theme-surface) 68%, transparent);
+        border: 1px solid color-mix(in srgb, var(--na-gantt-bar-color) 64%, var(--na-color-divider));
+        border-radius: 7px;
+        background: color-mix(in srgb, var(--na-gantt-bar-color) 24%, var(--b3-theme-surface));
+        box-shadow:
+            inset 0 1px color-mix(in srgb, var(--b3-theme-surface) 18%, transparent),
+            0 2px 5px color-mix(in srgb, var(--b3-theme-on-background) 10%, transparent);
     }
 
     .na-gantt-bar__visual::before {
         content: "";
         position: absolute;
         inset: -1px auto -1px -1px;
-        width: 4px;
-        border-radius: var(--na-radius-sm) 0 0 var(--na-radius-sm);
+        width: 5px;
+        border-radius: 7px 0 0 7px;
         background: var(--na-gantt-priority-color);
     }
 
     .na-gantt-bar__label {
         font-size: var(--na-font-size-sm);
-        font-weight: 650;
+        font-weight: 680;
         line-height: 20px;
         white-space: nowrap;
     }
@@ -222,7 +224,7 @@
         display: block;
         flex: 1;
         min-width: 0;
-        padding: 0 8px;
+        padding: 0 10px;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -241,7 +243,7 @@
 
     .na-gantt-bar__label--outside {
         position: absolute;
-        top: 1px;
+        top: 4px;
         left: calc(100% + 7px);
         max-width: 190px;
         overflow: hidden;
@@ -321,17 +323,17 @@
     }
 
     .na-gantt-bar-anchor--rollup {
-        top: 8px;
-        height: 24px;
+        top: 9px;
+        height: 28px;
     }
 
     .na-gantt-bar-anchor--rollup .na-gantt-bar__visual {
-        inset: 9px 0 12px;
+        inset: 11px 0 13px;
         overflow: visible;
         border: 0;
         border-radius: var(--na-radius-pill);
-        background: color-mix(in srgb, var(--na-gantt-bar-color) 78%, var(--b3-theme-surface));
-        box-shadow: none;
+        background: color-mix(in srgb, var(--na-gantt-bar-color) 82%, var(--b3-theme-surface));
+        box-shadow: 0 2px 5px color-mix(in srgb, var(--b3-theme-on-background) 16%, transparent);
     }
 
     .na-gantt-bar-anchor--rollup .na-gantt-bar__visual::before,

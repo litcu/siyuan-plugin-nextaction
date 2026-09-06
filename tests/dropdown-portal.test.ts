@@ -55,3 +55,8 @@ test("浮层会在弹窗内部滚动和窗口缩放时重新定位", () => {
     assert.match(documentPicker, /onresize=\{handleViewportChange\}/);
     assert.match(documentPicker, /new ResizeObserver\(handleViewportChange\)/);
 });
+
+test("日期 Portal 浮层不会拦截日期按钮的 Svelte 点击事件", () => {
+    assert.doesNotMatch(datePicker, /use:stopInteractionPropagation/);
+    assert.match(datePicker, /dropdownEl\?\.contains\(target\)/);
+});
