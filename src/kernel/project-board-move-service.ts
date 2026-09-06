@@ -1,35 +1,18 @@
 import {
     ATTR_IMPORTANCE,
-    ATTR_COMPLETED,
-    ATTR_PARENT,
     ATTR_PRIORITY,
     ATTR_STATUS,
     ALL_STATUSES,
     RPC_ERROR_PROJECT_BOARD_MOVE_INVALID_TARGET,
-    RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_INVALID,
-    RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE,
     RPC_ERROR_TASK_NOT_FOUND,
 } from "../shared/constants";
-import type {
-    ProjectBoardMoveInput,
-    ProjectBoardMoveResult,
-    ProjectBoardMoveUndo,
-    ProjectBoardUndoResult,
-} from "../shared/project-board-move";
+import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../shared/project-board-move";
 import type { TaskCacheEntry } from "../shared/types";
 import { assertBlockId } from "../shared/block-id";
 import { isProjectTask } from "../shared/project-domain";
 import { PROJECT_BOARD_IMPORTANCES, PROJECT_BOARD_PRIORITIES } from "../shared/project-board";
 import type { CacheManager } from "./cache-manager";
 import type { TaskService } from "./task-service";
-
-interface UndoRecord {
-    input: ProjectBoardMoveInput;
-    task: TaskCacheEntry;
-    previousAttrs: Record<string, string>;
-    previousAfterId?: string;
-    expected: TaskCacheEntry;
-}
 
 function moveError(code: number, message: string): Error & { code: number } {
     const error = new Error(message) as Error & { code: number };
@@ -39,10 +22,6 @@ function moveError(code: number, message: string): Error & { code: number } {
 
 /** Validates and executes a single logical Project board move. */
 export class ProjectBoardMoveService {
-    private readonly records = new Map<string, UndoRecord>();
-    private readonly credentialByTask = new Map<string, string>();
-    private sequence = 0;
-
     constructor(
         private readonly cache: CacheManager,
         private readonly tasks: TaskService,
@@ -51,7 +30,6 @@ export class ProjectBoardMoveService {
     async move(input: ProjectBoardMoveInput): Promise<ProjectBoardMoveResult> {
         const prepared = this.prepare(input);
         const attrs = this.attrsFor(prepared.task, prepared.input);
-        const previousAttrs = this.previousAttrs(prepared.task, prepared.input, attrs);
         let updated = prepared.task;
         if (Object.keys(attrs).length > 0) updated = await this.tasks.updateTask(prepared.task.blockId, attrs);
 
@@ -77,53 +55,12 @@ export class ProjectBoardMoveService {
             }
         }
 
-        const undo = this.issueUndo({ ...prepared, previousAttrs, expected: updated });
-        return { status: "success", task: updated, reordered, undo };
-    }
-
-    async undo(credential: string): Promise<ProjectBoardUndoResult> {
-        const record = this.records.get(credential);
-        if (!record)
-            throw moveError(
-                RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_INVALID,
-                "This board move undo is unavailable or already used",
-            );
-        const current = this.cache.get(record.task.blockId);
-        if (!current || !this.matchesExpected(current, record.expected)) {
-            this.consume(credential, record);
-            throw moveError(
-                RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE,
-                "The task changed after the move; undo was not applied",
-            );
-        }
-
-        this.consume(credential, record);
-        let restored = await this.tasks.updateTask(record.task.blockId, record.previousAttrs);
-        try {
-            if (!record.input.sortBy || record.input.sortBy === "order") {
-                restored = await this.tasks.reorderTask(
-                    record.task.blockId,
-                    record.task.parentId || record.input.projectId,
-                    record.previousAfterId,
-                );
-            }
-        } catch (error: unknown) {
-            // Restore the fields even when the order cannot be restored; callers get a clear failure.
-            throw moveError(
-                RPC_ERROR_PROJECT_BOARD_MOVE_UNDO_UNSAFE,
-                `Board move fields restored but original order could not be restored: ${error instanceof Error ? error.message : String(error)}`,
-            );
-        }
-        return {
-            task: restored,
-            summary: `${record.task.title}: ${record.input.value} → restored`,
-        };
+        return { status: "success", task: updated, reordered };
     }
 
     private prepare(input: ProjectBoardMoveInput): {
         input: ProjectBoardMoveInput;
         task: TaskCacheEntry;
-        previousAfterId?: string;
     } {
         const taskId = assertBlockId(input.taskId, "taskId");
         const projectId = assertBlockId(input.projectId, "projectId");
@@ -183,14 +120,9 @@ export class ProjectBoardMoveService {
                 "Board move parent does not match the task's logical parent",
             );
         }
-        const siblings = this.cache
-            .getByParent(task.parentId || projectId)
-            .sort((a, b) => a.sort - b.sort || a.blockId.localeCompare(b.blockId));
-        const index = siblings.findIndex((item) => item.blockId === taskId);
         return {
             input: { ...input, taskId, projectId },
             task,
-            previousAfterId: index > 0 ? siblings[index - 1].blockId : undefined,
         };
     }
 
@@ -202,17 +134,6 @@ export class ProjectBoardMoveService {
         if (input.groupBy === "importance" && task.importance !== Number(input.value))
             return { [ATTR_IMPORTANCE]: String(input.value) };
         return {};
-    }
-
-    private previousAttrs(
-        task: TaskCacheEntry,
-        input: ProjectBoardMoveInput,
-        attrs: Record<string, string>,
-    ): Record<string, string> {
-        if (Object.keys(attrs).length === 0) return {};
-        if (input.groupBy === "status") return { [ATTR_STATUS]: task.status, [ATTR_COMPLETED]: task.completed };
-        if (input.groupBy === "priority") return { [ATTR_PRIORITY]: task.priority };
-        return { [ATTR_IMPORTANCE]: String(task.importance) };
     }
 
     private resolveReorderAnchor(
@@ -231,30 +152,5 @@ export class ProjectBoardMoveService {
             .getByParent(parentId)
             .filter((entry) => entry.blockId !== excludeId)
             .sort((a, b) => a.sort - b.sort || a.blockId.localeCompare(b.blockId));
-    }
-
-    private issueUndo(record: UndoRecord): ProjectBoardMoveUndo {
-        const previous = this.credentialByTask.get(record.task.blockId);
-        if (previous) this.records.delete(previous);
-        const credential = `${Date.now().toString(36)}-${(++this.sequence).toString(36)}-${Math.random().toString(36).slice(2)}`;
-        this.records.set(credential, record);
-        this.credentialByTask.set(record.task.blockId, credential);
-        return { credential, taskId: record.task.blockId, summary: `${record.task.title}: board move` };
-    }
-
-    private consume(credential: string, record: UndoRecord): void {
-        this.records.delete(credential);
-        if (this.credentialByTask.get(record.task.blockId) === credential)
-            this.credentialByTask.delete(record.task.blockId);
-    }
-
-    private matchesExpected(current: TaskCacheEntry, expected: TaskCacheEntry): boolean {
-        return (
-            current.status === expected.status &&
-            current.priority === expected.priority &&
-            current.importance === expected.importance &&
-            current.parentId === expected.parentId &&
-            current.sort === expected.sort
-        );
     }
 }

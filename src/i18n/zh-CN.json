@@ -802,7 +802,6 @@
     "moveActionUndoTitle": "行动已移动",
     "moveActionUndo": "撤销移动",
     "moveActionUndoShortcut": "Ctrl/⌘+Z",
-    "moveActionUndoSuccess": "已撤销移动并恢复原位置。",
     "moveActionUndoFailed": "撤销失败：{error}",
     "manualSort": "手工排序",
     "retry": "重试",
@@ -842,12 +841,8 @@
     "extractActionProjectEmpty": "没有找到项目",
     "extractActionSubmit": "保留来源并创建行动",
     "extractActionDialogUnavailable": "无法打开行动提取窗口",
-    "projectBoardMoveSuccess": "任务已移动",
     "projectBoardMovePartial": "任务属性已更新，但顺序未能确认",
     "projectBoardMove": "在看板中移动",
     "projectBoardMoveTop": "移到顶部",
-    "projectBoardMoveBottom": "移到底部",
-    "projectBoardMoveUndoSuccess": "看板移动已撤销",
-    "projectBoardMoveUndoInvalid": "此看板移动撤销已不可用",
-    "projectBoardMoveUndoUnsafe": "撤销已拒绝：任务在移动后发生了变化"
+    "projectBoardMoveBottom": "移到底部"
 }

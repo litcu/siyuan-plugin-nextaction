@@ -34,12 +34,7 @@ import type {
     TaskCacheEntry,
     TaskSnapshotV2,
 } from "./types";
-import type {
-    ProjectBoardMoveInput,
-    ProjectBoardMoveResult,
-    ProjectBoardUndoInput,
-    ProjectBoardUndoResult,
-} from "./project-board-move";
+import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "./project-board-move";
 
 export interface RpcErrorPayload {
     code: number;
@@ -430,10 +425,6 @@ export const RPC_CONTRACT = {
     previewActionMove: defineRpc<ActionMoveInput, ActionMovePreview>(actionMoveParams),
     moveActionToProject: defineRpc<ActionMoveInput, ActionMoveResult>(actionMoveParams),
     moveProjectBoardTask: defineRpc<ProjectBoardMoveInput, ProjectBoardMoveResult>(projectBoardMoveParams),
-    undoProjectBoardMove: defineRpc<ProjectBoardUndoInput, ProjectBoardUndoResult>((value) => {
-        const input = paramsRecord(value);
-        return { credential: requiredString(input.credential, "credential") };
-    }),
     undoActionMove: defineRpc<ActionMoveUndoInput, ActionMoveUndoResult>((value) => {
         const input = paramsRecord(value);
         return { credential: requiredString(input.credential, "credential") };

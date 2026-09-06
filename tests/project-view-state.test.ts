@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { TaskCacheEntry } from "../src/shared/types.ts";
 import { DEFAULT_FILTER_STATE } from "../src/frontend/utils/filter.ts";
-import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../src/shared/constants.ts";
+import { ATTR_STATUS } from "../src/shared/constants.ts";
 import {
     buildProjectBoardColumns,
     isProjectBoardTask,
@@ -15,7 +15,6 @@ import {
     buildProjectViewControl,
     buildProjectViewModel as buildProjectViewModelFromControl,
     confirmProjectCompletion,
-    executeProjectBoardMove,
     shouldOfferProjectRiskAction,
     shouldShowProjectCompletionPanel,
     type ProjectViewState,
@@ -479,94 +478,4 @@ test("项目风险只为没有 Next Action 提供创建入口", () => {
     assert.equal(shouldOfferProjectRiskAction({ kind: "waiting" }), false);
     assert.equal(shouldOfferProjectRiskAction({ kind: "blocked" }), false);
     assert.equal(shouldOfferProjectRiskAction({ kind: "overdue" }), false);
-});
-
-test("看板移动先更新状态再重排并向上抛出失败", async () => {
-    const calls: string[] = [];
-    await executeProjectBoardMove({ task: projects[1], status: "doing", afterId: "after" }, "p1", {
-        updateTask: async (_task, attrs) => {
-            calls.push(`update:${attrs[ATTR_STATUS]}`);
-        },
-        reorderTask: async (blockId, parentId, afterId) => {
-            calls.push(`reorder:${blockId}:${parentId}:${afterId}`);
-        },
-    });
-    assert.deepEqual(calls, ["update:doing", "reorder:a:p1:after"]);
-
-    await assert.rejects(
-        () =>
-            executeProjectBoardMove({ task: projects[1], status: "doing" }, "p1", {
-                updateTask: async () => {
-                    throw new Error("write failed");
-                },
-                reorderTask: async () => {
-                    calls.push("unexpected reorder");
-                },
-            }),
-        /write failed/,
-    );
-    assert.equal(calls.includes("unexpected reorder"), false);
-});
-
-test("看板按优先级和重要性移动写入对应属性，阶段分组不改父级", async () => {
-    const writes: Array<[string, Record<string, string>]> = [];
-    const reorders: string[] = [];
-    const moveHandlers = {
-        updateTask: async (task: TaskCacheEntry, attrs: Record<string, string>) => {
-            writes.push([task.blockId, attrs]);
-        },
-        reorderTask: async (blockId: string, parentId: string) => {
-            reorders.push(`${blockId}:${parentId}`);
-        },
-    };
-    await executeProjectBoardMove(
-        { task: projects[1], status: "", groupBy: "priority", value: "critical" },
-        "p1",
-        moveHandlers,
-    );
-    await executeProjectBoardMove(
-        { task: projects[1], status: "", groupBy: "importance", value: 7 },
-        "p1",
-        moveHandlers,
-    );
-    await executeProjectBoardMove(
-        {
-            task: projects[1],
-            status: "",
-            groupBy: "stage",
-            value: "stage-a",
-            afterId: "other",
-            afterParentId: "stage-a",
-        },
-        "p1",
-        moveHandlers,
-    );
-    assert.deepEqual(writes, [
-        ["a", { [ATTR_PRIORITY]: "critical" }],
-        ["a", { [ATTR_IMPORTANCE]: "7" }],
-    ]);
-    assert.deepEqual(reorders, ["a:p1", "a:p1"]);
-});
-
-test("非手动看板排序不会产生顺序插入意图", async () => {
-    const calls: string[] = [];
-    const item = task("20260816123456-abcdefg", { parentId: "20260816123457-project", status: "todo" });
-    await executeProjectBoardMove(
-        {
-            task: item,
-            status: "doing",
-            groupBy: "status",
-            value: "doing",
-            sortBy: "due",
-            afterId: "20260816123458-after",
-        },
-        "20260816123457-project",
-        {
-            updateTask: async () => undefined,
-            reorderTask: async () => {
-                calls.push("reordered");
-            },
-        },
-    );
-    assert.deepEqual(calls, []);
 });

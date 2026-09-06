@@ -7,76 +7,19 @@ import type {
     ProjectSummary,
     TaskCacheEntry,
 } from "../../shared/types";
-import { ATTR_IMPORTANCE, ATTR_PRIORITY, ATTR_STATUS } from "../../shared/constants";
-import { isProjectBoardTask, type ProjectBoardGroupBy } from "../../shared/project-board";
+import { ATTR_STATUS } from "../../shared/constants";
+import { isProjectBoardTask } from "../../shared/project-board";
 import { createProjectMembershipGraph } from "../../shared/project-membership-graph";
 import { applyFilters, hasActiveTaskFilters, sortTasksBy, type FilterState } from "./filter";
 import { sortProjectBoardTasks } from "./project-board-sort";
 import { getProjectDateBucket, isProjectTask, type ProjectDateBucket } from "../../shared/project-domain";
 import { buildProjectControlState } from "../../shared/project-control";
 import { buildProjectTreeModel, type ProjectTreeModel, type ProjectTreeSortMode } from "./project-tree";
-import type { ProjectBoardSortBy } from "../../shared/project-board-preferences";
-import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../../shared/project-board-move";
 
 export type ProjectViewMode = "overview" | "hierarchy" | "board" | "plan" | "gantt";
 export type ProjectRiskFilter = "all" | "attention" | "blocked";
 export type ProjectDateFilter = "all" | "overdue" | "week";
 export type ProjectActionFilter = "all" | "missing" | "available";
-
-export interface ProjectBoardMoveIntent {
-    task: TaskCacheEntry;
-    status: string;
-    groupBy?: ProjectBoardGroupBy;
-    value?: string | number;
-    afterId?: string;
-    afterParentId?: string;
-    sortBy?: ProjectBoardSortBy;
-    visibleTaskIds?: string[];
-}
-
-export interface ProjectBoardMoveHandlers {
-    updateTask?: (task: TaskCacheEntry, attrs: Record<string, string>) => Promise<unknown>;
-    reorderTask?: (blockId: string, parentId: string, afterId?: string) => Promise<void>;
-    moveProjectBoardTask?: (input: ProjectBoardMoveInput) => Promise<ProjectBoardMoveResult>;
-}
-
-export async function executeProjectBoardMove(
-    intent: ProjectBoardMoveIntent,
-    projectId: string,
-    handlers: ProjectBoardMoveHandlers,
-): Promise<void> {
-    const groupBy = intent.groupBy || "status";
-    const targetValue = intent.value ?? intent.status;
-    const attrs: Record<string, string> = {};
-    const manualOrder = !intent.sortBy || intent.sortBy === "order";
-    if (groupBy === "status" && intent.task.status !== targetValue) {
-        attrs[ATTR_STATUS] = String(targetValue);
-    } else if (groupBy === "priority" && intent.task.priority !== targetValue) {
-        attrs[ATTR_PRIORITY] = String(targetValue);
-    } else if (groupBy === "importance" && intent.task.importance !== targetValue) {
-        attrs[ATTR_IMPORTANCE] = String(targetValue);
-    }
-    if (handlers.moveProjectBoardTask) {
-        await handlers.moveProjectBoardTask({
-            taskId: intent.task.blockId,
-            projectId,
-            groupBy,
-            value: targetValue,
-            sortBy: intent.sortBy,
-            afterId: intent.afterId,
-            afterParentId: intent.afterParentId,
-            visibleTaskIds: intent.visibleTaskIds,
-        });
-        return;
-    }
-    if (Object.keys(attrs).length > 0 && handlers.updateTask) {
-        await handlers.updateTask(intent.task, attrs);
-    }
-    const sameParentTarget = !intent.afterParentId || intent.afterParentId === (intent.task.parentId || projectId);
-    if (handlers.reorderTask && manualOrder && (groupBy !== "stage" || (intent.afterId && sameParentTarget))) {
-        await handlers.reorderTask(intent.task.blockId, intent.task.parentId || projectId, intent.afterId);
-    }
-}
 
 export async function confirmProjectCompletion(
     summary: ProjectSummary,

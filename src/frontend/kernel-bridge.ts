@@ -24,11 +24,7 @@ import type {
 } from "../shared/rpc-methods";
 import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
 import type { ProjectBoardPreference, ProjectBoardPreferences } from "../shared/project-board-preferences";
-import type {
-    ProjectBoardMoveInput,
-    ProjectBoardMoveResult,
-    ProjectBoardUndoResult,
-} from "../shared/project-board-move";
+import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../shared/project-board-move";
 import type {
     ActionMoveDestination,
     ActionMovePreview,
@@ -191,10 +187,6 @@ export class KernelBridge {
             ...(input.afterParentId ? { afterParentId: assertBlockId(input.afterParentId, "afterParentId") } : {}),
             ...(input.visibleTaskIds ? { visibleTaskIds: input.visibleTaskIds.map((id) => assertBlockId(id)) } : {}),
         });
-    }
-
-    async undoProjectBoardMove(credential: string): Promise<ProjectBoardUndoResult> {
-        return this.call("undoProjectBoardMove", { credential });
     }
 
     async undoActionMove(credential: string): Promise<ActionMoveUndoResult> {

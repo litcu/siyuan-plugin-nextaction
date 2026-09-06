@@ -1,21 +1,5 @@
 import type { TaskCacheEntry } from "../../shared/types";
 import type { ProjectTreeModel, ProjectTreeRow } from "./project-tree";
-import {
-    buildProjectTreeParentOptions,
-    buildProjectTreeReorderIntent,
-    executeProjectTreeCommand,
-} from "./project-tree-operations";
-import type {
-    ProjectTreeCommand as ProjectPlanCommand,
-    ProjectTreeCommandHandlers as ProjectPlanCommandHandlers,
-    ProjectTreeReorderIntent as ProjectPlanReorderIntent,
-} from "./project-tree-operations";
-export type {
-    ProjectTreeCommand as ProjectPlanCommand,
-    ProjectTreeCommandHandlers as ProjectPlanCommandHandlers,
-    ProjectTreeReorderIntent as ProjectPlanReorderIntent,
-} from "./project-tree-operations";
-
 function compareManualOrder(left: TaskCacheEntry, right: TaskCacheEntry): number {
     return left.sort - right.sort || left.blockId.localeCompare(right.blockId);
 }
@@ -74,27 +58,4 @@ export function buildProjectPlanRows(model: ProjectTreeModel, projectId: string)
         visit(task.blockId, 2);
     }
     return rows;
-}
-
-export function buildProjectPlanParentOptions(
-    task: TaskCacheEntry,
-    project: TaskCacheEntry,
-    tasks: TaskCacheEntry[],
-): TaskCacheEntry[] {
-    return buildProjectTreeParentOptions(task, project, tasks);
-}
-
-export function buildProjectPlanReorderIntent(
-    task: TaskCacheEntry,
-    siblings: TaskCacheEntry[],
-    direction: "up" | "down",
-): ProjectPlanReorderIntent | null {
-    return buildProjectTreeReorderIntent(task, siblings, direction);
-}
-
-export async function executeProjectPlanCommand(
-    command: ProjectPlanCommand,
-    handlers: ProjectPlanCommandHandlers,
-): Promise<TaskCacheEntry | void> {
-    return executeProjectTreeCommand(command, handlers);
 }

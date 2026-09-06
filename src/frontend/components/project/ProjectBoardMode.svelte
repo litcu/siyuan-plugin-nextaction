@@ -14,7 +14,7 @@
         type ProjectBoardColumn,
         type ProjectBoardGroupBy,
     } from "../../../shared/project-board";
-    import type { ProjectBoardMoveIntent } from "../../utils/project-view-state";
+    import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../../../shared/project-board-move";
     import { sortProjectBoardTasks } from "../../utils/project-board-sort";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
@@ -22,6 +22,7 @@
     import NaIconButton from "../../ui/NaIconButton.svelte";
 
     interface Props {
+        projectId: string;
         tasks: TaskCacheEntry[];
         projectTasks?: TaskCacheEntry[];
         selectedTaskId?: string;
@@ -30,13 +31,14 @@
         onEdit: (task: TaskCacheEntry) => void;
         onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
         onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
-        onMoveTask: (intent: ProjectBoardMoveIntent) => Promise<void>;
+        onMoveTask: (input: ProjectBoardMoveInput) => Promise<ProjectBoardMoveResult>;
         customFields?: CustomFieldDef[];
         preference?: ProjectBoardPreference;
         onPreferenceChange?: ((preference: ProjectBoardPreference) => void) | undefined;
     }
 
     let {
+        projectId,
         tasks,
         projectTasks = tasks,
         selectedTaskId = "",
@@ -131,8 +133,8 @@
         busy = true;
         try {
             await onMoveTask({
-                task: draggingTask,
-                status: column.status || "",
+                taskId: draggingTask.blockId,
+                projectId,
                 groupBy,
                 value: column.value,
                 sortBy,

@@ -3,12 +3,9 @@
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { ProjectTreeModel } from "../../utils/project-tree";
-    import {
-        buildProjectPlanParentOptions,
-        buildProjectPlanReorderIntent,
-        buildProjectPlanRows,
-        executeProjectPlanCommand,
-    } from "../../utils/project-stage-plan";
+    import { buildProjectPlanRows } from "../../utils/project-stage-plan";
+    import { buildProjectTreeParentOptions, buildProjectTreeReorderIntent } from "../../utils/project-tree-operations";
+    import { ATTR_KIND } from "../../../shared/constants";
     import { formatOperationError } from "../../error-format";
     import NaButton from "../../ui/NaButton.svelte";
     import NaEmpty from "../../ui/NaEmpty.svelte";
@@ -139,7 +136,10 @@
         }
         await performPlanWrite(
             task,
-            () => executeProjectPlanCommand({ type: "rename", task, title }, { renameTask: onRenameTask }),
+            () => {
+                if (!onRenameTask) throw new Error("Task rename is unavailable");
+                return onRenameTask(task, title);
+            },
             renameInput,
             () => cancelRename(task.blockId),
         );
@@ -155,7 +155,10 @@
         const actionKind = control.value === "stage" ? "stage" : "action";
         const succeeded = await performPlanWrite(
             task,
-            () => executeProjectPlanCommand({ type: "setKind", task, actionKind }, { updateTask: onTaskUpdate }),
+            () => {
+                if (!onTaskUpdate) throw new Error("Task update is unavailable");
+                return onTaskUpdate(task, { [ATTR_KIND]: actionKind });
+            },
             control,
         );
         if (!succeeded) control.value = task.actionKind === "stage" ? "stage" : "action";
@@ -174,15 +177,17 @@
         const afterId = siblings[siblings.length - 1]?.blockId;
         const succeeded = await performPlanWrite(
             task,
-            () =>
-                executeProjectPlanCommand({ type: "reorder", task, parentId, afterId }, { reorderTask: onTaskReorder }),
+            () => {
+                if (!onTaskReorder) throw new Error("Task reorder is unavailable");
+                return onTaskReorder(task.blockId, parentId, afterId);
+            },
             control,
         );
         if (!succeeded) control.value = task.parentId;
     }
 
     function moveIntent(task: TaskCacheEntry, direction: "up" | "down") {
-        return buildProjectPlanReorderIntent(task, model.childrenByParent.get(task.parentId) || [], direction);
+        return buildProjectTreeReorderIntent(task, model.childrenByParent.get(task.parentId) || [], direction);
     }
 
     async function moveTask(task: TaskCacheEntry, direction: "up" | "down", event: MouseEvent) {
@@ -191,11 +196,10 @@
         const focusTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
         await performPlanWrite(
             task,
-            () =>
-                executeProjectPlanCommand(
-                    { type: "reorder", task, parentId: intent.parentId, afterId: intent.afterId },
-                    { reorderTask: onTaskReorder },
-                ),
+            () => {
+                if (!onTaskReorder) throw new Error("Task reorder is unavailable");
+                return onTaskReorder(task.blockId, intent.parentId, intent.afterId);
+            },
             focusTarget,
         );
     }
@@ -327,7 +331,7 @@
                                     aria-label={`${i18n?.parentItem || "Parent"}: ${row.task.title}`}
                                     onchange={(event) => changeParent(row.task, event)}
                                 >
-                                    {#each buildProjectPlanParentOptions(row.task, project, projectTasks) as parent}
+                                    {#each buildProjectTreeParentOptions(row.task, project, projectTasks) as parent}
                                         <option value={parent.blockId}
                                             >{parent.blockId === project.blockId
                                                 ? `${i18n?.project || "Project"}: ${parent.title}`

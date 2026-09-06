@@ -46,15 +46,13 @@
         buildProjectViewModel,
         buildProjectViewControl,
         confirmProjectCompletion,
-        executeProjectBoardMove,
         shouldShowProjectCompletionPanel,
         type ProjectActionFilter,
-        type ProjectBoardMoveIntent,
         type ProjectDateFilter,
         type ProjectRiskFilter,
         type ProjectViewMode,
     } from "../utils/project-view-state";
-    import type { ProjectBoardMoveResult } from "../../shared/project-board-move";
+    import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../../shared/project-board-move";
 
     interface Props {
         onEdit: (task: TaskCacheEntry) => void;
@@ -68,8 +66,7 @@
         onTaskUpdate?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
         onTaskRename?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
         onTaskReorder?: ((blockId: string, parentId: string, afterId?: string) => Promise<void>) | undefined;
-        onProjectBoardMove?:
-            ((intent: ProjectBoardMoveIntent, projectId: string) => Promise<ProjectBoardMoveResult>) | undefined;
+        onProjectBoardMove: (input: ProjectBoardMoveInput) => Promise<ProjectBoardMoveResult>;
         onCreateChild?: ((task: TaskCacheEntry) => void) | undefined;
         onCreateStage?: ((project: TaskCacheEntry) => void) | undefined;
         onMoveAction?: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined;
@@ -99,7 +96,7 @@
         onTaskUpdate = undefined,
         onTaskRename = undefined,
         onTaskReorder = undefined,
-        onProjectBoardMove = undefined,
+        onProjectBoardMove,
         onCreateChild = undefined,
         onCreateStage = undefined,
         onMoveAction = undefined,
@@ -252,29 +249,6 @@
         collapsedIds = next;
         const projectId = resolvedActiveProjectId;
         if (projectId) collapsedByProject = { ...collapsedByProject, [projectId]: [...next] };
-    }
-
-    async function handleBoardMove(intent: ProjectBoardMoveIntent) {
-        if (!selectedSummary) return;
-        await executeProjectBoardMove(intent, selectedSummary.project.blockId, {
-            updateTask: onTaskUpdate,
-            reorderTask: onTaskReorder,
-            moveProjectBoardTask: onProjectBoardMove
-                ? (moveInput) =>
-                      onProjectBoardMove!(
-                          {
-                              ...intent,
-                              status: String(moveInput.value),
-                              groupBy: moveInput.groupBy,
-                              value: moveInput.value,
-                              afterId: moveInput.afterId || undefined,
-                              afterParentId: moveInput.afterParentId || undefined,
-                              visibleTaskIds: moveInput.visibleTaskIds,
-                          },
-                          selectedSummary.project.blockId,
-                      )
-                : undefined,
-        });
     }
 
     function handleBoardPreferenceChange(preference: ProjectBoardPreference) {
@@ -532,6 +506,7 @@
                     />
                 {:else if mode === "board"}
                     <ProjectBoardMode
+                        projectId={selectedSummary.project.blockId}
                         tasks={boardTasks}
                         projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
                         {selectedTaskId}
@@ -540,7 +515,7 @@
                         {onEdit}
                         {onStatusClick}
                         {onContextMenu}
-                        onMoveTask={handleBoardMove}
+                        onMoveTask={onProjectBoardMove}
                         customFields={$taskStore.settings.customFields}
                         preference={getProjectBoardPreference(boardPreferences, resolvedActiveProjectId)}
                         onPreferenceChange={handleBoardPreferenceChange}

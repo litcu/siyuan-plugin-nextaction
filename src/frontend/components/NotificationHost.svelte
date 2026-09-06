@@ -53,15 +53,15 @@
         markActionMoveUndoWorking();
         try {
             if (!bridge) throw new Error("Kernel bridge is unavailable");
-            const result =
-                feedback.kind === "projectBoard"
-                    ? await bridge.undoProjectBoardMove(feedback.undo.credential)
-                    : await bridge.undoActionMove(feedback.undo.credential);
+            const result = await bridge.undoActionMove(feedback.undo.credential);
             taskStore.applyUpdate(result.task);
-            completeActionMoveUndo(result.task, result.summary);
+            completeActionMoveUndo(feedback.undo.credential, result.task);
         } catch (cause: unknown) {
             const detail = formatOperationError(cause, i18n);
-            failActionMoveUndo((i18n?.moveActionUndoFailed || "Undo failed: {error}").replace("{error}", detail));
+            failActionMoveUndo(
+                feedback.undo.credential,
+                (i18n?.moveActionUndoFailed || "Undo failed: {error}").replace("{error}", detail),
+            );
         }
     }
 
@@ -69,7 +69,6 @@
         if (
             !$actionMoveUndoFeedback ||
             $actionMoveUndoFeedback.status !== "available" ||
-            $actionMoveUndoFeedback.kind !== "action" ||
             event.defaultPrevented ||
             event.key.toLowerCase() !== "z" ||
             (!event.ctrlKey && !event.metaKey)

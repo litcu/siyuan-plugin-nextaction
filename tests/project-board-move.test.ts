@@ -98,7 +98,7 @@ test("看板移动只接受当前可见同父级目标，并插入目标卡片�
     });
     assert.equal(result.status, "success");
     assert.equal(result.task.status, "doing");
-    assert.ok(result.undo);
+    assert.equal("undo" in result, false);
     assert.ok((result.task.sort || 0) < (target.sort || 0));
 });
 
@@ -241,18 +241,15 @@ test("优先级写入成功但重排失败时返回权威部分成功状态", as
     assert.equal(result.task.parentId, project.blockId);
 });
 
-test("移动撤销在任务被外部修改后安全拒绝", async () => {
-    const { service, cache, project, moving } = fixture();
-    const result = await service.move({
-        taskId: moving.blockId,
-        projectId: project.blockId,
-        groupBy: "status",
-        value: "doing",
-    });
-    assert.ok(result.undo);
-    cache.set(task(moving.blockId, { ...moving, status: "waiting", sort: result.task.sort }));
-    await assert.rejects(
-        service.undo(result.undo!.credential),
-        (error: unknown) => (error as { code?: number }).code === -32018,
-    );
+test("看板可以再次移动回原分组，返回当前权威状态且不提供撤销凭据", async () => {
+    const { service, project, moving } = fixture();
+    const input = { taskId: moving.blockId, projectId: project.blockId, groupBy: "status" as const };
+    const forward = await service.move({ ...input, value: "doing" });
+    assert.equal(forward.task.status, "doing");
+    assert.equal("undo" in forward, false);
+    const back = await service.move({ ...input, value: "todo" });
+    assert.equal(back.status, "success");
+    assert.equal(back.task.status, "todo");
+    assert.equal(back.task.parentId, project.blockId);
+    assert.equal("undo" in back, false);
 });
