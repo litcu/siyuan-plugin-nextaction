@@ -4,7 +4,7 @@
 
 ### Tasks scatter across your notes — once they pile up, you can no longer tell which to do first.
 
-[![version](https://img.shields.io/badge/version-0.8.1-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
+[![version](https://img.shields.io/badge/version-0.8.2-blue)](https://github.com/litcu/siyuan-plugin-nextaction/releases) [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial-green)](https://github.com/litcu/siyuan-plugin-nextaction/blob/main/LICENSE)
 
 [中文文档](./README.zh-CN.md)
 
@@ -58,6 +58,7 @@ Download the `siyuan-plugin-nextaction` folder from a [release](https://github.c
 |---------|--------|
 | What it touches | `custom-na-*` attributes on SiYuan blocks; runs a bundle in the SiYuan kernel process |
 | Network calls | Only when you use an AI feature — routed through SiYuan's own `/api/ai` to your configured provider. No telemetry to the plugin author. |
+| Compatibility | SiYuan 3.8.0 or newer; native mobile frontends are outside the current support scope |
 | Disable | Settings → Marketplace → Downloaded → toggle off |
 | Uninstall | Same menu → uninstall. Block content is preserved; only task attributes are removed. |
 
@@ -84,6 +85,7 @@ That is enough to start. Importance, review intervals, reminders, dependencies, 
 - `/nproject` or `/zxm` — convert the current block into a project.
 - `/ntaskchildren` or `/zrwz` — batch-convert a list or document subtree.
 - Right-click a block icon or document title icon → **Convert to Task**.
+- Native SiYuan task list items are supported directly; their list-item identity is preserved when you create, convert, update, or complete them.
 
 </details>
 
@@ -147,7 +149,7 @@ Priority parameters (due date weight, start date, importance, decay, growth, loo
 |------|----------------|
 | Next Actions | Available tasks, sorted by computed score |
 | All Tasks | Tree view of unfinished tasks, with search, filters, and drag sorting |
-| Projects | Tasks grouped by project, with child tasks and progress |
+| Projects | Project definitions, plans, child tasks, progress, risks, and review |
 | Inbox | Inbox tasks waiting to be clarified |
 | My Day | Today's plan, in list or timeline mode |
 | Someday/Maybe | Shelved tasks that can be reactivated |
@@ -215,6 +217,8 @@ pnpm run dev              # Watch mode: kernel + app in parallel
 pnpm run build            # Production build
 pnpm run release          # Build and deploy to local plugin directory
 pnpm run release:package  # Build package.zip for marketplace/GitHub release
+pnpm run test:integration:kernel  # Optional: test against a local SiYuan kernel
+pnpm run test:integration:mcp     # Optional: test MCP integration
 ```
 
 Before using `pnpm run release`, copy `.env.example` to the ignored `.env.local` file and set

@@ -126,7 +126,7 @@ import NaDatePicker from ${JSON.stringify(`${uiRoot}/NaDatePicker.svelte`)};
 import NaDocumentPicker from ${JSON.stringify(`${uiRoot}/NaDocumentPicker.svelte`)};
 
 let selected = "";
-let date = "";
+let date = "2026-09-01";
 let documentValue = null;
 let parentClicks = 0;
 window.__selectorValues = { search: [], date: [], document: [], get parentClicks() { return parentClicks; } };
@@ -178,14 +178,16 @@ const searchEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true
 searchInput.dispatchEvent(searchEscape);
 await tick();
 
-const calendarButton = document.querySelector(".na-date-picker__calendar-button");
-calendarButton.click();
-await tick();
-const dateEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+        const calendarButton = document.querySelector(".na-date-picker__calendar-button");
+        calendarButton.click();
+        await tick();
+        document.querySelector('.na-date-picker__day:not([class*="--outside"])').click();
+        await tick();
+        const dateEscape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
 document.body.dispatchEvent(dateEscape);
 await tick();
 const dateInput = document.querySelector(".na-date-picker__input");
-dateInput.value = "2026-09-15";
+        dateInput.value = "2026-09-15";
 dateInput.dispatchEvent(new Event("input", { bubbles: true }));
 dateInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 await tick();
@@ -223,7 +225,7 @@ window.__NA_BROWSER_RESULT__({
         searchEscapePrevented: true,
         searchDropdownClosed: true,
         searchParentClicks: 1,
-        dateValues: ["2026-09-15"],
+        dateValues: ["2026-09-01", "2026-09-15"],
         dateEscapePrevented: true,
         dateDropdownClosed: true,
         dateInputValue: "2026/09/15",

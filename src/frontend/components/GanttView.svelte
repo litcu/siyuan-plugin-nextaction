@@ -124,7 +124,7 @@
             ? Math.max(model.rows.length * GANTT_ROW_HEIGHT, GANTT_ROW_HEIGHT)
             : Math.max(model.rows.length * GANTT_ROW_HEIGHT, 200),
     );
-    let contentHeight = $derived(rowsHeight + 56);
+    let contentHeight = $derived(rowsHeight + 72);
     let todayX = $derived(range ? dateToPixel(localCalendarDate(), range) : null);
     let markerPrefix = $derived(`na-gantt-${model.rows[0]?.task.blockId || "project"}`);
     let explicitlyScheduledTaskIds = $derived(
@@ -385,11 +385,11 @@
         max-height: 100%;
         min-width: 0;
         min-height: 96px;
-        border: 1px solid var(--na-color-divider);
-        border-radius: var(--na-radius-sm);
+        border: 1px solid color-mix(in srgb, var(--na-color-divider) 86%, var(--na-accent));
+        border-radius: var(--na-radius-md);
         overflow: hidden;
-        background: var(--b3-theme-surface);
-        box-shadow: none;
+        background: color-mix(in srgb, var(--b3-theme-surface) 96%, var(--b3-theme-background));
+        box-shadow: 0 10px 28px color-mix(in srgb, var(--b3-theme-on-background) 10%, transparent);
     }
 
     .na-gantt__viewport {
@@ -402,10 +402,10 @@
     }
 
     .na-gantt__grid {
-        --na-gantt-outline-width: 248px;
+        --na-gantt-outline-width: 276px;
         display: grid;
         grid-template-columns: var(--na-gantt-outline-width) var(--na-gantt-timeline-width);
-        grid-template-rows: 56px var(--na-gantt-rows-height);
+        grid-template-rows: 72px var(--na-gantt-rows-height);
         width: max-content;
         min-width: 100%;
     }
@@ -418,13 +418,13 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
-        gap: 4px;
+        gap: 7px;
         min-width: 0;
-        padding: 7px 10px;
+        padding: 12px 16px;
         border-right: 1px solid var(--na-color-divider);
         border-bottom: 1px solid var(--na-color-divider);
-        background: var(--na-color-panel-header);
-        box-shadow: 2px 0 0 color-mix(in srgb, var(--b3-theme-on-background) 2%, transparent);
+        background: color-mix(in srgb, var(--na-color-panel-header) 92%, var(--na-accent));
+        box-shadow: 8px 0 18px color-mix(in srgb, var(--b3-theme-on-background) 7%, transparent);
     }
 
     .na-gantt__corner-title {
@@ -435,8 +435,9 @@
     }
 
     .na-gantt__corner-title strong {
-        font-size: var(--na-font-size-lg);
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 750;
+        letter-spacing: 0.01em;
     }
 
     .na-gantt__scale {
@@ -444,7 +445,7 @@
         padding: 2px 8px;
         border-radius: var(--na-radius-pill);
         color: var(--na-text-interactive);
-        background: color-mix(in srgb, var(--na-accent) 10%, var(--b3-theme-surface));
+        background: color-mix(in srgb, var(--na-accent) 13%, var(--b3-theme-surface));
         font-size: var(--na-font-size-xs);
         font-weight: 700;
         text-align: center;
@@ -498,12 +499,12 @@
         min-width: 0;
         overflow: hidden;
         border-bottom: 1px solid var(--na-color-divider);
-        background: var(--na-color-panel-header);
+        background: color-mix(in srgb, var(--na-color-panel-header) 94%, var(--na-accent));
     }
 
     .na-gantt__axis-row {
         position: relative;
-        height: 28px;
+        height: 36px;
         overflow: hidden;
     }
 
@@ -520,8 +521,8 @@
         padding: 0 8px;
         overflow: hidden;
         border-right: 1px solid color-mix(in srgb, var(--na-color-divider) 72%, transparent);
-        color: color-mix(in srgb, var(--na-text-secondary) 88%, var(--na-text-primary));
-        font-size: var(--na-font-size-sm);
+        color: color-mix(in srgb, var(--na-text-secondary) 80%, var(--na-text-primary));
+        font-size: var(--na-font-size-xs);
         font-variant-numeric: tabular-nums;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -549,7 +550,7 @@
         display: flex;
         align-items: center;
         gap: 14px;
-        height: 56px;
+        height: 72px;
         padding: 0 12px;
         color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
@@ -571,7 +572,7 @@
         z-index: 4;
         min-width: 0;
         border-right: 1px solid var(--na-color-divider);
-        background: var(--b3-theme-surface);
+        background: color-mix(in srgb, var(--b3-theme-surface) 98%, var(--b3-theme-background));
         box-shadow: 2px 0 0 color-mix(in srgb, var(--b3-theme-on-background) 2%, transparent);
     }
 
@@ -579,7 +580,7 @@
         display: flex;
         align-items: center;
         min-width: 0;
-        padding-right: 8px;
+        padding-right: 12px;
         border-bottom: 1px solid color-mix(in srgb, var(--na-color-divider) 72%, transparent);
     }
 
@@ -587,11 +588,15 @@
     .na-gantt__outline-row.selected {
         background: var(--na-color-hover-bg);
     }
+
+    .na-gantt__outline-row:nth-child(even) {
+        background: color-mix(in srgb, var(--na-color-hover-bg) 18%, transparent);
+    }
     .na-gantt__outline-row.selected {
         box-shadow: inset 3px 0 var(--na-accent);
     }
     .na-gantt__outline-row--summary {
-        background: color-mix(in srgb, var(--na-accent) 5%, var(--b3-theme-surface));
+        background: color-mix(in srgb, var(--na-accent) 7%, var(--b3-theme-surface));
     }
     .na-gantt__outline-row--summary.selected {
         background: var(--na-color-selected-bg);
@@ -609,7 +614,7 @@
         flex: 0 0 7px;
         width: 7px;
         height: 7px;
-        margin: 0 7px 0 2px;
+        margin: 0 9px 0 3px;
         border-radius: 50%;
         background: var(--na-gantt-status-color);
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--na-gantt-status-color) 13%, transparent);
@@ -623,7 +628,7 @@
         gap: 5px;
         min-width: 0;
         height: 32px;
-        padding: 0 4px;
+        padding: 0 6px;
         border: 0;
         border-radius: var(--na-radius-sm);
         color: var(--na-text-primary);
@@ -639,8 +644,8 @@
     .na-gantt__task-name {
         min-width: 0;
         overflow: hidden;
-        font-size: var(--na-font-size-lg);
-        font-weight: 560;
+        font-size: var(--na-font-size-md);
+        font-weight: 580;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
@@ -674,7 +679,7 @@
         position: relative;
         min-width: 0;
         overflow: hidden;
-        background: color-mix(in srgb, var(--b3-theme-background) 96%, var(--b3-theme-surface));
+        background: color-mix(in srgb, var(--b3-theme-background) 94%, var(--b3-theme-surface));
     }
 
     .na-gantt__bands,
@@ -691,11 +696,11 @@
     .na-gantt__bands span {
         position: absolute;
         inset-block: 0;
-        border-right: 1px solid color-mix(in srgb, var(--na-color-divider) 48%, transparent);
+        border-right: 1px solid color-mix(in srgb, var(--na-color-divider) 62%, transparent);
     }
     .na-gantt__bands span.weekend,
     .na-gantt__bands span.alternate {
-        background: color-mix(in srgb, var(--na-color-info) 3%, transparent);
+        background: color-mix(in srgb, var(--na-color-info) 5%, transparent);
     }
 
     .na-gantt__today {
@@ -705,7 +710,7 @@
         width: 2px;
         background: var(--na-accent);
         pointer-events: none;
-        opacity: 0.78;
+        opacity: 0.9;
     }
 
     .na-gantt__today::before {
@@ -752,6 +757,10 @@
     .na-gantt__bar-row:hover,
     .na-gantt__bar-row.selected {
         background: color-mix(in srgb, var(--na-color-hover-bg) 54%, transparent);
+    }
+
+    .na-gantt__bar-row:nth-child(even) {
+        background: color-mix(in srgb, var(--na-color-info) 2%, transparent);
     }
     .na-gantt__bar-row--summary {
         background: color-mix(in srgb, var(--na-accent) 3%, transparent);
@@ -807,8 +816,8 @@
         position: absolute;
         top: -3px;
         left: 0;
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
         border: 1px solid var(--na-color-warning);
         border-radius: 50%;
         background: var(--b3-theme-surface);

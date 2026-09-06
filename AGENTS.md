@@ -4,6 +4,8 @@
 
 `src/frontend/` 包含 Svelte 组件、`Na*` 通用 UI、stores 与 RPC 桥接；`src/kernel/` 负责缓存、任务写入、同步、重复规则和 MCP；跨端类型、常量与设置放在 `src/shared/`。翻译位于 `src/i18n/`，测试位于 `tests/*.test.ts`，发布脚本位于 `scripts/`。`docs/` 只存放仓库必需的按需规范，本地归档资料放在被忽略的 `.doc/`。`dist/`、`dev/`、根目录 `kernel.js` 和 `package.zip` 均为生成物，不要手工修改或提交。
 
+领域术语和项目边界以 `CONTEXT.md` 及相关 ADR 为准；修改项目、任务关系或 Action 移动逻辑前先阅读对应文档和实现。思源原生任务列表项以列表项自身作为任务身份，不能把其文字子块当作任务身份。
+
 ## 双 Bundle 架构
 
 - **前端 Bundle**：入口 `src/index.ts`，由 Vite 构建为 CJS；开发输出到 `dev/index.js`，生产输出到 `dist/index.js`。运行在浏览器上下文，负责 Svelte UI、DOM 和 `KernelBridge`。
@@ -19,6 +21,8 @@
 - `pnpm run check:theme`：检查主题适配；修改 Svelte 或 SCSS 时执行。
 - `pnpm run release:package`：构建并生成发布用 `package.zip`，仅用于发布验证。
 - `pnpm run release`：构建并部署到本机思源插件目录。凡改动需要用户在思源中人工验证，交付验证前必须运行此命令并确认部署成功。
+- `pnpm run test:integration:kernel`：使用 `.env.local` 连接本地思源内核执行集成测试。
+- `pnpm run test:integration:mcp`：使用 `.env.local` 执行 MCP 集成测试；仅在涉及 MCP 时运行。
 
 ## 编码风格与命名
 
@@ -72,6 +76,8 @@ Always load the relevant guideline files before providing design feedback.
 根目录存在 `.codegraph/`。定位符号、调用链或影响范围时，先运行 `codegraph explore "问题或符号"`，再按需使用 `rg` 和直接读取文件。不要覆盖用户已有的未提交改动。
 
 需要部署到本机思源、运行真实内核/MCP 集成测试或处理 `/check-auth` 登录时，先读取 `docs/agents/local-siyuan.md`。
+
+用户可见功能说明以当前代码和已发布的 `CHANGELOG.md` 为准；修改 README 时同步维护英文和中文版本，版本徽章只使用 `package.json` 与 `plugin.json` 中已发布的一致版本。
 
 ## Agent skills
 

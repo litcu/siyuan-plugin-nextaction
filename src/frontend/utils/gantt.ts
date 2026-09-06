@@ -2,7 +2,7 @@ import type { TaskCacheEntry } from "../../shared/types";
 import type { ProjectTreeModel, ProjectTreeRow } from "./project-tree";
 import { isProjectTask } from "../../shared/project-domain";
 
-export const GANTT_ROW_HEIGHT = 40;
+export const GANTT_ROW_HEIGHT = 48;
 
 export type GanttScaleName = "day" | "week" | "month";
 export type GanttBarKind = "bar" | "deadline" | "open" | "rollup";

@@ -51,18 +51,6 @@
     const ITEM_H = 22;
     const SNAP_DELAY = 80;
 
-    function stopInteractionPropagation(node: HTMLElement) {
-        const stop = (event: Event) => event.stopPropagation();
-        node.addEventListener("click", stop);
-        node.addEventListener("keydown", stop);
-        return {
-            destroy() {
-                node.removeEventListener("click", stop);
-                node.removeEventListener("keydown", stop);
-            },
-        };
-    }
-
     $: today = getToday();
     $: if (!inputFocused && value !== syncedValue) syncInputFromValue();
     $: calendarDays = buildCalendarDays(viewYear, viewMonth);
@@ -400,7 +388,9 @@
     }
 
     function handleClickOutside(e: MouseEvent) {
-        if (containerEl && !containerEl.contains(e.target as Node)) open = false;
+        const target = e.target as Node;
+        if (containerEl?.contains(target) || dropdownEl?.contains(target)) return;
+        open = false;
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -473,7 +463,6 @@
     {#if open}
         <div
             use:portal={fixedDropdown}
-            use:stopInteractionPropagation
             bind:this={dropdownEl}
             class="na-date-picker__dropdown"
             class:na-date-picker__dropdown--fixed={fixedDropdown}
@@ -486,6 +475,7 @@
             <!-- Calendar -->
             <div class="na-date-picker__header">
                 <button
+                    type="button"
                     class="na-date-picker__nav na-date-picker__nav--previous b3-tooltips b3-tooltips__n"
                     onclick={prevMonth}
                     aria-label={previousMonthLabel}
@@ -498,6 +488,7 @@
                         : `${viewYear}/${viewMonth + 1}`}</span
                 >
                 <button
+                    type="button"
                     class="na-date-picker__nav b3-tooltips b3-tooltips__n"
                     onclick={nextMonth}
                     aria-label={nextMonthLabel}
@@ -515,6 +506,7 @@
             <div class="na-date-picker__days">
                 {#each calendarDays as cell}
                     <button
+                        type="button"
                         class="na-date-picker__day"
                         class:na-date-picker__day--selected={cell.date === datePart}
                         class:na-date-picker__day--today={cell.date === today}
@@ -539,6 +531,7 @@
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each HOURS as h}
                                     <button
+                                        type="button"
                                         class="na-date-picker__time-item"
                                         class:na-date-picker__time-item--active={h === selectedHour}
                                         onclick={(event) => {
@@ -563,6 +556,7 @@
                                 <div class="na-date-picker__time-pad"></div>
                                 {#each MINUTES as m}
                                     <button
+                                        type="button"
                                         class="na-date-picker__time-item"
                                         class:na-date-picker__time-item--active={m === selectedMinute}
                                         onclick={(event) => {
@@ -582,19 +576,28 @@
 
             <!-- Footer -->
             <div class="na-date-picker__footer">
-                <button class="na-date-picker__time-toggle" onclick={toggleTimeMode} disabled={requireTime}>
+                <button
+                    type="button"
+                    class="na-date-picker__time-toggle"
+                    onclick={toggleTimeMode}
+                    disabled={requireTime}
+                >
                     <NaIcon symbol="iconClock" size={11} />
                     <span>{timeMode ? dateOnlyLabel : setTimeLabel}</span>
                 </button>
                 <div class="na-date-picker__footer-actions">
-                    <button class="na-date-picker__action" onclick={selectToday}>{todayLabel}</button>
+                    <button type="button" class="na-date-picker__action" onclick={selectToday}>{todayLabel}</button>
                     {#if timeMode || requireTime}
-                        <button class="na-date-picker__action na-date-picker__action--primary" onclick={confirmDateTime}
-                            >{okLabel}</button
+                        <button
+                            type="button"
+                            class="na-date-picker__action na-date-picker__action--primary"
+                            onclick={confirmDateTime}>{okLabel}</button
                         >
                     {/if}
-                    <button class="na-date-picker__action na-date-picker__action--danger" onclick={clearValue}
-                        >{clearLabel}</button
+                    <button
+                        type="button"
+                        class="na-date-picker__action na-date-picker__action--danger"
+                        onclick={clearValue}>{clearLabel}</button
                     >
                 </div>
             </div>
