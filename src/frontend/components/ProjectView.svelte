@@ -436,12 +436,15 @@
                         >
                     </div>
                 </div>
-                <div class="na-project-canvas__progress">
+                {#snippet projectProgress()}
                     <NaProgressBar
                         percent={selectedSummary.progress}
                         label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
                     />
-                </div>
+                {/snippet}
+                {#if mode !== "board"}
+                    <div class="na-project-canvas__progress">{@render projectProgress()}</div>
+                {/if}
                 {#if shouldShowProjectCompletionPanel(selectedSummary)}
                     <ProjectCompletionPanel
                         summary={selectedSummary}
@@ -506,6 +509,7 @@
                     />
                 {:else if mode === "board"}
                     <ProjectBoardMode
+                        progress={projectProgress}
                         projectId={selectedSummary.project.blockId}
                         tasks={boardTasks}
                         projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
@@ -621,7 +625,8 @@
     }
     .na-project-workspace {
         display: grid;
-        grid-template-columns: minmax(185px, 24%) minmax(0, 1fr) minmax(180px, 22%);
+        --na-project-index-width: clamp(160px, 18%, 200px);
+        grid-template-columns: var(--na-project-index-width) minmax(0, 1fr) minmax(180px, 22%);
         min-height: 0;
         height: 100%;
         overflow: hidden;
@@ -634,7 +639,7 @@
         flex-shrink: 0;
     }
     .na-project-workspace--focus {
-        grid-template-columns: minmax(185px, 24%) minmax(0, 1fr);
+        grid-template-columns: var(--na-project-index-width) minmax(0, 1fr);
     }
     .na-project-index,
     .na-project-risk-rail {
@@ -841,7 +846,7 @@
     }
     @container nextaction-app (max-width: 880px) {
         .na-project-workspace {
-            grid-template-columns: 190px minmax(0, 1fr);
+            grid-template-columns: var(--na-project-index-width) minmax(0, 1fr);
         }
         .na-project-risk-rail {
             display: none;

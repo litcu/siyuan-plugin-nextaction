@@ -22,6 +22,8 @@ test("看板分组和排序切换会立即更新控件、内容与持久化偏�
                 join(fixtureRoot, "Harness.svelte"),
                 `<script>
 import ProjectBoardMode from ${JSON.stringify(componentPath)};
+import ${JSON.stringify(resolve("src/frontend/ui/tokens.scss").replace(/\\/g, "/"))};
+import ${JSON.stringify(resolve("src/frontend/ui/primitives.scss").replace(/\\/g, "/"))};
 
 const projectId = "20260825141735-project";
 const task = (overrides = {}) => ({
@@ -62,6 +64,7 @@ async function moveTask(intent) {
 </script>
 
 <div id="state" data-group={preference.groupBy} data-sort={preference.sortBy} data-changes={JSON.stringify(changes)} data-moves={JSON.stringify(moves)}></div>
+<div class="nextaction">
 <ProjectBoardMode
     {projectId}
     tasks={[task()]}
@@ -74,6 +77,7 @@ async function moveTask(intent) {
     onContextMenu={noop}
     onMoveTask={moveTask}
 />
+</div>
 `,
             );
             writeFileSync(
@@ -106,7 +110,11 @@ setTimeout(() => {
         }, 25);
         setTimeout(() => {
             const state = document.querySelector("#state");
+            const toolbar = document.querySelector(".na-project-board__toolbar").getBoundingClientRect();
             finish({
+                compactToolbar: toolbar.height <= 30,
+                compactSelects: [group, sort].every(node => node.getBoundingClientRect().width <= 160),
+                sameControlRow: Math.abs(group.getBoundingClientRect().top - sort.getBoundingClientRect().top) <= 1,
                 groupValue: group.value,
                 sortValue: sort.value,
                 parentGroup: state?.dataset.group,
@@ -125,6 +133,10 @@ setTimeout(() => {
         },
     });
     assert.deepEqual(result, {
+        // Regression: 公共 select 的 100% 宽度曾让看板分组、排序各占一整行。
+        compactToolbar: true,
+        compactSelects: true,
+        sameControlRow: true,
         groupValue: "priority",
         sortValue: "due",
         parentGroup: "priority",

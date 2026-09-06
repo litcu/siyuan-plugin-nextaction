@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount, untrack } from "svelte";
+    import type { Snippet } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { CustomFieldDef } from "../../../shared/settings";
@@ -18,7 +19,6 @@
     import { sortProjectBoardTasks } from "../../utils/project-board-sort";
     import { priorityI18nKey, statusI18nKey, translateKey } from "../../i18n";
     import TaskCard from "../TaskCard.svelte";
-    import NaButton from "../../ui/NaButton.svelte";
     import NaIconButton from "../../ui/NaIconButton.svelte";
 
     interface Props {
@@ -27,6 +27,7 @@
         projectTasks?: TaskCacheEntry[];
         selectedTaskId?: string;
         i18n: I18nStrings;
+        progress?: Snippet;
         onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
         onEdit: (task: TaskCacheEntry) => void;
         onStatusClick: (task: TaskCacheEntry, event: MouseEvent) => void;
@@ -43,6 +44,7 @@
         projectTasks = tasks,
         selectedTaskId = "",
         i18n,
+        progress,
         onSelectTask = undefined,
         onEdit,
         onStatusClick,
@@ -193,38 +195,50 @@
 </script>
 
 <div class="na-project-board" aria-busy={busy} bind:this={boardElement}>
-    <div class="na-project-board__toolbar">
-        <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
-        <select
-            id="na-project-board-group-by"
-            class="na-select na-select--sm"
-            onchange={handleGroupByChange}
-            value={groupBy}
-        >
-            <option value="status">{groupLabel("status")}</option>
-            <option value="stage">{groupLabel("stage")}</option>
-            <option value="priority">{groupLabel("priority")}</option>
-            <option value="importance">{groupLabel("importance")}</option>
-        </select>
-        <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
-        <select id="na-project-board-sort" class="na-select na-select--sm" onchange={handleSortChange} value={sortBy}>
-            <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
-            <option value="due">{i18n?.sortByDue || "Due date"}</option>
-            <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
-            <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
-            {#each customFields.filter((field) => field.status === "active") as field (field.key)}
-                <option value={`custom:${field.key}`}>{field.label}</option>
-            {/each}
-        </select>
-        <NaButton
-            size="sm"
-            variant="text"
-            ariaLabel={i18n?.projectBoardSortDirection || "Sort direction"}
-            ariaPressed={sortAsc}
-            onclick={handleSortDirectionChange}
-        >
-            {sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}
-        </NaButton>
+    <div class="na-project-board__header">
+        {#if progress}
+            <div class="na-project-board__progress">{@render progress()}</div>
+        {/if}
+        <div class="na-project-board__toolbar">
+            <div class="na-project-board__control">
+                <label for="na-project-board-group-by">{i18n?.projectBoardGroupBy || "Group by"}</label>
+                <select
+                    id="na-project-board-group-by"
+                    class="na-select na-select--sm"
+                    onchange={handleGroupByChange}
+                    value={groupBy}
+                >
+                    <option value="status">{groupLabel("status")}</option>
+                    <option value="stage">{groupLabel("stage")}</option>
+                    <option value="priority">{groupLabel("priority")}</option>
+                    <option value="importance">{groupLabel("importance")}</option>
+                </select>
+            </div>
+            <div class="na-project-board__control">
+                <label for="na-project-board-sort">{i18n?.sortBy || "Sort by"}</label>
+                <select
+                    id="na-project-board-sort"
+                    class="na-select na-select--sm"
+                    onchange={handleSortChange}
+                    value={sortBy}
+                >
+                    <option value="order">{i18n?.sortByOrder || "Manual order"}</option>
+                    <option value="due">{i18n?.sortByDue || "Due date"}</option>
+                    <option value="importance">{i18n?.sortByImportance || "Importance"}</option>
+                    <option value="priority">{i18n?.sortByPriority || "Priority"}</option>
+                    {#each customFields.filter((field) => field.status === "active") as field (field.key)}
+                        <option value={`custom:${field.key}`}>{field.label}</option>
+                    {/each}
+                </select>
+                <NaIconButton
+                    compact
+                    symbol={sortAsc ? "iconUp" : "iconDown"}
+                    label={`${i18n?.projectBoardSortDirection || "Sort direction"}: ${sortAsc ? i18n?.sortAsc || "Ascending" : i18n?.sortDesc || "Descending"}`}
+                    active={sortAsc}
+                    onclick={handleSortDirectionChange}
+                />
+            </div>
+        </div>
     </div>
     {#if narrow}
         <div class="na-project-board__pager">
@@ -302,17 +316,41 @@
         min-height: 0;
         min-width: 900px;
     }
+    .na-project-board__header {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: var(--na-space-sm) var(--na-space-lg);
+        margin-bottom: var(--na-space-sm);
+    }
+    .na-project-board__progress {
+        flex: 1 1 200px;
+        min-width: 0;
+    }
     .na-project-board__toolbar {
         display: flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 8px;
+        gap: var(--na-space-xs) var(--na-space-lg);
+        max-width: 100%;
         color: var(--na-text-secondary);
         font-size: var(--na-font-size-sm);
     }
     .na-project-board__toolbar label {
         white-space: nowrap;
+    }
+    .na-project-board__control {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--na-space-xs);
+        min-width: 0;
+        max-width: 100%;
+    }
+    .na-project-board__control select {
+        width: auto;
+        min-width: 0;
+        max-width: 160px;
+        text-overflow: ellipsis;
     }
     .na-project-board__columns {
         display: grid;
