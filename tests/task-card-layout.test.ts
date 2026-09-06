@@ -44,6 +44,18 @@ test("任务元数据保持单行，内容过多时不撑高卡片", () => {
     assert.match(clusterRule, /overflow:\s*hidden/);
 });
 
+test("任务元数据文本按剩余宽度自适应后再截断", () => {
+    const metadataRule =
+        stylesheetSource.match(
+            /\.na-task-card__context,\r?\n\.na-task-card__tags,\r?\n\.na-task-card__custom-field,\r?\n\.na-task-card__child-count\s*\{([\s\S]*?)\r?\n\}/,
+        )?.[1] ?? "";
+
+    assert.match(metadataRule, /max-width:\s*100%/);
+    assert.match(metadataRule, /min-width:\s*0/);
+    assert.match(metadataRule, /flex-shrink:\s*1/);
+    assert.doesNotMatch(metadataRule, /max-width:\s*150px/);
+});
+
 test("无卡片元数据时隐藏空的辅助行", () => {
     assert.match(stylesheetSource, /\.na-task-card__body--metadata-empty \.na-task-card__meta\s*\{\s*display:\s*none;/);
 });
