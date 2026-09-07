@@ -38,6 +38,17 @@
         }).catch((error) => notifyOperationError(error, i18n));
     }
 
+    function handleTaskCreated(task: TaskCacheEntry) {
+        taskStore.applyUpdate(task);
+        handleEdit(task);
+    }
+
+    function openCreateTask() {
+        openCreateTaskDialog({ bridge, i18n, onCreated: handleTaskCreated }).catch((error) =>
+            notifyOperationError(error, i18n),
+        );
+    }
+
     const tabs: { id: DockTab; label: string }[] = $state([
         { id: "nextAction", label: "" },
         { id: "myDay", label: "" },
@@ -116,6 +127,7 @@
 <div class="na-dock">
     <NaPanelHeader compact title={i18n?.pluginName || "NextAction"} icon="iconNextAction">
         {#snippet actions()}
+            <NaIconButton compact symbol="iconAdd" label={i18n?.createTask || "Create task"} onclick={openCreateTask} />
             {#if onOpenFullPanel}
                 <NaIconButton
                     compact
