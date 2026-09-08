@@ -91,19 +91,19 @@ export function openReminderSettingsDialog(
         const component = mounted?.instance;
         const previousItems = currentItems;
         currentItems = items;
-        component?.$set({ saving: true, error: "" });
+        component?.patchProps({ saving: true, error: "" });
         try {
             const updated = await bridge.updateTask(task.blockId, {
                 "na-reminder": serializeReminderItems(currentItems),
             });
             currentItems = parseReminderItems(updated.reminder);
-            component?.$set({ items: currentItems, due: updated.due });
+            component?.patchProps({ items: currentItems, due: updated.due });
             callbacks.onSave?.(updated);
         } catch (error) {
             currentItems = previousItems;
-            component?.$set({ items: previousItems, error: formatRpcError(error, i18n) });
+            component?.patchProps({ items: previousItems, error: formatRpcError(error, i18n) });
         } finally {
-            component?.$set({ saving: false });
+            component?.patchProps({ saving: false });
         }
     };
     mounted = mountSvelteComponent(NaReminderEditor, {
@@ -159,13 +159,13 @@ export function openRepeatRuleDialog(
     unbindClose = bindManagedClose(dialog, requestClose);
     const applyRule = async (rule: RepeatRuleV2) => {
         const component = mounted?.instance;
-        component?.$set({ saving: true, error: "" });
+        component?.patchProps({ saving: true, error: "" });
         try {
             const updated = await bridge.setRepeatRule(task.blockId, rule);
             callbacks.onSave?.(updated);
             dialog.destroy();
         } catch (error) {
-            component?.$set({ saving: false, error: formatRpcError(error, i18n) });
+            component?.patchProps({ saving: false, error: formatRpcError(error, i18n) });
         }
     };
     mounted = mountSvelteComponent(NaRepeatRuleEditor, {
