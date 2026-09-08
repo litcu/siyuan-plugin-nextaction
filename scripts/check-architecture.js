@@ -26,6 +26,8 @@ const svelteLegacyPatterns = [
     ["private Svelte runtime import", /\bsvelte\/(?:internal|legacy)\b/],
     ["class-style component construction", /\bnew\s+[A-Za-z_$][\w$]*\s*\(\s*\{\s*target\b/],
     ["legacy component destruction", /\$destroy\s*\(/],
+    ["遗留组件属性更新", /\.\$set\s*\(/],
+    ["遗留组件事件监听", /\.\$on\s*\(/],
     ["legacy event dispatcher", /\bcreateEventDispatcher\b/],
     ["legacy event directive", /(?<![\w-])on:[A-Za-z][\w-]*/],
     ["legacy slot element", /<slot(?:\s|>)/],

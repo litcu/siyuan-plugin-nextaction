@@ -137,6 +137,11 @@
     $: previews = draftRule ? previewRepeatOccurrences(draftRule, task.start, task.due, 5) : [];
     $: summary = `${i18n?.repeatEvery || "Every"} ${interval} ${frequencyOptions.find((option) => option.value === frequency)?.label || frequency}`;
 
+    export function patchProps(patch: { saving?: boolean; error?: string }) {
+        if (patch.saving !== undefined) saving = patch.saving;
+        if (patch.error !== undefined) error = patch.error;
+    }
+
     export function hasUnsavedChanges(): boolean {
         return dirty;
     }
@@ -199,11 +204,13 @@
     statusTone={error ? "error" : dirty ? "warning" : "default"}
     onClose={requestClose}
 >
-    {#if error}
-        {#snippet notice()}<NaInlineNotice message={error} tone="error" />{/snippet}
-    {:else if validationError}
-        {#snippet notice()}<NaInlineNotice message={validationError} tone="warning" />{/snippet}
-    {/if}
+    {#snippet notice()}
+        {#if error}
+            <NaInlineNotice message={error} tone="error" />
+        {:else if validationError}
+            <NaInlineNotice message={validationError} tone="warning" />
+        {/if}
+    {/snippet}
 
     <NaPropertySection title={i18n?.repeatPresets || "Presets"}>
         <div class="na-repeat-rule-editor__presets">

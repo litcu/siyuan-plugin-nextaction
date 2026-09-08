@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const editorSource = readFileSync(new URL("../src/frontend/ui/NaRepeatRuleEditor.svelte", import.meta.url), "utf8");
+const reminderSource = readFileSync(new URL("../src/frontend/ui/NaReminderEditor.svelte", import.meta.url), "utf8");
 const controllerSource = readFileSync(
     new URL("../src/frontend/dialogs/task-property-dialogs.ts", import.meta.url),
     "utf8",
@@ -11,6 +12,14 @@ const datePickerSource = readFileSync(new URL("../src/frontend/ui/NaDatePicker.s
 const taskDetailSource = readFileSync(new URL("../src/frontend/components/TaskDetail.svelte", import.meta.url), "utf8");
 const segmentSource = readFileSync(new URL("../src/frontend/ui/NaSegmentControl.svelte", import.meta.url), "utf8");
 const shellSource = readFileSync(new URL("../src/frontend/ui/NaDialogShell.svelte", import.meta.url), "utf8");
+
+test("Regression: 属性弹窗用 patchProps 更新状态，不再用 Svelte 4 的 $set", () => {
+    // Regression: 关闭 Svelte 5 兼容模式后 $set 不再存在，保存时抛出 TypeError。
+    assert.doesNotMatch(controllerSource, /\.\$set\s*\(/);
+    assert.match(controllerSource, /\.patchProps\(/);
+    assert.match(editorSource, /export function patchProps/);
+    assert.match(reminderSource, /export function patchProps/);
+});
 
 test("重复规则编辑器保留频率、月度条件、结束条件和预览", () => {
     assert.match(editorSource, /<NaSegmentControl\s+options=\{frequencyOptions\}/);

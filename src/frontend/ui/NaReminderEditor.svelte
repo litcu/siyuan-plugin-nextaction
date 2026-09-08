@@ -29,6 +29,13 @@
     );
     $: isFull = items.length >= REMINDER_MAX_PER_TASK;
 
+    export function patchProps(patch: { saving?: boolean; error?: string; items?: ReminderItem[]; due?: string }) {
+        if (patch.saving !== undefined) saving = patch.saving;
+        if (patch.error !== undefined) error = patch.error;
+        if (patch.items !== undefined) items = patch.items;
+        if (patch.due !== undefined) due = patch.due;
+    }
+
     function update(next: ReminderItem[]) {
         items = next;
         onChange(next);
@@ -79,7 +86,9 @@
     status={saving ? i18n?.saving || "Saving..." : ""}
     {onClose}
 >
-    {#if error}{#snippet notice()}<NaInlineNotice message={error} tone="error" />{/snippet}{/if}
+    {#snippet notice()}
+        {#if error}<NaInlineNotice message={error} tone="error" />{/if}
+    {/snippet}
 
     <NaPropertySection title={i18n?.reminderCurrent || i18n?.reminderPopupTitle || "Reminders"}>
         {#if items.length === 0}
