@@ -109,7 +109,6 @@
         </NaSettingRow>
         {#if taskCreationDefaultCreateTarget === "inbox"}
             <NaSettingRow
-                stacked={true}
                 title={i18n?.settingTaskCreationInboxDocument || "Inbox document"}
                 description={i18n?.settingTaskCreationInboxDocumentDesc ||
                     "Text blocks and document blocks will be created under this document"}

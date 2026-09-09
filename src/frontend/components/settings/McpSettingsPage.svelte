@@ -1,9 +1,26 @@
 <script lang="ts">
-    import type { I18nStrings } from "../../../shared/i18n";
+    import type { I18nKey, I18nStrings } from "../../../shared/i18n";
     import type { RpcMcpStatus } from "../../../shared/rpc-methods";
     import NaIcon from "../../ui/NaIcon.svelte";
     import NaSettingRow from "../../ui/NaSettingRow.svelte";
     import NaSection from "../../ui/NaSection.svelte";
+
+    const toolDescriptionKeys: Partial<Record<string, I18nKey>> = {
+        get_task_metadata: "settingMcpToolMetadataDesc",
+        search_tasks: "settingMcpToolSearchDesc",
+        get_tasks: "settingMcpToolGetTasksDesc",
+        get_next_actions: "settingMcpToolNextActionsDesc",
+        list_projects: "settingMcpToolProjectsDesc",
+        get_my_day: "settingMcpToolMyDayDesc",
+        get_review: "settingMcpToolReviewDesc",
+        get_statistics: "settingMcpToolStatisticsDesc",
+        create_tasks: "settingMcpToolCreateDesc",
+        update_tasks: "settingMcpToolUpdateDesc",
+        delete_tasks: "settingMcpToolRemoveDesc",
+        convert_blocks_to_tasks: "settingMcpToolConvertDesc",
+        update_my_day: "settingMcpToolUpdateMyDayDesc",
+        mark_tasks_reviewed: "settingMcpToolMarkReviewedDesc",
+    };
 
     interface Props {
         i18n: I18nStrings;
@@ -29,27 +46,6 @@
 </script>
 
 <div class="na-page-stack na-settings-mcp">
-    <div class="na-settings-mcp__status" class:na-settings-mcp__status--active={mcpStatus?.supported && mcpEnabled}>
-        <span class="na-settings-mcp__orb"><span></span></span>
-        <div>
-            <strong
-                >{mcpStatus?.supported
-                    ? mcpEnabled
-                        ? i18n?.settingMcpStatusEnabled || "MCP tools enabled"
-                        : i18n?.settingMcpStatusDisabled || "MCP tools disabled"
-                    : i18n?.settingMcpUnsupported || "MCP unavailable"}</strong
-            >
-            <span
-                >{mcpStatus?.supported
-                    ? `${mcpStatus?.tools?.length || 0} ${i18n?.settingMcpRegisteredTools || "registered tools"}`
-                    : mcpStatus?.lastError ||
-                      i18n?.settingMcpUnsupportedDesc ||
-                      "Upgrade SiYuan to a version that supports kernel MCP tools"}</span
-            >
-        </div>
-        <code>plugin</code>
-    </div>
-
     <NaSection
         icon="iconCloud"
         title={i18n?.settingMcpAccess || i18n?.settingMcp || "MCP access"}
@@ -60,7 +56,11 @@
         <NaSettingRow
             forId="setting-mcp-enabled"
             title={i18n?.settingMcpEnabled || "Enable MCP tools"}
-            description={i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}
+            description={mcpStatus && !mcpStatus.supported
+                ? mcpStatus.lastError ||
+                  i18n?.settingMcpUnsupportedDesc ||
+                  "Upgrade SiYuan to a version that supports kernel MCP tools"
+                : i18n?.settingMcpEnabledDesc || "Register read-only NextAction tools in SiYuan MCP"}
         >
             <input
                 id="setting-mcp-enabled"
@@ -103,7 +103,7 @@
         icon="iconLink"
         title={i18n?.settingMcpEndpoint || "Endpoint"}
         description={i18n?.settingMcpEndpointHint ||
-            "Uses SiYuan authentication. Enabled tools may also be used by SiYuan's built-in AI Agent."}
+            "Uses SiYuan's stable service port 6806 and authentication. Enabled tools are also used by SiYuan's built-in AI Agent."}
     >
         <div class="na-settings-mcp__endpoint">
             <code>{mcpEndpoint}</code>
@@ -123,9 +123,15 @@
             >
             <div>
                 {#each mcpStatus.tools as tool}
+                    {@const descriptionKey = toolDescriptionKeys[tool.localName]}
                     <div class="na-settings-mcp__tool-row">
                         <span class:write={tool.write}>{tool.write ? "WRITE" : "READ"}</span>
-                        <div><strong>{tool.title}</strong><code>{tool.fullName}</code></div>
+                        <div>
+                            <strong>{tool.title}</strong>
+                            <p class="na-settings-mcp__tool-description">
+                                {descriptionKey ? i18n[descriptionKey] : tool.title}
+                            </p>
+                        </div>
                         <small>{tool.source}</small>
                     </div>
                 {/each}
@@ -135,54 +141,6 @@
 </div>
 
 <style lang="scss">
-    .na-settings-mcp__status {
-        display: grid;
-        grid-template-columns: 30px minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 10px;
-        padding: 13px 15px;
-        border: 1px solid var(--b3-border-color);
-        border-radius: var(--b3-border-radius-b, 8px);
-        background: var(--b3-theme-surface);
-    }
-    .na-settings-mcp__status strong,
-    .na-settings-mcp__status span {
-        display: block;
-    }
-    .na-settings-mcp__status strong {
-        color: var(--na-text-primary);
-        font-size: 13px;
-    }
-    .na-settings-mcp__status > div > span {
-        margin-top: 2px;
-        color: var(--na-text-secondary);
-        font-size: 10px;
-    }
-    .na-settings-mcp__status > code {
-        color: var(--na-text-secondary);
-        font: 10px var(--b3-font-family-code);
-    }
-    .na-settings-mcp__orb {
-        display: grid;
-        place-items: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--b3-theme-background);
-    }
-    .na-settings-mcp__orb span {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--b3-theme-on-surface-light);
-    }
-    .na-settings-mcp__status--active {
-        border-color: color-mix(in srgb, var(--b3-card-success-color) 35%, var(--b3-border-color));
-    }
-    .na-settings-mcp__status--active .na-settings-mcp__orb span {
-        background: var(--b3-card-success-color);
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--b3-card-success-color) 14%, transparent);
-    }
     .na-settings-mcp__warning {
         display: flex;
         align-items: center;
@@ -250,8 +208,7 @@
     .na-settings-mcp__tool-row > span.write {
         color: var(--b3-card-warning-color);
     }
-    .na-settings-mcp__tool-row strong,
-    .na-settings-mcp__tool-row code {
+    .na-settings-mcp__tool-row strong {
         display: block;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -262,7 +219,13 @@
         font-size: 11px;
         font-weight: 500;
     }
-    .na-settings-mcp__tool-row code,
+    .na-settings-mcp__tool-description {
+        margin: 3px 0 0;
+        color: var(--na-text-secondary);
+        font-size: 11px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
     .na-settings-mcp__tool-row small {
         color: var(--na-text-secondary);
         font: 10px var(--b3-font-family-code);

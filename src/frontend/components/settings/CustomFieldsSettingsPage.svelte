@@ -1,4 +1,8 @@
 <script lang="ts">
+    import { onMount } from "svelte";
+    import type { KernelBridge } from "../../kernel-bridge";
+    import { projectScopeOptions } from "../../utils/project-scope-options";
+    import NaSearchSelect from "../../ui/NaSearchSelect.svelte";
     import {
         CUSTOM_FIELD_TYPES,
         isValidCustomFieldKey,
@@ -13,6 +17,7 @@
 
     interface Props {
         i18n: I18nStrings;
+        bridge: KernelBridge;
         customFields: CustomFieldDef[];
         customFieldUsage?: Record<string, number>;
         purgingFieldId?: string;
@@ -21,6 +26,7 @@
 
     let {
         i18n,
+        bridge,
         customFields = $bindable(),
         customFieldUsage = {},
         purgingFieldId = "",
@@ -33,7 +39,26 @@
     let newFieldType: CustomFieldType = $state("text");
     let newFieldOptions = $state("");
     let newFieldScope: "all" | "task" | "project" | "projectTree" = $state("all");
-    let newFieldProjectIds = $state("");
+    let newFieldProjectIds: string[] = $state([]);
+    let projectError = $state("");
+    let projectLabels: Record<string, string> = $state({});
+
+    async function searchProjects(query: string) {
+        try {
+            const tasks = await bridge.getAllTasks();
+            const options = projectScopeOptions(tasks, "");
+            projectLabels = Object.fromEntries(options.map((option) => [option.id, option.label]));
+            projectError = "";
+            return projectScopeOptions(tasks, query);
+        } catch (cause) {
+            projectError = i18n.customFieldProjectsLoadFailed;
+            throw cause;
+        }
+    }
+
+    onMount(() => {
+        void searchProjects("").catch(() => {});
+    });
     let newFieldShowOnCard = $state(true);
     let error = $state("");
 
@@ -42,7 +67,7 @@
             text: "Text",
             textarea: "Long text",
             number: "Number",
-            boolean: "Yes / No",
+            boolean: "Boolean",
             date: "Date",
             datetime: "Date & time",
             singleSelect: "Single select",
@@ -55,7 +80,7 @@
     function scopeLabel(scope: CustomFieldDef["scope"]): string {
         if (scope.mode === "task") return i18n?.customFieldScopeTask || "Tasks only";
         if (scope.mode === "project") return i18n?.customFieldScopeProject || "Projects only";
-        if (scope.mode === "projectTree") return i18n?.customFieldScopeTree || "Project tree";
+        if (scope.mode === "projectTree") return i18n?.customFieldScopeTree || "Selected projects";
         return i18n?.customFieldScopeAll || "All tasks";
     }
 
@@ -72,10 +97,7 @@
         if (newFieldScope === "projectTree")
             return {
                 mode: "projectTree",
-                projectIds: newFieldProjectIds
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean),
+                projectIds: [...newFieldProjectIds],
             };
         return { mode: "all" };
     }
@@ -105,7 +127,7 @@
         newFieldType = "text";
         newFieldOptions = "";
         newFieldScope = "all";
-        newFieldProjectIds = "";
+        newFieldProjectIds = [];
         newFieldShowOnCard = true;
         error = "";
     }
@@ -222,6 +244,29 @@
     }
 </script>
 
+{#snippet projectPicker(ids: string[], onChange: (ids: string[]) => void, disabled = false)}
+    <div class="wide na-settings-custom-fields__project-picker">
+        <span>{i18n.customFieldProjectIds}</span>
+        <NaSearchSelect
+            multi={true}
+            selected={ids}
+            searchFn={searchProjects}
+            initialLabels={projectLabels}
+            placeholder={i18n.customFieldProjectIdsPlaceholder}
+            emptyText={i18n.noOptions}
+            noMatchText={i18n.noMatches}
+            loadingText={i18n.loadingMore}
+            clearLabel={i18n.clearSelection}
+            removeLabel={i18n.removeSelection}
+            fixedDropdown={true}
+            {disabled}
+            onChange={(selected) => onChange(Array.isArray(selected) ? selected : [])}
+        />
+        <span>{i18n.customFieldScopeTreeHint}</span>
+        {#if projectError}<span role="alert">{projectError}</span>{/if}
+    </div>
+{/snippet}
+
 <div class="na-page-stack na-settings-custom-fields">
     <div class="na-settings-custom-fields__toolbar">
         <div>
@@ -288,17 +333,11 @@
                         <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option>
                         <option value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option>
                         <option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option>
-                        <option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
+                        <option value="projectTree">{i18n?.customFieldScopeTree || "Selected projects"}</option>
                     </select></label
                 >
                 {#if newFieldScope === "projectTree"}
-                    <label class="wide"
-                        >{i18n?.customFieldProjectIds || "Project IDs"}<input
-                            class="b3-text-field"
-                            bind:value={newFieldProjectIds}
-                            placeholder={i18n?.customFieldProjectIdsPlaceholder || "Project block IDs, comma separated"}
-                        /></label
-                    >
+                    {@render projectPicker(newFieldProjectIds, (ids) => (newFieldProjectIds = ids))}
                 {/if}
             </div>
             <div class="na-settings-custom-fields__builder-footer">
@@ -399,7 +438,8 @@
                                 <option value="all">{i18n?.customFieldScopeAll || "All tasks"}</option><option
                                     value="task">{i18n?.customFieldScopeTask || "Tasks only"}</option
                                 ><option value="project">{i18n?.customFieldScopeProject || "Projects only"}</option
-                                ><option value="projectTree">{i18n?.customFieldScopeTree || "Project tree"}</option>
+                                ><option value="projectTree">{i18n?.customFieldScopeTree || "Selected projects"}</option
+                                >
                             </select></label
                         >
                         {#if field.type === "singleSelect" || field.type === "multiSelect"}
@@ -413,23 +453,11 @@
                             >
                         {/if}
                         {#if field.scope.mode === "projectTree"}
-                            <label class="wide"
-                                >{i18n?.customFieldProjectIds || "Project IDs"}<input
-                                    class="b3-text-field"
-                                    value={field.scope.projectIds.join(", ")}
-                                    onchange={(event) =>
-                                        updateField(index, {
-                                            scope: {
-                                                mode: "projectTree",
-                                                projectIds: event.currentTarget.value
-                                                    .split(",")
-                                                    .map((item) => item.trim())
-                                                    .filter(Boolean),
-                                            },
-                                        })}
-                                    disabled={field.status === "archived"}
-                                /></label
-                            >
+                            {@render projectPicker(
+                                field.scope.projectIds,
+                                (ids) => updateField(index, { scope: { mode: "projectTree", projectIds: ids } }),
+                                field.status === "archived",
+                            )}
                         {/if}
                     </div>
                 </article>
@@ -497,6 +525,7 @@
         gap: 12px;
         margin-top: 15px;
     }
+    .na-settings-custom-fields__project-picker,
     .na-settings-custom-fields__form label,
     .na-settings-custom-field__details label {
         display: flex;
