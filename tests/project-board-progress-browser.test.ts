@@ -39,7 +39,7 @@ for (const task of [
 <button id="english" onclick={() => i18n = en}>English</button>
 <div class="nextaction" id="viewport">
     <ProjectView onEdit={noop} onStatusClick={noop} onContextMenu={noop} {i18n}
-        onProjectBoardMove={noop} onExtractAction={noop}
+        onProjectBoardMove={noop}
         loadProjectSupport={async projectId => ({ projectId, items: [] })}
         projectDefinitionControllerRegistry={registry} />
 </div>

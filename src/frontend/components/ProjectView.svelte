@@ -71,7 +71,6 @@
         onCreateStage?: ((project: TaskCacheEntry) => void) | undefined;
         onMoveAction?: ((task: TaskCacheEntry, project: TaskCacheEntry) => void) | undefined;
         loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
-        onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
         projectDefinitionControllerRegistry: ProjectDefinitionControllerRegistry;
         bridge?:
             | {
@@ -101,7 +100,6 @@
         onCreateStage = undefined,
         onMoveAction = undefined,
         loadProjectSupport,
-        onExtractAction,
         projectDefinitionControllerRegistry,
         bridge = undefined,
     }: Props = $props();
@@ -468,7 +466,6 @@
                         {onContextMenu}
                         {loadProjectSupport}
                         onOpenProjectSupport={jumpToBlock}
-                        {onExtractAction}
                         onCreateAction={onCreateChild}
                         onAiExtractAction={(sourceBlockId, projectId) =>
                             runAiExtractTasks([sourceBlockId], { projectId })}

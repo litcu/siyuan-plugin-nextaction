@@ -38,7 +38,6 @@
     import NaPanelHeader from "../ui/NaPanelHeader.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import { openCreateTaskDialog } from "../dialogs/create-task-dialog";
-    import { openExtractActionDialog } from "../dialogs/extract-action-dialog";
     import { openActionMoveDialog } from "../dialogs/action-move-dialog";
     import { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import { confirm } from "siyuan";
@@ -336,17 +335,6 @@
         }).catch((error) => notifyError(formatRpcError(error, i18n)));
     }
 
-    function openExtractAction(sourceBlockId: string, sourceTitle: string, projectId: string) {
-        openExtractActionDialog({
-            bridge,
-            i18n,
-            sourceBlockId,
-            sourceTitle,
-            defaultProjectId: projectId,
-            onCreated: handleTaskCreated,
-        }).catch((error) => notifyError(formatRpcError(error, i18n)));
-    }
-
     function openActionMove(task: TaskCacheEntry, project: TaskCacheEntry) {
         openActionMoveDialog({
             bridge,
@@ -449,7 +437,6 @@
                     onCreateStage={(project) => openCreate(project, "stage")}
                     onMoveAction={openActionMove}
                     loadProjectSupport={(projectId) => bridge.getProjectSupport(projectId)}
-                    onExtractAction={openExtractAction}
                     {projectDefinitionControllerRegistry}
                     {i18n}
                 />

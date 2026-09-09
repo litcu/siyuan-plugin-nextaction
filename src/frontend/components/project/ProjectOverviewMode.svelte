@@ -20,7 +20,6 @@
         onContextMenu: (task: TaskCacheEntry, event: MouseEvent) => void;
         loadProjectSupport: (projectId: string) => Promise<ProjectSupportData>;
         onOpenProjectSupport: (blockId: string) => void;
-        onExtractAction: (sourceBlockId: string, sourceTitle: string, projectId: string) => void;
         onAiExtractAction: (sourceBlockId: string, projectId: string) => void;
         onCreateAction?: ((project: TaskCacheEntry) => void) | undefined;
     }
@@ -36,7 +35,6 @@
         onContextMenu,
         loadProjectSupport,
         onOpenProjectSupport,
-        onExtractAction,
         onAiExtractAction,
         onCreateAction = undefined,
     }: Props = $props();
@@ -137,7 +135,6 @@
         {i18n}
         loadSupport={loadProjectSupport}
         onOpen={onOpenProjectSupport}
-        onExtract={(sourceBlockId, sourceTitle) => onExtractAction(sourceBlockId, sourceTitle, summary.project.blockId)}
         onAiExtract={(sourceBlockId) => onAiExtractAction(sourceBlockId, summary.project.blockId)}
     />
 </div>

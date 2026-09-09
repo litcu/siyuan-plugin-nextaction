@@ -231,14 +231,13 @@ const projectId = "20260825120000-project";
 const supportId = "20260825120001-support";
 let attempts = 0;
 let opened = "";
-let extracted = "";
 const i18n = new Proxy({
     projectSupport: "Project Support", projectSupportDescription: "Referenced project context",
     projectSupportRefresh: "Refresh", projectSupportEmpty: "No support yet",
     projectSupportLoadError: "Support unavailable: {error}", projectSupportRetry: "Retry",
     projectSupportForward: "Referenced by project", projectSupportBacklink: "Links to project",
     projectSupportBoth: "Linked both ways", projectSupportBlock: "Block",
-    projectSupportDocument: "Document", projectSupportOpen: "Open source", extractAction: "Extract Action", loading: "Loading",
+    projectSupportDocument: "Document", projectSupportOpen: "Open source", loading: "Loading",
 }, { get: (target, key) => target[key] || String(key) });
 
 const delay = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -257,11 +256,10 @@ async function loadSupport(requestedProjectId) {
 }
 </script>
 
-<div id="harness" data-attempts={attempts} data-opened={opened} data-extracted={extracted}>
+<div id="harness" data-attempts={attempts} data-opened={opened}>
     <div id="core-project-content">Project outcome remains available</div>
     <ProjectSupportSection
         {projectId} {i18n} {loadSupport} onOpen={(blockId) => (opened = blockId)}
-        onExtract={(blockId) => (extracted = blockId)}
     />
 </div>`,
             );
@@ -285,7 +283,6 @@ setTimeout(() => {
         const coreVisibleDuringError = Boolean(document.querySelector("#core-project-content"));
         findButton("Retry")?.click();
         setTimeout(() => {
-            document.querySelector('button[aria-label="Extract Action"]')?.click();
             document.querySelector('button[aria-label="Open source"]')?.click();
             setTimeout(() => {
                 const harness = document.querySelector("#harness");
@@ -297,7 +294,6 @@ setTimeout(() => {
                     titleVisible: document.body.textContent.includes("Source note"),
                     directionVisible: document.body.textContent.includes("Linked both ways"),
                     opened: harness?.dataset.opened,
-                    extracted: harness?.dataset.extracted,
                 });
             }, 20);
         }, 60);
@@ -314,6 +310,5 @@ setTimeout(() => {
         titleVisible: true,
         directionVisible: true,
         opened: "20260825120001-support",
-        extracted: "20260825120001-support",
     });
 });

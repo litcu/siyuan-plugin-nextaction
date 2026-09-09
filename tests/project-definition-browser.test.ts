@@ -269,7 +269,6 @@ const projectDefinitionControllerRegistry = new ProjectDefinitionControllerRegis
     onTaskUpdate={updateTask}
     onCreateChild={noop}
     {loadProjectSupport}
-    onExtractAction={noop}
     {projectDefinitionControllerRegistry}
 />`,
             );
