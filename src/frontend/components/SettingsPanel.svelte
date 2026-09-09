@@ -785,6 +785,7 @@
             {:else if modernTab === "customFields"}
                 <CustomFieldsSettingsPage
                     {i18n}
+                    {bridge}
                     bind:customFields
                     {customFieldUsage}
                     {purgingFieldId}
