@@ -67,7 +67,7 @@
             text: "Text",
             textarea: "Long text",
             number: "Number",
-            boolean: "Yes / No",
+            boolean: "Boolean",
             date: "Date",
             datetime: "Date & time",
             singleSelect: "Single select",

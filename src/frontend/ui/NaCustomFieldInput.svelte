@@ -19,7 +19,7 @@
             text: i18n?.customFieldTypeText || "Text",
             textarea: i18n?.customFieldTypeTextarea || "Long text",
             number: i18n?.customFieldTypeNumber || "Number",
-            boolean: i18n?.customFieldTypeBoolean || "Yes / No",
+            boolean: i18n?.customFieldTypeBoolean || "Boolean",
             date: i18n?.customFieldTypeDate || "Date",
             datetime: i18n?.customFieldTypeDatetime || "Date & time",
             singleSelect: i18n?.customFieldTypeSingleSelect || "Single select",

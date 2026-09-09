@@ -43,9 +43,11 @@ test("设置由内核存储并触发 MCP 动态重配置", () => {
     assert.match(rpcSource, /resolveMcpDocumentTarget/);
 });
 
-test("设置页展示 MCP 来源、真实工具名和写权限警告", () => {
-    assert.match(mcpSettingsPageSource, />plugin<\/code>/);
-    assert.match(mcpSettingsPageSource, /tool\.fullName/);
+test("设置页展示 MCP 来源、工具用途描述和写权限警告", () => {
+    assert.match(mcpSettingsPageSource, /tool\.source/);
+    assert.match(mcpSettingsPageSource, /toolDescriptionKeys\[tool\.localName\]/);
+    assert.match(mcpSettingsPageSource, /i18n\[descriptionKey\]/);
+    assert.doesNotMatch(mcpSettingsPageSource, /tool\.fullName/);
     assert.match(mcpSettingsPageSource, /mcpAllowWrite/);
     assert.match(mcpSettingsPageSource, /settingMcpWriteWarning/);
     assert.match(mcpSettingsPageSource, /settingMcpBatchOperations/);
