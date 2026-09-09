@@ -77,23 +77,31 @@
     ]);
 
     let locationOptions = $derived(
-        kind === "project"
-            ? [{ value: "document", label: i18n?.createSpecificDocument || "Specific document" }]
+        parentTask
+            ? [
+                  { value: "inbox", label: i18n?.createInbox || "Inbox" },
+                  { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
+                  { value: "document", label: i18n?.createSpecificDocument || "Specific document" },
+                  { value: "block", label: i18n?.createChildTask || "Child task" },
+              ]
             : [
                   { value: "inbox", label: i18n?.createInbox || "Inbox" },
                   { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
                   { value: "document", label: i18n?.createSpecificDocument || "Specific document" },
-                  ...(parentTask ? [{ value: "block", label: i18n?.createChildTask || "Child task" }] : []),
               ],
     );
-    $effect(() => {
-        if (kind === "project") targetMode = "document";
-    });
-    $effect(() => {
-        if (targetMode === "block") format = "paragraph";
-    });
+    let docLocationOptions = $derived([
+        { value: "siyuan_default", label: i18n?.createSiyuanDefault || "SiYuan default" },
+        { value: "inbox", label: i18n?.createInbox || "Inbox" },
+        { value: "daily_note", label: i18n?.createDailyNote || "Daily note" },
+        { value: "document", label: i18n?.createSpecificDocument || "Specific document" },
+    ]);
     $effect(() => {
         if (kind === "project") format = "document";
+    });
+    $effect(() => {
+        if (format === "document" && targetMode === "block") targetMode = "siyuan_default";
+        if (format === "paragraph" && targetMode === "siyuan_default") targetMode = "inbox";
     });
     let morePropertiesCount = $derived([contextsText, tagsText, note].filter((value) => value.trim()).length);
 
@@ -138,7 +146,7 @@
             error = i18n?.createSelectDocumentError || "Select a document first";
             return null;
         }
-        if (targetMode === "daily_note" && !dailyNotebookId) {
+        if ((targetMode === "daily_note" || targetMode === "siyuan_default") && !dailyNotebookId) {
             error = i18n?.createSelectNotebookError || "Select a notebook first";
             return null;
         }
@@ -147,13 +155,15 @@
             return null;
         }
         const destination =
-            targetMode === "document"
-                ? { type: "document" as const, documentId: selectedDocument!.id, format }
-                : targetMode === "daily_note"
-                  ? { type: "daily_note" as const, notebookId: dailyNotebookId, format }
-                  : targetMode === "block"
-                    ? { type: "block" as const, parentBlockId: parentTask!.blockId, format: "paragraph" as const }
-                    : { type: "inbox" as const, format };
+            targetMode === "siyuan_default"
+                ? { type: "siyuan_default" as const, notebookId: dailyNotebookId, format }
+                : targetMode === "document"
+                  ? { type: "document" as const, documentId: selectedDocument!.id, format }
+                  : targetMode === "daily_note"
+                    ? { type: "daily_note" as const, notebookId: dailyNotebookId, format }
+                    : targetMode === "block"
+                      ? { type: "block" as const, parentBlockId: parentTask!.blockId, format: "paragraph" as const }
+                      : { type: "inbox" as const, format };
         return {
             title: cleanTitle,
             kind,
@@ -316,14 +326,8 @@
             <h3>{i18n?.createSaveOptions || "Save"}</h3>
         </header>
         <div class="na-create-task__save-grid">
-            <label class="na-create-task__field">
-                <span>{i18n?.createLocation || "Location"}</span>
-                <select class="na-select" bind:value={targetMode} disabled={busy}>
-                    {#each locationOptions as option}<option value={option.value}>{option.label}</option>{/each}
-                </select>
-            </label>
-            {#if targetMode !== "block" && kind !== "project"}
-                <div class="na-create-task__field">
+            {#if kind !== "project"}
+                <div class="na-create-task__field na-create-task__field--full">
                     <span>{i18n?.createFormat || "Format"}</span>
                     <NaSegmentControl
                         options={formatOptions}
@@ -336,7 +340,19 @@
                     />
                 </div>
             {/if}
-            {#if targetMode === "daily_note"}
+            <label class="na-create-task__field na-create-task__field--full">
+                <span
+                    >{format === "document"
+                        ? i18n?.createDocLocation || "Document location"
+                        : i18n?.createLocation || "Location"}</span
+                >
+                <select class="na-select" bind:value={targetMode} disabled={busy}>
+                    {#each format === "document" ? docLocationOptions : locationOptions as option}<option
+                            value={option.value}>{option.label}</option
+                        >{/each}
+                </select>
+            </label>
+            {#if targetMode === "daily_note" || targetMode === "siyuan_default"}
                 <label class="na-create-task__field na-create-task__field--full">
                     <span>{i18n?.createNotebook || "Notebook"}</span>
                     <select class="na-select" bind:value={dailyNotebookId} disabled={busy}>
@@ -468,11 +484,15 @@
         color: var(--na-text-secondary);
     }
     .na-create-task__grid,
-    .na-create-task__save-grid,
     .na-create-task__more-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 11px 14px;
+    }
+    .na-create-task__save-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
     .na-create-task__field {
         display: grid;

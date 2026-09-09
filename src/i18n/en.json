@@ -826,6 +826,8 @@
     "createSaveOptions": "Save",
     "createLocation": "Location",
     "createFormat": "Format",
+    "createSiyuanDefault": "SiYuan default",
+    "createDocLocation": "Document location",
     "createFormatParagraph": "Text block",
     "createFormatDocument": "Document block",
     "createInbox": "Inbox",

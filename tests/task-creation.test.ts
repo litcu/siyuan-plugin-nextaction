@@ -83,17 +83,13 @@ test("任务创建支持原生任务块与文档块", () => {
     assert.match(cache, /task\.subtype = 't'/);
 });
 
-test("项目仅允许指定文档位置并通过文档接口回滚", () => {
+test("文档创建通过文档接口回滚", () => {
     const manager = source("../src/kernel/task-creation-service.ts") + source("../src/kernel/task-target-resolver.ts");
-    const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");
 
     assert.match(manager, /createChildDocument\(title, destination\)/);
     assert.match(manager, /\/api\/filetree\/createDocWithMd/);
-    assert.match(manager, /parentID:\s*parent\.id/);
     assert.match(manager, /projects require a document destination/);
     assert.match(manager, /\/api\/filetree\/removeDocByID/);
-    assert.match(dialog, /kind === "project"[\s\S]*value: "document"/);
-    assert.match(dialog, /if \(kind === "project"\) targetMode = "document"/);
 });
 
 test("默认创建位置来自任务创建设置而不是 MCP 设置", () => {

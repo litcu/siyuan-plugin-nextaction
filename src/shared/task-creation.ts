@@ -1,8 +1,8 @@
-export type CreateTaskDestinationType = "inbox" | "daily_note" | "document" | "block";
+export type CreateTaskDestinationType = "inbox" | "daily_note" | "document" | "block" | "siyuan_default";
 export type CreateTaskFormat = "paragraph" | "document";
 export type CreateTaskDefaultTarget = "inbox" | "daily_note";
 
-export const CREATE_TASK_DESTINATION_TYPES = ["inbox", "daily_note", "document", "block"] as const;
+export const CREATE_TASK_DESTINATION_TYPES = ["inbox", "daily_note", "document", "block", "siyuan_default"] as const;
 export const CREATE_TASK_FORMATS = ["paragraph", "document"] as const;
 
 export interface CreateTaskDestination {

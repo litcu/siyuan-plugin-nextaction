@@ -70,7 +70,10 @@ export class TaskCreationService {
             throw new McpToolError("INVALID_INPUT", "destination must be an object");
         }
         if (!(CREATE_TASK_DESTINATION_TYPES as readonly string[]).includes(destination.type)) {
-            throw new McpToolError("INVALID_INPUT", "destination.type must be inbox, daily_note, document, or block");
+            throw new McpToolError(
+                "INVALID_INPUT",
+                "destination.type must be inbox, daily_note, document, siyuan_default, or block",
+            );
         }
         const format: CreateTaskFormat =
             destination.type === "block"
@@ -84,7 +87,10 @@ export class TaskCreationService {
         if (destination.type === "block" && destination.format !== undefined && destination.format !== "paragraph") {
             throw new McpToolError("INVALID_INPUT", "block destinations always use paragraph format");
         }
-        if (kind === "2" && destination.type !== "document") {
+        if (destination.type === "siyuan_default" && format !== "document") {
+            throw new McpToolError("INVALID_INPUT", "siyuan_default destinations require document format");
+        }
+        if (kind === "2" && destination.type === "block") {
             throw new McpToolError("INVALID_INPUT", "projects require a document destination");
         }
         if (
