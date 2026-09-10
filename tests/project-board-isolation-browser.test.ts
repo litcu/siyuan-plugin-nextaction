@@ -69,7 +69,7 @@ const registry = new ProjectDefinitionControllerRegistry();
     onProjectBoardMove={async () => { throw new Error("Board move is not used by this fixture"); }}
     onEdit={noop} onStatusClick={noop} onContextMenu={noop} {i18n}
     loadProjectSupport={async (projectId) => ({ projectId, items: [] })}
-    onExtractAction={noop} projectDefinitionControllerRegistry={registry} {bridge}
+    projectDefinitionControllerRegistry={registry} {bridge}
 />
 <style>:global(.na-project-board) { min-width: 0 !important; width: 600px !important; }</style>
 `,

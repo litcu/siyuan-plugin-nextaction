@@ -22,7 +22,6 @@ import type {
     RpcParams,
     RpcReturn,
 } from "../shared/rpc-methods";
-import type { ExtractActionInput, ExtractActionResult } from "../shared/action-extraction";
 import type { ProjectBoardPreference, ProjectBoardPreferences } from "../shared/project-board-preferences";
 import type { ProjectBoardMoveInput, ProjectBoardMoveResult } from "../shared/project-board-move";
 import type {
@@ -191,14 +190,6 @@ export class KernelBridge {
 
     async undoActionMove(credential: string): Promise<ActionMoveUndoResult> {
         return this.call("undoActionMove", { credential });
-    }
-
-    async extractAction(input: ExtractActionInput): Promise<ExtractActionResult> {
-        return this.call("extractAction", {
-            ...input,
-            sourceBlockId: assertBlockId(input.sourceBlockId, "sourceBlockId"),
-            ...(input.projectId ? { projectId: assertBlockId(input.projectId, "projectId") } : {}),
-        });
     }
 
     async getCompletedTasksPage(options: CompletedTasksPageOptions = {}): Promise<CompletedTasksPage> {

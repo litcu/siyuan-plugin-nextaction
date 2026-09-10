@@ -122,7 +122,25 @@ export class TaskTargetResolver {
     }> {
         let parent: TaskDocumentTarget;
         const settings = this.getSettings();
-        if (destination.type === "daily_note") {
+        if (destination.type === "siyuan_default") {
+            const notebookId = destination.notebookId || settings.taskCreationSettings.dailyNoteNotebookId;
+            if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Notebook is not configured");
+            const notebooks = await this.listNotebooks();
+            if (!notebooks.some((item) => item.id === notebookId))
+                throw new McpToolError("TARGET_NOT_FOUND", `Notebook unavailable: ${notebookId}`);
+            const savePath = await this.api.request<{ box?: string; path?: string }>(
+                "/api/filetree/getDocCreateSavePath",
+                { notebook: notebookId },
+            );
+            const resolvedBox = savePath?.box || notebookId;
+            const basePath = savePath?.path || "";
+            const parentIds = await this.api.request<string[]>("/api/filetree/getIDsByHPath", {
+                notebook: resolvedBox,
+                path: basePath,
+            });
+            if (parentIds?.length) parent = await this.resolveDocument(parentIds[0]);
+            else parent = { id: "", title: "", notebookId: resolvedBox, path: basePath };
+        } else if (destination.type === "daily_note") {
             const notebookId = destination.notebookId || settings.taskCreationSettings.dailyNoteNotebookId;
             if (!notebookId) throw new McpToolError("TARGET_NOT_CONFIGURED", "Daily note notebook is not configured");
             const notebooks = await this.listNotebooks();
@@ -144,13 +162,16 @@ export class TaskTargetResolver {
             parent = await this.resolveDocument(rawDocumentId);
         }
 
-        if (!parent.path) throw new McpToolError("TARGET_NOT_FOUND", `Document path is unavailable: ${parent.id}`);
+        if (destination.type !== "siyuan_default" && !parent.path) {
+            throw new McpToolError("TARGET_NOT_FOUND", `Document path is unavailable: ${parent.id}`);
+        }
         const baseTitle = title.replace(/\//g, "／");
+        const parentPath = (parent.path || "").replace(/\/$/, "");
         let documentTitle = baseTitle;
         let documentPath = "";
         for (let suffix = 1; suffix <= 100; suffix++) {
             documentTitle = suffix === 1 ? baseTitle : `${baseTitle} (${suffix})`;
-            documentPath = `${parent.path.replace(/\/$/, "")}/${documentTitle}`;
+            documentPath = `${parentPath}/${documentTitle}`;
             const existing = await this.api.request<string[]>("/api/filetree/getIDsByHPath", {
                 notebook: parent.notebookId,
                 path: documentPath,
@@ -160,12 +181,13 @@ export class TaskTargetResolver {
         }
         if (!documentPath) throw new McpToolError("SIYUAN_API_ERROR", "Could not allocate a unique task document path");
 
-        const id = await this.api.request<string>("/api/filetree/createDocWithMd", {
+        const params: Record<string, unknown> = {
             notebook: parent.notebookId,
             path: documentPath,
-            parentID: parent.id,
             markdown: "",
-        });
+        };
+        if (parent.id) params.parentID = parent.id;
+        const id = await this.api.request<string>("/api/filetree/createDocWithMd", params);
         if (!id) throw new McpToolError("SIYUAN_API_ERROR", "SiYuan did not return the created task document ID");
         return {
             document: { id, title: documentTitle, notebookId: parent.notebookId, path: documentPath },

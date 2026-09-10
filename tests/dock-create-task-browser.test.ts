@@ -11,6 +11,10 @@ test("窄面板提供创建任务入口并打开现有创建对话框", async ()
         detailDialogVisible: boolean;
         createCalls: number;
         noHorizontalOverflow: boolean;
+        documentLocations: string[];
+        paragraphLocations: string[];
+        projectFormatHidden: boolean;
+        formatBeforeLocation: boolean;
     }>({
         fixtureName: "dock-create-task-entry",
         browserArgs: ["--window-size=390,844"],
@@ -86,6 +90,22 @@ void (async () => {
     const button = document.querySelector('button[aria-label="Create task"]');
     button?.click();
     await wait(120);
+    // Regression: 写入形式应先于位置，文档任务和项目应提供思源默认位置。
+    const save = document.querySelector(".na-create-task__save-grid");
+    const formatControl = save.querySelector('[role="radiogroup"]');
+    const location = save.querySelector("select");
+    const formatBeforeLocation = Boolean(formatControl.compareDocumentPosition(location) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const paragraphLocations = Array.from(location.options, (option) => option.value);
+    formatControl.querySelectorAll("button")[1].click();
+    await tick();
+    const documentLocations = Array.from(location.options, (option) => option.value);
+    document.querySelector('button[aria-label="Project"]').click();
+    await tick();
+    const projectFormatHidden = !save.querySelector('[role="radiogroup"]') && location.options[0].value === "siyuan_default";
+    document.querySelector('button[aria-label="Task"]').click();
+    await tick();
+    save.querySelector('[role="radiogroup"] button').click();
+    await tick();
     const title = document.querySelector('input[aria-label="Create task"]');
     title.value = "Dock task";
     title.dispatchEvent(new Event("input", { bubbles: true }));
@@ -98,6 +118,10 @@ void (async () => {
         detailDialogVisible: Boolean(document.querySelector(".na-task-dialog-content")),
         createCalls: window.__NA_CREATE_CALLS__ || 0,
         noHorizontalOverflow: dock ? dock.scrollWidth <= dock.clientWidth : false,
+        documentLocations,
+        paragraphLocations,
+        projectFormatHidden,
+        formatBeforeLocation,
     });
 })().catch((error) => window.__NA_BROWSER_RESULT__({ error: String(error?.stack || error) }));`,
             );
@@ -110,5 +134,9 @@ void (async () => {
         detailDialogVisible: true,
         createCalls: 1,
         noHorizontalOverflow: true,
+        documentLocations: ["siyuan_default", "inbox", "daily_note", "document"],
+        paragraphLocations: ["inbox", "daily_note", "document"],
+        projectFormatHidden: true,
+        formatBeforeLocation: true,
     });
 });

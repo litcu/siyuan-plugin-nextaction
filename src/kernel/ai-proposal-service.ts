@@ -11,7 +11,7 @@ import { ATTR_DEPENDS } from "../shared/constants";
 import type { TaskCacheEntry } from "../shared/types";
 import type { TaskService } from "./task-service";
 import type { CreateTaskDestination, CreateTaskInput } from "../shared/task-creation";
-import type { ActionSourcePort } from "./action-extraction-service";
+import type { ActionSourcePort } from "./action-source-port";
 import type { TaskCreationOptions } from "./task-creation-service";
 import { getErrorMessage, McpToolError } from "./mcp-tool-error";
 

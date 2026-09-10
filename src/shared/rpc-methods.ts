@@ -1,5 +1,4 @@
 import { validateAiProposal, type AiProposal, type AiProposalApplyResult, type AiProposalContext } from "./ai";
-import type { ExtractActionInput, ExtractActionResult } from "./action-extraction";
 import type {
     ActionMoveInput,
     ActionMovePreview,
@@ -285,29 +284,6 @@ function createTaskParams(value: unknown): CreateTaskInput {
     return { ...input, title, destination } as unknown as CreateTaskInput;
 }
 
-function extractActionParams(value: unknown): ExtractActionInput {
-    const input = paramsRecord(value);
-    const status = requiredString(input.status, "status");
-    if (!(ALL_STATUSES as readonly string[]).includes(status)) {
-        throw new RpcContractError("status is invalid");
-    }
-    if (input.actionKind !== ACTION_KIND_ACTION && input.actionKind !== ACTION_KIND_STAGE) {
-        throw new RpcContractError("actionKind must be action or stage");
-    }
-    const start = optionalString(input.start, "start");
-    const due = optionalString(input.due, "due");
-    const projectId = optionalBlockId(input.projectId, "projectId");
-    return {
-        sourceBlockId: requiredBlockId(input.sourceBlockId, "sourceBlockId"),
-        title: requiredString(input.title, "title"),
-        status,
-        actionKind: input.actionKind,
-        ...(start !== undefined ? { start } : {}),
-        ...(due !== undefined ? { due } : {}),
-        ...(projectId !== undefined ? { projectId } : {}),
-    };
-}
-
 function proposalContext(value: unknown): AiProposalContext {
     if (value === undefined) return {};
     const input = requiredObject(value, "context");
@@ -429,7 +405,6 @@ export const RPC_CONTRACT = {
         const input = paramsRecord(value);
         return { credential: requiredString(input.credential, "credential") };
     }),
-    extractAction: defineRpc<ExtractActionInput, ExtractActionResult>(extractActionParams),
     getCompletedTasksPage: defineRpc<CompletedTasksPageOptions, CompletedTasksPage>((value) => {
         const input = paramsRecord(value);
         for (const key of ["page", "pageSize"] as const) {

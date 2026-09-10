@@ -13,11 +13,10 @@
         i18n: I18nStrings;
         loadSupport: (projectId: string) => Promise<ProjectSupportData>;
         onOpen: (blockId: string) => void;
-        onExtract?: ((blockId: string, title: string) => void) | undefined;
         onAiExtract?: ((blockId: string) => void) | undefined;
     }
 
-    let { projectId, i18n, loadSupport, onOpen, onExtract = undefined, onAiExtract = undefined }: Props = $props();
+    let { projectId, i18n, loadSupport, onOpen, onAiExtract = undefined }: Props = $props();
 
     let data: ProjectSupportData | null = $state(null);
     let loadedProjectId = $state("");
@@ -97,14 +96,6 @@
                                     label={i18n.aiExtractTasks}
                                     size={13}
                                     onclick={() => onAiExtract?.(item.blockId)}
-                                />
-                            {/if}
-                            {#if onExtract}
-                                <NaIconButton
-                                    symbol="iconNextAction"
-                                    label={i18n.extractAction}
-                                    size={13}
-                                    onclick={() => onExtract?.(item.blockId, item.title)}
                                 />
                             {/if}
                             <NaIconButton

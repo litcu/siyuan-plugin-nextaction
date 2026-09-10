@@ -24,8 +24,8 @@ import { RpcContractError } from "./shared/rpc-methods";
 import { TaskTargetResolver } from "./kernel/task-target-resolver";
 import { TaskCreationService } from "./kernel/task-creation-service";
 import { ProjectSupportService, SiyuanProjectSupportQueryPort } from "./kernel/project-support-service";
-import { ActionExtractionService, SiyuanActionSourcePort } from "./kernel/action-extraction-service";
 import { ActionMoveService } from "./kernel/action-move-service";
+import { SiyuanActionSourcePort } from "./kernel/action-source-port";
 import { SiyuanActionMoveStructurePort } from "./kernel/action-move-structure-port";
 import { ProjectBoardPreferenceManager } from "./kernel/project-board-preference-manager";
 import { ProjectBoardMoveService } from "./kernel/project-board-move-service";
@@ -117,11 +117,6 @@ class NextActionKernelPlugin {
         const actionSourcePort = new SiyuanActionSourcePort(api);
         const aiProposalService = new AiProposalService(this.taskService, createTask, convertTask, actionSourcePort);
         const projectSupportService = new ProjectSupportService(new SiyuanProjectSupportQueryPort(api));
-        const actionExtractionService = new ActionExtractionService(
-            this.taskService,
-            this.taskCreationService,
-            actionSourcePort,
-        );
         const actionMoveService = new ActionMoveService(
             this.cacheManager,
             taskRepository,
@@ -161,7 +156,6 @@ class NextActionKernelPlugin {
                 this.taskService.assertReady();
                 return actionMoveService.undo(input);
             },
-            extractAction: (input) => actionExtractionService.extract(input),
             getTaskSnapshotV2: () => this.syncEngine.getTaskSnapshotV2(),
             broadcastTaskReset: () => this.syncEngine.broadcastReset(),
             getProjectBoardPreferences: () => this.projectBoardPreferenceManager.get(),
