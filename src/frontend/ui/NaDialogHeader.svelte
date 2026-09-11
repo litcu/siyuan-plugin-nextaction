@@ -3,6 +3,7 @@
     import NaIconButton from "./NaIconButton.svelte";
 
     export let title: string;
+    export let page = false;
     export let subtitle = "";
     export let closeLabel: string;
     export let status = "";
@@ -11,7 +12,8 @@
     export let actions: Snippet | undefined = undefined;
 </script>
 
-<header class="na-dialog-header">
+<header class="na-dialog-header" class:na-dialog-header--page={page}>
+    {#if page}<NaIconButton symbol="iconLeft" label={closeLabel} onclick={onClose} />{/if}
     <div class="na-dialog-header__copy">
         <div class="na-dialog-header__title-row">
             <h2>{title}</h2>
@@ -22,7 +24,7 @@
     </div>
     <div class="na-dialog-header__actions">
         {#if actions}{@render actions()}{/if}
-        <NaIconButton symbol="iconClose" label={closeLabel} onclick={onClose} />
+        {#if !page}<NaIconButton symbol="iconClose" label={closeLabel} onclick={onClose} />{/if}
     </div>
 </header>
 

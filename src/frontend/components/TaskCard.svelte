@@ -1,5 +1,7 @@
 <script lang="ts">
     import type { TaskCacheEntry } from "../../shared/types";
+    import { useWorkspace } from "../workspace-context";
+    const workspace = useWorkspace();
     import StatusCheckbox from "./StatusCheckbox.svelte";
     import { normalizePriority, PRIORITY_COLORS } from "../constants";
     import { jumpToBlock, toI18nKey } from "../utils";
@@ -180,7 +182,13 @@
     oncontextmenu={handleContextMenu}
 >
     <div class="na-task-card__content">
-        <StatusCheckbox status={task.status} onclick={(e) => onStatusClick(task, e)} focusable={!managedFocus} />
+        <StatusCheckbox
+            touch={workspace?.touch}
+            label={i18n?.[toI18nKey("status", task.status)] || task.status}
+            status={task.status}
+            onclick={(e) => onStatusClick(task, e)}
+            focusable={!managedFocus}
+        />
         <div
             class="na-task-card__body"
             class:na-task-card__body--metadata-empty={!hasCardMetadata}
@@ -386,13 +394,23 @@
                     onclick={handleToggleCollapse}
                 />
             {/if}
-            <NaIconButton
-                compact
-                tabIndex={managedFocus ? -1 : undefined}
-                symbol="iconOpenWindow"
-                label={i18n?.jumpToBlock || "Jump to Block"}
-                onclick={handleJump}
-            />
+            {#if workspace?.compact}<NaIconButton
+                    symbol="iconMore"
+                    label={i18n.taskActions}
+                    onclick={(event) => {
+                        event.stopPropagation();
+                        onContextMenu(task, event);
+                    }}
+                />{/if}
+            {#if !workspace?.touch}
+                <NaIconButton
+                    compact
+                    tabIndex={managedFocus ? -1 : undefined}
+                    symbol="iconOpenWindow"
+                    label={i18n?.jumpToBlock || "Jump to Block"}
+                    onclick={handleJump}
+                />
+            {/if}
         </div>
     </div>
 </div>

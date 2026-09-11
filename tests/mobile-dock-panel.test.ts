@@ -1,22 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 function source(path: string): string {
     return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
-test("移动 Dock 在精简侧栏和完整任务面板之间切换", () => {
-    const host = source("../src/frontend/components/MobileDockHost.svelte");
-    assert.equal(existsSync(new URL("../src/frontend/components/MobileDockHost.svelte", import.meta.url)), true);
-    assert.match(host, /type MobileDockMode = "sidebar" \| "full"/);
-    assert.match(host, /class:na-mobile-dock-host--full=\{mode === "full"\}/);
-    assert.match(host, /<DockSidebar[\s\S]*onOpenFullPanel=\{openFullPanel\}/);
-    assert.match(host, /<NextActionApp \{bridge\} \{i18n\}/);
-    assert.match(host, /onclick=\{backToSidebar\}/);
-    assert.match(host, /min-height: 44px/);
-    assert.match(host, /safe-area-inset-bottom/);
-    assert.match(source("../src/frontend/components/DockSidebar.svelte"), /onOpenFullPanel/);
+test("移动和桌面宿主使用共用工作区及各自的展示策略", () => {
+    for (const [file, host] of [
+        ["MobileDockHost", "mobile-dock"],
+        ["DockSidebar", "desktop-dock"],
+        ["NextActionApp", "desktop-tab"],
+    ]) {
+        const component = source(`../src/frontend/components/${file}.svelte`);
+        assert.match(component, /<Workspace/);
+        assert.ok(component.includes(`host="${host}"`));
+    }
 });
 
 test("移动端隐藏顶部栏和命令入口，但保留 Dock 内部入口", () => {
@@ -26,14 +25,6 @@ test("移动端隐藏顶部栏和命令入口，但保留 Dock 内部入口", ()
     assert.match(panels, /registrar\.isMobile[\s\S]*MobileDockHost\.svelte/);
     assert.match(panels, /if \(!this\.isMobile\) \{[\s\S]*this\.plugin\.addTopBar/);
     assert.match(commands, /if \(!this\.isMobile\) \{[\s\S]*langKey: "openTaskPanel"/);
-});
-
-test("侧边栏标题和页签使用同一行的弹性布局", () => {
-    const dock = source("../src/frontend/components/DockSidebar.svelte");
-    assert.doesNotMatch(dock, /class="na-dock__tabs"/);
-    assert.match(dock, /NaPanelHeader compact title=\{i18n\?\.pluginName/);
-    assert.match(dock, /na-panel-header__actions/);
-    assert.match(dock, /@container na-dock \(max-width: 260px\)/);
 });
 
 test("Tooltip 点击后立即隐藏，避免与任务详情叠加", () => {

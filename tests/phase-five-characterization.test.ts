@@ -9,7 +9,7 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), "u
 test("任务详情的抽屉与独立 Dialog 共享保存和关闭契约", () => {
     const detail = source("../src/frontend/components/TaskDetail.svelte");
     const session = source("../src/frontend/controllers/task-detail-controller.ts");
-    const app = source("../src/frontend/components/NextActionApp.svelte");
+    const app = source("../src/frontend/components/Workspace.svelte");
     const editor = source("../src/frontend/controllers/editor-task-integration.ts");
     const dialog = source("../src/frontend/dialogs/task-detail-dialog.ts");
 
@@ -68,7 +68,7 @@ test("任务详情草稿签名覆盖全部可编辑字段", () => {
 
 test("项目看板写入保持 NextActionApp 单一适配边界", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
-    const app = source("../src/frontend/components/NextActionApp.svelte");
+    const app = source("../src/frontend/components/Workspace.svelte");
 
     assert.match(view, /onTaskUpdate/);
     assert.match(view, /onTaskReorder/);

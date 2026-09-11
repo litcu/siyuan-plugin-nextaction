@@ -24,9 +24,6 @@ const TASK_THEME_FILES = [
     "src/frontend/components/StatisticsView.svelte",
     "src/frontend/components/ReminderView.svelte",
     "src/frontend/components/DockSidebar.svelte",
-    "src/frontend/components/DockNextAction.svelte",
-    "src/frontend/components/DockInbox.svelte",
-    "src/frontend/components/DockMyDay.svelte",
     "src/frontend/components/TaskCard.svelte",
     "src/frontend/components/timeline/TimelineView.svelte",
     "src/frontend/components/timeline/TimelineColumn.svelte",
@@ -69,7 +66,10 @@ const checks = [
     {
         name: "dock My Day provides the shared timeline theme variables",
         run() {
-            const dockMyDay = read("src/frontend/components/DockMyDay.svelte");
+            const dockMyDay =
+                read("src/frontend/components/timeline/TimelineView.svelte") +
+                read("src/frontend/components/MyDayView.svelte") +
+                read("src/frontend/styles/workspace.scss");
             return ["--na-myday-panel-bg:", "--na-myday-panel-border:", "--na-myday-panel-soft-bg:"].every((needle) =>
                 dockMyDay.includes(needle),
             );
@@ -164,7 +164,7 @@ const checks = [
         run() {
             const files = [
                 "src/frontend/components/TaskDetail.svelte",
-                "src/frontend/components/NextActionApp.svelte",
+                "src/frontend/components/Workspace.svelte",
                 "src/frontend/components/DockSidebar.svelte",
                 "src/frontend/dialogs/task-property-dialogs.ts",
             ];

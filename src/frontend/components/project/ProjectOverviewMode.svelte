@@ -1,4 +1,9 @@
 <script lang="ts">
+    import { useWorkspace } from "../../workspace-context";
+    import NaAccordion from "../../ui/NaAccordion.svelte";
+    import NaButton from "../../ui/NaButton.svelte";
+    const compact = useWorkspace()?.compact ?? false;
+    let showAll = $state(false);
     import type { ProjectControlRisk, ProjectRisk, ProjectSummary, TaskCacheEntry } from "../../../shared/types";
     import type { I18nStrings } from "../../../shared/i18n";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../../i18n";
@@ -49,6 +54,35 @@
 </script>
 
 <div class="na-project-overview">
+    <section class="na-project-section">
+        <div class="na-project-section__heading">
+            <h3>{i18n?.projectNextActions || "Next actions"}</h3>
+            <span>{summary.nextActions.length}</span>
+        </div>
+        {#if summary.nextActions.length === 0}
+            <p class="na-project-muted">{i18n?.projectNoNextActions || "No available next action"}</p>
+        {:else}
+            <NaTaskList>
+                <div class="na-project-task-stack">
+                    {#each !compact || showAll ? summary.nextActions : summary.nextActions.slice(0, 5) as task (task.blockId)}
+                        <TaskCard
+                            {task}
+                            selected={task.blockId === selectedTaskId}
+                            onSelect={onSelectTask}
+                            {onEdit}
+                            {onStatusClick}
+                            {onContextMenu}
+                            {i18n}
+                            isRoot={false}
+                        />
+                    {/each}
+                </div>
+            </NaTaskList>
+            {#if compact && !showAll && summary.nextActions.length > 5}<NaButton onclick={() => (showAll = true)}
+                    >{i18n.showAll} ({summary.nextActions.length})</NaButton
+                >{/if}
+        {/if}
+    </section>
     <section class="na-project-section na-project-section--risks">
         <div class="na-project-section__heading">
             <h3>{i18n?.projectRisks || "Risks"}</h3>
@@ -84,32 +118,6 @@
         {/if}
     </section>
     <section class="na-project-section">
-        <div class="na-project-section__heading">
-            <h3>{i18n?.projectNextActions || "Next actions"}</h3>
-            <span>{summary.nextActions.length}</span>
-        </div>
-        {#if summary.nextActions.length === 0}
-            <p class="na-project-muted">{i18n?.projectNoNextActions || "No available next action"}</p>
-        {:else}
-            <NaTaskList>
-                <div class="na-project-task-stack">
-                    {#each summary.nextActions.slice(0, 5) as task (task.blockId)}
-                        <TaskCard
-                            {task}
-                            selected={task.blockId === selectedTaskId}
-                            onSelect={onSelectTask}
-                            {onEdit}
-                            {onStatusClick}
-                            {onContextMenu}
-                            {i18n}
-                            isRoot={false}
-                        />
-                    {/each}
-                </div>
-            </NaTaskList>
-        {/if}
-    </section>
-    <section class="na-project-section">
         <div class="na-project-section__heading"><h3>{i18n?.projectSnapshot || "Snapshot"}</h3></div>
         <dl class="na-project-facts">
             <div>
@@ -130,13 +138,17 @@
             </div>
         </dl>
     </section>
-    <ProjectSupportSection
-        projectId={summary.project.blockId}
-        {i18n}
-        loadSupport={loadProjectSupport}
-        onOpen={onOpenProjectSupport}
-        onAiExtract={(sourceBlockId) => onAiExtractAction(sourceBlockId, summary.project.blockId)}
-    />
+    {#snippet supportContent()}
+        <ProjectSupportSection
+            projectId={summary.project.blockId}
+            {i18n}
+            loadSupport={loadProjectSupport}
+            onOpen={onOpenProjectSupport}
+            onAiExtract={(sourceBlockId) => onAiExtractAction(sourceBlockId, summary.project.blockId)}
+        />
+    {/snippet}
+    {#if compact}<NaAccordion title={i18n.projectSupport} open={false}>{@render supportContent()}</NaAccordion
+        >{:else}{@render supportContent()}{/if}
 </div>
 
 <style lang="scss">

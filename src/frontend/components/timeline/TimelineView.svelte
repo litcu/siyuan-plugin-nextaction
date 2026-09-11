@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { useWorkspace } from "../../workspace-context";
+    import NaAccordion from "../../ui/NaAccordion.svelte";
+    const compact = useWorkspace()?.compact ?? false;
     import { onMount } from "svelte";
     import { RESPONSIVE_BREAKPOINT, MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
@@ -73,21 +76,31 @@
     });
 </script>
 
-<div class="na-timeline-view" class:na-timeline-view--narrow={isNarrow} bind:this={containerEl}>
-    {#if isNarrow}
+<div
+    class="na-timeline-view"
+    class:na-timeline-view--narrow={compact || isNarrow}
+    class:na-timeline-view--compact={compact}
+    bind:this={containerEl}
+>
+    {#if compact || isNarrow}
         <div class="na-timeline-view__top">
-            <UnscheduledPanel
-                {unscheduledEntries}
-                {taskMap}
-                {bridge}
-                {i18n}
-                {onContextMenu}
-                horizontal={true}
-                isDropTarget={dropTargetActive}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDropOnUnscheduled}
-            />
+            {#snippet unscheduledContent()}
+                <UnscheduledPanel
+                    {unscheduledEntries}
+                    {taskMap}
+                    {bridge}
+                    {i18n}
+                    {onContextMenu}
+                    horizontal={!compact}
+                    isDropTarget={dropTargetActive}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDropOnUnscheduled}
+                />
+            {/snippet}
+            {#if compact}<NaAccordion title={i18n.unscheduled} count={unscheduledEntries.length} open={false}
+                    >{@render unscheduledContent()}</NaAccordion
+                >{:else}{@render unscheduledContent()}{/if}
         </div>
         <div class="na-timeline-view__bottom">
             <TimelineColumn
@@ -142,6 +155,11 @@
         flex-direction: column;
     }
 
+    .na-timeline-view--compact .na-timeline-view__top {
+        height: auto;
+        max-height: 40%;
+        overflow-y: auto;
+    }
     .na-timeline-view__left {
         width: 236px;
         flex-shrink: 0;

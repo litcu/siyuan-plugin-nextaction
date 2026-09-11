@@ -63,7 +63,7 @@ test("面板创建与 MCP 共用 createTask 内核入口和 canonical 返回值"
     assert.match(rpc, /for \(const method of RPC_METHOD_NAMES\)/);
     assert.match(bridge, /createTask\(input:\s*CreateTaskInput\)/);
     assert.match(dialog, /bridge\.createTask\(input\)/);
-    assert.match(dialog, /bridge\.getTask\(result\.task\.id\)/);
+    assert.match(dialog, /bridge\.getTask\(id\)/);
     assert.match(dialogHost, /create-task-dialog\.scss\?inline/);
     assert.match(dialogHost, /style\.textContent = createTaskDialogStyles/);
 });
@@ -143,7 +143,7 @@ test("创建面板突出标题和常用属性并折叠低频字段", () => {
 });
 
 test("面板提供全局和上下文创建入口", () => {
-    const app = source("../src/frontend/components/NextActionApp.svelte");
+    const app = source("../src/frontend/components/Workspace.svelte");
     const project = source("../src/frontend/components/ProjectView.svelte");
     const detail = source("../src/frontend/components/TaskDetail.svelte");
     const dialog = source("../src/frontend/components/CreateTaskDialog.svelte");

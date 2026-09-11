@@ -1,5 +1,7 @@
 import { Plugin, getFrontend } from "siyuan";
 import "./index.scss";
+import { configureDocumentNavigation } from "./frontend/controllers/document-navigation";
+import { configureDocumentNavigationForApp } from "./frontend/controllers/siyuan-document-navigation";
 import type { KernelBridge } from "./frontend/kernel-bridge";
 import { SettingsDialogController } from "./frontend/controllers/settings-dialog-controller";
 import { PanelHostRegistrar } from "./frontend/controllers/panel-host-registrar";
@@ -18,6 +20,7 @@ export default class NextActionPlugin extends Plugin {
     private editorIntegration?: EditorTaskIntegration;
 
     onload() {
+        configureDocumentNavigationForApp(this.app);
         this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
 
         this.panelHosts = new PanelHostRegistrar(this, asI18nStrings(this.i18n), this.isMobile, () => this.bridge);
@@ -48,6 +51,7 @@ export default class NextActionPlugin extends Plugin {
     }
 
     onunload() {
+        configureDocumentNavigation(undefined);
         this.editorIntegration?.dispose();
         this.editorIntegration = undefined;
         this.runtime?.dispose();

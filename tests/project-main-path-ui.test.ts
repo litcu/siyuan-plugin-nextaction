@@ -7,7 +7,7 @@ function source(path: string): string {
 }
 
 test("项目回顾可以打开对应项目并将目标选择传递给项目视图", () => {
-    const app = source("../src/frontend/components/NextActionApp.svelte");
+    const app = source("../src/frontend/components/Workspace.svelte");
     const review = source("../src/frontend/components/ReviewView.svelte");
     const queue = source("../src/frontend/components/ProjectReviewQueue.svelte");
     const projectView = source("../src/frontend/components/ProjectView.svelte");

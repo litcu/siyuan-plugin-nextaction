@@ -1,6 +1,34 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { taskStore } from "../stores/task-store";
+    import { onMount, onDestroy } from "svelte";
+    import { useWorkspaceTasks, useWorkspace } from "../workspace-context";
+    const taskStore = useWorkspaceTasks();
+    const workspace = useWorkspace();
+    const compact = workspace?.compact ?? false;
+    let addSelection = $state("");
+    async function searchAdd(query: string) {
+        if (!query.trim()) return [];
+        const ids = new Set(myDayEntries.map((entry) => entry.blockId));
+        return $taskStore.allTasks
+            .filter(
+                (task) =>
+                    !ids.has(task.blockId) &&
+                    task.status !== "done" &&
+                    task.status !== "someday" &&
+                    task.title.toLowerCase().includes(query.toLowerCase()),
+            )
+            .slice(0, 10)
+            .map((task) => ({ id: task.blockId, label: task.title }));
+    }
+    async function addToDay(value: string | string[]) {
+        if (typeof value !== "string" || !value) return;
+        try {
+            taskStore.applyMyDayUpdate(await bridge.addTaskToMyDay(value));
+            addSelection = "";
+        } catch (error) {
+            notifyOperationError(error, i18n);
+        }
+    }
+    onDestroy(() => workspace?.session.remember("myDayMode", viewMode));
     import { VIEW_MY_DAY } from "../constants";
     import {
         DEFAULT_MY_DAY_RESET_HOUR,
@@ -10,6 +38,10 @@
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
     import TaskCard from "./TaskCard.svelte";
+    import NaSearchSelect from "../ui/NaSearchSelect.svelte";
+    import NaAccordion from "../ui/NaAccordion.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
+    import { notifyOperationError } from "../notify";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
     import NaSegmentControl from "../ui/NaSegmentControl.svelte";
@@ -44,7 +76,10 @@
     }: Props = $props();
 
     type ViewMode = "timeline" | "list";
-    let viewMode: ViewMode = $state($taskStore.settings?.myDayDefaultViewMode ?? DEFAULT_MY_DAY_VIEW_MODE);
+    let viewMode: ViewMode = $state(
+        workspace?.session.read("myDayMode", $taskStore.settings?.myDayDefaultViewMode ?? DEFAULT_MY_DAY_VIEW_MODE) ??
+            DEFAULT_MY_DAY_VIEW_MODE,
+    );
 
     let filterState = $derived($taskStore.filterByView[VIEW_MY_DAY] || DEFAULT_FILTER_STATE);
     let resetHour = $derived($taskStore.settings?.myDayResetHour ?? DEFAULT_MY_DAY_RESET_HOUR);
@@ -126,6 +161,16 @@
         scrollMode="none"
     >
         {#snippet toolbar()}
+            {#if compact}<div class="na-myday-add">
+                    <NaSearchSelect
+                        bind:selected={addSelection}
+                        searchFn={searchAdd}
+                        placeholder={i18n.dockSearchAddTask}
+                        emptyText={i18n.dockSearchHint}
+                        noMatchText={i18n.noMatches}
+                        onChange={addToDay}
+                    />
+                </div>{/if}
             <NaToolbar>
                 <NaMetricStrip items={summaryItems} />
                 <div class="na-toolbar__actions-content">
@@ -156,6 +201,22 @@
                     onChange={handleFilterChange}
                 />{/if}
         {/snippet}
+        {#if compact && viewMode === "timeline"}
+            <NaAccordion title={i18n.dayScheduleList} count={scheduledCount} open={false}>
+                {#each [...myDayEntries]
+                    .filter((entry) => entry.scheduleStart !== null)
+                    .sort((a, b) => a.scheduleStart! - b.scheduleStart!) as entry (entry.blockId)}
+                    {@const task = $taskStore.allTasks.find((item) => item.blockId === entry.blockId)}
+                    {#if task}<div class="na-myday-schedule-row">
+                            <button onclick={() => onEdit(task)}>{task.title}</button><NaIconButton
+                                symbol="iconCalendar"
+                                label={i18n.scheduleTask}
+                                onclick={() => workspace?.openSchedule?.(task)}
+                            />
+                        </div>{/if}
+                {/each}
+            </NaAccordion>
+        {/if}
         {#if viewMode === "timeline"}
             <TimelineView {bridge} {i18n} {resetHour} {defaultDuration} {onContextMenu} />
         {:else}
@@ -178,6 +239,24 @@
 </div>
 
 <style lang="scss">
+    .na-myday-add {
+        padding: 8px 12px;
+    }
+    .na-myday-schedule-row {
+        display: flex;
+        align-items: center;
+        padding: 4px 12px;
+    }
+    .na-myday-schedule-row button {
+        flex: 1;
+        text-align: start;
+        min-height: 44px;
+        border: 0;
+        background: transparent;
+        color: var(--na-text-primary);
+        font: inherit;
+    }
+
     .na-view--myday {
         --na-myday-panel-bg: var(--b3-theme-surface);
         --na-myday-panel-border: var(--na-task-card-border, var(--b3-border-color));

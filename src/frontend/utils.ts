@@ -1,3 +1,4 @@
+import { getDocumentNavigator } from "./controllers/document-navigation";
 import { Menu, openTab } from "siyuan";
 import { STATUS_LIST } from "./constants";
 import { TASK_WARNING_PROJECT_REOPENED } from "../shared/constants";
@@ -10,6 +11,8 @@ import { notifyError, notifyInfo, formatRpcError } from "./notify";
  * Open the SiYuan document that contains a block, focusing on the block.
  */
 export async function jumpToBlock(blockId: string): Promise<void> {
+    const navigate = getDocumentNavigator();
+    if (navigate) return navigate(blockId);
     const app = (window as any).siyuan?.ws?.app;
     if (!app) return;
     await openTab({

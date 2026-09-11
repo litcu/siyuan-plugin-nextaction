@@ -1,4 +1,7 @@
 <script lang="ts">
+    import NaPageHost from "./NaPageHost.svelte";
+    import { useWorkspace } from "../workspace-context";
+    import { DEFAULT_FILTER_STATE } from "../utils/filter";
     import { onDestroy } from "svelte";
     import NaButton from "./NaButton.svelte";
     import NaChip from "./NaChip.svelte";
@@ -10,6 +13,17 @@
     import type { CustomFieldDef } from "../../shared/custom-fields";
     import type { FilterState, CustomFieldFilter } from "../utils/filter";
 
+    export let expanded = false;
+    const workspace = useWorkspace();
+    let filterOpen = false;
+    let draft: FilterState;
+    $: compact = !!workspace?.compact && !expanded;
+    $: count =
+        filterState.contexts.length +
+        filterState.tags.length +
+        filterState.priorities.length +
+        filterState.statuses.length +
+        (filterState.customFieldFilters?.length || 0);
     export let contexts: string[] = [];
     export let tags: string[] = [];
     export let customFields: CustomFieldDef[] = [];
@@ -26,6 +40,7 @@
 
     export let onChange: (filterState: FilterState) => void = () => {};
     let searchText = filterState.searchText;
+    $: if (!debounceTimer) searchText = filterState.searchText;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let customFieldKey = "";
     let customFieldOperator: CustomFieldFilter["operator"] = "contains";
@@ -53,6 +68,10 @@
     }
     function onSearchInput(nextSearchText: string) {
         searchText = nextSearchText;
+        if (expanded) {
+            change({ ...filterState, searchText });
+            return;
+        }
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             debounceTimer = null;
@@ -82,7 +101,10 @@
     }
 
     onDestroy(() => {
-        if (debounceTimer) clearTimeout(debounceTimer);
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            onChange({ ...filterState, searchText });
+        }
     });
 </script>
 
@@ -96,95 +118,148 @@
             onInput={onSearchInput}
         />
     </div>
-    <div class="na-task-filter-bar__filters">
-        <div style="--na-filter-active-color: var(--na-filter-context)">
-            <NaFilterDropdown
-                label={i18n?.context || "Context"}
-                options={contextOptions}
-                selected={filterState.contexts}
-                {i18n}
-                onChange={(selected) => change({ ...filterState, contexts: selected })}
-            />
-        </div>
-        <div style="--na-filter-active-color: var(--na-filter-tag)">
-            <NaFilterDropdown
-                label={i18n?.tag || "Tag"}
-                options={tagOptions}
-                selected={filterState.tags}
-                {i18n}
-                onChange={(selected) => change({ ...filterState, tags: selected })}
-            />
-        </div>
-        {#if showPriority}<div style="--na-filter-active-color: var(--na-filter-priority)">
+    {#if compact}
+        <NaButton
+            size="sm"
+            onclick={() => {
+                if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = null;
+                    change({ ...filterState, searchText });
+                }
+                draft = JSON.parse(JSON.stringify({ ...filterState, searchText }));
+                filterOpen = true;
+            }}>{i18n.filterAndSort}{count ? ` (${count})` : ""}</NaButton
+        >
+    {:else}
+        <div class="na-task-filter-bar__filters">
+            <div style="--na-filter-active-color: var(--na-filter-context)">
                 <NaFilterDropdown
-                    label={i18n?.priority || "Priority"}
-                    options={priorityOptions}
-                    selected={filterState.priorities}
+                    label={i18n?.context || "Context"}
+                    options={contextOptions}
+                    selected={filterState.contexts}
                     {i18n}
-                    onChange={(selected) => change({ ...filterState, priorities: selected })}
+                    onChange={(selected) => change({ ...filterState, contexts: selected })}
                 />
-            </div>{/if}
-        {#if showStatus}<div style="--na-filter-active-color: var(--na-filter-status)">
-                <NaFilterDropdown
-                    label={i18n?.status || "Status"}
-                    options={statusOptions}
-                    selected={filterState.statuses}
-                    {i18n}
-                    onChange={(selected) => change({ ...filterState, statuses: selected })}
-                />
-            </div>{/if}
-        {#if activeFields.length > 0}
-            <div class="na-task-filter-bar__custom">
-                <select
-                    class="na-select na-select--sm"
-                    bind:value={customFieldKey}
-                    aria-label={i18n?.customFieldFilter || "Custom field"}
-                    ><option value="">{i18n?.customFieldFilter || "Custom field"}</option
-                    >{#each activeFields as field}<option value={field.key}>{field.label}</option>{/each}</select
-                >
-                <select
-                    class="na-select na-select--sm"
-                    bind:value={customFieldOperator}
-                    aria-label={i18n?.customFieldOperator || "Operator"}
-                    ><option value="contains">{i18n?.contains || "contains"}</option><option value="equals"
-                        >{i18n?.equals || "equals"}</option
-                    ><option value="notEmpty">{i18n?.notEmpty || "has value"}</option><option value="empty"
-                        >{i18n?.empty || "is empty"}</option
-                    ></select
-                >
-                {#if customFieldOperator !== "empty" && customFieldOperator !== "notEmpty"}<input
-                        class="na-input"
-                        value={customFieldValue}
-                        oninput={(event) => (customFieldValue = event.currentTarget.value)}
-                        placeholder={i18n?.customFieldFilterValue || "Value"}
-                        onkeydown={(event) => event.key === "Enter" && addCustomFieldFilter()}
-                    />{/if}
-                <NaButton size="sm" onclick={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
             </div>
-            {#each filterState.customFieldFilters || [] as filter, index}
-                <NaChip
-                    label={`${activeFields.find((field) => field.key === filter.key)?.label || filter.key} ${filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`}`}
-                    onClose={() => removeCustomFieldFilter(index)}
+            <div style="--na-filter-active-color: var(--na-filter-tag)">
+                <NaFilterDropdown
+                    label={i18n?.tag || "Tag"}
+                    options={tagOptions}
+                    selected={filterState.tags}
                     {i18n}
+                    onChange={(selected) => change({ ...filterState, tags: selected })}
                 />
-            {/each}
-        {/if}
-        <NaSortSelect
-            options={computedSortOptions}
-            selected={filterState.sortBy}
-            ascending={filterState.sortAsc}
-            {i18n}
-            onChange={(value, ascending) => change({ ...filterState, sortBy: value, sortAsc: ascending })}
-        />
-        {#if showClear && onClear}
-            <NaButton size="sm" variant="text" onclick={onClear}
-                >{clearLabel || i18n?.clearFilters || "Clear filters"}</NaButton
-            >
-        {/if}
-    </div>
+            </div>
+            {#if showPriority}<div style="--na-filter-active-color: var(--na-filter-priority)">
+                    <NaFilterDropdown
+                        label={i18n?.priority || "Priority"}
+                        options={priorityOptions}
+                        selected={filterState.priorities}
+                        {i18n}
+                        onChange={(selected) => change({ ...filterState, priorities: selected })}
+                    />
+                </div>{/if}
+            {#if showStatus}<div style="--na-filter-active-color: var(--na-filter-status)">
+                    <NaFilterDropdown
+                        label={i18n?.status || "Status"}
+                        options={statusOptions}
+                        selected={filterState.statuses}
+                        {i18n}
+                        onChange={(selected) => change({ ...filterState, statuses: selected })}
+                    />
+                </div>{/if}
+            {#if activeFields.length > 0}
+                <div class="na-task-filter-bar__custom">
+                    <select
+                        class="na-select na-select--sm"
+                        bind:value={customFieldKey}
+                        aria-label={i18n?.customFieldFilter || "Custom field"}
+                        ><option value="">{i18n?.customFieldFilter || "Custom field"}</option
+                        >{#each activeFields as field}<option value={field.key}>{field.label}</option>{/each}</select
+                    >
+                    <select
+                        class="na-select na-select--sm"
+                        bind:value={customFieldOperator}
+                        aria-label={i18n?.customFieldOperator || "Operator"}
+                        ><option value="contains">{i18n?.contains || "contains"}</option><option value="equals"
+                            >{i18n?.equals || "equals"}</option
+                        ><option value="notEmpty">{i18n?.notEmpty || "has value"}</option><option value="empty"
+                            >{i18n?.empty || "is empty"}</option
+                        ></select
+                    >
+                    {#if customFieldOperator !== "empty" && customFieldOperator !== "notEmpty"}<input
+                            class="na-input"
+                            value={customFieldValue}
+                            oninput={(event) => (customFieldValue = event.currentTarget.value)}
+                            placeholder={i18n?.customFieldFilterValue || "Value"}
+                            onkeydown={(event) => event.key === "Enter" && addCustomFieldFilter()}
+                        />{/if}
+                    <NaButton size="sm" onclick={addCustomFieldFilter}>{i18n?.add || "+"}</NaButton>
+                </div>
+                {#each filterState.customFieldFilters || [] as filter, index}
+                    <NaChip
+                        label={`${activeFields.find((field) => field.key === filter.key)?.label || filter.key} ${filter.operator === "empty" ? "∅" : filter.operator === "notEmpty" ? "✓" : `= ${filter.value || ""}`}`}
+                        onClose={() => removeCustomFieldFilter(index)}
+                        {i18n}
+                    />
+                {/each}
+            {/if}
+            <NaSortSelect
+                options={computedSortOptions}
+                selected={filterState.sortBy}
+                ascending={filterState.sortAsc}
+                {i18n}
+                onChange={(value, ascending) => change({ ...filterState, sortBy: value, sortAsc: ascending })}
+            />
+            {#if showClear && onClear}
+                <NaButton size="sm" variant="text" onclick={onClear}
+                    >{clearLabel || i18n?.clearFilters || "Clear filters"}</NaButton
+                >
+            {/if}
+        </div>
+    {/if}
 </div>
+{#if filterOpen}
+    <NaPageHost title={i18n.filterAndSort} backLabel={i18n.cancel} onBack={() => (filterOpen = false)}>
+        {#snippet actions()}<NaButton
+                variant="primary"
+                onclick={() => {
+                    onChange(draft);
+                    filterOpen = false;
+                }}>{i18n.apply}</NaButton
+            >{/snippet}
+        <div class="na-filter-page">
+            <svelte:self
+                {contexts}
+                {tags}
+                {customFields}
+                filterState={draft}
+                {showStatus}
+                {showPriority}
+                {statusValues}
+                {sortOptions}
+                {i18n}
+                expanded
+                onChange={(value: FilterState) => (draft = value)}
+            />
+            <NaButton onclick={() => (draft = JSON.parse(JSON.stringify(DEFAULT_FILTER_STATE)))}
+                >{i18n.clearFilters}</NaButton
+            >
+        </div>
+    </NaPageHost>
+{/if}
 
 <style lang="scss">
+    .na-filter-page {
+        padding: 12px;
+    }
+    .na-filter-page :global(.na-task-filter-bar__filters) {
+        flex-direction: column;
+        align-items: stretch;
+        overflow: visible;
+        width: 100%;
+    }
     .na-task-filter-bar {
         display: flex;
         align-items: center;

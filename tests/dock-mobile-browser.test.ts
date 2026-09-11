@@ -73,7 +73,7 @@ void (async () => {
     const search = document.querySelector('input[type="search"]');
     search.value = "beta";
     search.dispatchEvent(new Event("input", { bubbles: true }));
-    await tick();
+    await wait(350);
     const filteredTitles = titles();
     document.querySelector('button[aria-label="Inbox"]').click();
     await tick();

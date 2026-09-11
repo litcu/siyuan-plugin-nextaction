@@ -1,4 +1,8 @@
 <script lang="ts">
+    import { useWorkspace } from "../workspace-context";
+    import { onDestroy } from "svelte";
+    const workspace = useWorkspace();
+    onDestroy(() => workspace?.session.remember("statisticsPeriod", period));
     import { onMount } from "svelte";
     import type { StatisticsResult } from "../../shared/types";
     import type { KernelBridge } from "../kernel-bridge";
@@ -15,7 +19,7 @@
 
     let { bridge, i18n }: Props = $props();
 
-    let period: "week" | "month" = $state("week");
+    let period: "week" | "month" = $state(workspace?.session.read("statisticsPeriod", "week") ?? "week");
     let stats = $state<StatisticsResult | null>(null);
     let loading = $state(false);
     let error = $state("");

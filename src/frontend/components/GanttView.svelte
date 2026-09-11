@@ -1,4 +1,10 @@
 <script lang="ts">
+    import { useWorkspace } from "../workspace-context";
+    import NaToggle from "../ui/NaToggle.svelte";
+    const workspace = useWorkspace();
+    const compact = workspace?.compact ?? false;
+    let showNames = $state(workspace?.session.read("ganttNames", true) ?? true);
+    onDestroy(() => workspace?.session.remember("ganttNames", showNames));
     import { onDestroy, onMount, tick } from "svelte";
     import type { TaskCacheEntry } from "../../shared/types";
     import NaEmpty from "../ui/NaEmpty.svelte";
@@ -74,6 +80,11 @@
         if (key === lastScrollKey) return;
         lastScrollKey = key;
         await tick();
+        const saved = workspace?.session.read<{ left: number } | null>(`ganttScroll:${projectTasks[0]?.blockId}`, null);
+        if (saved) {
+            viewportElement.scrollLeft = saved.left;
+            return;
+        }
         if (todayX !== null && todayX >= 0 && todayX <= timelineWidth) {
             viewportElement.scrollLeft = Math.max(
                 0,
@@ -154,9 +165,26 @@
     style="--na-gantt-content-height: {contentHeight}px"
     aria-label={i18n?.projectViewGantt || "Gantt"}
 >
-    <div class="na-gantt__viewport" bind:this={viewportElement}>
+    <div
+        class="na-gantt__viewport"
+        bind:this={viewportElement}
+        onscroll={() => {
+            if (viewportElement)
+                workspace?.session.remember(`ganttScroll:${projectTasks[0]?.blockId}`, {
+                    left: viewportElement.scrollLeft,
+                });
+        }}
+    >
+        {#if compact}<NaToggle
+                checked={showNames}
+                label={i18n.ganttToggleNames}
+                showText
+                onChange={(value) => (showNames = value)}
+            />{/if}
         <div
             class="na-gantt__grid"
+            class:na-gantt__grid--compact={compact}
+            class:na-gantt__grid--names-hidden={compact && !showNames}
             style="--na-gantt-timeline-width: {timelineWidth}px; --na-gantt-rows-height: {rowsHeight}px;"
         >
             <header class="na-gantt__corner">
@@ -221,7 +249,12 @@
                 {/if}
             </header>
 
-            <div class="na-gantt__outline" bind:this={outlineElement} style="height: {rowsHeight}px">
+            <div
+                class="na-gantt__outline"
+                inert={compact && !showNames}
+                bind:this={outlineElement}
+                style="height: {rowsHeight}px"
+            >
                 {#each model.rows as row (row.task.blockId)}
                     <div
                         class="na-gantt__outline-row"
@@ -377,6 +410,19 @@
 </div>
 
 <style lang="scss">
+    .na-gantt__grid--compact {
+        --na-gantt-outline-width: min(40cqw, 164px) !important;
+    }
+    .na-gantt__grid--names-hidden {
+        --na-gantt-outline-width: 0px !important;
+    }
+    .na-gantt__grid--names-hidden .na-gantt__outline,
+    .na-gantt__grid--names-hidden .na-gantt__corner {
+        visibility: hidden;
+        overflow: hidden;
+        padding: 0;
+    }
+
     .na-gantt {
         display: flex;
         flex: 0 1 var(--na-gantt-content-height);

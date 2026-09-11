@@ -1,4 +1,7 @@
 <script lang="ts">
+    import NaButton from "../ui/NaButton.svelte";
+    import NaPageHost from "../ui/NaPageHost.svelte";
+    let actionsOpen = $state(false);
     import { confirm } from "siyuan";
     import { onDestroy, untrack } from "svelte";
     import type { TaskActionKind, TaskCacheEntry } from "../../shared/types";
@@ -54,6 +57,7 @@
         onTaskChange?: ((task: TaskCacheEntry) => void) | undefined;
         showJumpToBlock?: boolean;
         dialogMode?: boolean;
+        presentation?: "drawer" | "dialog" | "page";
     }
 
     let {
@@ -66,6 +70,7 @@
         onTaskChange = undefined,
         showJumpToBlock = true,
         dialogMode = false,
+        presentation = undefined,
     }: Props = $props();
 
     let status = $state("todo");
@@ -653,48 +658,84 @@
     });
 </script>
 
+{#if actionsOpen}
+    <NaPageHost title={i18n.taskActions} backLabel={i18n.back} onBack={() => (actionsOpen = false)}>
+        <div class="na-task-detail__page-actions">
+            <NaButton
+                onclick={() => {
+                    actionsOpen = false;
+                    onCreateChild?.(task);
+                }}>{i18n.createChildTask}</NaButton
+            >
+            {#if showJumpToBlock}<NaButton
+                    onclick={() => {
+                        actionsOpen = false;
+                        void handleJumpToBlock(task.contentBlockId || task.blockId);
+                    }}>{i18n.jumpToBlock}</NaButton
+                >{/if}
+            <NaButton
+                onclick={() => {
+                    actionsOpen = false;
+                    runAiDecomposeTask(task);
+                }}>{aiDecomposeLabel}</NaButton
+            >
+            <NaButton
+                disabled={operationBusy || saveState === "saving"}
+                onclick={() => {
+                    actionsOpen = false;
+                    handleRemove();
+                }}>{removeLabel}</NaButton
+            >
+        </div>
+    </NaPageHost>
+{/if}
+
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <NaDialogShell
     bind:element={shellElement}
-    variant={dialogMode ? "dialog" : "drawer"}
+    variant={presentation || (dialogMode ? "dialog" : "drawer")}
     title={task.title || i18n?.untitled || "(untitled)"}
     subtitle={headerSubtitle}
-    closeLabel={i18n?.close || "Close"}
+    closeLabel={presentation === "page" ? i18n.back : i18n.close}
     status={statusLabel}
     {statusTone}
     showFooter={false}
     onClose={requestClose}
 >
     {#snippet headerActions()}
-        <div class="na-task-detail__header-actions">
-            <NaIconButton
-                symbol="iconAdd"
-                label={i18n?.createChildTask || "Create child task"}
-                size={14}
-                onclick={() => onCreateChild?.(task)}
-            />
-            {#if showJumpToBlock}<NaIconButton
-                    symbol="iconOpenWindow"
-                    label={i18n?.jumpToBlock || "Jump to block"}
+        {#if presentation === "page"}
+            <NaIconButton symbol="iconMore" label={i18n.taskActions} onclick={() => (actionsOpen = true)} />
+        {:else}
+            <div class="na-task-detail__header-actions">
+                <NaIconButton
+                    symbol="iconAdd"
+                    label={i18n?.createChildTask || "Create child task"}
                     size={14}
-                    onclick={() => handleJumpToBlock(task.contentBlockId || task.blockId)}
-                />{/if}
-            <NaIconButton
-                symbol="iconSparkles"
-                label={aiDecomposeLabel}
-                size={14}
-                onclick={() => runAiDecomposeTask(task)}
-            />
-            <NaIconButton
-                symbol="iconTrashcan"
-                label={removeLabel}
-                size={14}
-                tone="danger"
-                disabled={operationBusy || saveState === "saving"}
-                onclick={handleRemove}
-            />
-        </div>
+                    onclick={() => onCreateChild?.(task)}
+                />
+                {#if showJumpToBlock}<NaIconButton
+                        symbol="iconOpenWindow"
+                        label={i18n?.jumpToBlock || "Jump to block"}
+                        size={14}
+                        onclick={() => handleJumpToBlock(task.contentBlockId || task.blockId)}
+                    />{/if}
+                <NaIconButton
+                    symbol="iconSparkles"
+                    label={aiDecomposeLabel}
+                    size={14}
+                    onclick={() => runAiDecomposeTask(task)}
+                />
+                <NaIconButton
+                    symbol="iconTrashcan"
+                    label={removeLabel}
+                    size={14}
+                    tone="danger"
+                    disabled={operationBusy || saveState === "saving"}
+                    onclick={handleRemove}
+                />
+            </div>
+        {/if}
     {/snippet}
 
     {#if noticeMessage}
@@ -1099,6 +1140,11 @@
 </NaDialogShell>
 
 <style lang="scss">
+    .na-task-detail__page-actions {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+    }
     .na-task-detail__header-actions {
         display: flex;
         align-items: center;

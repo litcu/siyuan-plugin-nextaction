@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { onMount, untrack } from "svelte";
+    import { useWorkspaceScroll } from "../workspace-scroll";
+    const rememberScroll = useWorkspaceScroll();
+    import { onMount, onDestroy, untrack } from "svelte";
     import { VIEW_BY_PROJECT } from "../constants";
     import { DEFAULT_FILTER_STATE, hasActiveTaskFilters } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
@@ -11,6 +13,10 @@
     import ProjectCompletionPanel from "./project/ProjectCompletionPanel.svelte";
     import ProjectDefinitionEditor from "./project/ProjectDefinitionEditor.svelte";
     import ProjectStagePlan from "./project/ProjectStagePlan.svelte";
+    import ProjectCompactFilters from "./project/ProjectCompactFilters.svelte";
+    import NaPageHost from "../ui/NaPageHost.svelte";
+    import NaAccordion from "../ui/NaAccordion.svelte";
+    import NaIconButton from "../ui/NaIconButton.svelte";
     import NaBadge from "../ui/NaBadge.svelte";
     import NaButton from "../ui/NaButton.svelte";
     import NaMetricStrip from "../ui/NaMetricStrip.svelte";
@@ -30,7 +36,43 @@
     import type { I18nStrings } from "../../shared/i18n";
     import { jumpToBlock } from "../utils";
     import { projectRiskI18nKey, statusI18nKey, translateKey } from "../i18n";
-    import { taskStore } from "../stores/task-store";
+    import { useWorkspaceTasks, useWorkspace } from "../workspace-context";
+    const taskStore = useWorkspaceTasks();
+    const workspace = useWorkspace();
+    const compact = workspace?.compact ?? false;
+    const saved = workspace?.session.read<Record<string, any>>("projects", {}) || {};
+    let level = $state<"list" | "project" | "risks">(saved.level || "list");
+    let returnLevel: "list" | "risks" = saved.returnLevel || "list";
+    let returnToSource = saved.returnToSource || false;
+    let filtersOpen = $state(false);
+    let actionMenuOpen = $state(false);
+    let projectModes: Record<string, ProjectViewMode> = saved.projectModes || {};
+    export function back(): boolean {
+        if (!compact || level === "list") return false;
+        if (level === "project" && returnToSource) {
+            returnToSource = false;
+            workspace?.session.back();
+            return true;
+        }
+        level = level === "project" ? returnLevel : "list";
+        return true;
+    }
+    onDestroy(() =>
+        workspace?.session.remember("projects", {
+            level,
+            returnLevel,
+            returnToSource,
+            activeProjectId,
+            mode,
+            projectModes,
+            collapsedByProject,
+            showCompleted,
+            riskFilter,
+            dateFilter,
+            actionFilter,
+            ganttSortMode,
+        }),
+    );
     import { runAiDecomposeTask, runAiExtractTasks } from "../ai/ai-feature-service";
     import type { ProjectDefinitionControllerRegistry } from "../controllers/project-definition-controller";
     import type { ProjectTreeSortMode } from "../utils/project-tree";
@@ -62,6 +104,7 @@
         selectedTaskId?: string;
         selectedTaskOverride?: TaskCacheEntry | null;
         requestedProjectId?: string;
+        onProjectRequestApplied?: () => void;
         onSelectTask?: ((task: TaskCacheEntry) => void) | undefined;
         onTaskUpdate?: ((task: TaskCacheEntry, attrs: Record<string, string>) => Promise<TaskCacheEntry>) | undefined;
         onTaskRename?: ((task: TaskCacheEntry, title: string) => Promise<TaskCacheEntry>) | undefined;
@@ -91,6 +134,7 @@
         selectedTaskId = "",
         selectedTaskOverride = null,
         requestedProjectId = "",
+        onProjectRequestApplied = undefined,
         onSelectTask = undefined,
         onTaskUpdate = undefined,
         onTaskRename = undefined,
@@ -106,19 +150,19 @@
 
     type RiskItem = { summary: ProjectSummary; risk: ProjectControlRisk };
 
-    let mode: ProjectViewMode = $state("overview");
-    let activeProjectId = $state("");
+    let mode: ProjectViewMode = $state(saved.mode || "overview");
+    let activeProjectId = $state(saved.activeProjectId || "");
     let appliedRequestedProjectId = $state("");
     let appliedSelectedTaskId = $state(untrack(() => selectedTaskId));
     let requestedProjectFilterBypassId = $state("");
     let preferActiveProject = $state(false);
-    let collapsedByProject: Record<string, string[]> = $state({});
+    let collapsedByProject: Record<string, string[]> = $state(saved.collapsedByProject || {});
     let collapsedIds: Set<string> = $state(new Set());
-    let showCompleted = $state(false);
-    let riskFilter: ProjectRiskFilter = $state("all");
-    let dateFilter: ProjectDateFilter = $state("all");
-    let actionFilter: ProjectActionFilter = $state("all");
-    let ganttSortMode: ProjectTreeSortMode = $state("timeline");
+    let showCompleted = $state(saved.showCompleted ?? false);
+    let riskFilter: ProjectRiskFilter = $state(saved.riskFilter ?? "all");
+    let dateFilter: ProjectDateFilter = $state(saved.dateFilter ?? "all");
+    let actionFilter: ProjectActionFilter = $state(saved.actionFilter ?? "all");
+    let ganttSortMode: ProjectTreeSortMode = $state(saved.ganttSortMode ?? "timeline");
     let riskItems: RiskItem[] = $state([]);
     let boardPreferences: ProjectBoardPreferences = $state(createDefaultProjectBoardPreferences());
     let boardPreferenceSaveQueue: Promise<unknown> = Promise.resolve();
@@ -142,9 +186,12 @@
     $effect(() => {
         if (requestedProjectId && requestedProjectId !== appliedRequestedProjectId) {
             activeProjectId = requestedProjectId;
+            returnToSource = true;
+            if (compact) level = "project";
             preferActiveProject = true;
             requestedProjectFilterBypassId = requestedProjectId;
             appliedRequestedProjectId = requestedProjectId;
+            onProjectRequestApplied?.();
         }
     });
 
@@ -178,6 +225,18 @@
     let summaries = $derived(viewModel.summaries);
     let visibleSummaries = $derived(viewModel.visibleSummaries);
     let selectedSummary = $derived(viewModel.selectedSummary);
+    $effect(() => {
+        if (
+            compact &&
+            level === "project" &&
+            activeProjectId &&
+            !$taskStore.loading &&
+            !$taskStore.allTasks.some((task) => task.blockId === activeProjectId && task.taskType === "2")
+        ) {
+            activeProjectId = "";
+            level = "list";
+        }
+    });
     let selectedProject = $derived(viewModel.selectedProject);
     $effect(() => {
         riskItems = viewModel.riskItems;
@@ -228,12 +287,19 @@
 
     function handleModeChange(value: string) {
         mode = value as ProjectViewMode;
+        if (resolvedActiveProjectId) projectModes[resolvedActiveProjectId] = mode;
     }
 
     function selectProject(summary: ProjectSummary) {
         requestedProjectFilterBypassId = "";
         activeProjectId = summary.project.blockId;
+        returnToSource = false;
         preferActiveProject = true;
+        if (compact) {
+            returnLevel = level === "risks" ? "risks" : "list";
+            level = "project";
+            mode = projectModes[activeProjectId] || "overview";
+        }
     }
 
     function workItemCount(summary: ProjectSummary): number {
@@ -265,7 +331,7 @@
 
 <NaViewShell
     loading={$taskStore.loading && summaries.length === 0}
-    empty={visibleSummaries.length === 0}
+    empty={visibleSummaries.length === 0 && (!compact || level === "list")}
     emptyText={$taskStore.error || i18n?.noResults || i18n?.noProjects || "No projects yet"}
     emptyAction={anyFiltersActive
         ? { label: i18n?.clearFilters || "Clear filters", onClick: clearAllFilters }
@@ -273,298 +339,373 @@
     hint={i18n?.viewHintProject}
 >
     {#snippet toolbar()}
-        <NaToolbar compact>
-            <NaMetricStrip
-                items={[
-                    { value: activeProjectsCount, label: i18n?.projectMetricActive || "Active", tone: "info" },
-                    {
-                        value: attentionCount,
-                        label: i18n?.projectMetricAttention || "Attention",
-                        tone: attentionCount > 0 ? "warning" : "success",
-                    },
-                    {
-                        value: overdueCount,
-                        label: i18n?.projectMetricOverdue || "Overdue",
-                        tone: overdueCount > 0 ? "danger" : "success",
-                    },
-                    { value: dueSoonCount, label: i18n?.projectMetricDueSoon || "7 days", tone: "primary" },
-                    {
-                        value: noActionCount,
-                        label: i18n?.projectMetricNoAction || "No next action",
-                        tone: noActionCount > 0 ? "warning" : "success",
-                    },
-                ]}
-            />
-            <div class="na-toolbar__actions-content">
-                <NaButton
-                    size="sm"
-                    icon="iconAdd"
-                    disabled={!selectedSummary}
-                    onclick={() => selectedSummary && onCreateChild?.(selectedSummary.project)}
-                    >{i18n?.createChildTask || "Create child task"}</NaButton
-                >
-                <NaButton
-                    size="sm"
-                    icon="iconSparkles"
-                    disabled={!selectedSummary}
-                    onclick={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}
-                    >{i18n?.aiDecomposeProject || "Break down project with AI"}</NaButton
-                >
-            </div>
-        </NaToolbar>
-        <div class="na-project-toolbar">
-            <div class="na-project-toolbar__view-switcher">
-                <NaSegmentControl
-                    size="sm"
-                    value={mode}
-                    label={i18n?.projectViewMode || "Project view"}
-                    options={[
-                        { value: "overview", label: i18n?.projectViewOverview || "Overview" },
-                        { value: "hierarchy", label: i18n?.projectViewHierarchy || "Hierarchy" },
-                        { value: "board", label: i18n?.projectViewBoard || "Board" },
-                        { value: "plan", label: i18n?.projectViewPlan || "Plan" },
-                        { value: "gantt", label: i18n?.projectViewGantt || "Gantt" },
-                    ]}
-                    onChange={handleModeChange}
-                />
-            </div>
-            {#if mode !== "board"}<div class="na-project-toolbar__completed">
-                    <NaToggle
-                        checked={showCompleted}
-                        label={i18n?.projectShowCompleted || "Show completed"}
-                        showText
-                        onChange={(checked) => (showCompleted = checked)}
+        {#if compact}
+            <div class="na-project-compact-toolbar">
+                {#if level !== "list"}<NaIconButton symbol="iconLeft" label={i18n.back} onclick={back} />{/if}
+                {#if level === "project"}
+                    <select
+                        class="na-select"
+                        aria-label={i18n.projectViewMode}
+                        value={mode}
+                        onchange={(event) => handleModeChange(event.currentTarget.value)}
+                    >
+                        <option value="overview">{i18n.projectViewOverview}</option><option value="hierarchy"
+                            >{i18n.projectViewHierarchy}</option
+                        ><option value="board">{i18n.projectViewBoard}</option><option value="plan"
+                            >{i18n.projectViewPlan}</option
+                        ><option value="gantt">{i18n.projectViewGantt}</option>
+                    </select>
+                    <NaIconButton
+                        symbol="iconAdd"
+                        label={i18n.createChildTask}
+                        disabled={!selectedSummary}
+                        onclick={() => selectedSummary && onCreateChild?.(selectedSummary.project)}
                     />
-                </div>{/if}
-            <select
-                class="na-select na-select--sm na-project-toolbar__select"
-                bind:value={riskFilter}
-                aria-label={i18n?.projectFilterRisk || "Risk filter"}
-            >
-                <option value="all">{i18n?.projectFilterAllRisks || "All risks"}</option>
-                <option value="attention">{i18n?.projectHealthAttention || "Attention"}</option>
-                <option value="blocked">{i18n?.projectHealthBlocked || "Blocked"}</option>
-            </select>
-            <select
-                class="na-select na-select--sm na-project-toolbar__select"
-                bind:value={dateFilter}
-                aria-label={i18n?.projectFilterDate || "Date filter"}
-            >
-                <option value="all">{i18n?.projectFilterAllDates || "All dates"}</option>
-                <option value="overdue">{i18n?.projectRiskOverdue || "Overdue"}</option>
-                <option value="week">{i18n?.projectMetricDueSoon || "Due in 7 days"}</option>
-            </select>
-            <select
-                class="na-select na-select--sm na-project-toolbar__select"
-                bind:value={actionFilter}
-                aria-label={i18n?.projectFilterAction || "Next action filter"}
-            >
-                <option value="all">{i18n?.projectFilterAllActions || "All actions"}</option>
-                <option value="missing">{i18n?.projectRiskNoNextAction || "No next action"}</option>
-                <option value="available">{i18n?.projectNextActions || "Next actions"}</option>
-            </select>
-            <span class="na-project-toolbar__hint"
-                >{i18n?.projectControlHint || "Select a project to inspect its momentum and risks"}</span
-            >
-        </div>
-        <NaTaskFilterBar
-            contexts={$taskStore.contexts}
-            tags={$taskStore.tags}
-            customFields={$taskStore.settings.customFields}
-            {filterState}
-            showStatus={true}
-            searchPlaceholder={i18n?.searchProjectsAndTasks || "Search projects and tasks..."}
-            {i18n}
-            onChange={handleFilterChange}
-            showClear={taskFiltersActive}
-            clearLabel={i18n?.clearFilters || "Clear filters"}
-            onClear={clearAllFilters}
-        />
+                    <NaIconButton symbol="iconMore" label={i18n.taskActions} onclick={() => (actionMenuOpen = true)} />
+                {:else}
+                    <span
+                        >{level === "risks"
+                            ? i18n.projectRiskQueue
+                            : `${visibleSummaries.length} ${i18n.projectList}`}</span
+                    >
+                    {#if level === "list"}<NaButton size="sm" onclick={() => (level = "risks")}
+                            >{i18n.projectRiskQueue} {riskItems.length}</NaButton
+                        >{/if}
+                {/if}
+                <NaIconButton symbol="iconFilter" label={i18n.filterAndSort} onclick={() => (filtersOpen = true)} />
+            </div>
+            {#if level === "list"}<NaTaskFilterBar
+                    contexts={$taskStore.contexts}
+                    tags={$taskStore.tags}
+                    customFields={$taskStore.settings.customFields}
+                    {filterState}
+                    showStatus
+                    {i18n}
+                    onChange={handleFilterChange}
+                />{/if}
+        {:else}
+            <NaToolbar compact>
+                <NaMetricStrip
+                    items={[
+                        { value: activeProjectsCount, label: i18n?.projectMetricActive || "Active", tone: "info" },
+                        {
+                            value: attentionCount,
+                            label: i18n?.projectMetricAttention || "Attention",
+                            tone: attentionCount > 0 ? "warning" : "success",
+                        },
+                        {
+                            value: overdueCount,
+                            label: i18n?.projectMetricOverdue || "Overdue",
+                            tone: overdueCount > 0 ? "danger" : "success",
+                        },
+                        { value: dueSoonCount, label: i18n?.projectMetricDueSoon || "7 days", tone: "primary" },
+                        {
+                            value: noActionCount,
+                            label: i18n?.projectMetricNoAction || "No next action",
+                            tone: noActionCount > 0 ? "warning" : "success",
+                        },
+                    ]}
+                />
+                <div class="na-toolbar__actions-content">
+                    <NaButton
+                        size="sm"
+                        icon="iconAdd"
+                        disabled={!selectedSummary}
+                        onclick={() => selectedSummary && onCreateChild?.(selectedSummary.project)}
+                        >{i18n?.createChildTask || "Create child task"}</NaButton
+                    >
+                    <NaButton
+                        size="sm"
+                        icon="iconSparkles"
+                        disabled={!selectedSummary}
+                        onclick={() => selectedSummary && runAiDecomposeTask(selectedSummary.project)}
+                        >{i18n?.aiDecomposeProject || "Break down project with AI"}</NaButton
+                    >
+                </div>
+            </NaToolbar>
+            <div class="na-project-toolbar">
+                <div class="na-project-toolbar__view-switcher">
+                    <NaSegmentControl
+                        size="sm"
+                        value={mode}
+                        label={i18n?.projectViewMode || "Project view"}
+                        options={[
+                            { value: "overview", label: i18n?.projectViewOverview || "Overview" },
+                            { value: "hierarchy", label: i18n?.projectViewHierarchy || "Hierarchy" },
+                            { value: "board", label: i18n?.projectViewBoard || "Board" },
+                            { value: "plan", label: i18n?.projectViewPlan || "Plan" },
+                            { value: "gantt", label: i18n?.projectViewGantt || "Gantt" },
+                        ]}
+                        onChange={handleModeChange}
+                    />
+                </div>
+                {#if mode !== "board"}<div class="na-project-toolbar__completed">
+                        <NaToggle
+                            checked={showCompleted}
+                            label={i18n?.projectShowCompleted || "Show completed"}
+                            showText
+                            onChange={(checked) => (showCompleted = checked)}
+                        />
+                    </div>{/if}
+                <select
+                    class="na-select na-select--sm na-project-toolbar__select"
+                    bind:value={riskFilter}
+                    aria-label={i18n?.projectFilterRisk || "Risk filter"}
+                >
+                    <option value="all">{i18n?.projectFilterAllRisks || "All risks"}</option>
+                    <option value="attention">{i18n?.projectHealthAttention || "Attention"}</option>
+                    <option value="blocked">{i18n?.projectHealthBlocked || "Blocked"}</option>
+                </select>
+                <select
+                    class="na-select na-select--sm na-project-toolbar__select"
+                    bind:value={dateFilter}
+                    aria-label={i18n?.projectFilterDate || "Date filter"}
+                >
+                    <option value="all">{i18n?.projectFilterAllDates || "All dates"}</option>
+                    <option value="overdue">{i18n?.projectRiskOverdue || "Overdue"}</option>
+                    <option value="week">{i18n?.projectMetricDueSoon || "Due in 7 days"}</option>
+                </select>
+                <select
+                    class="na-select na-select--sm na-project-toolbar__select"
+                    bind:value={actionFilter}
+                    aria-label={i18n?.projectFilterAction || "Next action filter"}
+                >
+                    <option value="all">{i18n?.projectFilterAllActions || "All actions"}</option>
+                    <option value="missing">{i18n?.projectRiskNoNextAction || "No next action"}</option>
+                    <option value="available">{i18n?.projectNextActions || "Next actions"}</option>
+                </select>
+                <span class="na-project-toolbar__hint"
+                    >{i18n?.projectControlHint || "Select a project to inspect its momentum and risks"}</span
+                >
+            </div>
+            <NaTaskFilterBar
+                contexts={$taskStore.contexts}
+                tags={$taskStore.tags}
+                customFields={$taskStore.settings.customFields}
+                {filterState}
+                showStatus={true}
+                searchPlaceholder={i18n?.searchProjectsAndTasks || "Search projects and tasks..."}
+                {i18n}
+                onChange={handleFilterChange}
+                showClear={taskFiltersActive}
+                clearLabel={i18n?.clearFilters || "Clear filters"}
+                onClear={clearAllFilters}
+            />
+        {/if}
     {/snippet}
 
-    <div class="na-project-workspace" class:na-project-workspace--focus={mode !== "overview"}>
-        <aside class="na-project-index" aria-label={i18n?.projectList || "Project list"}>
-            <div class="na-project-index__header">
-                <span>{i18n?.projectList || "Projects"}</span>
-                <span class="na-project-index__count">{visibleSummaries.length}</span>
-            </div>
-            <div class="na-project-index__scroll">
-                {#each visibleSummaries as summary (summary.project.blockId)}
-                    <button
-                        type="button"
-                        class="na-project-index__item"
-                        class:active={summary.project.blockId === resolvedActiveProjectId}
-                        aria-current={summary.project.blockId === resolvedActiveProjectId ? "true" : undefined}
-                        onclick={() => selectProject(summary)}
-                    >
-                        <span class="na-project-index__item-accent na-project-index__item-accent--{summary.health}"
-                        ></span>
-                        <span class="na-project-index__item-copy">
-                            <strong>{summary.project.title || i18n?.untitled || "(untitled)"}</strong>
-                            <span
-                                >{summary.doneCount}/{workItemCount(summary)} · {summary.nextActions.length}
-                                {i18n?.projectNextShort || "next"}</span
-                            >
-                        </span>
-                        <NaBadge text={statusLabel(summary.project.status)} tone={statusTone(summary.project.status)} />
-                    </button>
-                {/each}
-            </div>
-        </aside>
-
-        <section class="na-project-canvas" class:na-project-canvas--gantt={mode === "gantt"}>
-            {#if selectedSummary}
-                <div class="na-project-canvas__header">
-                    <div class="na-project-canvas__title">
-                        <span class="na-project-canvas__kicker">{i18n?.project || "Project"}</span>
-                        <h2>{selectedSummary.project.title || i18n?.untitled || "(untitled)"}</h2>
-                        <span
-                            >{selectedSummary.openCount}
-                            {i18n?.projectOpenTasks || "open tasks"} · {selectedSummary.risks.length}
-                            {i18n?.projectRisks || "risks"}</span
-                        >
-                    </div>
-                    <div class="na-project-canvas__actions">
-                        <NaBadge
-                            text={statusLabel(selectedSummary.project.status)}
-                            tone={statusTone(selectedSummary.project.status)}
-                        />
-                        <NaButton size="sm" onclick={() => onEdit(selectedSummary.project)}
-                            >{i18n?.editProject || "Edit project"}</NaButton
-                        >
-                    </div>
+    <div
+        class="na-project-workspace"
+        class:na-project-workspace--compact={compact}
+        class:na-project-workspace--focus={mode !== "overview"}
+    >
+        {#if !compact || level === "list"}
+            <aside class="na-project-index" aria-label={i18n?.projectList || "Project list"}>
+                <div class="na-project-index__header">
+                    <span>{i18n?.projectList || "Projects"}</span>
+                    <span class="na-project-index__count">{visibleSummaries.length}</span>
                 </div>
-                {#snippet projectProgress()}
-                    <NaProgressBar
-                        percent={selectedSummary.progress}
-                        label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
-                    />
-                {/snippet}
-                {#if mode !== "board"}
-                    <div class="na-project-canvas__progress">{@render projectProgress()}</div>
-                {/if}
-                {#if shouldShowProjectCompletionPanel(selectedSummary)}
-                    <ProjectCompletionPanel
-                        summary={selectedSummary}
-                        {i18n}
-                        {onSelectTask}
-                        onConfirm={onTaskUpdate
-                            ? () => confirmProjectCompletion(selectedSummary, onTaskUpdate)
-                            : undefined}
-                    />
-                {/if}
+                <div class="na-project-index__scroll" use:rememberScroll={"index"}>
+                    {#each visibleSummaries as summary (summary.project.blockId)}
+                        <button
+                            type="button"
+                            class="na-project-index__item"
+                            class:active={summary.project.blockId === resolvedActiveProjectId}
+                            aria-current={summary.project.blockId === resolvedActiveProjectId ? "true" : undefined}
+                            onclick={() => selectProject(summary)}
+                        >
+                            <span class="na-project-index__item-accent na-project-index__item-accent--{summary.health}"
+                            ></span>
+                            <span class="na-project-index__item-copy">
+                                <strong>{summary.project.title || i18n?.untitled || "(untitled)"}</strong>
+                                <span
+                                    >{summary.doneCount}/{workItemCount(summary)} · {summary.nextActions.length}
+                                    {i18n?.projectNextShort || "next"}</span
+                                >
+                            </span>
+                            <NaBadge
+                                text={statusLabel(summary.project.status)}
+                                tone={statusTone(summary.project.status)}
+                            />
+                        </button>
+                    {/each}
+                </div>
+            </aside>
+        {/if}
 
-                {#if mode === "overview"}
-                    <ProjectOverviewMode
-                        summary={selectedSummary}
-                        risks={selectedProject?.risks || []}
-                        {selectedTaskId}
-                        {i18n}
-                        {onSelectTask}
-                        {onEdit}
-                        {onStatusClick}
-                        {onContextMenu}
-                        {loadProjectSupport}
-                        onOpenProjectSupport={jumpToBlock}
-                        onCreateAction={onCreateChild}
-                        onAiExtractAction={(sourceBlockId, projectId) =>
-                            runAiExtractTasks([sourceBlockId], { projectId })}
-                    />
-                    <ProjectDefinitionEditor
-                        project={selectedSummary.project}
-                        {i18n}
-                        onSave={onTaskUpdate}
-                        controllerRegistry={projectDefinitionControllerRegistry}
-                    />
-                    {#if projectTreeModel}
-                        <ProjectStagePlan
+        {#if !compact || level === "project"}
+            <section
+                class="na-project-canvas"
+                use:rememberScroll={`project:${resolvedActiveProjectId}:${mode}`}
+                class:na-project-canvas--gantt={mode === "gantt"}
+            >
+                {#if selectedSummary}
+                    <div class="na-project-canvas__header">
+                        <div class="na-project-canvas__title">
+                            <span class="na-project-canvas__kicker">{i18n?.project || "Project"}</span>
+                            <h2>{selectedSummary.project.title || i18n?.untitled || "(untitled)"}</h2>
+                            <span
+                                >{selectedSummary.openCount}
+                                {i18n?.projectOpenTasks || "open tasks"} · {selectedSummary.risks.length}
+                                {i18n?.projectRisks || "risks"}</span
+                            >
+                        </div>
+                        <div class="na-project-canvas__actions">
+                            <NaBadge
+                                text={statusLabel(selectedSummary.project.status)}
+                                tone={statusTone(selectedSummary.project.status)}
+                            />
+                            <NaButton size="sm" onclick={() => onEdit(selectedSummary.project)}
+                                >{i18n?.editProject || "Edit project"}</NaButton
+                            >
+                        </div>
+                    </div>
+                    {#snippet projectProgress()}
+                        <NaProgressBar
+                            percent={selectedSummary.progress}
+                            label={`${selectedSummary.doneCount}/${workItemCount(selectedSummary)} ${i18n?.completedTasks || "completed"}`}
+                        />
+                    {/snippet}
+                    {#if mode !== "board"}
+                        <div class="na-project-canvas__progress">{@render projectProgress()}</div>
+                    {/if}
+                    {#if shouldShowProjectCompletionPanel(selectedSummary)}
+                        <ProjectCompletionPanel
+                            summary={selectedSummary}
+                            {i18n}
+                            {onSelectTask}
+                            onConfirm={onTaskUpdate
+                                ? () => confirmProjectCompletion(selectedSummary, onTaskUpdate)
+                                : undefined}
+                        />
+                    {/if}
+
+                    {#if mode === "overview"}
+                        <ProjectOverviewMode
+                            summary={selectedSummary}
+                            risks={selectedProject?.risks || []}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            {onEdit}
+                            {onStatusClick}
+                            {onContextMenu}
+                            {loadProjectSupport}
+                            onOpenProjectSupport={jumpToBlock}
+                            onCreateAction={onCreateChild}
+                            onAiExtractAction={(sourceBlockId, projectId) =>
+                                runAiExtractTasks([sourceBlockId], { projectId })}
+                        />
+                        {#snippet definitionContent()}
+                            <ProjectDefinitionEditor
+                                project={selectedSummary.project}
+                                {i18n}
+                                onSave={onTaskUpdate}
+                                controllerRegistry={projectDefinitionControllerRegistry}
+                            />
+                        {/snippet}
+                        {#snippet stageContent()}
+                            {#if projectTreeModel}
+                                <ProjectStagePlan
+                                    project={selectedSummary.project}
+                                    model={projectTreeModel}
+                                    {selectedTaskId}
+                                    {i18n}
+                                    {onSelectTask}
+                                    onCreateStage={onCreateStage
+                                        ? () => onCreateStage?.(selectedSummary.project)
+                                        : undefined}
+                                    onRenameTask={onTaskRename}
+                                    {onTaskUpdate}
+                                    {onTaskReorder}
+                                    {onMoveAction}
+                                />
+                            {/if}
+                        {/snippet}
+                        {#if compact}
+                            <NaAccordion title={i18n.projectDetails} open={false}
+                                >{@render definitionContent()}</NaAccordion
+                            >
+                            <NaAccordion title={i18n.projectStagePlan} open={false}
+                                >{@render stageContent()}</NaAccordion
+                            >
+                        {:else}{@render definitionContent()}{@render stageContent()}{/if}
+                    {:else if mode === "hierarchy" && projectTreeModel}
+                        <ProjectHierarchyMode
                             project={selectedSummary.project}
                             model={projectTreeModel}
                             {selectedTaskId}
                             {i18n}
                             {onSelectTask}
-                            onCreateStage={onCreateStage ? () => onCreateStage?.(selectedSummary.project) : undefined}
-                            onRenameTask={onTaskRename}
-                            {onTaskUpdate}
+                            {onEdit}
+                            {onStatusClick}
+                            {onContextMenu}
+                            onToggleCollapse={toggleCollapse}
+                            {onTaskRename}
                             {onTaskReorder}
-                            {onMoveAction}
+                        />
+                    {:else if mode === "board"}
+                        <ProjectBoardMode
+                            progress={projectProgress}
+                            projectId={selectedSummary.project.blockId}
+                            tasks={boardTasks}
+                            projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            {onEdit}
+                            {onStatusClick}
+                            {onContextMenu}
+                            onMoveTask={onProjectBoardMove}
+                            customFields={$taskStore.settings.customFields}
+                            preference={getProjectBoardPreference(boardPreferences, resolvedActiveProjectId)}
+                            onPreferenceChange={handleBoardPreferenceChange}
+                        />
+                    {:else if mode === "plan"}
+                        <ProjectPlanMode
+                            groups={planGroups}
+                            {selectedTaskId}
+                            {i18n}
+                            {onSelectTask}
+                            {onEdit}
+                            {onStatusClick}
+                            {onContextMenu}
+                        />
+                    {:else if mode === "gantt" && projectTreeModel}
+                        <GanttView
+                            model={projectTreeModel}
+                            projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
+                            {selectedTaskId}
+                            {i18n}
+                            sortMode={ganttSortMode}
+                            onSortModeChange={(value) => (ganttSortMode = value)}
+                            onToggleCollapse={toggleCollapse}
+                            {onSelectTask}
+                            {onEdit}
+                            {onContextMenu}
                         />
                     {/if}
-                {:else if mode === "hierarchy" && projectTreeModel}
-                    <ProjectHierarchyMode
-                        project={selectedSummary.project}
-                        model={projectTreeModel}
-                        {selectedTaskId}
-                        {i18n}
-                        {onSelectTask}
-                        {onEdit}
-                        {onStatusClick}
-                        {onContextMenu}
-                        onToggleCollapse={toggleCollapse}
-                        {onTaskRename}
-                        {onTaskReorder}
-                    />
-                {:else if mode === "board"}
-                    <ProjectBoardMode
-                        progress={projectProgress}
-                        projectId={selectedSummary.project.blockId}
-                        tasks={boardTasks}
-                        projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
-                        {selectedTaskId}
-                        {i18n}
-                        {onSelectTask}
-                        {onEdit}
-                        {onStatusClick}
-                        {onContextMenu}
-                        onMoveTask={onProjectBoardMove}
-                        customFields={$taskStore.settings.customFields}
-                        preference={getProjectBoardPreference(boardPreferences, resolvedActiveProjectId)}
-                        onPreferenceChange={handleBoardPreferenceChange}
-                    />
-                {:else if mode === "plan"}
-                    <ProjectPlanMode
-                        groups={planGroups}
-                        {selectedTaskId}
-                        {i18n}
-                        {onSelectTask}
-                        {onEdit}
-                        {onStatusClick}
-                        {onContextMenu}
-                    />
-                {:else if mode === "gantt" && projectTreeModel}
-                    <GanttView
-                        model={projectTreeModel}
-                        projectTasks={[selectedSummary.project, ...selectedSummary.descendants]}
-                        {selectedTaskId}
-                        {i18n}
-                        sortMode={ganttSortMode}
-                        onSortModeChange={(value) => (ganttSortMode = value)}
-                        onToggleCollapse={toggleCollapse}
-                        {onSelectTask}
-                        {onEdit}
-                        {onContextMenu}
-                    />
+                {:else}
+                    <div class="na-project-empty">
+                        <strong>{i18n?.projectSelectTitle || "Select a project"}</strong><span
+                            >{i18n?.projectSelectHint || "Choose a project to inspect its progress and risks."}</span
+                        >
+                    </div>
                 {/if}
-            {:else}
-                <div class="na-project-empty">
-                    <strong>{i18n?.projectSelectTitle || "Select a project"}</strong><span
-                        >{i18n?.projectSelectHint || "Choose a project to inspect its progress and risks."}</span
-                    >
-                </div>
-            {/if}
-        </section>
+            </section>
+        {/if}
 
-        {#if mode === "overview"}
-            <aside class="na-project-risk-rail">
+        {#if (!compact && mode === "overview") || (compact && level === "risks")}
+            <aside class="na-project-risk-rail" use:rememberScroll={"risks"}>
                 <div class="na-project-risk-rail__header">
                     <span>{i18n?.projectRiskQueue || "Risk queue"}</span><span>{riskItems.length}</span>
                 </div>
-                {#each riskItems.slice(0, 10) as item (item.risk.kind + item.risk.taskId)}
+                {#each compact ? riskItems : riskItems.slice(0, 10) as item (item.risk.kind + item.risk.taskId)}
                     <button
                         type="button"
                         class="na-project-risk-rail__item"
                         onclick={() => {
-                            activeProjectId = item.summary.project.blockId;
+                            selectProject(item.summary);
                             onSelectTask?.(item.risk.target);
                         }}
                     >
@@ -583,8 +724,91 @@
         {/if}
     </div>
 </NaViewShell>
+{#if actionMenuOpen && selectedSummary}
+    <NaPageHost title={i18n.taskActions} backLabel={i18n.back} onBack={() => (actionMenuOpen = false)}>
+        <div class="na-page-stack na-project-actions">
+            <NaButton
+                onclick={() => {
+                    actionMenuOpen = false;
+                    onEdit(selectedSummary!.project);
+                }}>{i18n.editProject}</NaButton
+            >
+            <NaButton
+                onclick={() => {
+                    actionMenuOpen = false;
+                    onCreateStage?.(selectedSummary!.project);
+                }}>{i18n.createStage}</NaButton
+            >
+            <NaButton
+                onclick={() => {
+                    actionMenuOpen = false;
+                    runAiDecomposeTask(selectedSummary!.project);
+                }}>{i18n.aiDecomposeProject}</NaButton
+            >
+        </div>
+    </NaPageHost>
+{/if}
+{#if filtersOpen}
+    <ProjectCompactFilters
+        {i18n}
+        {showCompleted}
+        {riskFilter}
+        {dateFilter}
+        {actionFilter}
+        onClose={() => (filtersOpen = false)}
+        onApply={(value) => {
+            showCompleted = value.showCompleted;
+            riskFilter = value.riskFilter;
+            dateFilter = value.dateFilter;
+            actionFilter = value.actionFilter;
+            filtersOpen = false;
+        }}
+    />
+{/if}
 
 <style lang="scss">
+    .na-project-compact-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px;
+    }
+    .na-project-compact-toolbar > span,
+    .na-project-compact-toolbar > select {
+        flex: 1;
+        min-width: 0;
+    }
+    .na-project-actions {
+        padding: 12px;
+    }
+    .na-project-workspace--compact {
+        display: flex !important;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+    }
+    .na-project-workspace--compact .na-project-index {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        max-height: none;
+        border: 0;
+    }
+    .na-project-workspace--compact .na-project-canvas {
+        min-width: 0;
+        width: 100%;
+        padding: 12px;
+        box-sizing: border-box;
+    }
+    .na-project-workspace--compact .na-project-risk-rail {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        padding: 12px;
+        box-sizing: border-box;
+    }
+
     .na-project-toolbar {
         display: flex;
         align-items: center;

@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { useWorkspaceScroll } from "../workspace-scroll";
+    const rememberScroll = useWorkspaceScroll();
     import type { Snippet } from "svelte";
 
     interface Props {
@@ -17,6 +19,7 @@
 </script>
 
 <div
+    use:rememberScroll={"tasks"}
     bind:this={element}
     class="na-task-list"
     class:na-task-list--compact={density === "compact"}

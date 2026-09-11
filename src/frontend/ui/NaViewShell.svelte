@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { useWorkspaceScroll } from "../workspace-scroll";
+    const rememberScroll = useWorkspaceScroll();
     import type { Snippet } from "svelte";
     import NaEmpty from "./NaEmpty.svelte";
     import NaViewHint from "./NaViewHint.svelte";
@@ -15,7 +17,7 @@
 
 <div class="na-view-shell" class:na-view-shell--content={scrollMode === "content"}>
     {#if toolbar}{@render toolbar()}{/if}
-    <div class="na-view-shell__body">
+    <div class="na-view-shell__body" use:rememberScroll={"shell"}>
         {#if loading}
             <NaEmpty loading={true} />
         {:else if empty}

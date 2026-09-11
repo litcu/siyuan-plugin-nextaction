@@ -20,7 +20,7 @@ test("刷新任务先重建缓存再加载快照", async () => {
 });
 
 test("侧边栏和命令刷新入口共享完整刷新流程", () => {
-    const app = readFileSync("src/frontend/components/NextActionApp.svelte", "utf8");
+    const app = readFileSync("src/frontend/components/Workspace.svelte", "utf8");
     const controller = readFileSync("src/frontend/controllers/task-command-controller.ts", "utf8");
     assert.match(app, /await refreshTasks\(bridge, \(\) => taskStore\.loadTasks\(\)\)/);
     assert.match(controller, /await refreshTasks\(this\.getBridge\(\), \(\) => taskStore\.loadTasks\(\)\)/);

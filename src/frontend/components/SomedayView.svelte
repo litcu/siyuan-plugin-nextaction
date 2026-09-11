@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { taskStore } from "../stores/task-store";
+    import { useWorkspaceTasks } from "../workspace-context";
+    const taskStore = useWorkspaceTasks();
     import { VIEW_SOMEDAY } from "../constants";
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
