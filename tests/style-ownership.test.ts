@@ -17,6 +17,7 @@ test("根样式入口只按稳定职责顺序汇总", () => {
             '@use "./frontend/styles/app-shell";',
             '@use "./frontend/styles/components";',
             '@use "./frontend/styles/host-integration";',
+            '@use "./frontend/styles/workspace";',
         ].join("\n"),
     );
 });

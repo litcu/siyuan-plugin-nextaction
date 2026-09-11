@@ -41,7 +41,7 @@ export class PanelHostRegistrar {
                         () => import("../components/NextActionApp.svelte"),
                         () => ({
                             target: container,
-                            props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
+                            props: { bridge: registrar.getBridge(), i18n: registrar.i18n, app: registrar.plugin.app },
                         }),
                     );
                     registrar.mounted.add(mounted);
@@ -86,7 +86,7 @@ export class PanelHostRegistrar {
                             : import("../components/DockSidebar.svelte"),
                     () => ({
                         target: container,
-                        props: { bridge: registrar.getBridge(), i18n: registrar.i18n },
+                        props: { bridge: registrar.getBridge(), i18n: registrar.i18n, app: registrar.plugin.app },
                     }),
                 );
                 registrar.mounted.add(mounted);

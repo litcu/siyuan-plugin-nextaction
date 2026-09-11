@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { useWorkspace } from "../../workspace-context";
+    const workspace = useWorkspace();
     import {
         PIXELS_PER_MINUTE,
         MIN_SCHEDULE_DURATION,
@@ -88,7 +90,7 @@
     let isRemoving = $derived(isDragging && previewOffsetX < -150);
 
     function handlePointerDown(e: PointerEvent, mode: DragMode) {
-        if (e.button !== 0) return;
+        if (workspace?.touch || e.pointerType === "touch" || e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
         dragMode = mode;
@@ -182,6 +184,11 @@
     }
 
     function handleCardKeydown(event: KeyboardEvent): void {
+        if (workspace?.touch && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            workspace.openTask?.(task);
+            return;
+        }
         if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
             onContextMenu(task, new MouseEvent("contextmenu"));
         }
@@ -200,6 +207,10 @@
 
 <div
     class="na-timeline-card {priorityClass}"
+    class:na-timeline-card--touch={workspace?.touch}
+    onclick={(event) => {
+        if (workspace?.touch || ("pointerType" in event && event.pointerType === "touch")) workspace?.openTask?.(task);
+    }}
     class:na-timeline-card--dragging={isDragging}
     class:na-timeline-card--removing={isRemoving}
     class:na-timeline-card--compact={isCompact}
@@ -259,6 +270,13 @@
 </div>
 
 <style lang="scss">
+    .na-timeline-card--touch {
+        touch-action: pan-y !important;
+    }
+    .na-timeline-card--touch .na-timeline-card__handle {
+        display: none;
+    }
+
     .na-timeline-card {
         position: absolute;
         border-radius: 8px;

@@ -65,15 +65,11 @@ test("我的一天、回顾、统计和提醒视图使用对应的 Na 公共组�
     assert.match(reminder, /reminderOverdueMinutes/);
 });
 
-test("三个 Dock 页面共享壳层、工具栏和任务列表密度", () => {
-    for (const file of ["DockNextAction.svelte", "DockInbox.svelte", "DockMyDay.svelte"]) {
-        const dock = source(`../src/frontend/components/${file}`);
-        assert.match(dock, /NaViewShell/, file);
-        assert.match(dock, /NaToolbar/, file);
-        assert.match(dock, /NaTaskList/, file);
-        assert.match(dock, /density="compact"/, file);
-    }
-    assert.match(source("../src/frontend/components/DockMyDay.svelte"), /@container na-dock \(max-width: 260px\)/);
+test("Dock 的常用页面复用完整工作区中的任务视图", () => {
+    const workspace = source("../src/frontend/components/Workspace.svelte");
+    for (const name of ["NextActionView", "InboxView", "MyDayView"]) assert.ok(workspace.includes(`<${name}`));
+    for (const name of ["DockNextAction", "DockInbox", "DockMyDay"])
+        assert.equal(existsSync(new URL(`../src/frontend/components/${name}.svelte`, import.meta.url)), false);
 });
 
 test("公共筛选栏由 props 驱动并通过 typed callback 返回完整状态", () => {

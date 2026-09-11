@@ -1,17 +1,7 @@
 <script lang="ts">
+    import { getViewDirectory } from "../view-directory";
     import { onMount } from "svelte";
-    import {
-        VIEW_INBOX,
-        VIEW_NEXT_ACTION,
-        VIEW_ALL_TASKS,
-        VIEW_BY_PROJECT,
-        VIEW_SOMEDAY,
-        VIEW_WAITING,
-        VIEW_STATISTICS,
-        VIEW_MY_DAY,
-        VIEW_REVIEW,
-        VIEW_REMINDER,
-    } from "../constants";
+    import { VIEW_NEXT_ACTION, VIEW_REVIEW, VIEW_REMINDER } from "../constants";
     import { taskStore, pendingReminderCount } from "../stores/task-store";
     import NaIcon from "../ui/NaIcon.svelte";
     import NaNavItem from "../ui/NaNavItem.svelte";
@@ -28,46 +18,7 @@
 
     let reminderEnabled = $derived($taskStore.settings?.reminderSettings?.enabled !== false);
 
-    let navGroups = $derived(
-        [
-            {
-                label: i18n?.navFocus || "Focus",
-                items: [
-                    { view: VIEW_INBOX, icon: "iconInbox", label: i18n?.inbox || "Inbox" },
-                    { view: VIEW_NEXT_ACTION, icon: "iconListItem", label: i18n?.nextAction || "Next" },
-                    { view: VIEW_MY_DAY, icon: "iconCalendar", label: i18n?.myDay || "My Day" },
-                ],
-            },
-            {
-                label: i18n?.navOrganize || "Organize",
-                items: [
-                    { view: VIEW_ALL_TASKS, icon: "iconList", label: i18n?.allTasks || "All" },
-                    { view: VIEW_BY_PROJECT, icon: "iconFolder", label: i18n?.byProject || "Project" },
-                    { view: VIEW_WAITING, icon: "iconClock", label: i18n?.waiting || "Waiting" },
-                    { view: VIEW_SOMEDAY, icon: "iconLight", label: i18n?.someday || "Someday" },
-                ],
-            },
-            {
-                label: i18n?.navReflect || "Reflect",
-                items: [
-                    { view: VIEW_REVIEW, icon: "iconCheck", label: i18n?.review || "Review" },
-                    { view: VIEW_STATISTICS, icon: "iconGraph", label: i18n?.statistics || "Statistics" },
-                    {
-                        view: VIEW_REMINDER,
-                        icon: "iconClock",
-                        label: i18n?.reminder || "Reminders",
-                        requiresReminder: true,
-                    },
-                ],
-            },
-        ].map((group) => ({
-            ...group,
-            items: group.items.filter((item) => {
-                if (item.requiresReminder && !reminderEnabled) return false;
-                return true;
-            }),
-        })),
-    );
+    let navGroups = $derived(getViewDirectory(i18n, reminderEnabled));
 
     let refreshDone = $state(false);
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;

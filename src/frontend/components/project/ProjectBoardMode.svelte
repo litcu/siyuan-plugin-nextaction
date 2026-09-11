@@ -1,4 +1,9 @@
 <script lang="ts">
+    import NaPageHost from "../../ui/NaPageHost.svelte";
+    import NaButton from "../../ui/NaButton.svelte";
+    import NaInlineNotice from "../../ui/NaInlineNotice.svelte";
+    import { formatOperationError } from "../../error-format";
+    import { useWorkspace } from "../../workspace-context";
     import { onDestroy, onMount, untrack } from "svelte";
     import type { Snippet } from "svelte";
     import type { TaskCacheEntry } from "../../../shared/types";
@@ -55,19 +60,76 @@
         onPreferenceChange = undefined,
     }: Props = $props();
 
+    const workspace = useWorkspace();
+    const compact = workspace?.compact ?? false;
+    const touch = workspace?.touch ?? false;
+    let arrangingTask = $state<TaskCacheEntry | null>(null);
+    let targetColumnKey = $state("");
+    let movePosition = $state("bottom");
+    let moveError = $state("");
+    function openActions(task: TaskCacheEntry, event: MouseEvent) {
+        if (!compact) {
+            onContextMenu(task, event);
+            return;
+        }
+        arrangingTask = task;
+        targetColumnKey =
+            columns.find((column) => column.tasks.some((item) => item.blockId === task.blockId))?.key ||
+            columns[0]?.key ||
+            "";
+        movePosition = "bottom";
+        moveError = "";
+    }
+    async function moveWithoutDragging() {
+        const column = columns.find((item) => item.key === targetColumnKey);
+        if (busy || !column || !arrangingTask) return;
+        busy = true;
+        moveError = "";
+        try {
+            const first = column.tasks.find((item) => item.blockId !== arrangingTask?.blockId);
+            await onMoveTask({
+                taskId: arrangingTask.blockId,
+                projectId,
+                groupBy,
+                value: column.value,
+                sortBy,
+                visibleTaskIds: tasks.map((item) => item.blockId),
+                ...(sortBy === "order" && movePosition === "top" && first
+                    ? { afterId: first.blockId, afterParentId: first.parentId }
+                    : {}),
+            });
+            arrangingTask = null;
+        } catch (cause) {
+            moveError = formatOperationError(cause, i18n);
+        } finally {
+            busy = false;
+        }
+    }
     let draggingTask: TaskCacheEntry | null = null;
     let dropColumnKey = $state("");
     let busy = $state(false);
     let boardElement: HTMLDivElement | undefined = $state();
     let resizeObserver: ResizeObserver | null = null;
     let boardWidth = $state(1024);
-    let narrowColumnIndex = $state(untrack(() => preference.narrowColumnIndex));
+    let narrowColumnIndex = $state(
+        untrack(
+            () =>
+                workspace?.session.read(`boardColumn:${projectId}`, preference.narrowColumnIndex) ??
+                preference.narrowColumnIndex,
+        ),
+    );
+    onDestroy(() => workspace?.session.remember(`boardColumn:${projectId}`, narrowColumnIndex));
     let groupBy = $state<ProjectBoardGroupBy>(untrack(() => preference.groupBy));
     let sortBy = $state<ProjectBoardSortBy>(untrack(() => preference.sortBy));
     let sortAsc = $state(untrack(() => preference.sortAsc));
 
     function persistPreference() {
-        onPreferenceChange?.({ groupBy, sortBy, sortAsc, narrowColumnIndex });
+        onPreferenceChange?.({
+            groupBy,
+            sortBy,
+            sortAsc,
+            narrowColumnIndex: compact ? preference.narrowColumnIndex : narrowColumnIndex,
+        });
     }
 
     function handleGroupByChange(event: Event) {
@@ -179,16 +241,17 @@
         if (preference.sortAsc !== sortAsc) sortAsc = preference.sortAsc;
     });
     $effect(() => {
-        if (preference.narrowColumnIndex !== narrowColumnIndex) narrowColumnIndex = preference.narrowColumnIndex;
+        if (!compact && preference.narrowColumnIndex !== narrowColumnIndex)
+            narrowColumnIndex = preference.narrowColumnIndex;
     });
     let orderedTasks = $derived(sortProjectBoardTasks(tasks, sortBy, sortAsc, customFields));
     let columns = $derived(buildProjectBoardColumns(orderedTasks, groupBy, projectTasks));
-    let narrow = $derived(boardWidth <= 780);
+    let narrow = $derived(compact || boardWidth <= 780);
     $effect(() => {
         const clamped = Math.max(0, Math.min(narrowColumnIndex, Math.max(0, columns.length - 1)));
         if (clamped !== narrowColumnIndex) {
             narrowColumnIndex = clamped;
-            persistPreference();
+            if (!compact) persistPreference();
         }
     });
     let visibleColumns = $derived(narrow ? [columns[narrowColumnIndex]] : columns);
@@ -248,17 +311,29 @@
                 disabled={narrowColumnIndex === 0}
                 onclick={() => {
                     narrowColumnIndex -= 1;
-                    persistPreference();
+                    if (!compact) persistPreference();
                 }}
             />
-            <span aria-live="polite">{columnLabel(columns[narrowColumnIndex])}</span>
+            <select
+                class="na-select"
+                aria-label={i18n.projectViewBoard}
+                value={narrowColumnIndex}
+                onchange={(event) => {
+                    narrowColumnIndex = Number(event.currentTarget.value);
+                    if (!compact) persistPreference();
+                }}
+            >
+                {#each columns as column, index}<option value={index}
+                        >{columnLabel(column)} ({column.tasks.length})</option
+                    >{/each}
+            </select>
             <NaIconButton
                 symbol="iconRight"
                 label={i18n?.nextPage || "Next"}
                 disabled={narrowColumnIndex === columns.length - 1}
                 onclick={() => {
                     narrowColumnIndex += 1;
-                    persistPreference();
+                    if (!compact) persistPreference();
                 }}
             />
         </div>
@@ -283,7 +358,7 @@
                         <div
                             class="na-project-board__card"
                             role="listitem"
-                            draggable={!busy}
+                            draggable={!busy && !touch}
                             ondragstart={(event) => handleDragStart(task, event)}
                             ondragend={resetDrag}
                             ondragover={(event) => handleDragOver(column.key, event)}
@@ -295,7 +370,7 @@
                                 onSelect={onSelectTask}
                                 {onEdit}
                                 {onStatusClick}
-                                {onContextMenu}
+                                onContextMenu={openActions}
                                 {i18n}
                                 isRoot={false}
                             />
@@ -310,7 +385,55 @@
     </div>
 </div>
 
+{#if arrangingTask}
+    <NaPageHost
+        title={arrangingTask.title}
+        backLabel={i18n.back}
+        onBack={() => {
+            if (!busy) arrangingTask = null;
+        }}
+    >
+        <div class="na-project-board__move">
+            <label
+                >{i18n.projectBoardMove}
+                <select class="na-select" bind:value={targetColumnKey} disabled={busy}>
+                    {#each columns as column}<option value={column.key}>{columnLabel(column)}</option>{/each}
+                </select>
+            </label>
+            {#if sortBy === "order"}<select
+                    class="na-select"
+                    bind:value={movePosition}
+                    disabled={busy}
+                    aria-label={i18n.projectBoardGroupBy}
+                >
+                    <option value="bottom">{i18n.projectBoardMoveBottom}</option><option value="top"
+                        >{i18n.projectBoardMoveTop}</option
+                    >
+                </select>{/if}
+            {#if moveError}<NaInlineNotice message={moveError} tone="error" />{/if}
+            <NaButton variant="primary" loading={busy} onclick={moveWithoutDragging}>{i18n.apply}</NaButton>
+            <NaButton
+                disabled={busy}
+                onclick={(event) => {
+                    const task = arrangingTask!;
+                    arrangingTask = null;
+                    onContextMenu(task, event);
+                }}>{i18n.taskActions}</NaButton
+            >
+        </div>
+    </NaPageHost>
+{/if}
+
 <style lang="scss">
+    .na-project-board__move {
+        display: grid;
+        gap: 12px;
+        padding: 12px;
+    }
+    .na-project-board__move label {
+        display: grid;
+        gap: 8px;
+    }
     .na-project-board {
         flex: 1 1 auto;
         min-height: 0;
@@ -426,7 +549,7 @@
             font-weight: 600;
             text-align: center;
         }
-        .na-project-board__pager > span {
+        .na-project-board__pager > select {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;

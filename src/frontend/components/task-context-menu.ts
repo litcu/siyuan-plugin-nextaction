@@ -13,6 +13,7 @@ interface ContextMenuCallbacks {
     onRemoved: (blockId: string) => void;
     onEdit?: (task: TaskCacheEntry) => void;
     onMyDayToggle?: (blockId: string, inMyDay: boolean) => void;
+    onScheduleEdit?: (task: TaskCacheEntry) => void;
     onReminderEdit?: (blockId: string) => void;
     onProjectBoardMove?: (
         task: TaskCacheEntry,
@@ -33,6 +34,8 @@ export function showTaskContextMenu(
 ): void {
     const menu = new Menu("na-task-context");
     const isProject = isProjectTask(task);
+    if (callbacks.onScheduleEdit)
+        menu.addItem({ icon: "iconCalendar", label: i18n.scheduleTask, click: () => callbacks.onScheduleEdit?.(task) });
 
     for (const s of STATUS_LIST) {
         const i18nKey = toI18nKey("status", s);

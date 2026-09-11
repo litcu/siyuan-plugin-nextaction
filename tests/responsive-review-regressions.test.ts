@@ -49,8 +49,8 @@ test("完整任务面板极窄时侧栏收缩为带 tooltip 的图标栏", () =>
 });
 
 test("我的一天窄模式纵向排列并保留可用的未排期卡片宽度", () => {
-    assert.match(timelineSource, /class:na-timeline-view--narrow=\{isNarrow\}/);
-    assert.match(timelineSource, /horizontal=\{true\}/);
+    assert.match(timelineSource, /class:na-timeline-view--narrow=\{compact \|\| isNarrow\}/);
+    assert.match(timelineSource, /horizontal=\{!compact\}/);
     assert.match(timelineSource, /\.na-timeline-view--narrow\s*\{[\s\S]*flex-direction:\s*column/);
     assert.match(unscheduledSource, /class:na-unscheduled--horizontal=\{horizontal\}/);
     assert.match(unscheduledSource, /grid-auto-columns:\s*minmax\(180px,\s*240px\)/);

@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { taskStore } from "../stores/task-store";
+    import { onDestroy } from "svelte";
+    import { useWorkspaceTasks, useWorkspace } from "../workspace-context";
+    const taskStore = useWorkspaceTasks();
+    const workspace = useWorkspace();
+    onDestroy(() => workspace?.session.remember("allCollapsed", collapsed));
     import { STATUS_LIST, VIEW_ALL_TASKS } from "../constants";
     import { applyFilters, DEFAULT_FILTER_STATE } from "../utils/filter";
     import type { FilterState } from "../utils/filter";
@@ -40,7 +44,7 @@
     let listEl: HTMLElement | null = $state(null);
 
     function initDragHandler() {
-        if (dragHandler || !listEl || !bridge) return;
+        if (workspace?.touch || dragHandler || !listEl || !bridge) return;
         dragHandler = createDragHandler({
             container: listEl,
             getCardElement: (blockId: string) => listEl!.querySelector(`[data-task-block-id="${blockId}"]`),
@@ -63,7 +67,7 @@
         if (listEl && bridge) initDragHandler();
     });
 
-    let collapsed: Record<string, boolean> = $state({});
+    let collapsed: Record<string, boolean> = $state(workspace?.session.read("allCollapsed", {}) || {});
 
     let filterState = $derived($taskStore.filterByView[VIEW_ALL_TASKS] || DEFAULT_FILTER_STATE);
     let activeTasks = $derived($taskStore.allTasks.filter((task: TaskCacheEntry) => task.status !== "done"));
@@ -142,7 +146,7 @@
                 class:na-all-tasks__item--root={row.indent === 0}
                 style="--indent: {row.indent}"
                 role="listitem"
-                onpointerdown={(e) => dragHandler?.onPointerDown(e, row.task.blockId)}
+                onpointerdown={(e) => e.pointerType !== "touch" && dragHandler?.onPointerDown(e, row.task.blockId)}
             >
                 <TaskCard
                     task={row.task}

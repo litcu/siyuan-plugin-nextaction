@@ -847,5 +847,17 @@
     "projectBoardMovePartial": "Task field updated, but order could not be confirmed",
     "projectBoardMove": "Move on project board",
     "projectBoardMoveTop": "Move to top",
-    "projectBoardMoveBottom": "Move to bottom"
+    "projectBoardMoveBottom": "Move to bottom",
+    "allViews": "All views",
+    "filterAndSort": "Filter and sort",
+    "showAll": "Show all",
+    "scheduleTask": "Schedule task",
+    "scheduleDuration": "Duration (minutes)",
+    "scheduleStart": "Start time",
+    "scheduleRangeError": "Choose a duration from 15 to 720 minutes within the current day.",
+    "dayScheduleList": "Scheduled tasks",
+    "projectDetails": "Outcome and completion",
+    "ganttToggleNames": "Show task names",
+    "taskActions": "Task actions",
+    "createSavedReadFailed": "The task was created, but its details could not be loaded. Retry loading."
 }

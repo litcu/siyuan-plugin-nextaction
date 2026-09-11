@@ -68,15 +68,17 @@ Download the `siyuan-plugin-nextaction` folder from a [release](https://github.c
 
 1. Type `/ntask` (or `/zrw`) in any document to convert the current block into a task.
 2. Click the status circle beside the block to set status, priority, or open task details.
-3. Open the full panel from the top bar on desktop/browser-desktop, or enter it from the dock on browser-mobile. **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
+3. Open the full panel from the top bar on desktop/browser-desktop, or use all views directly in the dock on browser-mobile. **Next Actions** shows what you can do now; **Inbox** holds unprocessed captures.
 
 That is enough to start. Importance, review intervals, reminders, dependencies, and custom fields can wait until your task list needs them.
 
 ### Panel entry points
 
-- **Desktop and browser-desktop:** the top-bar button opens the complete workspace in a tab. The right-side 300 px dock is a compact place for quick capture and focus lists, including at narrower widths.
-- **Browser-mobile:** open the dock first, then use its full-panel action. `MobileDockHost` keeps the compact dock and full workspace as two explicit levels, with a back action and safe-area-aware layout.
+- **Desktop and browser-desktop:** the top-bar button opens the complete workspace in a tab. The right-side dock keeps three frequent views at the top and provides every page through All views. Task details open in a SiYuan dialog.
+- **Browser-mobile:** the dock has four bottom destinations: Next Actions, My Day, Inbox, and All views. It starts in Next Actions and opens task details and creation as full pages with back navigation. Select a project before choosing Overview, Hierarchy, Board, Plan, or Gantt. Boards show one column at a time; Gantt scrolls horizontally inside the chart. Edit schedules with start time and duration without dragging.
 - **Native iOS/Android:** the current plugin manifest does not declare a native mobile backend. Native mobile support is therefore outside the documented support and validation scope.
+
+Panels share task data while keeping their navigation, filters, pagination, and browsing positions separate for the lifetime of each host. Closing the host or refreshing resets them.
 
 <details>
 <summary><b>Capture commands</b> — more ways to create tasks and projects</summary>

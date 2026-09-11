@@ -1,4 +1,9 @@
 <script lang="ts">
+    import { useWorkspace } from "../../workspace-context";
+    const workspace = useWorkspace();
+    import { buildProjectTreeParentOptions, buildProjectTreeReorderIntent } from "../../utils/project-tree-operations";
+    import NaPageHost from "../../ui/NaPageHost.svelte";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
     import { tick } from "svelte";
     import type { I18nStrings } from "../../../shared/i18n";
     import type { TaskCacheEntry } from "../../../shared/types";
@@ -38,6 +43,7 @@
         onTaskReorder = undefined,
     }: Props = $props();
 
+    let arrangingTask = $state<TaskCacheEntry | null>(null);
     let focusedTaskId = $state("");
     let editingTaskId = $state("");
     let renameDraft = $state("");
@@ -169,6 +175,19 @@
             void cancelRename(taskId);
         }
     }
+    async function moveTask(task: TaskCacheEntry, direction: "up" | "down") {
+        const effective = operationTasks.find((entry) => entry.blockId === task.blockId) || task;
+        const intent = buildProjectTreeReorderIntent(
+            effective,
+            operationTasks.filter((entry) => entry.parentId === effective.parentId),
+            direction,
+        );
+        if (intent && onTaskReorder)
+            await perform(task, () => onTaskReorder!(intent.blockId, intent.parentId, intent.afterId));
+    }
+    async function changeParent(task: TaskCacheEntry, parentId: string) {
+        if (onTaskReorder && (await perform(task, () => onTaskReorder!(task.blockId, parentId)))) arrangingTask = null;
+    }
     function handleDragStart(task: TaskCacheEntry, event: DragEvent) {
         if (task.taskType === "2" || !event.dataTransfer) return;
         dragTaskId = task.blockId;
@@ -229,7 +248,7 @@
             class:na-project-tree__row--drop-before={dropTargetId === row.task.blockId && dropPosition === "before"}
             class:na-project-tree__row--drop-inside={dropTargetId === row.task.blockId && dropPosition === "inside"}
             class:na-project-tree__row--drop-after={dropTargetId === row.task.blockId && dropPosition === "after"}
-            style={`--na-project-tree-depth: ${row.depth}`}
+            style={`--na-project-tree-depth: ${workspace?.compact ? Math.min(row.depth, 3) : row.depth}`}
             use:rowElement={row.task.blockId}
             role="treeitem"
             tabindex={focusedTaskId === row.task.blockId ? 0 : -1}
@@ -240,7 +259,7 @@
             aria-selected={row.task.blockId === selectedTaskId}
             onfocus={() => (focusedTaskId = row.task.blockId)}
             onkeydown={(event) => handleTreeKeydown(row, event)}
-            draggable={row.task.taskType !== "2" && Boolean(onTaskReorder) && !busyTaskId}
+            draggable={!workspace?.touch && row.task.taskType !== "2" && Boolean(onTaskReorder) && !busyTaskId}
             ondragstart={(event) => handleDragStart(row.task, event)}
             ondragend={handleDragEnd}
             ondragover={(event) => handleDragOver(row.task, event)}
@@ -262,6 +281,15 @@
                     isRoot={row.depth === 0}
                     managedFocus
                 />
+                {#if workspace?.compact && row.task.taskType !== "2" && onTaskReorder}
+                    <div class="na-project-tree__touch-actions">
+                        <NaIconButton
+                            symbol="iconMore"
+                            label={`${i18n.projectViewHierarchy}: ${row.task.title}`}
+                            onclick={() => (arrangingTask = row.task)}
+                        />
+                    </div>
+                {/if}
                 {#if editingTaskId === row.task.blockId}<form
                         class="na-project-tree__rename"
                         onsubmit={(event) => handleRenameSubmit(row.task, event)}
@@ -292,7 +320,50 @@
     {/each}
 </div>
 
+{#if arrangingTask}
+    <NaPageHost
+        title={arrangingTask.title}
+        backLabel={i18n.back}
+        onBack={() => {
+            if (!busyTaskId) arrangingTask = null;
+        }}
+    >
+        <div class="na-project-tree__arrange">
+            {#if error}<NaInlineNotice message={error} tone="error" />{/if}
+            <label
+                >{i18n.parentItem}
+                <select
+                    class="na-select"
+                    disabled={!!busyTaskId}
+                    value={model.parentByChild.get(arrangingTask.blockId) || arrangingTask.parentId}
+                    onchange={(event) => changeParent(arrangingTask!, event.currentTarget.value)}
+                >
+                    {#each buildProjectTreeParentOptions(arrangingTask, project, operationTasks) as parent}<option
+                            value={parent.blockId}>{parent.title}</option
+                        >{/each}
+                </select>
+            </label>
+            <NaButton disabled={!!busyTaskId} onclick={() => moveTask(arrangingTask!, "up")}>{i18n.moveUp}</NaButton>
+            <NaButton disabled={!!busyTaskId} onclick={() => moveTask(arrangingTask!, "down")}>{i18n.moveDown}</NaButton
+            >
+        </div>
+    </NaPageHost>
+{/if}
+
 <style lang="scss">
+    .na-project-tree__arrange {
+        display: grid;
+        gap: 12px;
+        padding: 12px;
+    }
+    .na-project-tree__arrange label {
+        display: grid;
+        gap: 8px;
+    }
+    .na-project-tree__touch-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
     .na-project-tree {
         display: flex;
         flex-direction: column;

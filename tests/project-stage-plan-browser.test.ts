@@ -36,7 +36,7 @@ test("从当前 Project 创建 Stage 会提交普通 Action 的 Stage 标记和�
             const componentPath = resolve("src/frontend/components/CreateTaskDialog.svelte").replace(/\\/g, "/");
             writeFileSync(
                 join(fixtureRoot, "siyuan.js"),
-                "export class Menu {}\nexport function showMessage() {}\nexport function openTab() {}\n",
+                "export class Menu {}\nexport function showMessage() {}\nexport function confirm() {} export function openTab() {}\n",
             );
             writeFileSync(
                 join(fixtureRoot, "Harness.svelte"),

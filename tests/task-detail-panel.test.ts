@@ -6,8 +6,8 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), "u
 const detail = source("../src/frontend/components/TaskDetail.svelte");
 const shell = source("../src/frontend/ui/NaDialogShell.svelte");
 const drawer = source("../src/frontend/ui/NaDrawerHost.svelte");
-const app = source("../src/frontend/components/NextActionApp.svelte");
-const dock = source("../src/frontend/components/DockSidebar.svelte");
+const app = source("../src/frontend/components/Workspace.svelte");
+const dock = app;
 const editorIntegration = source("../src/frontend/controllers/editor-task-integration.ts");
 const dialogAdapter = source("../src/frontend/dialogs/task-detail-dialog.ts");
 const controller = source("../src/frontend/dialogs/task-property-dialogs.ts");
@@ -160,9 +160,9 @@ test("任务详情子任务导航和跳转使用统一 Session 与 Dialog 静态
 
 // Regression: Dock 和编辑器任务弹窗曾显示新建子任务按钮，却未提供点击回调。
 test("任务属性弹窗的新建子任务按钮接通创建回调", () => {
-    assert.match(dock, /onCreateChild:\s*openCreateChild/);
+    assert.match(dock, /onCreateChild:\s*\(parent\) => openCreate\(parent\)/);
     assert.match(editorIntegration, /onCreateChild:\s*this\.openCreateChildDialog/);
-    assert.match(dock, /openCreateTaskDialog\(\{[\s\S]*parentTask:\s*task/);
+    assert.match(dock, /openCreateTaskDialog\(\{[\s\S]*parentTask,/);
     assert.match(editorIntegration, /openCreateTaskDialog\(\{[\s\S]*parentTask/);
 });
 

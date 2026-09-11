@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { createTaskSubmission } from "../controllers/task-create-submission";
+    import { confirm } from "siyuan";
+    import { useWorkspace } from "../workspace-context";
     import { get } from "svelte/store";
     import { onMount, untrack } from "svelte";
     import type { KernelBridge } from "../kernel-bridge";
@@ -19,7 +22,8 @@
     interface Props {
         bridge: KernelBridge;
         i18n: any;
-        dialog: any;
+        dialog?: any;
+        onCancel?: () => void;
         parentTask?: TaskCacheEntry | null;
         initialActionKind?: "action" | "stage";
         onCreated?: ((task: TaskCacheEntry) => void) | undefined;
@@ -28,7 +32,8 @@
     let {
         bridge,
         i18n,
-        dialog,
+        dialog = undefined,
+        onCancel = undefined,
         parentTask = null,
         initialActionKind = "action",
         onCreated = undefined,
@@ -44,6 +49,7 @@
         icon: string;
     };
 
+    const workspace = useWorkspace();
     const initialSettings = get(taskStore).settings;
     let title = $state("");
     let kind = $state<"task" | "project">("task");
@@ -63,6 +69,7 @@
     let notebooks: Array<{ id: string; name: string; icon: string }> = $state([]);
     let dailyNotebookId = $state(initialSettings.taskCreationSettings.dailyNoteNotebookId);
     let busy = $state(false);
+    let awaitingRead = $state(false);
     let error = $state("");
     let morePropertiesOpen = $state(false);
     let titleInput: HTMLInputElement | undefined = $state();
@@ -182,20 +189,44 @@
         };
     }
 
+    export async function requestClose() {
+        if (busy) return;
+        const close = () => (onCancel ? onCancel() : dialog?.destroy?.());
+        if (
+            workspace?.touch &&
+            ([title, start, due, contextsText, tagsText, note].some((value) => value.trim()) ||
+                kind !== "task" ||
+                status !== "inbox" ||
+                priority !== "medium" ||
+                targetMode !== (parentTask ? "block" : initialSettings.taskCreationSettings.defaultCreateTarget) ||
+                format !== "paragraph" ||
+                !!selectedDocument)
+        ) {
+            confirm(i18n.unsavedChangesTitle, i18n.unsavedChangesMessage, close, () => {});
+        } else close();
+    }
+    const submission = createTaskSubmission({
+        create: (input) => bridge.createTask(input),
+        resolve: async (id) => {
+            const task = await bridge.getTask(id);
+            if (!task) throw new Error(i18n.createTaskUnavailable);
+            return task;
+        },
+    });
     async function submit() {
+        if (busy) return;
         error = "";
         const input = buildInput();
         if (!input) return;
         busy = true;
         try {
-            const result = await bridge.createTask(input);
-            const createdTask = await bridge.getTask(result.task.id);
-            if (!createdTask) throw new Error(i18n?.createTaskUnavailable || "Created task is not available yet");
+            const { result, task: createdTask } = await submission.submit(input);
             for (const warning of result.warnings || []) notifyInfo(taskCreationWarningMessage(warning, i18n));
             onCreated?.(createdTask);
             dialog?.destroy?.();
         } catch (cause: unknown) {
-            error = formatOperationError(cause, i18n);
+            awaitingRead = Boolean(submission.createdId);
+            error = (awaitingRead ? i18n.createSavedReadFailed + " " : "") + formatOperationError(cause, i18n);
         } finally {
             busy = false;
         }
@@ -208,185 +239,200 @@
 </script>
 
 <form class="na-create-task" onsubmit={handleSubmit}>
-    <div class="na-create-task__composer">
-        <div class="na-create-task__title-row">
-            <span
-                class="na-create-task__kind-mark"
-                class:na-create-task__kind-mark--project={kind === "project"}
-                aria-hidden="true"
-            >
-                <NaIcon symbol={kind === "project" ? "iconFile" : "iconCheck"} size={16} />
-            </span>
-            <input
-                bind:this={titleInput}
-                class="na-create-task__title"
-                bind:value={title}
-                maxlength="512"
-                disabled={busy}
-                placeholder={i18n?.createTitlePlaceholder || "What needs to be done?"}
-                aria-label={i18n?.createTask || "Create task"}
-            />
-        </div>
-        <div class="na-create-task__kind-row">
-            <span>{i18n?.taskType || "Task type"}</span>
-            <NaSegmentControl
-                options={kindOptions}
-                value={kind}
-                size="sm"
-                label={i18n?.taskType || "Task type"}
-                disabled={busy}
-                onChange={changeKind}
-            />
-        </div>
-    </div>
-
-    <section class="na-create-task__section na-create-task__section--properties">
-        <header class="na-create-task__section-header">
-            <span class="na-create-task__section-icon"><NaIcon symbol="iconCalendar" size={14} /></span>
-            <h3>{i18n?.createProperties || "Properties"}</h3>
-        </header>
-        <div class="na-create-task__grid">
-            <label class="na-create-task__field">
-                <span>{i18n?.status || "Status"}</span>
-                <select class="na-select" bind:value={status} disabled={busy}
-                    >{#each STATUS_LIST as item}<option value={item}>{i18n?.[toI18nKey("status", item)] || item}</option
-                        >{/each}</select
-                >
-            </label>
-            <label class="na-create-task__field">
-                <span>{i18n?.priority || "Priority"}</span>
-                <select class="na-select" bind:value={priority} disabled={busy}
-                    >{#each PRIORITY_LIST as item}<option value={item}
-                            >{i18n?.[toI18nKey("priority", item)] || item}</option
-                        >{/each}</select
-                >
-            </label>
-            {#if kind === "task" && initialActionKind === "stage"}
-                <label class="na-create-task__field">
-                    <span>{i18n?.actionKind || "Action kind"}</span>
-                    <select
-                        class="na-select"
-                        bind:value={actionKind}
-                        disabled={busy}
-                        aria-label={i18n?.actionKind || "Action kind"}
-                    >
-                        <option value="action">{i18n?.actionKindAction || "Action"}</option>
-                        <option value="stage">{i18n?.actionKindStage || "Stage"}</option>
-                    </select>
-                </label>
-            {/if}
-            <div class="na-create-task__field">
-                <span>{i18n?.startDate || "Start"}</span>
-                <NaDatePicker bind:value={start} {i18n} disabled={busy} fixedDropdown />
-            </div>
-            <div class="na-create-task__field">
-                <span>{i18n?.dueDate || "Due"}</span>
-                <NaDatePicker bind:value={due} {i18n} disabled={busy} fixedDropdown />
-            </div>
-        </div>
-
-        <NaAccordion
-            title={i18n?.createMoreProperties || "More properties"}
-            icon="iconList"
-            variant="plain"
-            bind:open={morePropertiesOpen}
-            count={morePropertiesCount || undefined}
-        >
-            <div class="na-create-task__more-grid">
-                <label class="na-create-task__field">
-                    <span>{i18n?.context || "Context"}</span>
-                    <input
-                        class="na-input"
-                        bind:value={contextsText}
-                        disabled={busy}
-                        placeholder={i18n?.createValuesPlaceholder || "Comma separated"}
-                    />
-                </label>
-                <label class="na-create-task__field">
-                    <span>{i18n?.tag || "Tag"}</span>
-                    <input
-                        class="na-input"
-                        bind:value={tagsText}
-                        disabled={busy}
-                        placeholder={i18n?.createValuesPlaceholder || "Comma separated"}
-                    />
-                </label>
-                <label class="na-create-task__field na-create-task__field--full">
-                    <span>{i18n?.note || "Note"}</span>
-                    <textarea class="na-create-task__note" bind:value={note} maxlength="4000" rows="3" disabled={busy}
-                    ></textarea>
-                </label>
-            </div>
-        </NaAccordion>
-    </section>
-
-    <section class="na-create-task__section na-create-task__section--destination">
-        <header class="na-create-task__section-header">
-            <span class="na-create-task__section-icon"><NaIcon symbol="iconInbox" size={14} /></span>
-            <h3>{i18n?.createSaveOptions || "Save"}</h3>
-        </header>
-        <div class="na-create-task__save-grid">
-            {#if kind !== "project"}
-                <div class="na-create-task__field na-create-task__field--full">
-                    <span>{i18n?.createFormat || "Format"}</span>
-                    <NaSegmentControl
-                        options={formatOptions}
-                        value={format}
-                        size="sm"
-                        stretch
-                        label={i18n?.createFormat || "Format"}
-                        disabled={busy}
-                        onChange={changeFormat}
-                    />
-                </div>
-            {/if}
-            <label class="na-create-task__field na-create-task__field--full">
+    <fieldset disabled={busy || awaitingRead}>
+        <div class="na-create-task__composer">
+            <div class="na-create-task__title-row">
                 <span
-                    >{format === "document"
-                        ? i18n?.createDocLocation || "Document location"
-                        : i18n?.createLocation || "Location"}</span
+                    class="na-create-task__kind-mark"
+                    class:na-create-task__kind-mark--project={kind === "project"}
+                    aria-hidden="true"
                 >
-                <select class="na-select" bind:value={targetMode} disabled={busy}>
-                    {#each format === "document" ? docLocationOptions : locationOptions as option}<option
-                            value={option.value}>{option.label}</option
-                        >{/each}
-                </select>
-            </label>
-            {#if targetMode === "daily_note" || targetMode === "siyuan_default"}
+                    <NaIcon symbol={kind === "project" ? "iconFile" : "iconCheck"} size={16} />
+                </span>
+                <input
+                    bind:this={titleInput}
+                    class="na-create-task__title"
+                    bind:value={title}
+                    maxlength="512"
+                    disabled={busy}
+                    placeholder={i18n?.createTitlePlaceholder || "What needs to be done?"}
+                    aria-label={i18n?.createTask || "Create task"}
+                />
+            </div>
+            <div class="na-create-task__kind-row">
+                <span>{i18n?.taskType || "Task type"}</span>
+                <NaSegmentControl
+                    options={kindOptions}
+                    value={kind}
+                    size="sm"
+                    label={i18n?.taskType || "Task type"}
+                    disabled={busy}
+                    onChange={changeKind}
+                />
+            </div>
+        </div>
+
+        <section class="na-create-task__section na-create-task__section--properties">
+            <header class="na-create-task__section-header">
+                <span class="na-create-task__section-icon"><NaIcon symbol="iconCalendar" size={14} /></span>
+                <h3>{i18n?.createProperties || "Properties"}</h3>
+            </header>
+            <div class="na-create-task__grid">
+                <label class="na-create-task__field">
+                    <span>{i18n?.status || "Status"}</span>
+                    <select class="na-select" bind:value={status} disabled={busy}
+                        >{#each STATUS_LIST as item}<option value={item}
+                                >{i18n?.[toI18nKey("status", item)] || item}</option
+                            >{/each}</select
+                    >
+                </label>
+                <label class="na-create-task__field">
+                    <span>{i18n?.priority || "Priority"}</span>
+                    <select class="na-select" bind:value={priority} disabled={busy}
+                        >{#each PRIORITY_LIST as item}<option value={item}
+                                >{i18n?.[toI18nKey("priority", item)] || item}</option
+                            >{/each}</select
+                    >
+                </label>
+                {#if kind === "task" && initialActionKind === "stage"}
+                    <label class="na-create-task__field">
+                        <span>{i18n?.actionKind || "Action kind"}</span>
+                        <select
+                            class="na-select"
+                            bind:value={actionKind}
+                            disabled={busy}
+                            aria-label={i18n?.actionKind || "Action kind"}
+                        >
+                            <option value="action">{i18n?.actionKindAction || "Action"}</option>
+                            <option value="stage">{i18n?.actionKindStage || "Stage"}</option>
+                        </select>
+                    </label>
+                {/if}
+                <div class="na-create-task__field">
+                    <span>{i18n?.startDate || "Start"}</span>
+                    <NaDatePicker bind:value={start} {i18n} disabled={busy} fixedDropdown />
+                </div>
+                <div class="na-create-task__field">
+                    <span>{i18n?.dueDate || "Due"}</span>
+                    <NaDatePicker bind:value={due} {i18n} disabled={busy} fixedDropdown />
+                </div>
+            </div>
+
+            <NaAccordion
+                title={i18n?.createMoreProperties || "More properties"}
+                icon="iconList"
+                variant="plain"
+                bind:open={morePropertiesOpen}
+                count={morePropertiesCount || undefined}
+            >
+                <div class="na-create-task__more-grid">
+                    <label class="na-create-task__field">
+                        <span>{i18n?.context || "Context"}</span>
+                        <input
+                            class="na-input"
+                            bind:value={contextsText}
+                            disabled={busy}
+                            placeholder={i18n?.createValuesPlaceholder || "Comma separated"}
+                        />
+                    </label>
+                    <label class="na-create-task__field">
+                        <span>{i18n?.tag || "Tag"}</span>
+                        <input
+                            class="na-input"
+                            bind:value={tagsText}
+                            disabled={busy}
+                            placeholder={i18n?.createValuesPlaceholder || "Comma separated"}
+                        />
+                    </label>
+                    <label class="na-create-task__field na-create-task__field--full">
+                        <span>{i18n?.note || "Note"}</span>
+                        <textarea
+                            class="na-create-task__note"
+                            bind:value={note}
+                            maxlength="4000"
+                            rows="3"
+                            disabled={busy}
+                        ></textarea>
+                    </label>
+                </div>
+            </NaAccordion>
+        </section>
+
+        <section class="na-create-task__section na-create-task__section--destination">
+            <header class="na-create-task__section-header">
+                <span class="na-create-task__section-icon"><NaIcon symbol="iconInbox" size={14} /></span>
+                <h3>{i18n?.createSaveOptions || "Save"}</h3>
+            </header>
+            <div class="na-create-task__save-grid">
+                {#if kind !== "project"}
+                    <div class="na-create-task__field na-create-task__field--full">
+                        <span>{i18n?.createFormat || "Format"}</span>
+                        <NaSegmentControl
+                            options={formatOptions}
+                            value={format}
+                            size="sm"
+                            stretch
+                            label={i18n?.createFormat || "Format"}
+                            disabled={busy}
+                            onChange={changeFormat}
+                        />
+                    </div>
+                {/if}
                 <label class="na-create-task__field na-create-task__field--full">
-                    <span>{i18n?.createNotebook || "Notebook"}</span>
-                    <select class="na-select" bind:value={dailyNotebookId} disabled={busy}>
-                        <option value="">{i18n?.createSelectNotebook || "Select notebook"}</option>
-                        {#each notebooks as notebook}<option value={notebook.id}>{notebook.name}</option>{/each}
+                    <span
+                        >{format === "document"
+                            ? i18n?.createDocLocation || "Document location"
+                            : i18n?.createLocation || "Location"}</span
+                    >
+                    <select class="na-select" bind:value={targetMode} disabled={busy}>
+                        {#each format === "document" ? docLocationOptions : locationOptions as option}<option
+                                value={option.value}>{option.label}</option
+                            >{/each}
                     </select>
                 </label>
-            {:else if targetMode === "document"}
-                <div class="na-create-task__field na-create-task__field--full">
-                    <span>{i18n?.createSpecificDocument || "Specific document"}</span>
-                    <NaDocumentPicker {bridge} {i18n} bind:value={selectedDocument} disabled={busy} fixedDropdown />
-                </div>
-            {:else if targetMode === "block" && parentTask}
-                <div class="na-create-task__parent na-create-task__field--full">
-                    <NaIcon symbol="iconFile" size={14} />
-                    <span>{parentTask.title}</span>
-                </div>
-            {/if}
-        </div>
-    </section>
-
+                {#if targetMode === "daily_note" || targetMode === "siyuan_default"}
+                    <label class="na-create-task__field na-create-task__field--full">
+                        <span>{i18n?.createNotebook || "Notebook"}</span>
+                        <select class="na-select" bind:value={dailyNotebookId} disabled={busy}>
+                            <option value="">{i18n?.createSelectNotebook || "Select notebook"}</option>
+                            {#each notebooks as notebook}<option value={notebook.id}>{notebook.name}</option>{/each}
+                        </select>
+                    </label>
+                {:else if targetMode === "document"}
+                    <div class="na-create-task__field na-create-task__field--full">
+                        <span>{i18n?.createSpecificDocument || "Specific document"}</span>
+                        <NaDocumentPicker {bridge} {i18n} bind:value={selectedDocument} disabled={busy} fixedDropdown />
+                    </div>
+                {:else if targetMode === "block" && parentTask}
+                    <div class="na-create-task__parent na-create-task__field--full">
+                        <NaIcon symbol="iconFile" size={14} />
+                        <span>{parentTask.title}</span>
+                    </div>
+                {/if}
+            </div>
+        </section>
+    </fieldset>
     {#if error}<div class="na-create-task__error"><NaInlineNotice message={error} tone="error" /></div>{/if}
 
     <footer class="na-create-task__actions">
-        <NaButton disabled={busy} onclick={() => dialog?.destroy?.()}>{i18n?.cancel || "Cancel"}</NaButton>
+        <NaButton disabled={busy} onclick={requestClose}>{i18n?.cancel || "Cancel"}</NaButton>
         <NaButton type="submit" variant="primary" icon="iconAdd" loading={busy}
-            >{kind === "task" && actionKind === "stage"
-                ? i18n?.createStage || "Create Stage"
-                : i18n?.createTask || "Create task"}</NaButton
+            >{awaitingRead
+                ? i18n.retry
+                : kind === "task" && actionKind === "stage"
+                  ? i18n?.createStage || "Create Stage"
+                  : i18n?.createTask || "Create task"}</NaButton
         >
     </footer>
 </form>
 
 <style lang="scss">
+    fieldset {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
     .na-create-task {
         display: grid;
         max-height: min(78vh, 720px);

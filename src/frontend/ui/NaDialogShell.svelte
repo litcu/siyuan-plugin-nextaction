@@ -8,7 +8,7 @@
     export let closeLabel: string;
     export let status = "";
     export let statusTone: "default" | "warning" | "error" = "default";
-    export let variant: "drawer" | "dialog" = "drawer";
+    export let variant: "drawer" | "dialog" | "page" = "drawer";
     export let showFooter = true;
     export let element: HTMLDivElement | undefined = undefined;
     export let onClose: () => void = () => {};
@@ -43,6 +43,7 @@
     class:na-dialog-shell--with-footer={showFooter}
 >
     <NaDialogHeader
+        page={variant === "page"}
         {title}
         {subtitle}
         {closeLabel}

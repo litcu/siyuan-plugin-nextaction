@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { useWorkspace } from "../../workspace-context";
+    import NaIconButton from "../../ui/NaIconButton.svelte";
+    const workspace = useWorkspace();
     import { normalizePriority, PRIORITY_COLORS } from "../../constants";
     import { MY_DAY_DRAG_TYPE } from "../../../shared/constants";
     import type { MyDayTaskEntry, TaskCacheEntry, MyDayState } from "../../../shared/types";
@@ -55,6 +58,10 @@
     }
 
     function handleClick(e: MouseEvent, task: TaskCacheEntry, entry: MyDayTaskEntry) {
+        if (workspace?.touch) {
+            workspace.openTask?.(task);
+            return;
+        }
         showTaskQuickMenu(
             task,
             e.clientX,
@@ -151,7 +158,7 @@
                         class="na-unscheduled-card {priorityClass}"
                         class:na-unscheduled-card--done={isMyDayEntryDone(entry, task.status)}
                         style="--na-unscheduled-card-accent: {priorityColor};"
-                        draggable="true"
+                        draggable={!workspace?.touch}
                         role="button"
                         tabindex="0"
                         ondragstart={(e) => handleDragStart(e, entry.blockId)}
@@ -161,6 +168,14 @@
                     >
                         <span class="na-unscheduled-card__accent"></span>
                         <div class="na-unscheduled-card__name">{task.title}</div>
+                        {#if workspace?.compact}<NaIconButton
+                                symbol="iconCalendar"
+                                label={i18n.scheduleTask}
+                                onclick={(event) => {
+                                    event.stopPropagation();
+                                    workspace.openSchedule?.(task);
+                                }}
+                            />{/if}
                         <div class="na-unscheduled-card__meta">
                             {#if task.context}
                                 <span class="na-unscheduled-card__context">@{task.context.split("|")[0].trim()}</span>

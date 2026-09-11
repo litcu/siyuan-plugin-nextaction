@@ -847,5 +847,17 @@
     "projectBoardMovePartial": "任务属性已更新，但顺序未能确认",
     "projectBoardMove": "在看板中移动",
     "projectBoardMoveTop": "移到顶部",
-    "projectBoardMoveBottom": "移到底部"
+    "projectBoardMoveBottom": "移到底部",
+    "allViews": "全部视图",
+    "filterAndSort": "筛选与排序",
+    "showAll": "显示全部",
+    "scheduleTask": "安排时间",
+    "scheduleDuration": "时长（分钟）",
+    "scheduleStart": "开始时间",
+    "scheduleRangeError": "时长须为 15–720 分钟，且排期不能超出当前日界线。",
+    "dayScheduleList": "已排期任务",
+    "projectDetails": "预期结果与完成判定",
+    "ganttToggleNames": "显示任务名称",
+    "taskActions": "任务操作",
+    "createSavedReadFailed": "任务已创建，详情读取失败。请重试读取。"
 }

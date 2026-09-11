@@ -26,7 +26,7 @@ test("项目控制中心提供总览、层级、看板、计划和甘特五种�
     assert.match(state, /buildProjectTreeModel/);
     assert.match(view, /GanttView/);
     assert.match(view, /selectedTaskOverride/);
-    assert.match(source("../src/frontend/components/NextActionApp.svelte"), /selectedTaskOverride=\{selectedTask\}/);
+    assert.match(source("../src/frontend/components/Workspace.svelte"), /selectedTaskOverride=\{selectedTask\}/);
     assert.match(hierarchy, /model\.rows/);
     assert.match(hierarchy, /role="tree"/);
     assert.match(hierarchy, /--na-project-tree-depth/);
@@ -93,18 +93,18 @@ test("看板通过父组件回调进入统一任务写入链路", () => {
     const view = source("../src/frontend/components/ProjectView.svelte");
     const board = source("../src/frontend/components/project/ProjectBoardMode.svelte");
     const plan = source("../src/frontend/components/project/ProjectPlanMode.svelte");
-    const app = source("../src/frontend/components/NextActionApp.svelte");
+    const app = source("../src/frontend/components/Workspace.svelte");
     assert.match(view, /onTaskUpdate/);
     assert.match(view, /onTaskReorder/);
-    assert.match(board, /draggable=\{!busy\}/);
+    assert.match(board, /draggable=\{!busy && !touch\}/);
     assert.match(board, /onMoveTask\(\{/);
     assert.match(board, /groupBy,/);
     assert.match(board, /afterParentId/);
     assert.match(board, /function handleGroupByChange\(event: Event\)[\s\S]*currentTarget/);
     assert.match(board, /function handleSortChange\(event: Event\)[\s\S]*currentTarget/);
     // Regression: Svelte 5 could run bind:value after the change callback, causing RPC payloads to contain old values.
-    assert.doesNotMatch(board, /id="na-project-board-group-by"[\s\S]*bind:value/);
-    assert.doesNotMatch(board, /id="na-project-board-sort"[\s\S]*bind:value/);
+    assert.doesNotMatch(board, /id="na-project-board-group-by"[^>]*bind:value/);
+    assert.doesNotMatch(board, /id="na-project-board-sort"[^>]*bind:value/);
     assert.match(view, /selectedSummary\?\.project\.blockId \|\| resolvedActiveProjectId/);
     assert.match(app, /handleProjectTaskUpdate/);
     assert.match(app, /handleProjectTaskReorder/);
