@@ -17,7 +17,11 @@ for (const [width, height, mobile, dark] of [
         // Regression: 移动 Dock 只能通过桌面式完整面板访问项目，缺少触摸导航与整页编辑。
         const result = await runSvelteBrowserTest<Record<string, unknown>>({
             fixtureName: "compact-workspace",
-            browserArgs: [`--window-size=${width},${height}`, `--screenshot=/tmp/nextaction-${width}.png`],
+            browserArgs: [
+                `--window-size=500,${Math.ceil((height * 500) / width)}`,
+                `--force-device-scale-factor=${(500 / width).toFixed(6)}`,
+                `--screenshot=/tmp/nextaction-${width}.png`,
+            ],
             virtualTimeBudget: 8000,
             files: {
                 "siyuan.js": `export class Dialog { constructor() { throw new Error('mobile must not open a task dialog'); } }
