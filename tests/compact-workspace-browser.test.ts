@@ -77,7 +77,7 @@ const pause=async(ms=80)=>{await tick();await new Promise(r=>setTimeout(r,ms));}
 const click=(label,root=document)=>{const button=[...root.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||b.textContent.trim())===label);if(!button)throw Error('Missing '+label);button.click();};
 (async()=>{
  await pause();
- const out={width:window.innerWidth,hasDesktopRail:!!document.querySelector('.na-nav-rail')};
+ const out={hasDesktopRail:!!document.querySelector('.na-nav-rail')};
   const nav=()=>document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-compact-nav"}');
  const catalog=()=>click('全部视图',document.querySelector('${mobile ? ".na-compact-nav--bottom" : ".na-workspace__header"}'));
  catalog(); await pause();
