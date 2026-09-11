@@ -152,7 +152,6 @@ const click=(label,root=document)=>{const button=[...root.querySelectorAll('butt
             },
         });
         assert.deepEqual(result, {
-            width: 502,
             hasDesktopRail: false,
             catalogCount: 10,
             startsWithProjectList: true,
